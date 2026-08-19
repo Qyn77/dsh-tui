@@ -325,7 +325,9 @@ Code and docs ship in lockstep. A change to `src/` without a matching doc update
 | New convention or rule | `docs/SPEC.md` Part 3 — Conventions |
 | New contributor-facing note | This file (`AGENT.md`) |
 
-The same rule ships with `AGENT.md` rule 8, in summary form, for agents that only read `AGENT.md`. Both are binding.
+The same rule ships with `AGENTS.md` rule 8, in summary form, for agents that only read `AGENTS.md`. Both are binding.
+
+**Why `AGENTS.md` (not `AGENT.md` or `CLAUDE.md`).** Aider, Cursor, Continue, and several other tools look for the filename `AGENTS.md` (uppercase, plural) when an agent joins a repo. Using that exact name — instead of a tool-specific name like `CLAUDE.md` — means the same file is picked up by any agent, not just the one that created it. The `S` matters: tools match the filename literally.
 
 ---
 
