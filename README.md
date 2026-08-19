@@ -28,6 +28,12 @@ A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepse
 
 ## Use it
 
+> macOS, Linux, and Windows. Node ≥ 22.19, pnpm ≥ 9, a real terminal
+> (Windows Terminal + PowerShell 7, iTerm/Terminal.app, or any TTY that
+> handles ANSI; not legacy conhost cmd.exe), and a DeepSeek API key.
+
+**macOS / Linux (bash, zsh, Git Bash, WSL):**
+
 ```sh
 # 1. Install dsh (one time)
 npm install -g @deepseek-ai/dsh
@@ -35,13 +41,64 @@ npm install -g @deepseek-ai/dsh
 # 2. Create a profile
 mkdir -p ~/.dsh/profiles/tui && cd ~/.dsh/profiles/tui
 pnpm init
-pnpm add @deepseek-ai/dsh-base @deepseek-ai/dsh-tui
+# @next pins dsh-base to the same 0.1.0-rc.x line as this package;
+# the `latest` dist-tag currently points at the abandoned 0.0.1-rc.1,
+# which has a transitive dependency that was never published.
+pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui
 echo '[]' > cordis.yml
 
-# 3. Launch
+# 3. Register the bundles. pnpm add only puts them in node_modules;
+#    the dsh launcher reads `dsh.profile.bundles` in package.json to
+#    know what to mount. `dsh plugin install` reconciles that list
+#    from the installed state.
+dsh plugin --profile tui install
+
+# 4. Approve native build scripts once. The sandbox and shell plumbing
+#    depend on these binaries.
+pnpm approve-builds    # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
+
+# 5. Launch
 export DEEPSEEK_API_KEY=sk-...
 dsh --profile tui
 ```
+
+**Windows (PowerShell 7 + Windows Terminal):**
+
+```powershell
+# 1. Install dsh (one time)
+npm install -g @deepseek-ai/dsh
+
+# 2. Create a profile
+$profilePath = Join-Path $env:USERPROFILE ".dsh\profiles\tui"
+New-Item -ItemType Directory -Force -Path $profilePath | Out-Null
+Push-Location $profilePath
+pnpm init
+# Same @next note as in the macOS / Linux block above.
+pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui
+Set-Content -Path cordis.yml -Value "[]"
+
+# 3. Register the bundles (same `dsh.profile.bundles` contract)
+dsh plugin --profile tui install
+
+# 4. Approve native build scripts once. node-pty and koffi ship
+#    prebuilt Windows binaries via prebuild-install, so MSVC is not
+#    required unless a build falls back to source compilation.
+pnpm approve-builds    # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
+
+# 5. Launch
+$env:DEEPSEEK_API_KEY = "sk-..."
+dsh --profile tui
+Pop-Location
+```
+
+> **Windows long paths.** The DeepSeek Harness dep tree is deep; if you
+> hit `ENAMETOOLONG` on a fresh checkout, either install the profile
+> closer to the drive root (e.g. `C:\tui`) or enable Win32 long paths
+> in the registry (reboot required):
+>
+> ```powershell
+> Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1
+> ```
 
 In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the current turn; **`/exit`** leaves.
 
@@ -55,9 +112,9 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `Ctrl-C` (idle) | Same as `/exit` |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
 
-Requires Node ≥ 22.19, pnpm ≥ 9, a real terminal (Ink needs a TTY), and a DeepSeek API key.
-
 ## Develop it
+
+**macOS / Linux (bash, zsh, Git Bash, WSL):**
 
 ```sh
 # 1. Get the source
@@ -68,21 +125,68 @@ cd dsh-tui
 pnpm install
 pnpm approve-builds esbuild    # one-time, lets tsdown's bundler run
 
-# 3. Sanity-check
+# 3. Sanity-check + first build
 pnpm run typecheck
 pnpm test                      # 20 unit tests, ~500ms
 pnpm run build                 # tsc → .d.ts,  tsdown → lib/index.js
 
-# 4. Try it locally without publishing
-#    Create a link-mode profile that points at this checkout:
+# 4. Create a link-mode profile that points at this checkout
 mkdir -p ~/.dsh/profiles/tui-dev && cd ~/.dsh/profiles/tui-dev
 pnpm init
-pnpm add @deepseek-ai/dsh-base @deepseek-ai/dsh-tui@link:/absolute/path/to/dsh-tui
+# Same @next note as in `Use it` above.
+pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui@link:/absolute/path/to/dsh-tui
 echo '[]' > cordis.yml
 
+# 5. Register the bundles + approve native builds
+dsh plugin --profile tui-dev install
+pnpm approve-builds            # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
+
+# 6. Launch
 export DEEPSEEK_API_KEY=sk-...
 dsh --profile tui-dev
 ```
+
+**Windows (PowerShell 7 + Windows Terminal):**
+
+```powershell
+# 1. Get the source
+git clone https://github.com/<your-fork>/dsh-tui.git
+cd dsh-tui
+
+# 2. Install deps
+pnpm install
+pnpm approve-builds esbuild
+
+# 3. Sanity-check + first build
+pnpm run typecheck
+pnpm test
+pnpm run build
+
+# 4. Create a link-mode profile. Use forward slashes in the @link: spec.
+$devProfile = Join-Path $env:USERPROFILE ".dsh\profiles\tui-dev"
+New-Item -ItemType Directory -Force -Path $devProfile | Out-Null
+Push-Location $devProfile
+pnpm init
+pnpm add @deepseek-ai/dsh-base@next "@deepseek-ai/dsh-tui@link:$PWD/../dsh-tui"
+# $PWD assumes you cloned the repo as a sibling of `.dsh`. Otherwise
+# pass the absolute path:  "@deepseek-ai/dsh-tui@link:C:/Users/you/Desktop/dsh-tui"
+Set-Content -Path cordis.yml -Value "[]"
+
+# 5. Register the bundles + approve native builds
+dsh plugin --profile tui-dev install
+pnpm approve-builds            # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
+
+# 6. Launch
+$env:DEEPSEEK_API_KEY = "sk-..."
+dsh --profile tui-dev
+Pop-Location
+```
+
+> The build in step 3 is **required before the first launch** on every
+> platform: the linked `dsh-tui` package exports `lib/index.js`, not
+> `src/index.ts`, and the launcher reads it verbatim. `pnpm run build`
+> writes it; without that file the loader falls back to whatever stale
+> build sits in `lib/`.
 
 ### The edit / rebuild / restart loop
 

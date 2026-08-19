@@ -28,6 +28,12 @@
 
 ## 用起来
 
+> macOS / Linux / Windows。需要 Node ≥ 22.19、pnpm ≥ 9、一个真 TTY
+> （Windows Terminal + PowerShell 7、iTerm/Terminal.app、或任何支持
+> ANSI 的 TTY；老 conhost 跑 cmd.exe 不行）、一个 DeepSeek API key。
+
+**macOS / Linux（bash、zsh、Git Bash、WSL）：**
+
 ```sh
 # 1. 装 dsh CLI（一次）
 npm install -g @deepseek-ai/dsh
@@ -35,13 +41,60 @@ npm install -g @deepseek-ai/dsh
 # 2. 建 profile
 mkdir -p ~/.dsh/profiles/tui && cd ~/.dsh/profiles/tui
 pnpm init
-pnpm add @deepseek-ai/dsh-base @deepseek-ai/dsh-tui
+# @next 把 dsh-base 钉到跟本包同一代的 0.1.0-rc.x；latest 标签目前指向
+# 已弃用的 0.0.1-rc.1，它有个传递依赖从来没发到 npm。
+pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui
 echo '[]' > cordis.yml
 
-# 3. 启动
+# 3. 注册 bundle。pnpm add 只是把它们装到 node_modules；dsh launcher
+#    实际读的是 package.json 里的 `dsh.profile.bundles`。`dsh plugin install`
+#    会按已装的依赖把这个字段补齐。
+dsh plugin --profile tui install
+
+# 4. 一次性批准原生模块的 build 脚本
+#    sandbox 和 shell 这些能力都依赖这些二进制。
+pnpm approve-builds    # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
+
+# 5. 启动
 export DEEPSEEK_API_KEY=sk-...
 dsh --profile tui
 ```
+
+**Windows（PowerShell 7 + Windows Terminal）：**
+
+```powershell
+# 1. 装 dsh CLI（一次）
+npm install -g @deepseek-ai/dsh
+
+# 2. 建 profile
+$profilePath = Join-Path $env:USERPROFILE ".dsh\profiles\tui"
+New-Item -ItemType Directory -Force -Path $profilePath | Out-Null
+Push-Location $profilePath
+pnpm init
+# @next 的原因同上面 macOS / Linux 段。
+pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui
+Set-Content -Path cordis.yml -Value "[]"
+
+# 3. 注册 bundle（跟 macOS/Linux 同一份 `dsh.profile.bundles` 合约）
+dsh plugin --profile tui install
+
+# 4. 一次性批准原生 build 脚本。node-pty 和 koffi 走 prebuild-install
+#    拉 Windows 预编译产物；不装 MSVC 也能用，只有 fallback 到源码编译才需要。
+pnpm approve-builds    # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
+
+# 5. 启动
+$env:DEEPSEEK_API_KEY = "sk-..."
+dsh --profile tui
+Pop-Location
+```
+
+> **Windows 长路径。** DeepSeek Harness 的依赖树很深；如果遇到
+> `ENAMETOOLONG`，要么把 profile 装到离盘符根近一点的目录（比如
+> `C:\tui`），要么打开 Win32 长路径支持（改完要重启）：
+>
+> ```powershell
+> Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1
+> ```
 
 REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`/exit`** 退出。
 
@@ -59,6 +112,8 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 
 ## 改起来
 
+**macOS / Linux（bash、zsh、Git Bash、WSL）：**
+
 ```sh
 # 1. 拉源码
 git clone https://github.com/<your-fork>/dsh-tui.git
@@ -68,21 +123,67 @@ cd dsh-tui
 pnpm install
 pnpm approve-builds esbuild    # 一次性，允许 tsdown 的 bundler 跑 postinstall
 
-# 3. 自检
+# 3. 自检 + 首次 build
 pnpm run typecheck
 pnpm test                      # 20 个单元测试，约 500ms
 pnpm run build                 # tsc 产 .d.ts，tsdown 产 lib/index.js
 
-# 4. 本地跑（不发版，用 link）
-#    建一个指向本 checkout 的 link profile：
+# 4. 建一个指向本 checkout 的 link profile
 mkdir -p ~/.dsh/profiles/tui-dev && cd ~/.dsh/profiles/tui-dev
 pnpm init
-pnpm add @deepseek-ai/dsh-base @deepseek-ai/dsh-tui@link:/absolute/path/to/dsh-tui
+# @next 的原因同「用起来」那段。
+pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui@link:/absolute/path/to/dsh-tui
 echo '[]' > cordis.yml
 
+# 5. 注册 bundle + 批准原生 build
+dsh plugin --profile tui-dev install
+pnpm approve-builds            # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
+
+# 6. 启动
 export DEEPSEEK_API_KEY=sk-...
 dsh --profile tui-dev
 ```
+
+**Windows（PowerShell 7 + Windows Terminal）：**
+
+```powershell
+# 1. 拉源码
+git clone https://github.com/<your-fork>/dsh-tui.git
+cd dsh-tui
+
+# 2. 装依赖
+pnpm install
+pnpm approve-builds esbuild
+
+# 3. 自检 + 首次 build
+pnpm run typecheck
+pnpm test
+pnpm run build
+
+# 4. 建一个 link profile。@link: 路径用正斜杠。
+$devProfile = Join-Path $env:USERPROFILE ".dsh\profiles\tui-dev"
+New-Item -ItemType Directory -Force -Path $devProfile | Out-Null
+Push-Location $devProfile
+pnpm init
+pnpm add @deepseek-ai/dsh-base@next "@deepseek-ai/dsh-tui@link:$PWD/../dsh-tui"
+# $PWD 假设你把仓库 clone 在 .dsh 同级目录。如果不是，把绝对路径写出来：
+# "@deepseek-ai/dsh-tui@link:C:/Users/you/Desktop/dsh-tui"
+Set-Content -Path cordis.yml -Value "[]"
+
+# 5. 注册 bundle + 批准原生 build
+dsh plugin --profile tui-dev install
+pnpm approve-builds            # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
+
+# 6. 启动
+$env:DEEPSEEK_API_KEY = "sk-..."
+dsh --profile tui-dev
+Pop-Location
+```
+
+> 第 3 步的 build 在**首次启动前必须做**（各平台都一致）。link 进来的
+> `dsh-tui` 包导出的是 `lib/index.js`，不是 `src/index.ts`，launcher
+> 原样读它。`pnpm run build` 生成它 —— 没这步的话 loader 会落到
+> `lib/` 里残留的旧文件。
 
 ### 编辑 / 重建 / 重启 的循环
 
