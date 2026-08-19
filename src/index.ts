@@ -77,18 +77,17 @@ async function run(ctx: Context): Promise<void> {
     },
   })
 
-  // Register a one-shot SIGINT handler that cancels the active turn instead of
-  // killing the process. The user types /exit to actually leave the REPL.
-  const onSigint = (): void => {
-    if ((agent as Agent).status === 'running') {
-      agent.cancel({ kind: 'user' })
-    }
-  }
-  process.on('SIGINT', onSigint)
+  // Ctrl-C is handled inside the App via Ink's useInput — Ink's raw mode
+  // does not deliver SIGINT on Ctrl-C, so a process-level signal handler
+  // is dead code. The exit function still lives here so AGENTS.md rule 7
+  // ("no process.exit outside commands.ts and index.ts") is preserved:
+  // the App calls it through a prop and never touches process.exit
+  // itself. The dispatch logic is in `interrupt.ts`.
+  const exitHook = ctx.get('appExit') ?? ((code: number) => process.exit(code))
 
   try {
     const { waitUntilExit, unmount, cleanup } = inkRender(
-      React.createElement(App, { ctx, agent: agent as Agent }),
+      React.createElement(App, { ctx, agent: agent as Agent, exit: exitHook }),
       {
         exitOnCtrlC: false,
         patchConsole: false,
@@ -98,7 +97,7 @@ async function run(ctx: Context): Promise<void> {
     await waitUntilExit()
     unmount()
   } finally {
-    process.off('SIGINT', onSigint)
+    // no signal handler to detach
   }
 }
 

@@ -25,6 +25,11 @@ export const Prompt: FC<PromptProps> = ({ active, onSubmit }) => {
 
   useInput(
     (input, key) => {
+      // Ctrl-modified keystrokes are reserved for the App-level
+      // handlers (Ctrl-C exits the REPL; future Ctrl-K / Ctrl-L / etc.
+      // will too). If we let them fall through, Ctrl-C would append
+      // 'c' to the buffer.
+      if (key.ctrl) return
       if (key.return) {
         if (value.endsWith('\\')) {
           setValue(`${value.slice(0, -1)}\n`)
