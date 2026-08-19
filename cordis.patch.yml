@@ -1,0 +1,37 @@
+# The dsh-tui bundle patch: a Claude Code-style interactive terminal UI
+# mounted on top of dsh-base. It supplies the coding persona, disables HMR
+# (terminal UIs have no use for module reloading), mounts Code Mode's worker
+# as a core execution capability, and inserts this package's `tui-runner`
+# plugin — the Ink/React application that subscribes to `session/event`,
+# renders the conversation, and dispatches `/` slash commands.
+#
+# This bundle mounts no Host, HTTP server, Web runtime, or browser plugin.
+# The terminal owns stdout and stdin until the user issues `/exit`, at which
+# point the runner requests a process exit through the launcher's bounded
+# `ctx.appExit` host hook.
+
+- id: system-prompt
+  config:
+    persona: >-
+      You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
+
+# Module-reload HMR has no place in a TUI; the launcher's watch-only fallback
+# still keeps the user patch layers live until the run exits.
+- id: hmr
+  disabled: true
+
+- id: tools
+  config:
+    # Keep the same temporary process-wide Code Mode opt-in as the Web surface.
+    mode: !!js process.env.DSH_TOOLS_MODE
+
+- insert:
+    # Code Mode is a core execution capability, not a UI component.
+    - id: code-runtime
+      name: '@deepseek-ai/dsh-code-runtime-worker-thread'
+
+    # The interactive terminal driver. Reads its default model from
+    # `agentDefaultModel` and creates one long-lived Agent for the session.
+    - id: tui-runner
+      name: '@deepseek-ai/dsh-tui'
+      inject: [agentDefaultModel, agents, sessions]

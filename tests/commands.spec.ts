@@ -1,0 +1,116 @@
+/**
+ * Slash command dispatch. The commands run synchronously against a real Cordis
+ * context (minimal: only the services each command consults) and a real
+ * Agent-shaped stand-in, then assert the `CommandResult` and the recorded
+ * process effects.
+ */
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import { dispatch, type CommandContext } from '../src/commands.ts'
+
+interface Stand {
+  ctx: Context
+  exits: number[]
+}
+
+function makeStand(): Stand {
+  const ctx = new Context()
+  const exits: number[] = []
+  ctx.provide('appExit', (code: number) => { exits.push(code) })
+  ctx.provide('agentDefaultModel', {
+    currentSelection: () => ({ provider: 'test-provider', model: 'test-model' }),
+  } as never)
+  return { ctx, exits }
+}
+
+function makeCommand(overrides?: Partial<CommandContext>): { cmd: CommandContext; reset: ReturnType<typeof vi.fn> } {
+  const stand = makeStand()
+  const reset = vi.fn()
+  const cmd: CommandContext = {
+    ctx: stand.ctx,
+    agent: { id: 'tui-1' as never, session: undefined as never } as never,
+    resetView: reset,
+    ...overrides,
+  }
+  return { cmd, reset }
+}
+
+/**
+ * Build a CommandContext whose `ctx` has no `appExit` service registered.
+ * Cordis `Context` has no public unregister for provided services, so we
+ * construct a separate `Context` and only install the services the dispatch
+ * path consults before falling back to `process.exit`.
+ */
+function makeStandWithoutExit(): Context {
+  const ctx = new Context()
+  ctx.provide('agentDefaultModel', {
+    currentSelection: () => ({ provider: 'test-provider', model: 'test-model' }),
+  } as never)
+  return ctx
+}
+
+describe('slash command dispatch', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+
+  it('returns handled with the help text for /help', () => {
+    const { cmd } = makeCommand()
+    const result = dispatch('/help', cmd)
+    expect(result.kind).toBe('handled')
+    if (result.kind === 'handled') {
+      expect(result.message).toMatch(/Available commands/)
+      expect(result.message).toMatch(/\/exit/)
+    }
+  })
+
+  it('clears the visible view for /clear', () => {
+    const { cmd, reset } = makeCommand()
+    const result = dispatch('/clear', cmd)
+    expect(result.kind).toBe('handled')
+    expect(reset).toHaveBeenCalledOnce()
+  })
+
+  it('reports the current model and session for /status', () => {
+    const { cmd } = makeCommand()
+    const result = dispatch('/status', cmd)
+    expect(result.kind).toBe('handled')
+    if (result.kind === 'handled') {
+      expect(result.message).toContain('test-provider/test-model')
+      expect(result.message).toContain('tui-1')
+    }
+  })
+
+  it('asks the launcher to exit for /exit and /quit (case + trailing whitespace)', () => {
+    const { cmd, reset: resetA } = makeCommand()
+    expect(dispatch('/exit', cmd).kind).toBe('exit')
+
+    const { cmd: cmdB } = makeCommand()
+    expect(dispatch('/quit', cmdB).kind).toBe('exit')
+    expect(dispatch('/QUIT  ', cmdB).kind).toBe('exit')
+
+    // The first command was /exit (no clear), so its resetter was untouched.
+    expect(resetA).not.toHaveBeenCalled()
+  })
+
+  it('returns unknown for unrecognised commands', () => {
+    const { cmd } = makeCommand()
+    const result = dispatch('/fly', cmd)
+    expect(result).toEqual({ kind: 'unknown', input: '/fly' })
+  })
+
+  it('falls back to process.exit when no appExit is provided', () => {
+    const ctx = makeStandWithoutExit()
+    const reset = vi.fn()
+    const cmd: CommandContext = {
+      ctx,
+      agent: { id: 'tui-1' as never, session: undefined as never } as never,
+      resetView: reset,
+    }
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
+    const result = dispatch('/exit', cmd)
+    expect(result.kind).toBe('exit')
+    expect(exitSpy).toHaveBeenCalledWith(0)
+    // resetView was never called — the command was an exit, not a clear.
+    expect(reset).not.toHaveBeenCalled()
+  })
+})
