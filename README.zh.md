@@ -55,8 +55,14 @@ dsh plugin --profile tui install
 #    sandbox 和 shell 这些能力都依赖这些二进制。
 pnpm approve-builds    # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
 
-# 5. 启动
-export DEEPSEEK_API_KEY=sk-...
+# 5. 一次性设置 API key。dsh 每次启动会读 `~/.dsh/.env`，之后就不用再
+#    `export` 了。要换 key 直接编辑这个文件。
+cat > ~/.dsh/.env <<'EOF'
+DEEPSEEK_API_KEY=sk-...
+EOF
+chmod 600 ~/.dsh/.env
+
+# 6. 启动
 dsh --profile tui
 ```
 
@@ -82,8 +88,12 @@ dsh plugin --profile tui install
 #    拉 Windows 预编译产物；不装 MSVC 也能用，只有 fallback 到源码编译才需要。
 pnpm approve-builds    # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
 
-# 5. 启动
-$env:DEEPSEEK_API_KEY = "sk-..."
+# 5. 一次性设置 API key。dsh 每次启动会读
+#    `$env:USERPROFILE\.dsh\.env`，之后就不用再设
+#    `$env:DEEPSEEK_API_KEY` 了。要换 key 直接编辑这个文件。
+Set-Content -Path "$env:USERPROFILE\.dsh\.env" -Value "DEEPSEEK_API_KEY=sk-..."
+
+# 6. 启动
 dsh --profile tui
 Pop-Location
 ```
@@ -139,8 +149,13 @@ echo '[]' > cordis.yml
 dsh plugin --profile tui-dev install
 pnpm approve-builds            # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
 
-# 6. 启动
-export DEEPSEEK_API_KEY=sk-...
+# 6. 一次性设置 API key（如果「用起来」段已经做过，跳过）。
+cat > ~/.dsh/.env <<'EOF'
+DEEPSEEK_API_KEY=sk-...
+EOF
+chmod 600 ~/.dsh/.env
+
+# 7. 启动
 dsh --profile tui-dev
 ```
 
@@ -174,8 +189,10 @@ Set-Content -Path cordis.yml -Value "[]"
 dsh plugin --profile tui-dev install
 pnpm approve-builds            # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
 
-# 6. 启动
-$env:DEEPSEEK_API_KEY = "sk-..."
+# 6. 一次性设置 API key（如果「用起来」段已经做过，跳过）。
+Set-Content -Path "$env:USERPROFILE\.dsh\.env" -Value "DEEPSEEK_API_KEY=sk-..."
+
+# 7. 启动
 dsh --profile tui-dev
 Pop-Location
 ```

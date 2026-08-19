@@ -57,8 +57,15 @@ dsh plugin --profile tui install
 #    depend on these binaries.
 pnpm approve-builds    # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
 
-# 5. Launch
-export DEEPSEEK_API_KEY=sk-...
+# 5. Set the API key once. dsh loads `~/.dsh/.env` on every launch, so
+#    you never have to `export` it again. To rotate the key, edit the
+#    file in place.
+cat > ~/.dsh/.env <<'EOF'
+DEEPSEEK_API_KEY=sk-...
+EOF
+chmod 600 ~/.dsh/.env
+
+# 6. Launch
 dsh --profile tui
 ```
 
@@ -85,8 +92,12 @@ dsh plugin --profile tui install
 #    required unless a build falls back to source compilation.
 pnpm approve-builds    # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
 
-# 5. Launch
-$env:DEEPSEEK_API_KEY = "sk-..."
+# 5. Set the API key once. dsh loads `$env:USERPROFILE\.dsh\.env` on
+#    every launch, so you never have to set `$env:DEEPSEEK_API_KEY`
+#    again. To rotate the key, edit the file in place.
+Set-Content -Path "$env:USERPROFILE\.dsh\.env" -Value "DEEPSEEK_API_KEY=sk-..."
+
+# 6. Launch
 dsh --profile tui
 Pop-Location
 ```
@@ -141,8 +152,13 @@ echo '[]' > cordis.yml
 dsh plugin --profile tui-dev install
 pnpm approve-builds            # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
 
-# 6. Launch
-export DEEPSEEK_API_KEY=sk-...
+# 6. Set the API key (skip if you already did this in `Use it`).
+cat > ~/.dsh/.env <<'EOF'
+DEEPSEEK_API_KEY=sk-...
+EOF
+chmod 600 ~/.dsh/.env
+
+# 7. Launch
 dsh --profile tui-dev
 ```
 
@@ -176,8 +192,10 @@ Set-Content -Path cordis.yml -Value "[]"
 dsh plugin --profile tui-dev install
 pnpm approve-builds            # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
 
-# 6. Launch
-$env:DEEPSEEK_API_KEY = "sk-..."
+# 6. Set the API key (skip if you already did this in `Use it`).
+Set-Content -Path "$env:USERPROFILE\.dsh\.env" -Value "DEEPSEEK_API_KEY=sk-..."
+
+# 7. Launch
 dsh --profile tui-dev
 Pop-Location
 ```

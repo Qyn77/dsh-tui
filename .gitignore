@@ -4,3 +4,10 @@ lib
 .DS_Store
 coverage
 .tsbuildinfo
+
+# Local API keys / model credentials. dsh loads `~/.dsh/.env` for runtime
+# credentials; this protects any project-local `.env` a contributor might
+# add during dev from being committed.
+.env
+.env.*
+!.env.example
