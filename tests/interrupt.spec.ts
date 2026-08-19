@@ -16,31 +16,44 @@ import { handleInterrupt, type InterruptDeps } from '../src/interrupt.ts'
 function makeDeps(overrides?: Partial<InterruptDeps['agent']>): {
   deps: InterruptDeps
   cancel: ReturnType<typeof vi.fn>
+  closeUi: ReturnType<typeof vi.fn>
   exit: ReturnType<typeof vi.fn>
 } {
   const cancel = vi.fn()
+  const closeUi = vi.fn()
   const exit = vi.fn()
   const agent = {
     status: 'idle',
     cancel,
     ...overrides,
   } as unknown as Agent
-  return { deps: { agent, exit }, cancel, exit }
+  return { deps: { agent, closeUi, exit }, cancel, closeUi, exit }
 }
 
 describe('handleInterrupt', () => {
   it('cancels the in-flight turn when the agent is running and does not exit', () => {
-    const { deps, cancel, exit } = makeDeps({ status: 'running' })
+    const { deps, cancel, closeUi, exit } = makeDeps({ status: 'running' })
     handleInterrupt(deps)
     expect(cancel).toHaveBeenCalledWith({ kind: 'user' })
+    expect(closeUi).not.toHaveBeenCalled()
     expect(exit).not.toHaveBeenCalled()
   })
 
   it('leaves the REPL through the exit hook when the agent is idle', () => {
-    const { deps, cancel, exit } = makeDeps({ status: 'idle' })
+    const { deps, cancel, closeUi, exit } = makeDeps({ status: 'idle' })
     handleInterrupt(deps)
+    expect(closeUi).toHaveBeenCalledOnce()
     expect(exit).toHaveBeenCalledWith(0)
     expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it('closes Ink before requesting launcher shutdown', () => {
+    const order: string[] = []
+    const { deps } = makeDeps({ status: 'idle' })
+    deps.closeUi = vi.fn(() => { order.push('ui') })
+    deps.exit = vi.fn(() => { order.push('host') })
+    handleInterrupt(deps)
+    expect(order).toEqual(['ui', 'host'])
   })
 
   it('uses code 0 to signal a clean exit (not an error code)', () => {
@@ -53,8 +66,9 @@ describe('handleInterrupt', () => {
   it('treats unknown non-running statuses the same as idle (exits cleanly)', () => {
     // Defensive: if a future agent status like "paused" is added, we still
     // want a stale Ctrl-C to leave the REPL rather than hang.
-    const { deps, cancel, exit } = makeDeps({ status: 'paused' as never })
+    const { deps, cancel, closeUi, exit } = makeDeps({ status: 'paused' as never })
     handleInterrupt(deps)
+    expect(closeUi).toHaveBeenCalledOnce()
     expect(exit).toHaveBeenCalledWith(0)
     expect(cancel).not.toHaveBeenCalled()
   })

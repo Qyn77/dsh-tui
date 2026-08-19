@@ -25,6 +25,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 export interface InterruptDeps {
   /** Live agent — used to detect running status and cancel the turn. */
   agent: Agent
+  /** Unmount Ink and restore the terminal before the host starts disposal. */
+  closeUi: () => void
   /** Exit hook — the same `ctx.appExit` that `/exit` uses. */
   exit: (code: number) => void
 }
@@ -40,5 +42,10 @@ export function handleInterrupt(deps: InterruptDeps): void {
     deps.agent.cancel({ kind: 'user' })
     return
   }
+  // This handler runs inside Ink's input EventEmitter. Close Ink first so
+  // stdin leaves raw mode and the current input dispatch can finish before
+  // the launcher begins disposing the Cordis tree. Requesting host shutdown
+  // first deadlocks that disposal path until another input event arrives.
+  deps.closeUi()
   deps.exit(0)
 }

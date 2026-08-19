@@ -60,3 +60,4 @@ Ctrl-C && dsh --profile tui-dev
 - Check [docs/SPEC.md](docs/SPEC.md) first. Style questions belong to Part 1, scope questions to Part 2, and "is this OK to commit?" questions to Part 3.
 - For env / build / launch issues, the README has the canonical fix. The TUI has no Host, HTTP, or browser layer — if the fix involves any of those, it's the wrong fix.
 - Don't introduce a new dependency without checking the dsh-* peer tree first; native modules need `pnpm approve-builds`.
+- When a bug resists the first or second fix, read [docs/lessons/README.md](docs/lessons/README.md) before attempting a third. The index is one line per past case; the linked notes encode diagnostic sequences and ordering invariants that aren't in the code or the spec. Only open a linked note when its one-line takeaway matches the problem.

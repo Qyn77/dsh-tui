@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-tui/renderer
  */
 
-import { Box, useInput } from 'ink'
+import { Box, useApp, useInput } from 'ink'
 import React, { useCallback, useMemo, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -34,6 +34,7 @@ export interface AppProps {
  * to the agent or to a slash command, and composes the three-pane layout.
  */
 export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
+  const { exit: closeUi } = useApp()
   const { state, resetView } = useSessionEvents(ctx, agent)
   const selection = useMemo(
     () => ctx.get('agentDefaultModel')?.currentSelection(),
@@ -48,7 +49,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   // running) so the user can cancel a long turn.
   useInput((input, key) => {
     if (key.ctrl && input === 'c') {
-      handleInterrupt({ agent, exit })
+      handleInterrupt({ agent, closeUi, exit })
     }
   })
 

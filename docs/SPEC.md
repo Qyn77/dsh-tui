@@ -124,7 +124,7 @@ Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/cost
 - **Width-aware.** Layout re-measures on terminal `resize`. No hard-coded widths beyond 80 chars; long output truncates with `…` (see `truncate(text, 240)` in the tool card).
 - **No flicker.** Already-emitted messages are static; only the streaming assistant block, the running tool, and the StatusBar re-render.
 - **TTY required.** The runner refuses to start without a TTY and prints a one-line error to stderr. Plain pipes are not a use case.
-- **Graceful shutdown.** `SIGINT` while a turn is running cancels the turn. `SIGINT` while idle triggers the same path as `/exit`. The runner uses the launcher's `ctx.appExit` and never calls `process.exit` outside `commands.ts` and `index.ts`.
+- **Graceful shutdown.** In raw mode, Ink receives Ctrl-C as a keypress rather than `SIGINT`. While a turn is running it cancels the turn. While idle it unmounts Ink first (restoring the terminal), then triggers the same launcher `ctx.appExit` path as `/exit`. The runner never calls `process.exit` outside `commands.ts` and `index.ts`. See [Lessons → Ctrl-C shutdown](./lessons/ctrl-c-shutdown.md) for the investigation playbook behind this ordering.
 
 ---
 
