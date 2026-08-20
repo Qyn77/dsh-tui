@@ -177,14 +177,15 @@ describe('parseMarkdown', () => {
     expect(p?.kind === 'paragraph' && inlineToText(p.children)).toBe('hello world')
   })
 
-  it('strips up to 4 leading spaces but leaves any extra (preserves deep indent)', () => {
-    // 6-space indent: parser strips 4, the remaining 2 stay. This
-    // protects clearly-intentional deep indents (e.g. nested
-    // pseudo-quotes) from being flattened all the way to 0.
-    const blocks = parseMarkdown('line 1\n      line 2')
+  it('strips all leading spaces from a paragraph continuation line, no cap', () => {
+    // The model regularly indents lyrics / dialog by 10+ spaces.
+    // 4-space "code block threshold" reasoning does not apply here
+    // — marked keeps these continuations as paragraph text. So
+    // strip everything, not just 1–4.
+    const blocks = parseMarkdown('line 1\n               line 2')
     expect(blocks).toHaveLength(1)
     const p = findBlock(blocks, 'paragraph')
-    expect(p?.kind === 'paragraph' && inlineToText(p.children)).toBe('line 1\n  line 2')
+    expect(p?.kind === 'paragraph' && inlineToText(p.children)).toBe('line 1\nline 2')
   })
 })
 
@@ -234,11 +235,18 @@ describe('stripLeadingIndent', () => {
     expect(stripLeadingIndent('a\n   b\n    c')).toBe('a\nb\nc')
   })
 
-  it('caps the strip at 4 spaces (deep indents preserve their extra)', () => {
-    // 5 spaces input → strip 4, leave 1. 6 spaces input → strip 4,
-    // leave 2. This protects clearly-intentional deep indents.
-    expect(stripLeadingIndent('a\n     b')).toBe('a\n b')
-    expect(stripLeadingIndent('a\n      b')).toBe('a\n  b')
+  it('strips all leading spaces, no matter how deep (lyrics-style)', () => {
+    // 10-space, 15-space, mixed tabs: all go. The model regularly
+    // indents lyrics 10+ spaces; we don't need to preserve any of
+    // that visual depth in the terminal.
+    expect(stripLeadingIndent('a\n          b')).toBe('a\nb')
+    expect(stripLeadingIndent('a\n                 b')).toBe('a\nb')
+    expect(stripLeadingIndent('a\n \t  b')).toBe('a\nb')
+  })
+
+  it('preserves consecutive newlines (blank lines stay blank)', () => {
+    expect(stripLeadingIndent('a\n\nb')).toBe('a\n\nb')
+    expect(stripLeadingIndent('a\n   \nb')).toBe('a\n\nb')
   })
 
   it('does not strip interior spaces in the middle of a line', () => {

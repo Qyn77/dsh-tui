@@ -36,20 +36,23 @@ export type BlockNode =
   | { kind: 'thematic-break' }
 
 /**
- * Strip 1–4 leading spaces from each newline-continued line of a text
- * node. Models often emit hand-indented lyrics or dialog inside a
- * paragraph; preserving those spaces as-is in the terminal gives a
- * visually-misleading "right-shifted continuation" look. We strip up
- * to four — the markdown code-block threshold — so legit fenced
- * blocks never reach this path; anything beyond four stays.
+ * Strip every leading space and tab from each newline-continued line
+ * of a text node. Models often emit hand-indented lyrics or dialog
+ * inside a paragraph (sometimes 10+ spaces deep); preserving those
+ * as-is gives a visually-misleading "right-shifted run-on" in the
+ * terminal. The CommonMark 4-space code-block rule does not help us
+ * here — marked does not actually promote 4+ space continuations to
+ * code blocks when they sit inside a paragraph, so they reach this
+ * function as plain text.
  *
- * Only matches positions that follow a `\n`. Spaces at the very
- * start of the text (and spaces between inline elements) are left
- * alone — those are usually load-bearing separators from marked
- * (e.g. the space between `**bold**` and the next word).
+ * The match starts strictly after a `\n` and consumes only `[ \t]`,
+ * not `\n` itself, so blank lines (`\n\n`) survive intact and the
+ * paragraph break is preserved. Spaces at the very start of the
+ * text, and spaces between inline elements (`**bold** word`), are
+ * left alone — those are load-bearing separators.
  */
 export function stripLeadingIndent(text: string): string {
-  return text.replace(/\n {1,4}/g, '\n')
+  return text.replace(/\n[ \t]+/g, '\n')
 }
 
 /** Push a cleaned text node into an inline stream. No-op on empty input. */
