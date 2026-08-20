@@ -1,13 +1,24 @@
 /**
- * Top status bar — three vertical rows inside a heavy cyan frame so the
- * chrome has visual weight on par with the message list below. The rows
- * are width-aware and never collide:
- *   1. Brand row — whale glyph + dsh wordmark + DeepSeek Harness tagline.
- *   2. Model row — `provider/model`, tail-truncated with `…` when too long.
- *   3. Status row — session id, run state, in/out token totals.
- * Long model names cannot push anything off the right edge because row
- * 2 has the full terminal width to itself and the truncation is the only
- * knob (no other element competes for space on that line).
+ * Top status bar — two vertical columns inside a heavy cyan frame so the
+ * chrome has visual weight on par with the message list below.
+ *
+ *   ┏━ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┓
+ *   ┃                                                              ┃
+ *   ┃   <°)))><                       session: tui-652d             ┃
+ *   ┃   dsh                          in:        8,558               ┃
+ *   ┃   DeepSeek Harness             out:         198               ┃
+ *   ┃   deepseek-official/...        ⏵ idle                         ┃
+ *   ┃                                                              ┃
+ *   ┗━ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┛
+ *
+ *   left  = brand identity (logo + wordmark + tagline + model)
+ *   right = runtime state  (session + tokens + status)
+ *
+ * The model line is width-aware (`useStdout` + `fitModelName`) and
+ * tail-truncates with a leading `…` when even the bare model would
+ * not fit. Status placement (bottom of the right column) is a
+ * judgement call: it groups the "what is happening" with the data
+ * rather than with the brand.
  * @module @deepseek-ai/dsh-tui/components/StatusBar
  */
 
@@ -33,15 +44,17 @@ export interface StatusBarProps {
 }
 
 /**
- * Brand glyph for the top row. The classic ASCII whale `<°)))><` reads
- * as "head, eye, three water waves, tail" and is the visual nod to
- * DeepSeek's mascot. It is 8 columns wide and ASCII-only, so it
- * renders identically across the terminals we support.
+ * Brand glyph for the top of the brand column. The classic ASCII
+ * whale `<°)))><` reads as "head, eye, three water waves, tail"
+ * and is the visual nod to DeepSeek's mascot. 8 columns, ASCII-only.
  */
 const WHALE = '<°)))><'
 
-/** Tagline shown on the brand row, after the `dsh` wordmark. */
+/** Full name shown on the brand column, below the `dsh` wordmark. */
 const TAGLINE = 'DeepSeek Harness'
+
+/** Width of the right-column label column. Chosen so the numbers align. */
+const LABEL_WIDTH = 'session: '.length
 
 function shortId(id: SessionId): string {
   // The id is a branded string; show the first eight characters.
@@ -58,6 +71,15 @@ function totalUsage(state: UiState): { input: number; output: number } {
     }
   }
   return { input, output }
+}
+
+/**
+ * Pad a label so the values in the right column line up at a fixed
+ * column. Local helper, not exported — only the meta column needs
+ * aligned labels.
+ */
+function padLabel(label: string): string {
+  return label.length >= LABEL_WIDTH ? label : label + ' '.repeat(LABEL_WIDTH - label.length)
 }
 
 /**
@@ -83,19 +105,11 @@ export function fitModelName(provider: string, model: string, maxWidth: number):
   return `…${model.slice(-(maxWidth - 1))}`
 }
 
-/**
- * Width of the left-padded brand prefix on row 1: `  <°)))><  dsh · `
- * (two leading spaces, whale, two spaces, wordmark, separator, space).
- * Counted by hand so the brand row stays visually anchored even on
- * narrow terminals where the tagline might wrap or be trimmed.
- */
-const BRAND_PREFIX_WIDTH = '  <°)))><  dsh · '.length
-
 export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spinnerFrame, elapsedSeconds }) => {
   const { stdout } = useStdout()
   // Ink does not surface the column count when stdout is piped, so
   // fall back to 80 — narrower than that and the user is on a phone,
-  // wider and our default 3-line layout still leaves headroom.
+  // wider and our 2-column layout still has headroom.
   const columns = stdout?.columns ?? 80
   const usage = totalUsage(state)
   const isRunning = state.status === 'running'
@@ -108,51 +122,43 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
   const statusText = isRunning
     ? `${SPINNER_FRAMES[spinnerFrame]} working · ${elapsedSeconds}s`
     : '⏵ idle'
-  // The model row gets the full terminal width minus the heavy
-  // border (2 cols), the padding (4 cols), and a 1-col breathing
-  // margin. Truncation is the only knob: there is no other element
-  // on the model row, so a long model can never collide with
-  // anything on the right.
-  const modelBudget = Math.max(8, columns - 7)
+  // The model line is on the brand column but has the full terminal
+  // width to itself: 4 cols of outer padding, 1 col breathing
+  // margin, and the budget must be at least 8 so the function has
+  // room to choose a meaningful form (provider/model vs bare model).
+  const modelBudget = Math.max(8, columns - 5)
   const displayModel = fitModelName(selection.provider, selection.model, modelBudget)
-  // The brand row reserves its own budget for the tagline; on a
-  // narrow terminal we drop the tagline and leave just the wordmark,
-  // so the identity never gets clipped — only the descriptor.
-  const taglineBudget = Math.max(0, columns - 7 - BRAND_PREFIX_WIDTH)
-  const displayTagline = TAGLINE.length <= taglineBudget ? TAGLINE : ''
   return (
     <Box
       borderStyle="bold"
       borderColor="cyan"
-      paddingX={2}
-      flexDirection="column"
+      paddingX={4}
+      paddingY={1}
+      flexDirection="row"
+      columnGap={6}
     >
-      <Box>
+      <Box flexDirection="column">
         <Text color="cyan" bold>{WHALE}</Text>
-        <Text>{'  '}</Text>
         <Text color="cyan" bold>dsh</Text>
-        {displayTagline !== '' ? (
-          <>
-            <Text color="gray"> · </Text>
-            <Text color="cyan">{displayTagline}</Text>
-          </>
-        ) : null}
-      </Box>
-      <Box>
+        <Text color="cyan">{TAGLINE}</Text>
         <Text color="green" bold>{displayModel}</Text>
       </Box>
-      <Box>
-        <Text color="gray">session: </Text>
-        <Text>{shortId(sessionId)}</Text>
-        <Text color="gray"> · </Text>
-        <Text color={isRunning ? 'yellow' : 'gray'}>
-          {statusText}
-        </Text>
-        <Text color="gray"> · </Text>
-        <Text color="gray">in: </Text>
-        <Text>{usage.input.toLocaleString()}</Text>
-        <Text color="gray"> out: </Text>
-        <Text>{usage.output.toLocaleString()}</Text>
+      <Box flexDirection="column">
+        <Box>
+          <Text color="gray">{padLabel('session:')}</Text>
+          <Text>{shortId(sessionId)}</Text>
+        </Box>
+        <Box>
+          <Text color="gray">{padLabel('in:')}</Text>
+          <Text>{usage.input.toLocaleString()}</Text>
+        </Box>
+        <Box>
+          <Text color="gray">{padLabel('out:')}</Text>
+          <Text>{usage.output.toLocaleString()}</Text>
+        </Box>
+        <Box>
+          <Text color={isRunning ? 'yellow' : 'gray'}>{statusText}</Text>
+        </Box>
       </Box>
     </Box>
   )

@@ -24,7 +24,7 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **StatusBar** — three vertical rows inside a heavy cyan frame so the chrome has visual weight on par with the message list below. Row 1 is the brand row: ASCII whale `<°)))><` + `dsh` wordmark + `· DeepSeek Harness` tagline (tagline drops silently on terminals too narrow to hold it). Row 2 is the selected `provider/model` in green bold; the model line gets the full terminal width to itself and tail-truncates with a leading `…` when even the bare model would not fit. Row 3 is the meta row: `session: <id> · <status> · in: <n> out: <n>`.
+- **StatusBar** — two vertical columns inside a heavy cyan frame so the chrome has visual weight on par with the message list below. Left column = brand identity (ASCII whale `<°)))><`, `dsh` wordmark, `DeepSeek Harness` tagline, and the active `provider/model` in green bold). Right column = runtime state (`session: <id>`, `in: <n>`, `out: <n>`, and the run state on the last line). The model line is width-aware (`useStdout` + `fitModelName`) and tail-truncates with a leading `…` when even the bare model would not fit. Padding (`paddingX={4} paddingY={1}`) plus a 6-column gap between the two columns give the bar real breathing room.
 - **MessageList** — the entire session log, scrollable when it overflows the terminal height. Owns the middle; flex-grows to fill available space.
 - **Prompt** — the input line, always the bottom row.
 
