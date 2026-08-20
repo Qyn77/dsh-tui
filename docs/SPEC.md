@@ -24,7 +24,7 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **StatusBar** — model name, session id, run state, token counts. One line, muted, always present at the top.
+- **StatusBar** — model name on the first line, session id, run state, and token counts on the second. Two-line layout so a long model name can never push the chrome off the right edge or split a number across rows; the model line is width-aware (`useStdout` + `fitModelName`) and tail-truncates the model with a leading `…` when the full `provider/model` would not fit.
 - **MessageList** — the entire session log, scrollable when it overflows the terminal height. Owns the middle; flex-grows to fill available space.
 - **Prompt** — the input line, always the bottom row.
 
