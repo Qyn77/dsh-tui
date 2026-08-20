@@ -1,10 +1,13 @@
 /**
- * Top status bar: model on the first line, session id, agent status,
- * and token counts on the second. Two-line layout so a long model
- * name can never push the rest of the chrome off the right edge or
- * wrap individual segments (e.g. splitting `in: 1,381` across two
- * rows). The model line is width-aware and falls back to a tail
- * truncation when the full `provider/model` would not fit.
+ * Top status bar — three vertical rows inside a heavy cyan frame so the
+ * chrome has visual weight on par with the message list below. The rows
+ * are width-aware and never collide:
+ *   1. Brand row — whale glyph + dsh wordmark + DeepSeek Harness tagline.
+ *   2. Model row — `provider/model`, tail-truncated with `…` when too long.
+ *   3. Status row — session id, run state, in/out token totals.
+ * Long model names cannot push anything off the right edge because row
+ * 2 has the full terminal width to itself and the truncation is the only
+ * knob (no other element competes for space on that line).
  * @module @deepseek-ai/dsh-tui/components/StatusBar
  */
 
@@ -28,6 +31,17 @@ export interface StatusBarProps {
   /** Whole seconds since the most recent `running` transition. */
   elapsedSeconds: number
 }
+
+/**
+ * Brand glyph for the top row. The classic ASCII whale `<°)))><` reads
+ * as "head, eye, three water waves, tail" and is the visual nod to
+ * DeepSeek's mascot. It is 8 columns wide and ASCII-only, so it
+ * renders identically across the terminals we support.
+ */
+const WHALE = '<°)))><'
+
+/** Tagline shown on the brand row, after the `dsh` wordmark. */
+const TAGLINE = 'DeepSeek Harness'
 
 function shortId(id: SessionId): string {
   // The id is a branded string; show the first eight characters.
@@ -69,11 +83,19 @@ export function fitModelName(provider: string, model: string, maxWidth: number):
   return `…${model.slice(-(maxWidth - 1))}`
 }
 
+/**
+ * Width of the left-padded brand prefix on row 1: `  <°)))><  dsh · `
+ * (two leading spaces, whale, two spaces, wordmark, separator, space).
+ * Counted by hand so the brand row stays visually anchored even on
+ * narrow terminals where the tagline might wrap or be trimmed.
+ */
+const BRAND_PREFIX_WIDTH = '  <°)))><  dsh · '.length
+
 export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spinnerFrame, elapsedSeconds }) => {
   const { stdout } = useStdout()
   // Ink does not surface the column count when stdout is piped, so
   // fall back to 80 — narrower than that and the user is on a phone,
-  // wider and our default 2-line layout still leaves headroom.
+  // wider and our default 3-line layout still leaves headroom.
   const columns = stdout?.columns ?? 80
   const usage = totalUsage(state)
   const isRunning = state.status === 'running'
@@ -86,26 +108,38 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
   const statusText = isRunning
     ? `${SPINNER_FRAMES[spinnerFrame]} working · ${elapsedSeconds}s`
     : '⏵ idle'
-  // The model line gets the full terminal width minus the border
-  // padding, the `ds · ` prefix (5 cols), and a 1-col breathing
+  // The model row gets the full terminal width minus the heavy
+  // border (2 cols), the padding (4 cols), and a 1-col breathing
   // margin. Truncation is the only knob: there is no other element
-  // on the first row, so a long model can never collide with
+  // on the model row, so a long model can never collide with
   // anything on the right.
-  const modelBudget = Math.max(8, columns - 6)
+  const modelBudget = Math.max(8, columns - 7)
   const displayModel = fitModelName(selection.provider, selection.model, modelBudget)
+  // The brand row reserves its own budget for the tagline; on a
+  // narrow terminal we drop the tagline and leave just the wordmark,
+  // so the identity never gets clipped — only the descriptor.
+  const taglineBudget = Math.max(0, columns - 7 - BRAND_PREFIX_WIDTH)
+  const displayTagline = TAGLINE.length <= taglineBudget ? TAGLINE : ''
   return (
     <Box
-      borderStyle="single"
-      borderColor="gray"
-      paddingX={1}
+      borderStyle="bold"
+      borderColor="cyan"
+      paddingX={2}
       flexDirection="column"
     >
       <Box>
-        <Text color="cyan" bold>
-          dsh
-        </Text>
-        <Text color="gray"> · </Text>
-        <Text color="green">{displayModel}</Text>
+        <Text color="cyan" bold>{WHALE}</Text>
+        <Text>{'  '}</Text>
+        <Text color="cyan" bold>dsh</Text>
+        {displayTagline !== '' ? (
+          <>
+            <Text color="gray"> · </Text>
+            <Text color="cyan">{displayTagline}</Text>
+          </>
+        ) : null}
+      </Box>
+      <Box>
+        <Text color="green" bold>{displayModel}</Text>
       </Box>
       <Box>
         <Text color="gray">session: </Text>

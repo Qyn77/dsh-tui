@@ -24,7 +24,7 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **StatusBar** — model name on the first line, session id, run state, and token counts on the second. Two-line layout so a long model name can never push the chrome off the right edge or split a number across rows; the model line is width-aware (`useStdout` + `fitModelName`) and tail-truncates the model with a leading `…` when the full `provider/model` would not fit.
+- **StatusBar** — three vertical rows inside a heavy cyan frame so the chrome has visual weight on par with the message list below. Row 1 is the brand row: ASCII whale `<°)))><` + `dsh` wordmark + `· DeepSeek Harness` tagline (tagline drops silently on terminals too narrow to hold it). Row 2 is the selected `provider/model` in green bold; the model line gets the full terminal width to itself and tail-truncates with a leading `…` when even the bare model would not fit. Row 3 is the meta row: `session: <id> · <status> · in: <n> out: <n>`.
 - **MessageList** — the entire session log, scrollable when it overflows the terminal height. Owns the middle; flex-grows to fill available space.
 - **Prompt** — the input line, always the bottom row.
 
@@ -34,7 +34,7 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 
 | Element | Border | Why |
 |---|---|---|
-| StatusBar | `single` (`┌─┐│└─┘`) | Stays on screen permanently; light weight doesn't fight the message list. |
+| StatusBar | `bold` (`┏━┓┃┗━┛`) `cyan` | Persistent chrome with brand weight; visually anchors the top of the screen. |
 | Tool card | `round` (`╭─╮│╰─╯`) | Friendly, distinct from the status bar. |
 | Prompt | `round` (`╭─╮│╰─╯`) | Affordance for an empty input. Cyan when active, gray when a turn is running. |
 | User message | none | Floats freely; reads as text, not as a frame. |
