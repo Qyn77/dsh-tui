@@ -224,20 +224,31 @@ function extractRaw(tok: Token): string {
  * yields the same output. The empty string and unparseable input
  * both fall back to a single `paragraph` of raw text so the renderer
  * never goes blank.
+ *
+ * Before lexing, we strip 1+ leading spaces and tabs from every
+ * newline-continuation line of the input. The post-parse text-node
+ * strip alone cannot catch every case the model emits: when the
+ * model writes blank-line-separated indented lines, CommonMark's
+ * 4-space code-block rule promotes them to a fenced text frame and
+ * the strip never sees them. Pre-stripping at the parse boundary
+ * keeps the rule colocated with the lex call and turns
+ * lyrics-style indents into normal paragraphs. The text-node
+ * `pushText` still runs the same strip as a defense in depth.
  */
 export function parseMarkdown(text: string): BlockNode[] {
   const trimmed = text
   if (trimmed === '') return []
+  const cleaned = stripLeadingIndent(trimmed)
   let tokens: Token[]
   try {
-    tokens = marked.lexer(trimmed)
+    tokens = marked.lexer(cleaned)
   } catch {
-    return [{ kind: 'paragraph', children: [{ kind: 'text', text: stripLeadingIndent(trimmed) }] }]
+    return [{ kind: 'paragraph', children: [{ kind: 'text', text: cleaned }] }]
   }
   try {
     return walkBlock(tokens)
   } catch {
-    return [{ kind: 'paragraph', children: [{ kind: 'text', text: stripLeadingIndent(trimmed) }] }]
+    return [{ kind: 'paragraph', children: [{ kind: 'text', text: cleaned }] }]
   }
 }
 

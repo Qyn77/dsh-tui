@@ -187,6 +187,20 @@ describe('parseMarkdown', () => {
     const p = findBlock(blocks, 'paragraph')
     expect(p?.kind === 'paragraph' && inlineToText(p.children)).toBe('line 1\nline 2')
   })
+
+  it('pre-strips blank-line-separated indented blocks so they stay paragraphs, not code blocks', () => {
+    // Without pre-strip, marked promotes blank-line-separated
+    // 4+-space-indented lines to a `code` block — the post-parse
+    // text-node strip never sees them, so the indent survives
+    // and the renderer frames the lyrics in a `╭─╮` box. Pre-strip
+    // at the parse boundary demotes them back to plain paragraphs.
+    const blocks = parseMarkdown('（Verse 1）\n\n              屏幕的光\n\n              凌晨三点')
+    expect(blocks.filter(b => b.kind === 'code-block')).toHaveLength(0)
+    const paragraphs = blocks.filter(b => b.kind === 'paragraph')
+    expect(paragraphs).toHaveLength(3)
+    expect(paragraphs.map(p => inlineToText(p.kind === 'paragraph' ? p.children : [])))
+      .toEqual(['（Verse 1）', '屏幕的光', '凌晨三点'])
+  })
 })
 
 describe('looksLikeMarkdown', () => {
