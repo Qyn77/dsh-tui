@@ -20,7 +20,7 @@
 
 import React, { type ReactNode } from 'react'
 import { Box, Text } from 'ink'
-import { parseMarkdown, type BlockNode, type InlineNode } from '../markdown.ts'
+import { applyHangingIndent, parseMarkdown, type BlockNode, type InlineNode } from '../markdown.ts'
 
 /** Props for the {@link Markdown} component. */
 export interface MarkdownProps {
@@ -142,7 +142,12 @@ function Inlines({ nodes }: { nodes: readonly InlineNode[] }): ReactNode {
 function InlineNodeRow({ node }: { node: InlineNode }): ReactNode {
   switch (node.kind) {
     case 'text':
-      return <Text>{node.text}</Text>
+      // Soft line breaks (the model's hand-typed lyrics/dialog
+      // continuations) get a uniform 2-space hanging indent so the
+      // continuation reads as a hanging indent rather than flush-left
+      // (which the parser's pre-strip leaves it at) or right-shifted
+      // (which the model's own 10+-space indent would). See §1.9.
+      return <Text>{applyHangingIndent(node.text)}</Text>
     case 'code':
       return <Text color="cyan" dimColor>{node.text}</Text>
     case 'bold':

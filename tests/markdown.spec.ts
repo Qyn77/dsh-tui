@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { looksLikeMarkdown, parseMarkdown, stripLeadingIndent, type BlockNode, type InlineNode } from '../src/markdown.ts'
+import { applyHangingIndent, looksLikeMarkdown, parseMarkdown, stripLeadingIndent, type BlockNode, type InlineNode } from '../src/markdown.ts'
 
 /** Flatten an inline AST into one string for shape assertions. */
 function inlineToText(nodes: readonly InlineNode[]): string {
@@ -265,5 +265,32 @@ describe('stripLeadingIndent', () => {
 
   it('does not strip interior spaces in the middle of a line', () => {
     expect(stripLeadingIndent('a   b')).toBe('a   b')
+  })
+})
+
+describe('applyHangingIndent', () => {
+  it('inserts 2 spaces after each soft line break (newline not followed by another newline)', () => {
+    expect(applyHangingIndent('line 1\nline 2')).toBe('line 1\n  line 2')
+    expect(applyHangingIndent('a\nb\nc')).toBe('a\n  b\n  c')
+  })
+
+  it('preserves the blank line itself (no 2 spaces inserted onto the empty line) and indents the line after', () => {
+    // `a\n\nb` is "a" / blank / "b". The empty middle line must stay
+    // empty (no `   \n` in the output); the "b" line after the
+    // blank gets the 2-space indent.
+    expect(applyHangingIndent('a\n\nb')).toBe('a\n\n  b')
+    expect(applyHangingIndent('a\n\n\nb')).toBe('a\n\n\n  b')
+  })
+
+  it('is a no-op on text with no newlines', () => {
+    expect(applyHangingIndent('hello world')).toBe('hello world')
+    expect(applyHangingIndent('')).toBe('')
+  })
+
+  it('handles a leading newline (first line is itself a continuation)', () => {
+    // Model quirk: a stray `\n` at the start of a text node still
+    // gets a 2-space indent on what follows. Empty leading line is
+    // rare in practice, but the transform should not throw on it.
+    expect(applyHangingIndent('\nfoo')).toBe('\n  foo')
   })
 })

@@ -36,6 +36,32 @@ export type BlockNode =
   | { kind: 'thematic-break' }
 
 /**
+ * Width of the hanging indent applied to soft line breaks in a text
+ * node. Models often hand-indent lyrics or dialog continuations by
+ * 10+ spaces; the parser's pre-strip brings them down to zero, and
+ * the renderer adds this uniform indent so the continuation reads
+ * as a hanging indent (2 spaces) rather than flush-left. Two is
+ * small enough not to crowd the terminal, large enough to be
+ * visually distinct from a hard paragraph break.
+ */
+export const HANGING_INDENT = '  '
+
+/**
+ * Replace every soft line break in `text` with a newline followed
+ * by `HANGING_INDENT` spaces. A blank line (`\n\n`) is preserved:
+ * the regex only matches a `\n` that is *not* followed by another
+ * `\n`, so internal paragraph breaks stay paragraph breaks.
+ *
+ * Called by the renderer on every text node; tested directly as a
+ * pure function. The input is whatever the parser produced (already
+ * pre-stripped of leading whitespace), so the only thing this
+ * function does is restore a visual indent for line continuations.
+ */
+export function applyHangingIndent(text: string): string {
+  return text.replace(/\n(?=[^\n])/g, `\n${HANGING_INDENT}`)
+}
+
+/**
  * Strip every leading space and tab from each newline-continued line
  * of a text node. Models often emit hand-indented lyrics or dialog
  * inside a paragraph (sometimes 10+ spaces deep); preserving those
