@@ -43,7 +43,7 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 
 Frames are reserved for **persistent chrome** (status bar, prompt) and **self-contained blocks** (tool cards). Message text never gets a frame.
 
-**The prompt cursor.** Ink hides the terminal cursor while in raw mode, so the Prompt renders its own. A blinking `▌` (LEFT HALF BLOCK, `cyan` bold, 500 ms interval) follows the input value whenever the prompt is active. During a running turn the cursor disappears, so a locked prompt never visually invites input. The placeholder switches to `… working` in the same step.
+**The prompt cursor.** Ink hides the terminal cursor while in raw mode, so the Prompt renders its own. A stable `▌` (LEFT HALF BLOCK, `cyan` bold) sits at the end of the input whenever the prompt is active. During a running turn the cursor disappears, so a locked prompt never visually invites input. The placeholder switches to `… working` in the same step.
 
 ### 1.3 Color palette
 

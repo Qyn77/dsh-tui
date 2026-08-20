@@ -4,7 +4,7 @@
  * @module @deepseek-ai/dsh-tui/components/Prompt
  */
 
-import React, { useEffect, useState, type FC } from 'react'
+import React, { useState, type FC } from 'react'
 import { Box, Text, useInput } from 'ink'
 
 /** Props for {@link Prompt}. */
@@ -22,24 +22,11 @@ export interface PromptProps {
  */
 export const Prompt: FC<PromptProps> = ({ active, onSubmit }) => {
   const [value, setValue] = useState('')
-  const [cursorVisible, setCursorVisible] = useState(true)
 
   // Ink's raw mode hides the terminal cursor, so we render our own.
-  // The glyph blinks at 500ms while the prompt is active; it disappears
-  // the moment a turn is running so a locked prompt does not visually
-  // invite input.
-  useEffect(() => {
-    if (!active) {
-      setCursorVisible(false)
-      return
-    }
-    setCursorVisible(true)
-    const id = setInterval(() => {
-      setCursorVisible((v) => !v)
-    }, 500)
-    return () => clearInterval(id)
-  }, [active])
-
+  // Keep it stable instead of blinking: the prompt is already visually
+  // distinct while active, and a 500ms re-render loop is unnecessary churn
+  // on a terminal UI that has to stay smooth while scrolling the log.
   useInput(
     (input, key) => {
       // Ctrl-modified keystrokes are reserved for the App-level
@@ -67,7 +54,7 @@ export const Prompt: FC<PromptProps> = ({ active, onSubmit }) => {
   )
 
   const placeholder = active ? 'Ask dsh anything…' : '… working'
-  const cursor = active && cursorVisible ? <Text color="cyan" bold>▌</Text> : null
+  const cursor = active ? <Text color="cyan" bold>▌</Text> : null
 
   return (
     <Box
