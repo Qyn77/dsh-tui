@@ -148,6 +148,8 @@ Finalized assistant turns render a curated subset of GitHub-flavored markdown. T
 
 Raw HTML (`<script>`, etc.) is stripped before the AST is built — see §3.1. Unclosed fences and stray delimiters fall back to a plain `paragraph` so the chat surface never goes blank.
 
+**Spacing and indent normalization.** Paragraphs render with one line of vertical breathing room (`marginY=1`) above and below, so model-written song lyrics and dialog don't look smushed against surrounding blocks. Inside a paragraph, 1–4 leading spaces at the start of each newline-continued line are stripped — this counteracts the model's habit of hand-indenting continuation lines (which the terminal would otherwise show as a right-shifted run-on). Spaces at the very start of the text, and spaces between inline elements (`**bold**` and the next word), are preserved.
+
 **Streaming rule.** While a turn is still receiving `assistant/chunk` events, the assistant block stays as raw text. The block re-renders as markdown on the `assistant/message` finalization event. This avoids re-parsing partial input on every keystroke of the model — a half-open code fence or a closing `*` that hasn't arrived yet would otherwise churn the layout, in tension with the lesson in [docs/lessons/prompt-scroll-snaps.md](./lessons/prompt-scroll-snaps.md).
 
 **Out of scope (today).** Tables, images, strikethrough, syntax highlighting, and the "render markdown live while streaming" follow-up are tracked in v0.4.

@@ -35,6 +35,29 @@ export type BlockNode =
   | { kind: 'blockquote'; children: InlineNode[] }
   | { kind: 'thematic-break' }
 
+/**
+ * Strip 1–4 leading spaces from each newline-continued line of a text
+ * node. Models often emit hand-indented lyrics or dialog inside a
+ * paragraph; preserving those spaces as-is in the terminal gives a
+ * visually-misleading "right-shifted continuation" look. We strip up
+ * to four — the markdown code-block threshold — so legit fenced
+ * blocks never reach this path; anything beyond four stays.
+ *
+ * Only matches positions that follow a `\n`. Spaces at the very
+ * start of the text (and spaces between inline elements) are left
+ * alone — those are usually load-bearing separators from marked
+ * (e.g. the space between `**bold**` and the next word).
+ */
+export function stripLeadingIndent(text: string): string {
+  return text.replace(/\n {1,4}/g, '\n')
+}
+
+/** Push a cleaned text node into an inline stream. No-op on empty input. */
+function pushText(out: InlineNode[], text: string): void {
+  if (text === '') return
+  out.push({ kind: 'text', text: stripLeadingIndent(text) })
+}
+
 /** Walk a marked inline-token list into our own inline AST. */
 function walkInline(tokens: readonly Token[]): InlineNode[] {
   const out: InlineNode[] = []
@@ -52,11 +75,11 @@ function walkOneInline(tok: Token, out: InlineNode[]): void {
         for (const inner of tok.tokens) walkOneInline(inner, out)
         return
       }
-      out.push({ kind: 'text', text: tok.text ?? '' })
+      pushText(out, tok.text ?? '')
       return
     }
     case 'escape':
-      out.push({ kind: 'text', text: tok.text ?? '' })
+      pushText(out, tok.text ?? '')
       return
     case 'strong':
       out.push({ kind: 'bold', children: walkInline(tok.tokens ?? []) })
@@ -68,25 +91,28 @@ function walkOneInline(tok: Token, out: InlineNode[]): void {
       out.push({ kind: 'code', text: tok.text ?? '' })
       return
     case 'br':
-      out.push({ kind: 'text', text: '\n' })
+      // Soft line break; the renderer emits a real `\n` newline.
+      pushText(out, '\n')
       return
     case 'link': {
       // Drop the visible text in favor of the URL — terminals have
       // no hover; underlining a long label without a way to open the
       // target is worse than just showing the URL.
-      out.push({ kind: 'link', href: tok.href ?? '', children: [{ kind: 'text', text: tok.href ?? '' }] })
+      const children: InlineNode[] = []
+      pushText(children, tok.href ?? '')
+      out.push({ kind: 'link', href: tok.href ?? '', children })
       return
     }
     case 'image':
       // No terminal analog; fall through to a plain text marker.
-      out.push({ kind: 'text', text: tok.text ?? '' })
+      pushText(out, tok.text ?? '')
       return
     case 'del':
       // Strikethrough has no clean SGR; keep the inner text plain.
       for (const inner of walkInline(tok.tokens ?? [])) out.push(inner)
       return
     case 'checkbox':
-      out.push({ kind: 'text', text: tok.checked ? '[x] ' : '[ ] ' })
+      pushText(out, tok.checked ? '[x] ' : '[ ] ')
       return
     case 'html':
     case 'tag':
@@ -94,7 +120,7 @@ function walkOneInline(tok: Token, out: InlineNode[]): void {
       // emitting `<script>` should never reach the user.
       return
     default:
-      out.push({ kind: 'text', text: extractRaw(tok) })
+      pushText(out, extractRaw(tok))
       return
   }
 }
@@ -129,7 +155,7 @@ function walkOneBlock(tok: Token, out: BlockNode[]): void {
       for (const inner of tok.tokens ?? []) {
         if (inner.type === 'paragraph' || inner.type === 'text') {
           for (const node of walkInline(inner.tokens ?? [])) children.push(node)
-          children.push({ kind: 'text', text: '\n' })
+          pushText(children, '\n')
         }
       }
       if (children.length > 0) {
@@ -163,7 +189,7 @@ function walkOneBlock(tok: Token, out: BlockNode[]): void {
       // Unknown block: render its raw text in a paragraph so nothing
       // is lost, but never crash the reducer chain.
       const raw = extractRaw(tok)
-      if (raw.trim() !== '') out.push({ kind: 'paragraph', children: [{ kind: 'text', text: raw }] })
+      if (raw.trim() !== '') out.push({ kind: 'paragraph', children: [{ kind: 'text', text: stripLeadingIndent(raw) }] })
       return
   }
 }
@@ -203,12 +229,12 @@ export function parseMarkdown(text: string): BlockNode[] {
   try {
     tokens = marked.lexer(trimmed)
   } catch {
-    return [{ kind: 'paragraph', children: [{ kind: 'text', text: trimmed }] }]
+    return [{ kind: 'paragraph', children: [{ kind: 'text', text: stripLeadingIndent(trimmed) }] }]
   }
   try {
     return walkBlock(tokens)
   } catch {
-    return [{ kind: 'paragraph', children: [{ kind: 'text', text: trimmed }] }]
+    return [{ kind: 'paragraph', children: [{ kind: 'text', text: stripLeadingIndent(trimmed) }] }]
   }
 }
 

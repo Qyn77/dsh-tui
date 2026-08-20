@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { looksLikeMarkdown, parseMarkdown, type BlockNode, type InlineNode } from '../src/markdown.ts'
+import { looksLikeMarkdown, parseMarkdown, stripLeadingIndent, type BlockNode, type InlineNode } from '../src/markdown.ts'
 
 /** Flatten an inline AST into one string for shape assertions. */
 function inlineToText(nodes: readonly InlineNode[]): string {
@@ -160,6 +160,32 @@ describe('parseMarkdown', () => {
     expect(all).toContain('safe')
     expect(all).toContain('end')
   })
+
+  it('strips 1–4 leading spaces from a paragraph continuation line (lyrics-style)', () => {
+    // Common case: model writes "line 1\n  line 2" hoping the second
+    // line is indented visually. In the terminal, that reads as a
+    // right-shifted continuation. The parser flattens the indent.
+    const blocks = parseMarkdown('line 1\n  line 2')
+    expect(blocks).toHaveLength(1)
+    const p = findBlock(blocks, 'paragraph')
+    expect(p?.kind === 'paragraph' && inlineToText(p.children)).toBe('line 1\nline 2')
+  })
+
+  it('leaves a single-line paragraph unchanged', () => {
+    const blocks = parseMarkdown('hello world')
+    const p = findBlock(blocks, 'paragraph')
+    expect(p?.kind === 'paragraph' && inlineToText(p.children)).toBe('hello world')
+  })
+
+  it('strips up to 4 leading spaces but leaves any extra (preserves deep indent)', () => {
+    // 6-space indent: parser strips 4, the remaining 2 stay. This
+    // protects clearly-intentional deep indents (e.g. nested
+    // pseudo-quotes) from being flattened all the way to 0.
+    const blocks = parseMarkdown('line 1\n      line 2')
+    expect(blocks).toHaveLength(1)
+    const p = findBlock(blocks, 'paragraph')
+    expect(p?.kind === 'paragraph' && inlineToText(p.children)).toBe('line 1\n  line 2')
+  })
 })
 
 describe('looksLikeMarkdown', () => {
@@ -186,5 +212,36 @@ describe('looksLikeMarkdown', () => {
 
   it('detects a thematic break', () => {
     expect(looksLikeMarkdown('a\n\n---\n\nb')).toBe(true)
+  })
+})
+
+describe('stripLeadingIndent', () => {
+  it('is a no-op on a string with no newlines or after-newline spaces', () => {
+    expect(stripLeadingIndent('hello world')).toBe('hello world')
+    expect(stripLeadingIndent('a\nb\nc')).toBe('a\nb\nc')
+  })
+
+  it('leaves leading spaces at the start of the string alone', () => {
+    // Start-of-string spaces are load-bearing separators (e.g. the
+    // space between `**bold**` and the next word). They must not be
+    // stripped — only continuation lines after `\n` are.
+    expect(stripLeadingIndent('  indented')).toBe('  indented')
+    expect(stripLeadingIndent('    four spaces')).toBe('    four spaces')
+  })
+
+  it('strips 1–4 spaces after each newline (paragraph continuations)', () => {
+    expect(stripLeadingIndent('a\n  b')).toBe('a\nb')
+    expect(stripLeadingIndent('a\n   b\n    c')).toBe('a\nb\nc')
+  })
+
+  it('caps the strip at 4 spaces (deep indents preserve their extra)', () => {
+    // 5 spaces input → strip 4, leave 1. 6 spaces input → strip 4,
+    // leave 2. This protects clearly-intentional deep indents.
+    expect(stripLeadingIndent('a\n     b')).toBe('a\n b')
+    expect(stripLeadingIndent('a\n      b')).toBe('a\n  b')
+  })
+
+  it('does not strip interior spaces in the middle of a line', () => {
+    expect(stripLeadingIndent('a   b')).toBe('a   b')
   })
 })

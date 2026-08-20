@@ -50,7 +50,11 @@ function BlockRow({ block }: { block: BlockNode }): ReactNode {
     case 'heading':
       return <HeadingBlock level={block.level}>{block.children}</HeadingBlock>
     case 'paragraph':
-      return <Box marginY={0}><Inlines nodes={block.children} /></Box>
+      // `marginY={1}` gives one line of breathing room between
+      // paragraphs (and between a paragraph and the next block).
+      // Without it, model-written song lyrics and dialog look
+      // smushed against the surrounding blocks. See §1.9.
+      return <Box marginY={1}><Inlines nodes={block.children} /></Box>
     case 'code-block':
       return <CodeBlock lang={block.lang} text={block.text} />
     case 'list':
