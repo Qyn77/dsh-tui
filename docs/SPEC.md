@@ -120,6 +120,7 @@ Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/cost
 - Tool call results prefixed with the exit status: `✓ done`, `✗ error`, `… running`.
 - Errors prefixed with `Error:` and rendered in `red`.
 - Notes / compactions / plan toggles use the `⤷` prefix and a single-line layout.
+- **Runtime context** (a `user/message` event whose `source.kind` is not `user`, per dsh-session's contract) renders as `⤷ runtime context · <plugin> (<form>)` with a short dimmed preview (≤ 80 chars) of the injected payload. It does **not** get the `you` label — that would falsely attribute the agent's system context to the human at the keyboard. The reducer routes on the typed `source` field, never on text sniffing.
 
 ### 1.8 Rendering rules
 

@@ -50,6 +50,7 @@ export type UiEntry =
   | { kind: 'compaction'; stage: 'start' | 'summary' | 'end' | 'prune'; text?: string }
   | { kind: 'plan'; enabled: boolean; at: number }
   | { kind: 'note'; text: string }
+  | { kind: 'runtime-context'; plugin?: string; form?: string; preview: string }
 
 /** State shape held by the TUI. */
 export interface UiState {

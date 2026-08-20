@@ -10,7 +10,7 @@ import {
   createToolResultMessage,
   createUserMessage,
 } from '@deepseek-ai/dsh-llm'
-import { initialState, reduce, replay } from '../src/state.ts'
+import { initialState, isRuntimeContext, reduce, replay } from '../src/state.ts'
 
 function makeSession(): Session {
   return Session.create('tui-test' as never)
@@ -170,5 +170,90 @@ describe('tui state reducer', () => {
     const state = replay(events)
     expect(state.entries).toHaveLength(1)
     expect(state.entries[0]).toMatchObject({ kind: 'compaction', stage: 'end' })
+  })
+
+  it('routes plugin-injected user messages to runtime-context, not the user slot', () => {
+    // Per dsh-session/README, the typed `source` is the only channel
+    // that distinguishes a real human prompt from a synthetic plugin
+    // injection. A real prompt keeps the `you` label; a plugin
+    // injection (e.g. agent-instructions shipping a <system-reminder>)
+    // is rendered as a runtime-context row.
+    const session = makeSession()
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'real human prompt' }],
+      source: { kind: 'user' },
+    }), { surfaceOp: 'append' })
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: '<system-reminder>workspace state…</system-reminder>' }],
+      source: { kind: 'plugin', plugin: 'agent-instructions', form: 'instructions' },
+    }), { surfaceOp: 'append' })
+    const state = replay(session.events)
+    expect(state.entries).toHaveLength(2)
+    expect(state.entries[0]).toMatchObject({ kind: 'user' })
+    expect(state.entries[1]).toMatchObject({
+      kind: 'runtime-context',
+      plugin: 'agent-instructions',
+      form: 'instructions',
+    })
+    const rc = state.entries[1] as Extract<(typeof state.entries)[number], { kind: 'runtime-context' }>
+    expect(rc.preview).toContain('system-reminder')
+  })
+
+  it('truncates the runtime-context preview at 80 chars with an ellipsis', () => {
+    const long = 'x'.repeat(200)
+    const session = makeSession()
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: long }],
+      source: { kind: 'plugin', plugin: 'big-payload', form: 'catalog' },
+    }), { surfaceOp: 'append' })
+    const state = replay(session.events)
+    const rc = state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'runtime-context' }>
+    // 80-char cap, ellipsized on overflow.
+    expect(rc.preview.length).toBe(80)
+    expect(rc.preview.endsWith('…')).toBe(true)
+  })
+
+  it('omits plugin and form when the source has no producer identity', () => {
+    // A non-`user` source without a known plugin name (e.g. a future
+    // source kind that does not carry `plugin`) still routes to
+    // runtime-context, but the row carries no producer label.
+    const session = makeSession()
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'synthetic' }],
+      source: { kind: 'plugin', plugin: 'mystery' },
+    }), { surfaceOp: 'append' })
+    const state = replay(session.events)
+    const rc = state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'runtime-context' }>
+    expect(rc.plugin).toBe('mystery')
+    expect(rc.form).toBeUndefined()
+  })
+})
+
+describe('isRuntimeContext', () => {
+  it('returns false for a human-source user message', () => {
+    const msg = createUserMessage({
+      content: [{ type: 'text', text: 'hi' }],
+      source: { kind: 'user' },
+    })
+    expect(isRuntimeContext(msg)).toBe(false)
+  })
+
+  it('returns true for a plugin-source user message (any form)', () => {
+    const msg = createUserMessage({
+      content: [{ type: 'text', text: 'injected' }],
+      source: { kind: 'plugin', plugin: 'p', form: 'instructions' },
+    })
+    expect(isRuntimeContext(msg)).toBe(true)
+  })
+
+  it('returns true for a tool-source user message (defensive)', () => {
+    // `user/message` events normally carry only `user` or `plugin`
+    // sources, but if a future event shape ever lands a `tool` source
+    // here, it is not a human prompt either.
+    const msg = createUserMessage({
+      content: [{ type: 'text', text: 'tool result' }],
+      source: { kind: 'tool', callId: 'c1' as never },
+    })
+    expect(isRuntimeContext(msg)).toBe(true)
   })
 })

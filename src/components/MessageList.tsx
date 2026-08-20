@@ -145,6 +145,28 @@ function PlanLine({ entry }: { entry: Extract<UiEntry, { kind: 'plan' }> }) {
   )
 }
 
+function RuntimeContextLine({ entry }: { entry: Extract<UiEntry, { kind: 'runtime-context' }> }) {
+  // Header carries the producer and form so the user can see which
+  // plugin injected this context (e.g. agent-instructions shipping a
+  // <system-reminder>). The preview is a short, dimmed sample of the
+  // payload — full text would crowd the chat surface.
+  const header = `⤷ runtime context${entry.plugin ? ` · ${entry.plugin}` : ''}${entry.form ? ` (${entry.form})` : ''}`
+  return (
+    <Box flexDirection="column" marginY={1}>
+      <Text color="gray" dimColor>
+        {header}
+      </Text>
+      {entry.preview !== '' && (
+        <Box marginLeft={2}>
+          <Text color="gray" dimColor>
+            {entry.preview}
+          </Text>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
 function Entry({ entry }: { entry: UiEntry }) {
   switch (entry.kind) {
     case 'user':
@@ -159,6 +181,8 @@ function Entry({ entry }: { entry: UiEntry }) {
       return <CompactionLine entry={entry} />
     case 'plan':
       return <PlanLine entry={entry} />
+    case 'runtime-context':
+      return <RuntimeContextLine entry={entry} />
     default: {
       // Exhaustiveness: a new UiEntry variant will fail to compile here.
       const _exhaustive: never = entry

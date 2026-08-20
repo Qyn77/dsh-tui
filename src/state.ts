@@ -5,11 +5,36 @@
  */
 
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import type { UiEntry, UiState } from './types.ts'
 
 /** Initial state. */
 export function initialState(): UiState {
   return { entries: [], status: 'idle', currentTurn: 0 }
+}
+
+/**
+ * True when a `user/message` event was produced by something other than
+ * the human at the keyboard. Per `@deepseek-ai/dsh-session` README:
+ * "its typed `source` is the only channel that tells them apart" between
+ * a real human prompt and a synthetic injection. We treat anything that
+ * is not `source.kind === 'user'` as runtime context — that covers
+ * plugin injections (e.g. `agent-instructions` shipping
+ * `<system-reminder>` content) and any future producer that supplies
+ * a non-`user` source on a user-role message.
+ */
+export function isRuntimeContext(message: UserMessage): boolean {
+  return message.source.kind !== 'user'
+}
+
+/** Pull a short text preview out of a user-role message for the runtime-context row. */
+function previewText(message: UserMessage, max: number): string {
+  const text = message.content
+    .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+    .map(b => b.text)
+    .join('')
+  if (text.length <= max) return text
+  return `${text.slice(0, max - 1)}…`
 }
 
 /** Append a textual note to the chat list. */
@@ -77,7 +102,25 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
       return state
 
     case 'user/message': {
-      return { ...state, entries: [...state.entries, { kind: 'user', message: event.data }] }
+      const msg = event.data
+      if (!isRuntimeContext(msg)) {
+        return { ...state, entries: [...state.entries, { kind: 'user', message: msg }] }
+      }
+      // Synthetic injection (plugin source, or any non-`user` source on
+      // a user-role message). Surface as a `runtime-context` row so
+      // the user can see the model received context, without the chat
+      // surface mislabeling it as a "you" message.
+      const plugin = msg.source.kind === 'plugin' ? msg.source.plugin : undefined
+      const form = msg.source.kind === 'plugin' ? msg.source.form : undefined
+      return {
+        ...state,
+        entries: [...state.entries, {
+          kind: 'runtime-context',
+          ...(plugin !== undefined ? { plugin } : {}),
+          ...(form !== undefined ? { form } : {}),
+          preview: previewText(msg, 80),
+        }],
+      }
     }
 
     case 'assistant/chunk': {
