@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { dispatch, type CommandContext } from '../src/commands.ts'
+import { dispatch, filterCommands, type CommandContext } from '../src/commands.ts'
 
 interface Stand {
   ctx: Context
@@ -112,5 +112,41 @@ describe('slash command dispatch', () => {
     expect(exitSpy).toHaveBeenCalledWith(0)
     // resetView was never called — the command was an exit, not a clear.
     expect(reset).not.toHaveBeenCalled()
+  })
+})
+
+describe('filterCommands', () => {
+  it('returns every command when the buffer is just `/`', () => {
+    const result = filterCommands('/').map((c) => c.name)
+    expect(result).toEqual(['/clear', '/exit', '/help', '/quit', '/status'])
+  })
+
+  it('filters to commands whose names start with the buffer (case-insensitive)', () => {
+    const result = filterCommands('/h').map((c) => c.name)
+    expect(result).toEqual(['/help'])
+  })
+
+  it('matches /quit under /Q prefix', () => {
+    const result = filterCommands('/Q').map((c) => c.name)
+    expect(result).toEqual(['/quit'])
+  })
+
+  it('returns an empty list when no command matches', () => {
+    expect(filterCommands('/xyz')).toEqual([])
+  })
+
+  it('returns an empty list when the buffer does not start with `/`', () => {
+    // The palette must not show for non-slash input — that would be
+    // a UX bug. Anything else is filtered out.
+    expect(filterCommands('hello')).toEqual([])
+    expect(filterCommands('  /help')).toEqual([])
+  })
+
+  it('always returns results sorted alphabetically', () => {
+    // Order is independent of the registry's source order; we use
+    // `localeCompare` so the result is stable across runs.
+    const result = filterCommands('/').map((c) => c.name)
+    const sorted = [...result].sort((a, b) => a.localeCompare(b))
+    expect(result).toEqual(sorted)
   })
 })

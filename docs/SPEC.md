@@ -102,16 +102,33 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/cost`, `/copy`. Everything that affects REPL behavior is a slash command.
 
+#### 1.5.1 Slash palette
+
+When the buffer starts with `/` and contains no space yet, a `round` cyan-bordered palette floats above the prompt showing the commands whose names start with the buffer (case-insensitive). The first row is selected by default.
+
+| Key | Effect |
+|---|---|
+| `↑` / `↓` | Move the selection (clamped to the filtered list). |
+| `Tab` | Replace the buffer with the highlighted name + trailing space. |
+| `Enter` | If the buffer is an exact command name, dispatch it. Otherwise, complete the highlighted name into the buffer (same as `Tab`). |
+| `Esc` | Clear the buffer. |
+| Any other key | Standard buffer editing. |
+
+The palette disappears as soon as the buffer contains a space (the user is typing arguments, not a command) or as soon as the buffer stops matching any registered command. The selected row is rendered with an inverted `cyan` background so it is unmistakable which command `Tab` / `Enter` will act on. The bottom of the palette shows the key hint `↑↓ navigate · Tab complete · Enter run · Esc dismiss` so the user does not have to memorize the bindings.
+
+Both the palette and `/help` read from a single `COMMANDS` registry in `src/commands.ts`; adding a new command is a one-line change there plus one case in `dispatch`.
+
 ### 1.6 Keyboard bindings
 
 | Key | Where | Action |
 |---|---|---|
-| `Enter` | Prompt | Send |
+| `Enter` | Prompt | Send (or dispatch exact slash command, or complete highlight) |
 | `Backspace` | Prompt | Delete one char |
+| `Tab` | Slash palette | Complete the highlighted command |
+| `Esc` | Slash palette | Dismiss palette and clear buffer |
+| `↑` / `↓` | Slash palette | Move palette selection; future History in v0.2 |
 | `Ctrl-C` | Anywhere | Cancel turn (when running) or exit (when idle) |
 | `\` + `Enter` | Prompt | Insert a newline (multi-line escape for v0.1) |
-| `↑` / `↓` | Prompt | History (v0.2) |
-| `Tab` | Prompt | Completion (v0.3) |
 | `Ctrl-L` | Anywhere | Clear screen, redraw (v0.4) |
 
 ### 1.7 Text conventions

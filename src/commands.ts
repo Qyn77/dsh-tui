@@ -1,7 +1,10 @@
 /**
- * Slash command dispatch for the TUI prompt. Commands are intercepted in the
- * input handler and never reach the model — they own their own UX. The
- * returned status tells the prompt what to do next.
+ * Slash command registry and dispatch for the TUI prompt. The same
+ * `COMMANDS` table feeds the in-progress `/` palette (see
+ * `SlashPalette.tsx`) and the help text, so the two never drift.
+ * Commands are intercepted in the input handler and never reach the
+ * model — they own their own UX. The returned status tells the prompt
+ * what to do next.
  * @module @deepseek-ai/dsh-tui/commands
  */
 
@@ -15,15 +18,58 @@ export type CommandResult =
   | { kind: 'exit' }
   | { kind: 'unknown'; input: string }
 
-/** Static help text shown by `/help`. */
-const HELP_TEXT = [
-  'Available commands:',
-  '  /help      Show this message',
-  '  /clear     Clear the visible chat (keeps the session log intact)',
-  '  /status    Print the current model and session id',
-  '  /exit      Leave the REPL (also: /quit)',
-  '  /quit      Alias for /exit',
-].join('\n')
+/**
+ * One entry in the slash-command registry. Both the palette and the
+ * `/help` text read from this — adding a new command means writing
+ * one row here and one case in {@link dispatch}.
+ */
+export interface CommandMeta {
+  /** Canonical name, including the leading `/`. */
+  name: string
+  /** One-line description shown in the palette and `/help`. */
+  description: string
+}
+
+/**
+ * Slash command registry. Order is the default order in the palette
+ * when the buffer is just `/`. Sorted alphabetically by name on
+ * filter for stability.
+ */
+export const COMMANDS: readonly CommandMeta[] = [
+  { name: '/clear', description: 'Clear the visible chat (keeps the session log intact)' },
+  { name: '/exit', description: 'Leave the REPL' },
+  { name: '/help', description: 'Show the list of available commands' },
+  { name: '/quit', description: 'Alias for /exit' },
+  { name: '/status', description: 'Print the current model and session id' },
+]
+
+/**
+ * Return the commands whose names start with `buffer` (case-insensitive).
+ * The buffer is expected to start with `/`; an empty result means
+ * "no match — hide the palette". Sorted alphabetically so the order
+ * is stable across keystrokes.
+ * @param buffer - the current prompt buffer, e.g. `/he` or `/`.
+ */
+export function filterCommands(buffer: string): CommandMeta[] {
+  const query = buffer.toLowerCase()
+  if (!query.startsWith('/')) return []
+  return COMMANDS
+    .filter((c) => c.name.toLowerCase().startsWith(query))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Pretty-print the command list for `/help`. Two columns, padded so
+ * the descriptions line up. Sourced from {@link COMMANDS} so the two
+ * surfaces stay in lock-step.
+ */
+function helpText(): string {
+  const nameCol = Math.max(...COMMANDS.map((c) => c.name.length))
+  const rows = [...COMMANDS]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((c) => `  ${c.name.padEnd(nameCol)}  ${c.description}`)
+  return ['Available commands:', ...rows].join('\n')
+}
 
 /** Snapshot one command from the registry. */
 export interface CommandContext {
@@ -44,7 +90,7 @@ export function dispatch(raw: string, cmd: CommandContext): CommandResult {
   const name = raw.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
   switch (name) {
     case '/help':
-      return { kind: 'handled', message: HELP_TEXT }
+      return { kind: 'handled', message: helpText() }
 
     case '/clear':
       cmd.resetView()
