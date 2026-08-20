@@ -20,8 +20,19 @@ export interface PromptProps {
  * naturally; Enter submits unless the buffer ends in `\`, in which case it
  * becomes a newline character.
  */
+export function insertTextAtCursor(text: string, cursor: number, input: string): string {
+  const safeCursor = Math.min(Math.max(0, cursor), text.length)
+  return `${text.slice(0, safeCursor)}${input}${text.slice(safeCursor)}`
+}
+
+export function removeCharBeforeCursor(text: string, cursor: number): string {
+  if (cursor <= 0 || cursor > text.length) return text
+  return `${text.slice(0, cursor - 1)}${text.slice(cursor)}`
+}
+
 export const Prompt: FC<PromptProps> = ({ active, onSubmit }) => {
   const [value, setValue] = useState('')
+  const [cursorIndex, setCursorIndex] = useState(0)
 
   // Ink's raw mode hides the terminal cursor, so we render our own.
   // Keep it stable instead of blinking: the prompt is already visually
@@ -36,24 +47,49 @@ export const Prompt: FC<PromptProps> = ({ active, onSubmit }) => {
       if (key.ctrl) return
       if (key.return) {
         if (value.endsWith('\\')) {
-          setValue(`${value.slice(0, -1)}\n`)
+          const next = `${value.slice(0, -1)}\n`
+          setValue(next)
+          setCursorIndex(next.length)
           return
         }
         const submitted = value
         setValue('')
+        setCursorIndex(0)
         onSubmit(submitted)
         return
       }
-      if (key.backspace || key.delete) {
-        setValue(value.slice(0, -1))
+      if (key.leftArrow) {
+        setCursorIndex((i) => Math.max(0, i - 1))
         return
       }
-      if (input) setValue(value + input)
+      if (key.rightArrow) {
+        setCursorIndex((i) => Math.min(value.length, i + 1))
+        return
+      }
+      if (key.backspace || key.delete) {
+        setValue((current) => {
+          const nextCursor = Math.max(0, cursorIndex - 1)
+          const nextValue = removeCharBeforeCursor(current, cursorIndex)
+          setCursorIndex(nextCursor)
+          return nextValue
+        })
+        return
+      }
+      if (input) {
+        setValue((current) => {
+          const nextValue = insertTextAtCursor(current, cursorIndex, input)
+          setCursorIndex(cursorIndex + input.length)
+          return nextValue
+        })
+      }
     },
     { isActive: active },
   )
 
+  const visibleValue = value === '' ? '' : value
   const placeholder = active ? 'Ask dsh anything…' : '… working'
+  const beforeCursor = value.slice(0, cursorIndex)
+  const afterCursor = value.slice(cursorIndex)
   const cursor = active ? <Text color="cyan" bold>▌</Text> : null
 
   return (
@@ -65,14 +101,20 @@ export const Prompt: FC<PromptProps> = ({ active, onSubmit }) => {
       <Text color="cyan" bold>
         {'> '}
       </Text>
-      {value === '' ? (
-        <Text color="gray" dimColor>
-          {placeholder}
-        </Text>
+      {visibleValue === '' ? (
+        <>
+          {cursor}
+          <Text color="gray" dimColor>
+            {placeholder}
+          </Text>
+        </>
       ) : (
-        <Text>{value}</Text>
+        <>
+          <Text>{beforeCursor}</Text>
+          {cursor}
+          <Text>{afterCursor}</Text>
+        </>
       )}
-      {cursor}
     </Box>
   )
 }
