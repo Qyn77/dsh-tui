@@ -8,6 +8,7 @@ import React, { type FC } from 'react'
 import { Box, Text } from 'ink'
 import type { UiEntry, UiState } from '../types.ts'
 import { userMessageText } from '../types.ts'
+import { Markdown } from './Markdown.tsx'
 
 /** Props for {@link MessageList}. */
 export interface MessageListProps {
@@ -72,6 +73,13 @@ function truncate(text: string, max: number): string {
 }
 
 function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant' }> }) {
+  // While the turn is still streaming, show raw text — re-parsing
+  // partial markdown on every chunk risks a half-open fence or an
+  // italic delimiter that hasn't closed yet, both of which would
+  // churn the layout. Once the turn finalizes we re-render the full
+  // block as markdown. The transition fires on the assistant/message
+  // event, not on a timer, so it doesn't trigger the scroll-snap
+  // regression that lives in `docs/lessons/prompt-scroll-snaps.md`.
   return (
     <Box flexDirection="column" marginY={1} paddingX={1}>
       <Box>
@@ -81,8 +89,12 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
         <Text color="gray"> · turn {entry.turn} step {entry.step}</Text>
         {!entry.finalized && <Text color="yellow"> · streaming</Text>}
       </Box>
-      <Box marginLeft={2}>
-        <Text>{entry.text || ' '}</Text>
+      <Box marginLeft={2} flexDirection="column">
+        {entry.finalized ? (
+          <Markdown source={entry.text} />
+        ) : (
+          <Text>{entry.text || ' '}</Text>
+        )}
       </Box>
     </Box>
   )

@@ -22,13 +22,15 @@ src/
 ├── types.ts                  UiEntry, UiState, declaration-merged events
 ├── commands.ts               /help /clear /status /exit /quit          [test-first]
 ├── invariant.ts              Type companion for dsh-invariants (no runtime)
+├── markdown.ts               Pure markdown → UI AST (no React, no Ink) [test-first]
 ├── hooks/useSessionEvents.ts Replay log + live subscribe
 ├── hooks/useMessageListScroll.ts Scroll math + bindings
-└── components/{StatusBar, MessageList, Prompt}.tsx
+└── components/{StatusBar, MessageList, Prompt, Markdown}.tsx
 tests/                          vitest specs
 docs/
 ├── SPEC.md                   design contract and visual rules
 ├── TUI-ROADMAP.md            product plan and milestone sequencing
+├── PLUGIN-ADAPTATION.md      plugin compatibility contract
 ├── lessons/                  closed bug notes and follow-up invariants
 cordis.patch.yml                patch applied on install
 ```
@@ -44,6 +46,7 @@ cordis.patch.yml                patch applied on install
 7. **No `process.exit` outside `commands.ts` and `index.ts`.** Every other file must be unit-testable; rely on `ctx.appExit` or the Ink `waitUntilExit` promise.
 8. **Docs track code in the same PR.** When you change anything under `src/`, update the matching section of `README.md`, `README.zh.md`, or [docs/SPEC.md](docs/SPEC.md) in the same commit. New event type → `state.ts` cases + `docs/SPEC.md` Part 3 reducer contract. New slash command → `commands.ts` + `tests/commands.spec.ts` + the slash-command table in both READMEs. New platform behavior → `README.md` "Use it" / "Develop it" sections. New color, glyph, or layout rule → `docs/SPEC.md` Part 1. The spec is the source of truth — stale docs are bugs.
 9. **The TUI is not a general plugin host.** It renders dsh state and session events. If a plugin wants to appear here, it must integrate with dsh's runtime/event model; the core agent loop still lives in dsh and must remain functional even when the UI is extended.
+10. **Markdown rendering is two files, one boundary.** `src/markdown.ts` is the pure AST and may not import React or Ink. `src/components/Markdown.tsx` is the Ink renderer. Streaming assistant chunks stay as raw text; the block re-renders as markdown only on the `assistant/message` finalization event — do not re-parse on every chunk. The visual mapping lives in `docs/SPEC.md` §1.9.
 
 ## Plugin integration rule
 

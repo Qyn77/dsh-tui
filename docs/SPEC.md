@@ -128,6 +128,30 @@ Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/cost
 - **TTY required.** The runner refuses to start without a TTY and prints a one-line error to stderr. Plain pipes are not a use case.
 - **Graceful shutdown.** In raw mode, Ink receives Ctrl-C as a keypress rather than `SIGINT`. While a turn is running it cancels the turn. While idle it unmounts Ink first (restoring the terminal), then triggers the same launcher `ctx.appExit` path as `/exit`. The runner never calls `process.exit` outside `commands.ts` and `index.ts`. See [Lessons → Ctrl-C shutdown](./lessons/ctrl-c-shutdown.md) for the investigation playbook behind this ordering.
 
+### 1.9 Markdown rendering
+
+Finalized assistant turns render a curated subset of GitHub-flavored markdown. The parser lives in [src/markdown.ts](../src/markdown.ts) (pure, no React, no Ink) and the Ink renderer in [src/components/Markdown.tsx](../src/components/Markdown.tsx). Only the assistant block is markdown-aware; user messages, tool cards, and notes remain plain text.
+
+| Construct | Terminal style |
+|---|---|
+| `#`–`###` heading | `bold`, color step: `cyan` / `magenta` / `gray` |
+| `####`–`######` heading | `bold gray` |
+| ` ``` fenced ``` ` | `round` border, `gray dim` body, language label in `cyan bold` |
+| `` `inline` `` | `cyan dim` |
+| `**bold**` | `bold` |
+| `*italic*` | `italic` |
+| `[label](https://...)` | `underline blue`, label replaced with the URL (no hover on terminal) |
+| `-` / `*` unordered list | `▸` bullet, indented one space |
+| `1.` ordered list | `1.` `2.` `3.` numeric bullet |
+| `> blockquote` | `▏` left bar, `gray dim` content |
+| `---` thematic break | `────────────` line |
+
+Raw HTML (`<script>`, etc.) is stripped before the AST is built — see §3.1. Unclosed fences and stray delimiters fall back to a plain `paragraph` so the chat surface never goes blank.
+
+**Streaming rule.** While a turn is still receiving `assistant/chunk` events, the assistant block stays as raw text. The block re-renders as markdown on the `assistant/message` finalization event. This avoids re-parsing partial input on every keystroke of the model — a half-open code fence or a closing `*` that hasn't arrived yet would otherwise churn the layout, in tension with the lesson in [docs/lessons/prompt-scroll-snaps.md](./lessons/prompt-scroll-snaps.md).
+
+**Out of scope (today).** Tables, images, strikethrough, syntax highlighting, and the "render markdown live while streaming" follow-up are tracked in v0.4.
+
 ---
 
 ## Part 2 · Roadmap
@@ -156,6 +180,7 @@ Known gaps (deferred, not bugs):
 - **`/compact` wired.** Invoke `dsh-base`'s compaction action; show the `compacting…` line in the StatusBar instead of in the message list.
 - **Spinner during turns.** Replace the static `⏳ working` glyph with the animated `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` cycle.
 - **Error rendering.** Network / model / tool errors get a uniform `Error: …` block in `red`; retryable ones show a hint.
+- **Markdown rendering.** Assistant turns render a curated subset of GitHub-flavored markdown — see §1.9. Streaming chunks stay as raw text and the block re-renders as markdown on the `assistant/message` finalization event.
 
 ### v0.3 — Discoverability
 
@@ -170,7 +195,7 @@ Known gaps (deferred, not bugs):
 
 - **Syntax highlighting** in assistant code blocks (Shiki, no `node-pty`).
 - **Auto theme.** Detect light/dark terminal background and switch palette.
-- **Streaming markdown.** Render assistant text as it streams, not after the full turn.
+- **Streaming markdown.** Re-parse the assistant text on every `assistant/chunk` event and render partial markdown live, instead of waiting for the `assistant/message` finalization. v0.2 ships the simpler "render on finalize" path; v0.4 is the incremental follow-up.
 - **Truncation.** Long tool outputs collapse to a `▾ show more` affordance.
 - **Clipboard.** OSC 52 integration for `/copy` and `/paste`.
 - **`Ctrl-L` redraw.** Force a full re-render on demand.
@@ -206,6 +231,7 @@ src/
 ├── types.ts          # Type-only — UiEntry, UiState, isRenderable
 ├── commands.ts       # Pure dispatch — string → CommandResult
 ├── invariant.ts      # Type companion for dsh-invariants (no runtime)
+├── markdown.ts       # Pure markdown → UI AST (no React, no Ink)
 ├── hooks/            # React-only — useInput, useEffect, useState
 └── components/       # React components — pure functions of state
 ```
@@ -214,8 +240,9 @@ src/
 
 - `state.ts` may import from `types.ts` only.
 - `commands.ts` may import from `types.ts` and any type-only package export.
-- `hooks/` may import from `state.ts` (as a function call), `types.ts`, and React.
-- `components/` may import from `hooks/`, `types.ts`, and React. They do **not** import `state.ts` directly — they receive derived props from the renderer.
+- `markdown.ts` may import from external parsers (`marked`) and `types.ts`. It must not import React, Ink, or any component.
+- `hooks/` may import from `state.ts` (as a function call), `markdown.ts` (as a function call), `types.ts`, and React.
+- `components/` may import from `hooks/`, `markdown.ts` (for the `Markdown` component and AST types), `types.ts`, and React. They do **not** import `state.ts` directly — they receive derived props from the renderer.
 - `renderer.tsx` is the only file that wires the reducer to the hooks.
 - `index.ts` is the only file that imports Cordis, runs side effects, calls `randomUUID`, and calls `render()`.
 
@@ -252,6 +279,7 @@ The reducer is the unit-test surface for the model layer. Every new `SessionEven
 |---|---|
 | `state.ts` | 100% (every event type, every branch) |
 | `commands.ts` | 100% (every command, every invalid input shape) |
+| `markdown.ts` | Every block-level construct (heading, paragraph, code, list, blockquote, hr) + at least one inline construct + the failure-mode fallback (unclosed fence, stray delimiter) |
 | `hooks/*` | Behavior tests via `renderHook`; one happy path + one error path each |
 | `components/*` | Snapshot test for layout + interaction test for input handling |
 | `index.ts` | Smoke test: instantiate the plugin with a mock Agent and assert `render` was called |
