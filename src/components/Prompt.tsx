@@ -6,6 +6,7 @@
 
 import React, { useState, type FC } from 'react'
 import { Box, Text, useInput } from 'ink'
+import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 
 /** Props for {@link Prompt}. */
 export interface PromptProps {
@@ -13,6 +14,8 @@ export interface PromptProps {
   active: boolean
   /** Called with the full line when the user submits. */
   onSubmit: (text: string) => void
+  /** Index into {@link SPINNER_FRAMES} for the running-mode placeholder. */
+  spinnerFrame: number
 }
 
 /**
@@ -30,7 +33,7 @@ export function removeCharBeforeCursor(text: string, cursor: number): string {
   return `${text.slice(0, cursor - 1)}${text.slice(cursor)}`
 }
 
-export const Prompt: FC<PromptProps> = ({ active, onSubmit }) => {
+export const Prompt: FC<PromptProps> = ({ active, onSubmit, spinnerFrame }) => {
   const [value, setValue] = useState('')
   const [cursorIndex, setCursorIndex] = useState(0)
 
@@ -87,7 +90,11 @@ export const Prompt: FC<PromptProps> = ({ active, onSubmit }) => {
   )
 
   const visibleValue = value === '' ? '' : value
-  const placeholder = active ? 'Ask dsh anything…' : '… working'
+  // The running placeholder is the same spinner glyph the StatusBar
+  // uses, so the two indicators stay in lock-step. Both come from
+  // the App's single `useRunningClock` interval; idle placeholder
+  // is unchanged.
+  const placeholder = active ? 'Ask dsh anything…' : `${SPINNER_FRAMES[spinnerFrame]} working`
   const beforeCursor = value.slice(0, cursorIndex)
   const afterCursor = value.slice(cursorIndex)
   const cursor = active ? <Text color="cyan" bold>▌</Text> : null

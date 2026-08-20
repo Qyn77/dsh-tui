@@ -13,6 +13,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
 import { StatusBar } from './components/StatusBar.tsx'
+import { useRunningClock } from './hooks/useRunningClock.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
@@ -40,6 +41,11 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
     () => ctx.get('agentDefaultModel')?.currentSelection(),
     [ctx],
   )
+  // The animated "thinking" indicator. One interval per status
+  // transition; both the StatusBar (right-side) and the Prompt
+  // (placeholder) read from the same frame index so the spinner
+  // glyph is in lock-step on screen.
+  const { spinnerFrame, elapsedSeconds } = useRunningClock(state.status === 'running')
 
   // Ink's raw mode delivers Ctrl-C as a keystroke (input 'c' with
   // key.ctrl), not as a SIGINT signal. The Prompt's useInput also sees
@@ -78,13 +84,25 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
     [ctx, agent, resetView],
   )
 
-  if (selection === undefined) return <Box><Prompt active={false} onSubmit={() => {}} /></Box>
+  if (selection === undefined) {
+    return <Box><Prompt active={false} onSubmit={() => {}} spinnerFrame={spinnerFrame} /></Box>
+  }
 
   return (
     <Box flexDirection="column" height="100%">
-      <StatusBar selection={selection} sessionId={agent.id} state={state} />
+      <StatusBar
+        selection={selection}
+        sessionId={agent.id}
+        state={state}
+        spinnerFrame={spinnerFrame}
+        elapsedSeconds={elapsedSeconds}
+      />
       <MessageList state={state} />
-      <Prompt active={state.status === 'idle'} onSubmit={onSubmit} />
+      <Prompt
+        active={state.status === 'idle'}
+        onSubmit={onSubmit}
+        spinnerFrame={spinnerFrame}
+      />
     </Box>
   )
 }

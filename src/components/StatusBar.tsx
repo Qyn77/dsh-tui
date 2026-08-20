@@ -8,6 +8,7 @@ import { Box, Text } from 'ink'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { UiState } from '../types.ts'
+import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 
 /** Props for {@link StatusBar}. */
 export interface StatusBarProps {
@@ -17,6 +18,10 @@ export interface StatusBarProps {
   sessionId: SessionId
   /** Live UI state — used for status + last-finished turn number. */
   state: UiState
+  /** Index into {@link SPINNER_FRAMES} for the running glyph. */
+  spinnerFrame: number
+  /** Whole seconds since the most recent `running` transition. */
+  elapsedSeconds: number
 }
 
 function shortId(id: SessionId): string {
@@ -36,9 +41,18 @@ function totalUsage(state: UiState): { input: number; output: number } {
   return { input, output }
 }
 
-export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state }) => {
+export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spinnerFrame, elapsedSeconds }) => {
   const usage = totalUsage(state)
-  const statusGlyph = state.status === 'running' ? '⏳ working' : '⏵ idle'
+  const isRunning = state.status === 'running'
+  // The running indicator is `⠋ working · 3s` (spinner + label +
+  // elapsed-seconds counter). The glyph is a single frame from
+  // `SPINNER_FRAMES` driven by the App's `useRunningClock`; the
+  // counter is whole seconds and only updates once a second so a
+  // long turn does not re-render at 12 fps for an unchanged value.
+  // Idle stays `⏵ idle` — the same shape, no extra columns.
+  const statusText = isRunning
+    ? `${SPINNER_FRAMES[spinnerFrame]} working · ${elapsedSeconds}s`
+    : '⏵ idle'
   return (
     <Box
       borderStyle="single"
@@ -58,8 +72,8 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state }) =
         <Text color="gray">session: </Text>
         <Text>{shortId(sessionId)}</Text>
         <Text color="gray"> · </Text>
-        <Text color={state.status === 'running' ? 'yellow' : 'gray'}>
-          {statusGlyph}
+        <Text color={isRunning ? 'yellow' : 'gray'}>
+          {statusText}
         </Text>
         <Text color="gray"> · </Text>
         <Text color="gray">in: </Text>

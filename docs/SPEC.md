@@ -76,10 +76,11 @@ Colors are semantic, not aesthetic. Don't introduce new colors without a reason 
 | State | Glyph + label | Color |
 |---|---|---|
 | Idle | `⏵ idle` | `gray` |
-| Running | `⏳ working` | `yellow` |
-| (Planned v0.2) Running | animated `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` | `cyan` |
+| Running | `⠋ working · 3s` (spinner + elapsed seconds) | `yellow` |
 | Awaiting approval | `? approve` | `yellow` |
 | Cancelled | `⊘ cancelled` | `gray` |
+
+The running indicator is driven by [`useRunningClock`](./../src/hooks/useRunningClock.ts): a single 80ms interval ticks the spinner through the Braille frames `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` and updates the elapsed-seconds counter only when the integer second changes (so a long turn does not re-render at 12 fps for a value that has not moved). Both the StatusBar status slot and the Prompt's `… working` placeholder read from the same frame index, so the glyph stays in lock-step on screen. Idle turns pay no timer cost — the interval is created on the `idle → running` transition and torn down on the reverse.
 
 Glyphs are Unicode. Don't draw them with ASCII (`>` `|`) — the round/single box characters are part of the visual identity.
 
