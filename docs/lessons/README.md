@@ -23,3 +23,4 @@ is for closed cases only.
 | Lesson | One-line takeaway | Tags | Status |
 |---|---|---|---|
 | [Ctrl-C shutdown](ctrl-c-shutdown.md) | Ink raw mode delivers Ctrl-C as a keypress, not a `SIGINT`; teardown order is `closeUi()` → `ctx.appExit(0)`. | terminal, ink, lifecycle | Resolved · `5f0ae88` |
+| [Prompt / scroll snap regression](prompt-scroll-snaps.md) | Timer-driven prompt rerenders can make the terminal alt-screen feel like the chat is snapping to the top or bottom; keep custom cursors stable and low-churn. | terminal, ink, prompt, scroll | Resolved |
