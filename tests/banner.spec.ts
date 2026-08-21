@@ -14,7 +14,9 @@ import {
   displayWidth,
   centerText,
   metaText,
+  bannerTier,
   BANNER_MIN_WIDTH,
+  BANNER_WORDMARK_WIDTH,
 } from '../src/components/Banner.tsx'
 
 describe('displayWidth', () => {
@@ -193,6 +195,38 @@ describe('BANNER_MIN_WIDTH', () => {
     // terminal gets the full art. If a future edit widens the whale
     // or the wordmark past 80 columns, this test is the tripwire.
     expect(BANNER_MIN_WIDTH).toBeLessThanOrEqual(80)
+  })
+
+  it('leaves room for the wordmark-only tier below it', () => {
+    expect(BANNER_WORDMARK_WIDTH).toBeLessThan(BANNER_MIN_WIDTH)
+  })
+})
+
+describe('bannerTier', () => {
+  it('gives the full spread to a terminal wide enough for both columns', () => {
+    expect(bannerTier(BANNER_MIN_WIDTH)).toBe('full')
+    expect(bannerTier(120)).toBe('full')
+  })
+
+  it('drops the whale one column short of the full spread', () => {
+    // The boundary is the whole reason this function exists: rendering
+    // the two-column art one column too narrow is what made Yoga
+    // squeeze the columns and Ink re-wrap the meta text.
+    expect(bannerTier(BANNER_MIN_WIDTH - 1)).toBe('wordmark')
+  })
+
+  it('keeps the wordmark down to its own width', () => {
+    expect(bannerTier(BANNER_WORDMARK_WIDTH)).toBe('wordmark')
+  })
+
+  it('falls back to plain text below the wordmark width', () => {
+    expect(bannerTier(BANNER_WORDMARK_WIDTH - 1)).toBe('plain')
+    expect(bannerTier(20)).toBe('plain')
+  })
+
+  it('never throws on a degenerate width', () => {
+    expect(bannerTier(0)).toBe('plain')
+    expect(bannerTier(-1)).toBe('plain')
   })
 })
 

@@ -114,6 +114,13 @@ const WHALE_ROWS = encodeBitmap(WHALE_BITMAP)
 const SLOGAN = '探索未至之境！'
 
 /**
+ * The whale reduced to a single row, for the tier too narrow to draw
+ * the sprite. Same glyph the StatusBar uses, so the brand mark stays
+ * recognisable across every width.
+ */
+const SMALL_WHALE = '▄█▀▀█▄'
+
+/**
  * Display width of `text` in terminal columns. CJK characters occupy
  * two columns, which matters here because the slogan is Chinese and
  * `String.length` would report half its true width — centering on
@@ -201,20 +208,40 @@ const HARNESS_ROWS = renderBlockWord('HARNESS')
 
 const WHALE_WIDTH = Math.max(...WHALE_ROWS.map((r) => r.text.length))
 /**
- * Width of the right-hand column. Every meta line is budgeted against
- * this so the block type sets the column and the text never widens the
- * banner or wraps inside it.
+ * Width of the block-letter wordmark, and therefore of the right-hand
+ * column. Both columns are pinned to an explicit width so Yoga can
+ * never flex-shrink them: a squeezed column re-wraps its meta text onto
+ * extra rows, which shifts every row below it and turns the whole
+ * banner into confetti.
  */
-const META_WIDTH = Math.max(...renderBlockWord('DEEPSEEK').map((r) => r.length))
+const WORDMARK_WIDTH = Math.max(...renderBlockWord('DEEPSEEK').map((r) => r.length))
 const COLUMN_GAP = 3
 /** Frame border (2) plus `paddingX={2}` on both sides (4). */
 const FRAME_PADDING = 6
 
 /**
  * Total columns the two-column banner needs. Below this the banner
- * switches to its compact form rather than letting the art clip.
+ * switches to a narrower tier rather than letting the art clip.
  */
-export const BANNER_MIN_WIDTH = WHALE_WIDTH + COLUMN_GAP + META_WIDTH + FRAME_PADDING
+export const BANNER_MIN_WIDTH = WHALE_WIDTH + COLUMN_GAP + WORDMARK_WIDTH + FRAME_PADDING
+
+/** Columns the wordmark-only tier needs. */
+export const BANNER_WORDMARK_WIDTH = WORDMARK_WIDTH + FRAME_PADDING
+
+/** How much of the banner survives at the current terminal width. */
+export type BannerTier = 'full' | 'wordmark' | 'plain'
+
+/**
+ * Pick the widest tier that fits. Three tiers rather than two because
+ * the drop from the full spread to a single text line is a 45-column
+ * cliff: between those bounds the wordmark still fits perfectly well on
+ * its own, and it is the half that carries the product's name.
+ */
+export function bannerTier(columns: number): BannerTier {
+  if (columns >= BANNER_MIN_WIDTH) return 'full'
+  if (columns >= BANNER_WORDMARK_WIDTH) return 'wordmark'
+  return 'plain'
+}
 
 /**
  * Shorten `cwd` for display by replacing the home-directory prefix
@@ -244,7 +271,7 @@ export function fitTail(line: string, width: number): string {
 const SESSION_ID_CHARS = 12
 
 /**
- * The tip line. Kept short enough to fit {@link META_WIDTH} at 80
+ * The tip line. Kept short enough to fit {@link WORDMARK_WIDTH} at 80
  * columns, and only advertises commands that exist today — a tip
  * pointing at an unimplemented command is worse than no tip.
  */
@@ -288,11 +315,25 @@ export function metaText(
   }
 }
 
+/**
+ * The four meta facts stacked in one column, for the tiers that have
+ * only one column to stack them in.
+ */
+const MetaStack: FC<{ meta: MetaText; width: number }> = ({ meta, width }) => (
+  <Box flexDirection="column" width={width} flexShrink={0}>
+    <Text color="white" bold wrap="truncate">{fitTail(meta.model, width)}</Text>
+    <Text color="gray" wrap="truncate">{fitTail(meta.session, width)}</Text>
+    <Text color="gray" wrap="truncate">{fitTail(meta.location, width)}</Text>
+    <Text color={BRAND_BLUE_LIGHT} wrap="truncate">{fitTail(meta.tip, width)}</Text>
+  </Box>
+)
+
 export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
   const { stdout } = useStdout()
   // Ink does not surface the column count when stdout is piped; 80 is
   // the safe assumption and is wide enough for the full banner.
   const columns = stdout?.columns ?? 80
+  const tier = bannerTier(columns)
   const meta = metaText(
     selection,
     sessionId,
@@ -300,17 +341,35 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
     displayCwd(process.cwd(), process.env['HOME']),
   )
 
-  // Compact form: drop the whale and the block type, keep every fact.
-  // With no two columns to balance, all four lines stack.
-  if (columns < BANNER_MIN_WIDTH) {
+  // Narrowest tier: no art at all, every fact kept. One line of brand
+  // so the splash still reads as ours, then the meta stack.
+  if (tier === 'plain') {
     const w = Math.max(8, columns - FRAME_PADDING)
     return (
       <Box borderStyle="round" borderColor={BRAND_BLUE} flexDirection="column" paddingX={2} paddingY={1}>
-        <Text color={BRAND_BLUE} bold>DEEPSEEK HARNESS</Text>
-        <Text color="white" bold>{fitTail(meta.model, w)}</Text>
-        <Text color="gray">{fitTail(meta.session, w)}</Text>
-        <Text color="gray">{fitTail(meta.location, w)}</Text>
-        <Text color={BRAND_BLUE_LIGHT}>{fitTail(meta.tip, w)}</Text>
+        <Text color={BRAND_BLUE} bold wrap="truncate">
+          {fitTail(`${SMALL_WHALE} DEEPSEEK HARNESS`, w)}
+        </Text>
+        <MetaStack meta={meta} width={w} />
+      </Box>
+    )
+  }
+
+  // Middle tier: the whale is what does not fit, so the whale is what
+  // goes. The wordmark carries the name and still lands intact.
+  if (tier === 'wordmark') {
+    return (
+      <Box borderStyle="round" borderColor={BRAND_BLUE} flexDirection="column" paddingX={2} paddingY={1}>
+        {DEEPSEEK_ROWS.map((row, i) => (
+          <Text key={`ds-${i}`} color={BRAND_BLUE} wrap="truncate">{row}</Text>
+        ))}
+        {HARNESS_ROWS.map((row, i) => (
+          <Text key={`hn-${i}`} color={BRAND_BLUE_LIGHT} wrap="truncate">{row}</Text>
+        ))}
+        <Text color={BRAND_BLUE} bold wrap="truncate">{centerText(SLOGAN, WORDMARK_WIDTH)}</Text>
+        <Box marginTop={1}>
+          <MetaStack meta={meta} width={WORDMARK_WIDTH} />
+        </Box>
       </Box>
     )
   }
@@ -324,7 +383,14 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
       paddingY={1}
       columnGap={COLUMN_GAP}
     >
-      <Box flexDirection="column">
+      {/*
+        Both columns pin an explicit width and refuse to shrink. Without
+        that, a container one column short of what the art needs makes
+        Yoga squeeze the columns, Ink re-wrap the meta text onto extra
+        rows, and every row below it slide — the banner stops looking
+        designed and starts looking broken.
+      */}
+      <Box flexDirection="column" width={WHALE_WIDTH} flexShrink={0}>
         {/*
           A blank row above and below the sprite so the whale reads as
           a framed illustration rather than something wedged against
@@ -332,7 +398,7 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
         */}
         <Text> </Text>
         {WHALE_ROWS.map((row, i) => (
-          <Text key={`whale-${i}`} color={row.belly ? BRAND_BLUE_LIGHT : BRAND_BLUE}>
+          <Text key={`whale-${i}`} color={row.belly ? BRAND_BLUE_LIGHT : BRAND_BLUE} wrap="truncate">
             {row.text}
           </Text>
         ))}
@@ -343,35 +409,32 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
           be in display columns — the slogan is Chinese, and centering
           on `.length` would place it half a whale to the right.
         */}
-        <Text color={BRAND_BLUE} bold>{centerText(SLOGAN, WHALE_WIDTH)}</Text>
+        <Text color={BRAND_BLUE} bold wrap="truncate">{centerText(SLOGAN, WHALE_WIDTH)}</Text>
         {/*
           The "where am I?" half of the meta, moved here to use the rows
           the slogan left empty and to stop the right column carrying
-          four stacked lines on its own. Both are fitted to the sprite's
-          width, not the terminal's: the column takes its width from its
-          widest child, so an unfitted long path would widen this column
-          and shove the wordmark off the right edge.
+          four stacked lines on its own.
         */}
         <Box marginTop={1} flexDirection="column">
-          <Text color="gray">{fitTail(meta.session, WHALE_WIDTH)}</Text>
-          <Text color="gray">{fitTail(meta.location, WHALE_WIDTH)}</Text>
+          <Text color="gray" wrap="truncate">{fitTail(meta.session, WHALE_WIDTH)}</Text>
+          <Text color="gray" wrap="truncate">{fitTail(meta.location, WHALE_WIDTH)}</Text>
         </Box>
       </Box>
-      <Box flexDirection="column">
+      <Box flexDirection="column" width={WORDMARK_WIDTH} flexShrink={0}>
         {/* Matches the whale column's leading blank so the wordmark's
             cap height lines up with the sprite's top row. */}
         <Text> </Text>
         {DEEPSEEK_ROWS.map((row, i) => (
-          <Text key={`ds-${i}`} color={BRAND_BLUE}>{row}</Text>
+          <Text key={`ds-${i}`} color={BRAND_BLUE} wrap="truncate">{row}</Text>
         ))}
         {HARNESS_ROWS.map((row, i) => (
-          <Text key={`hn-${i}`} color={BRAND_BLUE_LIGHT}>{row}</Text>
+          <Text key={`hn-${i}`} color={BRAND_BLUE_LIGHT} wrap="truncate">{row}</Text>
         ))}
         {/* The "what and how" half: which model answers, and how to
             drive it. */}
         <Box marginTop={1} flexDirection="column">
-          <Text color="white" bold>{fitTail(meta.model, META_WIDTH)}</Text>
-          <Text color={BRAND_BLUE_LIGHT}>{fitTail(meta.tip, META_WIDTH)}</Text>
+          <Text color="white" bold wrap="truncate">{fitTail(meta.model, WORDMARK_WIDTH)}</Text>
+          <Text color={BRAND_BLUE_LIGHT} wrap="truncate">{fitTail(meta.tip, WORDMARK_WIDTH)}</Text>
         </Box>
       </Box>
     </Box>
