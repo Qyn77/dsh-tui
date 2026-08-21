@@ -16,11 +16,11 @@
  *
  * The frame is not recoverable by counting better, so this stops counting:
  * when the resize storm goes quiet, erase the whole visible screen and let
- * Ink lay the frame down again at the top. `useStdout().write` is Ink's own
- * escape hatch for this — it clears the live frame, writes what we give it,
- * and redraws the frame afterwards, resetting `log-update`'s line count on
- * the way through. Whatever the terminal did to the old rows is irrelevant
- * once they are gone.
+ * Ink lay the frame down again at the top. The leading-edge clear uses the
+ * raw stdout stream intentionally: Ink's `write` helper redraws its previous
+ * frame immediately after custom data, which would replay a frame measured
+ * at the old width during the resize storm. The trailing-edge clear uses
+ * Ink's helper so the settled frame is redrawn after the clear.
  *
  * Two consequences, both deliberate:
  *
@@ -29,11 +29,10 @@
  *     clean screen showing the session and the prompt, which is what the
  *     banner already promised by being "past output that scrolls away".
  *     `/clear` prints a fresh one.
- *   - Debris is visible *during* a drag and disappears when it stops. That
- *     is the same deal `vim` and `less` offer, and it is the reason this is
- *     trailing-edge only: the repaint has to land after Ink's own final
- *     resize render, or it would redraw a frame laid out for the previous
- *     width and hand the terminal something to reflow all over again.
+ *   - The first clear happens synchronously for every resize event, so a
+ *     reflowing terminal never gets a chance to stack another visible frame
+ *     on top of the old one. The trailing-edge clear remains necessary because
+ *     Ink's final resize render runs as part of the same event storm.
  *
  * @module @deepseek-ai/dsh-tui/hooks/useResizeRepaint
  */
@@ -62,15 +61,31 @@ const QUIET_MS = 120
  * not an event emitter (piped output, tests that pass a bare object).
  * @param quietMs - override the settle delay; for tests.
  */
-export function useResizeRepaint(quietMs: number = QUIET_MS): void {
+export function useResizeRepaint(quietMs: number = QUIET_MS, onResizeCallback?: () => void): void {
   const { stdout, write } = useStdout()
   useEffect(() => {
     if (stdout === undefined || typeof stdout.on !== 'function') return
     let timer: NodeJS.Timeout | undefined
     const onResize = (): void => {
+      // Test/dry-run streams do not model a real terminal screen; keep their
+      // static output stable. A real TTY needs the banner replay because the
+      // raw clear below legitimately removes previously emitted Static output.
+      if (stdout.isTTY === true) onResizeCallback?.()
+      // Clear before Ink's resize render can leave the old frame behind.
+      // Reflowing terminals may have already changed its physical row count,
+      // so log-update cannot reliably erase it with cursor-relative math.
+      // Use the stream directly. Ink's `write` helper clears its tracked
+      // frame and immediately redraws `lastOutput` after our data, which is
+      // still laid out for the previous width during a resize storm. That
+      // redraw is the source of the stacked, progressively narrower prompt
+      // boxes. A raw clear leaves Ink nothing stale to redraw; its next
+      // resize render paints the current layout on a clean screen.
+      stdout.write(CLEAR_SCREEN)
       if (timer !== undefined) clearTimeout(timer)
       timer = setTimeout(() => {
         timer = undefined
+        // At the trailing edge, go through Ink so it redraws the latest
+        // frame after clearing. By then `lastOutput` has the settled width.
         write(CLEAR_SCREEN)
       }, quietMs)
       // A pending repaint must never be the reason the process is still
@@ -82,5 +97,5 @@ export function useResizeRepaint(quietMs: number = QUIET_MS): void {
       stdout.off('resize', onResize)
       if (timer !== undefined) clearTimeout(timer)
     }
-  }, [stdout, write, quietMs])
+  }, [stdout, write, quietMs, onResizeCallback])
 }

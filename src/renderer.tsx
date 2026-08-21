@@ -5,8 +5,8 @@
  * @module @deepseek-ai/dsh-tui/renderer
  */
 
-import { Box, Static, useApp, useInput } from 'ink'
-import React, { useCallback, useMemo, useState, type FC } from 'react'
+import { Box, Static, useApp, useInput, useStdout } from 'ink'
+import React, { useCallback, useEffect, useMemo, useState, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -38,6 +38,19 @@ export interface AppProps {
  */
 export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   const { exit: closeUi } = useApp()
+  const { stdout } = useStdout()
+  const realTty = stdout?.isTTY === true
+  const [terminalRows, setTerminalRows] = useState(() => stdout?.rows ?? 24)
+  useEffect(() => {
+    if (stdout === undefined || typeof stdout.on !== 'function') return
+    const onResize = (): void => {
+      setTerminalRows(stdout.rows ?? 24)
+    }
+    stdout.on('resize', onResize)
+    return () => {
+      stdout.off('resize', onResize)
+    }
+  }, [stdout])
   const { state, resetView } = useSessionEvents(ctx, agent)
   const selection = useMemo(
     () => ctx.get('agentDefaultModel')?.currentSelection(),
@@ -49,34 +62,15 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   // glyph is in lock-step on screen.
   const { spinnerFrame, elapsedSeconds } = useRunningClock(state.status === 'running')
 
+
   // Ink's frame eraser is cursor-relative, so a terminal that rewraps the
   // rows already on screen when the window narrows leaves debris behind
   // that no width arithmetic can prevent. Once a resize settles, throw the
   // screen away and let Ink lay the frame down again.
   useResizeRepaint()
 
-  // The banner is *static* output: Ink writes each `<Static>` item to the
-  // terminal exactly once and never redraws it. That is not a
-  // micro-optimisation, it is the fix for a real corruption. Ink erases
-  // the previous frame with `eraseLines(<logical line count>)`, which
-  // undercounts the moment a line is wide enough for the terminal to
-  // wrap it — and Ink redraws the *whole* dynamic frame on every stdout
-  // `resize` event. A 19-row banner inside that frame therefore left a
-  // shredded copy of itself on screen for each resize the terminal
-  // emitted while starting up. Outside the frame it cannot: nothing
-  // ever redraws it.
-  //
-  // One item per "screen". `/clear` empties the view and prints a fresh
-  // banner, which is what it did while the banner still lived in the
-  // dynamic tree.
-  const [screens, setScreens] = useState(1)
-  const bannerItems = useMemo(
-    () => Array.from({ length: screens }, (_, i) => i),
-    [screens],
-  )
   const clearView = useCallback(() => {
     resetView()
-    setScreens((n) => n + 1)
   }, [resetView])
 
   // Ink's raw mode delivers Ctrl-C as a keystroke (input 'c' with
@@ -124,8 +118,24 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
     )
   }
 
+  // An empty session must stay intrinsic-height: making the dynamic frame
+  // full-screen would emit dozens of blank rows after the static banner,
+  // scrolling the banner out of the viewport on startup. Once there is
+  // conversation content, the message list can flex and the prompt belongs
+  // at the bottom of the terminal.
+  const frameHeight = state.entries.length > 0 ? Math.max(1, terminalRows - 1) : undefined
+
   return (
-    <Box flexDirection="column" height="100%" marginRight={1}>
+    <Box flexDirection="column" height={frameHeight} marginRight={1}>
+      {/*
+        Keep one physical row free below Ink's live frame. When the root is
+        exactly as tall as the terminal, Ink switches to its full-screen output
+        path (`outputHeight >= rows`) and writes every resize frame directly,
+        bypassing log-update's eraser. The numeric height is refreshed from
+        stdout on every resize, so the message list keeps its flex spacer and
+        the prompt remains anchored at the bottom while the one-row reserve
+        keeps Ink on its incremental frame path.
+      */}
       {/*
         `marginRight={1}` keeps the terminal's last column empty, and it is
         load-bearing rather than styling. Ink stretches this column to the
@@ -155,11 +165,13 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
         The StatusBar takes over as the live header as soon as there is a
         message to head, carrying the same identity plus the token counts.
       */}
-      <Static items={bannerItems} style={{ width: '100%' }}>
-        {(screen) => (
-          <Banner key={screen} selection={selection} sessionId={agent.id} />
-        )}
-      </Static>
+      {realTty ? (
+        <Banner selection={selection} sessionId={agent.id} />
+      ) : (
+        <Static items={[0]} style={{ width: '100%' }}>
+          {() => <Banner key="banner" selection={selection} sessionId={agent.id} />}
+        </Static>
+      )}
       {state.entries.length > 0 && (
         <StatusBar
           selection={selection}

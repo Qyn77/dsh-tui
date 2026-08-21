@@ -327,6 +327,16 @@ describe('live frame erasure', () => {
     }
   })
 
+  it('clears the stale frame on every resize event', async () => {
+    const steps = await storm(DRAG)
+    const clears = steps.filter(
+      (step): step is Extract<Step, { kind: 'write' }> =>
+        step.kind === 'write' && step.text.includes(`${ESC}[2J${ESC}[H`),
+    )
+
+    expect(clears.length).toBeGreaterThanOrEqual(DRAG.length)
+  })
+
   // The drag ends with a repaint, and a repaint clears the screen — so the
   // banner (static output, written once, above the frame) goes with it and
   // exactly one prompt is left. Anything more is a frame the eraser failed to

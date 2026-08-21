@@ -195,9 +195,10 @@ export const MessageList: FC<MessageListProps> = ({ state }) => {
   if (state.entries.length === 0) {
     // No empty-state copy: on an empty session the Banner is on screen
     // directly above, and its tip line already says how to start and
-    // where the commands are. A second hint saying the same thing read
-    // as clutter.
-    return <Box flexGrow={1} />
+    // where the commands are. Keep only a single breathing row here: an
+    // empty session should keep the prompt near the banner rather than
+    // pushing it to the bottom of a tall terminal.
+    return <Box height={1} />
   }
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1}>
