@@ -2,8 +2,7 @@
  * Plugin shape, type helpers, and apply() wiring. The Ink render itself
  * needs a real TTY; that path is covered by a manual smoke (`pnpm dsh
  * --profile tui` in a terminal). Here we lock the public exports and verify
- * the runner gets as far as the Ink render attempt before bailing on a
- * non-TTY stdin.
+ * the runner refuses to render without one and reports it.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -61,7 +60,7 @@ describe('tui runner apply()', () => {
     vi.restoreAllMocks()
   })
 
-  it('schedules a render attempt and reports a non-TTY failure to stderr', async () => {
+  it('refuses to render without a TTY and routes the failure through stderr and appExit', async () => {
     // Provide a minimal set of services the runner consults before
     // inkRender is reached. The loader await returns immediately; the
     // agents service resolves to a no-op agent.
@@ -87,24 +86,25 @@ describe('tui runner apply()', () => {
     ctx.provide('agents', {
       create: () => Promise.resolve({ agent, dispose: () => Promise.resolve() }),
     } as never)
-    // Capture exits routed through the launcher; this lets the runner's
-    // catch path avoid falling back to `process.exit` (which vitest
-    // intercepts and treats as an unhandled error).
+    // Capture exits routed through the launcher so the runner's catch
+    // path never falls back to `process.exit` (which vitest intercepts
+    // and treats as an unhandled error).
     const exits: number[] = []
     ctx.provide('appExit', (code: number) => { exits.push(code) })
     let err = ''
     internals.stderr = { write: (chunk: string) => { err += chunk; return true } }
     internals.stdout = { write: () => true }
-    // The Ink render call requires a TTY; running it here yields the
-    // documented "raw mode is not supported" failure. That is the
-    // expected end state of the run, so the assertion is "the runner
-    // reached the render attempt and surfaced the failure through
-    // internals.stderr" — not the launcher's exit (Ink's error boundary
-    // rejects before we get there).
+    // vitest's stdin is a pipe, so the runner's TTY precondition trips.
+    // That precondition exists because Ink cannot be relied on to report
+    // it: `useInput` throws from a passive effect, and `<Static>` (the
+    // banner) makes React swallow errors thrown there. Asserting our own
+    // failure path keeps that guarantee from rotting — a silent hang is
+    // what the alternative looks like.
     apply(ctx, {} as never)
     release()
     await new Promise(resolve => setTimeout(resolve, 100))
-    expect(err).toMatch(/raw mode/i)
+    expect(err).toMatch(/not a TTY/i)
+    expect(exits).toEqual([1])
     await ctx.fiber.dispose()
   })
 })

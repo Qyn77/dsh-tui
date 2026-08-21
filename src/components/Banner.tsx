@@ -20,12 +20,18 @@
  * what turned `/help` into `/hel` and `/status` into `/stat` in an
  * earlier revision.
  *
- * The banner is rendered *instead of* the compact {@link StatusBar}
- * while the session log is empty and collapses into it the moment the
- * first message lands — so the splash never permanently costs the user
- * screen rows. On terminals too narrow for the block wordmark it
- * degrades to a compact form that keeps every fact and drops only the
- * decoration.
+ * The banner is **static output**: `renderer.tsx` renders it inside
+ * Ink's `<Static>`, so it is written to the terminal exactly once and
+ * then scrolls away like any other past output. The compact
+ * {@link StatusBar} takes over as the live header once there is a
+ * message to head. Rendering it once is what keeps it intact — Ink
+ * erases the previous dynamic frame by counting *logical* lines, so a
+ * line the terminal has wrapped is under-erased, and every stdout
+ * `resize` redraws the whole dynamic frame. Nineteen rows of art inside
+ * that frame left a shredded copy of themselves behind on each resize.
+ *
+ * On terminals too narrow for the block wordmark it degrades to a
+ * compact form that keeps every fact and drops only the decoration.
  * @module @deepseek-ai/dsh-tui/components/Banner
  */
 
@@ -209,10 +215,11 @@ const HARNESS_ROWS = renderBlockWord('HARNESS')
 const WHALE_WIDTH = Math.max(...WHALE_ROWS.map((r) => r.text.length))
 /**
  * Width of the block-letter wordmark, and therefore of the right-hand
- * column. Both columns are pinned to an explicit width so Yoga can
- * never flex-shrink them: a squeezed column re-wraps its meta text onto
- * extra rows, which shifts every row below it and turns the whole
- * banner into confetti.
+ * column. Both columns pin an explicit width so the art lands at its
+ * designed size; they stay *shrinkable* on purpose, because a column
+ * that refuses to shrink overflows the frame instead, and overflow is
+ * the one failure Ink cannot recover from (see the note on
+ * {@link Banner}).
  */
 const WORDMARK_WIDTH = Math.max(...renderBlockWord('DEEPSEEK').map((r) => r.length))
 const COLUMN_GAP = 3
@@ -320,7 +327,7 @@ export function metaText(
  * only one column to stack them in.
  */
 const MetaStack: FC<{ meta: MetaText; width: number }> = ({ meta, width }) => (
-  <Box flexDirection="column" width={width} flexShrink={0}>
+  <Box flexDirection="column" width={width}>
     <Text color="white" bold wrap="truncate">{fitTail(meta.model, width)}</Text>
     <Text color="gray" wrap="truncate">{fitTail(meta.session, width)}</Text>
     <Text color="gray" wrap="truncate">{fitTail(meta.location, width)}</Text>
@@ -330,8 +337,12 @@ const MetaStack: FC<{ meta: MetaText; width: number }> = ({ meta, width }) => (
 
 export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
   const { stdout } = useStdout()
-  // Ink does not surface the column count when stdout is piped; 80 is
-  // the safe assumption and is wide enough for the full banner.
+  // Read once, at the single paint this component gets: `useStdout` does
+  // not re-render on resize, and as static output the banner would not
+  // be redrawn even if it did. The width it was printed at is the width
+  // it keeps, which is exactly how the rest of the terminal's scrollback
+  // behaves. Ink does not surface the column count when stdout is piped;
+  // 80 is the safe assumption and is wide enough for the full banner.
   const columns = stdout?.columns ?? 80
   const tier = bannerTier(columns)
   const meta = metaText(
@@ -384,13 +395,17 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
       columnGap={COLUMN_GAP}
     >
       {/*
-        Both columns pin an explicit width and refuse to shrink. Without
-        that, a container one column short of what the art needs makes
-        Yoga squeeze the columns, Ink re-wrap the meta text onto extra
-        rows, and every row below it slide — the banner stops looking
-        designed and starts looking broken.
+        Both columns pin an explicit width so the art lands at its
+        designed size, and both stay shrinkable. That combination is
+        deliberate: `wrap="truncate"` on every `<Text>` is what keeps the
+        row count fixed, so a squeezed column clips its tail instead of
+        re-wrapping. Refusing to shrink would trade that clip for an
+        overflow — lines wider than the terminal, which the terminal
+        wraps and Ink's line-counting eraser then fails to erase, leaving
+        shredded copies of the banner behind. A clipped whale is a bad
+        frame; an overflowing one corrupts every frame after it.
       */}
-      <Box flexDirection="column" width={WHALE_WIDTH} flexShrink={0}>
+      <Box flexDirection="column" width={WHALE_WIDTH}>
         {/*
           A blank row above and below the sprite so the whale reads as
           a framed illustration rather than something wedged against
@@ -420,7 +435,7 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
           <Text color="gray" wrap="truncate">{fitTail(meta.location, WHALE_WIDTH)}</Text>
         </Box>
       </Box>
-      <Box flexDirection="column" width={WORDMARK_WIDTH} flexShrink={0}>
+      <Box flexDirection="column" width={WORDMARK_WIDTH}>
         {/* Matches the whale column's leading blank so the wordmark's
             cap height lines up with the sprite's top row. */}
         <Text> </Text>

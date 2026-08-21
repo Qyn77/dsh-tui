@@ -59,6 +59,28 @@ function fail(io: TuiIo, error: unknown): void {
  * @param io - process-facing effects.
  */
 async function run(ctx: Context): Promise<void> {
+  // Ink needs raw mode on stdin to read keys and a TTY on stdout to know
+  // how wide to draw. AGENTS.md rule 6 and docs/SPEC.md have always
+  // required the runner to refuse without both; until now that was
+  // satisfied by accident, because Ink itself threw from `useInput`. It
+  // no longer does: `useInput` raises the failure inside a *passive
+  // effect*, and since the banner moved into `<Static>` an error thrown
+  // there is swallowed (Static's layout-effect `setState` re-entrantly
+  // flushes passive effects, so the throw never reaches Ink's error
+  // boundary). Ink would then sit mounted forever with no input, and the
+  // observable failure would be a silent hang. A precondition we own
+  // cannot be swallowed, trips before a Session is created, and says
+  // something more useful than Ink's stdin advice.
+  if (process.stdin.isTTY !== true) {
+    throw new Error(
+      'needs an interactive terminal — stdin is not a TTY. Run it from a terminal, or use the dsh-headless bundle for non-interactive work.',
+    )
+  }
+  if (process.stdout.isTTY !== true) {
+    throw new Error(
+      'needs an interactive terminal — stdout is not a TTY. Piping the UI to a file or another process is not a supported mode.',
+    )
+  }
   // Loader siblings mount concurrently. Await the complete application before
   // creating an Agent so its scoped tools and adapters are not half-composed.
   await ctx.get('loader')?.await()

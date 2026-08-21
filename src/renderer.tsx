@@ -5,8 +5,8 @@
  * @module @deepseek-ai/dsh-tui/renderer
  */
 
-import { Box, useApp, useInput } from 'ink'
-import React, { useCallback, useMemo, type FC } from 'react'
+import { Box, Static, useApp, useInput } from 'ink'
+import React, { useCallback, useMemo, useState, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -48,6 +48,30 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   // glyph is in lock-step on screen.
   const { spinnerFrame, elapsedSeconds } = useRunningClock(state.status === 'running')
 
+  // The banner is *static* output: Ink writes each `<Static>` item to the
+  // terminal exactly once and never redraws it. That is not a
+  // micro-optimisation, it is the fix for a real corruption. Ink erases
+  // the previous frame with `eraseLines(<logical line count>)`, which
+  // undercounts the moment a line is wide enough for the terminal to
+  // wrap it — and Ink redraws the *whole* dynamic frame on every stdout
+  // `resize` event. A 19-row banner inside that frame therefore left a
+  // shredded copy of itself on screen for each resize the terminal
+  // emitted while starting up. Outside the frame it cannot: nothing
+  // ever redraws it.
+  //
+  // One item per "screen". `/clear` empties the view and prints a fresh
+  // banner, which is what it did while the banner still lived in the
+  // dynamic tree.
+  const [screens, setScreens] = useState(1)
+  const bannerItems = useMemo(
+    () => Array.from({ length: screens }, (_, i) => i),
+    [screens],
+  )
+  const clearView = useCallback(() => {
+    resetView()
+    setScreens((n) => n + 1)
+  }, [resetView])
+
   // Ink's raw mode delivers Ctrl-C as a keystroke (input 'c' with
   // key.ctrl), not as a SIGINT signal. The Prompt's useInput also sees
   // this keystroke and would otherwise append 'c' to the buffer; the
@@ -65,7 +89,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
       const trimmed = text.trim()
       if (trimmed === '') return
       if (trimmed.startsWith('/')) {
-        const result = dispatch(trimmed, { ctx, agent, resetView })
+        const result = dispatch(trimmed, { ctx, agent, resetView: clearView })
         if (result.kind === 'handled' && result.message) {
           process.stderr.write(`\n${result.message}\n`)
         } else if (result.kind === 'unknown') {
@@ -82,7 +106,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
         }),
       )
     },
-    [ctx, agent, resetView],
+    [ctx, agent, clearView],
   )
 
   if (selection === undefined) {
@@ -92,14 +116,22 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   return (
     <Box flexDirection="column" height="100%">
       {/*
-        The brand splash is generous (13 rows) so it only earns its
-        keep while there is nothing else to show. As soon as the first
-        message lands it collapses into the compact StatusBar, which
-        carries the same information plus the live token counts.
+        The brand splash is generous (19 rows), so it is written once as
+        static output and then scrolls away like any other past output —
+        it never re-renders and never costs the live frame a row. The
+        `width: '100%'` is load-bearing: a `<Static>` box is absolutely
+        positioned, so with no width it sizes to its content and the
+        banner frame stops meeting the terminal's right edge.
+
+        The StatusBar takes over as the live header as soon as there is a
+        message to head, carrying the same identity plus the token counts.
       */}
-      {state.entries.length === 0 ? (
-        <Banner selection={selection} sessionId={agent.id} />
-      ) : (
+      <Static items={bannerItems} style={{ width: '100%' }}>
+        {(screen) => (
+          <Banner key={screen} selection={selection} sessionId={agent.id} />
+        )}
+      </Static>
+      {state.entries.length > 0 && (
         <StatusBar
           selection={selection}
           sessionId={agent.id}
