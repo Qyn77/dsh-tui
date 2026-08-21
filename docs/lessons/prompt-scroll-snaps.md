@@ -35,3 +35,12 @@ Never couple a terminal UI's interactive state to a timer-driven rerender loop u
 - `src/components/Prompt.tsx`
 - `src/hooks/useMessageListScroll.ts`
 - `src/components/MessageList.tsx`
+
+## Follow-up (resolved elsewhere)
+
+The "only two states: stuck at the tail or stuck at the head" symptom
+recorded above turned out to have a second, independent cause in the
+message list itself: one constant served as both the scroll step and the
+size of the mounted window, so a single `PageUp` jumped to the first entry.
+The timer churn described here was real and the fix stands, but the scroll
+math *was* also broken. See [Message list scroll](message-list-scroll.md).

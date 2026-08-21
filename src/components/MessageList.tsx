@@ -1,21 +1,48 @@
 /**
  * The scrollable conversation area. Renders user messages, streaming
  * assistant text, tool call cards, and lifecycle notes.
+ *
+ * The viewport's height is **measured, not calculated**. It is a flex item
+ * with a zero basis, so the layout hands it whatever the StatusBar and the
+ * Prompt leave over, and `measureElement` reads back how many rows that
+ * turned out to be. The scroll offset is bounded by that measurement,
+ * which is what makes both ends of the log exact stops.
+ *
+ * Tail-following is structural rather than arithmetic: the viewport is a
+ * `column-reverse` box, so the content's bottom edge is pinned to the
+ * viewport's bottom edge and any excess is clipped off the *top*. The
+ * newest row is therefore on screen by construction, at any content
+ * height, with no measurement involved. Scrolling up is a negative
+ * `marginBottom` on the content, which slides it down past the bottom edge
+ * one row at a time.
+ *
+ * Do not reach for `justifyContent="flex-end"` here. Ink 5.2.1 drops
+ * alternate rows when a clipped box overflows that way (a 4-row viewport
+ * over 8 rows of content renders rows 1, 3, 5, 7); the `column-reverse`
+ * form is clean. See `docs/lessons/message-list-scroll.md`.
  * @module @deepseek-ai/dsh-tui/components/MessageList
  */
 
-import React, { useEffect, useMemo, useState, type FC } from 'react'
-import { Box, Text, useInput, useStdout } from 'ink'
+import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'
+import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
 import type { UiEntry, UiState } from '../types.ts'
 import { userMessageText } from '../types.ts'
+import { windowStart } from '../scroll.ts'
 import { Markdown } from './Markdown.tsx'
 
 /** Props for {@link MessageList}. */
 export interface MessageListProps {
   state: UiState
+  /** Rows the view is lifted above the newest row; `0` follows the tail. */
+  offset: number
+  /** Mount the entire log because the user asked for its beginning. */
+  pinTop: boolean
+  /**
+   * Report the measured content and viewport heights after each layout, so
+   * the scroll hook can bound the offset against real rows.
+   */
+  onGeometry: (contentRows: number, viewportRows: number) => void
 }
-
-const PAGE_ROWS = 12
 
 const COMPACTION_LABELS: Record<Extract<UiEntry, { kind: 'compaction' }>['stage'], string> = {
   start: 'compacting…',
@@ -193,41 +220,43 @@ function Entry({ entry }: { entry: UiEntry }) {
   }
 }
 
-export const MessageList: FC<MessageListProps> = ({ state }) => {
+export const MessageList: FC<MessageListProps> = ({ state, offset, pinTop, onGeometry }) => {
   const { stdout } = useStdout()
-  const [page, setPage] = useState(0)
+  const columns = stdout?.columns ?? 80
+  const viewportRef = useRef<DOMElement | null>(null)
+  const contentRef = useRef<DOMElement | null>(null)
+  const [viewportRows, setViewportRows] = useState(0)
 
+  // Mount the tail of the log plus enough history to cover the offset. The
+  // window always reaches the newest entry, so the mounted content's bottom
+  // edge is the log's bottom edge and the offset arithmetic stays exact.
+  // `Home` overrides it: the beginning of the log is only reachable with
+  // everything mounted.
+  const start = pinTop
+    ? 0
+    : windowStart(state.entries, columns, offset, viewportRows || (stdout?.rows ?? 24))
+  const visible = useMemo(() => state.entries.slice(start), [state.entries, start])
+
+  // Measure after every layout. Both writes are guarded against no-ops —
+  // `setViewportRows` by the comparison here, `onGeometry` inside the hook —
+  // so this settles in one extra pass instead of looping. Coupling a
+  // terminal UI to an unguarded re-render is the mistake recorded in
+  // docs/lessons/prompt-scroll-snaps.md.
   useEffect(() => {
-    // New entries should follow the live tail when the user is already at
-    // the latest page; keep an intentional historical position stable.
-    if (page === 0) return
-    setPage((current) => Math.min(current, Math.max(0, state.entries.length - 1)))
-  }, [state.entries.length, page])
-
-  useInput((input, key) => {
-    if (key.pageUp) {
-      setPage((current) => Math.min(state.entries.length - 1, current + PAGE_ROWS))
+    const viewport = viewportRef.current
+    const content = contentRef.current
+    if (viewport === null || content === null) {
+      // Empty session: nothing is mounted and nothing can scroll.
+      // Reporting zero is what collapses a stale offset back to the tail
+      // after `/clear`.
+      onGeometry(0, 0)
       return
     }
-    if (key.pageDown) {
-      setPage((current) => Math.max(0, current - PAGE_ROWS))
-      return
-    }
-    if (input === '\u001B[H' || input === '\u001B[1~') {
-      setPage(Math.max(0, state.entries.length - 1))
-      return
-    }
-    if (input === '\u001B[F' || input === '\u001B[4~') {
-      setPage(0)
-    }
+    const measuredViewport = measureElement(viewport).height
+    const measuredContent = measureElement(content).height
+    if (measuredViewport !== viewportRows) setViewportRows(measuredViewport)
+    onGeometry(measuredContent, measuredViewport)
   })
-
-  const viewportRows = Math.max(1, (stdout?.rows ?? 24) - 8)
-  const visible = useMemo(() => {
-    const end = state.entries.length - page
-    const start = Math.max(0, end - PAGE_ROWS)
-    return state.entries.slice(start, end)
-  }, [page, state.entries])
 
   if (state.entries.length === 0) {
     // No empty-state copy: on an empty session the Banner is on screen
@@ -239,12 +268,22 @@ export const MessageList: FC<MessageListProps> = ({ state }) => {
   }
 
   return (
-    <Box flexDirection="column" flexGrow={1} height={viewportRows} overflow="hidden" paddingX={1}>
-      {visible.map((entry, idx) => (
-        <Box key={idx} flexShrink={0}>
-          <Entry entry={entry} />
-        </Box>
-      ))}
+    <Box
+      ref={viewportRef}
+      flexDirection="column-reverse"
+      flexGrow={1}
+      flexShrink={1}
+      flexBasis={0}
+      overflow="hidden"
+      paddingX={1}
+    >
+      <Box ref={contentRef} flexDirection="column" flexShrink={0} marginBottom={-offset}>
+        {visible.map((entry, idx) => (
+          <Box key={start + idx} flexShrink={0}>
+            <Entry entry={entry} />
+          </Box>
+        ))}
+      </Box>
     </Box>
   )
 }

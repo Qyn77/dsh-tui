@@ -14,6 +14,7 @@ import React, { useState, type FC } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { filterCommands, type CommandMeta } from '../commands.ts'
+import { isMouseReport } from '../scroll.ts'
 import { SlashPalette } from './SlashPalette.tsx'
 
 /** Props for {@link Prompt}. */
@@ -81,10 +82,15 @@ export const Prompt: FC<PromptProps> = ({ active, onSubmit, spinnerFrame }) => {
   useInput(
     (input, key) => {
       // Ctrl-modified keystrokes are reserved for the App-level
-      // handlers (Ctrl-C exits the REPL; future Ctrl-K / Ctrl-L / etc.
-      // will too). If we let them fall through, Ctrl-C would append
-      // 'c' to the buffer.
+      // handlers (Ctrl-C exits the REPL; Ctrl-B/F/U/D scroll the log).
+      // If we let them fall through, Ctrl-C would append 'c' to the
+      // buffer.
       if (key.ctrl) return
+      // Mouse reports reach every `useInput` handler as ordinary input
+      // with the leading ESC stripped, so without this a spin of the
+      // wheel types `[<64;12;30M` into the prompt. The scroll hook is
+      // what acts on them; here they are simply not text.
+      if (isMouseReport(input)) return
       // Esc — when the palette is open, dismiss it by clearing the
       // buffer. When the palette is closed, leave the buffer alone
       // (Esc has no other meaning in a single-line prompt).

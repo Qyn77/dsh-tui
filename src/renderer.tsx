@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-tui/renderer
  */
 
-import { Box, Static, useApp, useInput, useStdout } from 'ink'
+import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
 import React, { useCallback, useMemo, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -16,6 +16,7 @@ import { StatusBar } from './components/StatusBar.tsx'
 import { Banner } from './components/Banner.tsx'
 import { useRunningClock } from './hooks/useRunningClock.ts'
 import { useResizeRepaint } from './hooks/useResizeRepaint.ts'
+import { useMessageListScroll } from './hooks/useMessageListScroll.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
@@ -55,6 +56,12 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   // Real TTY resize is coordinated by index.ts through Ink's render
   // instance. Keep the hook for non-TTY test streams only.
   useResizeRepaint()
+
+  // Scroll position for the conversation viewport, in rows above the newest
+  // row. It lives here rather than inside the MessageList because the
+  // "scrolled into history" hint is a sibling of the list, and because the
+  // key bindings belong at the root next to the Ctrl-C handler.
+  const scroll = useMessageListScroll()
 
 
   // Ink's frame eraser is cursor-relative, so a terminal that rewraps the
@@ -162,13 +169,29 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
         The StatusBar takes over as the live header as soon as there is a
         message to head, carrying the same identity plus the token counts.
       */}
-      {stdout?.isTTY === true ? (
-        <Banner selection={selection} sessionId={agent.id} />
-      ) : (
-        <Static items={[0]} style={{ width: '100%' }}>
-          {() => <Banner key="banner" selection={selection} sessionId={agent.id} />}
-        </Static>
-      )}
+      {/*
+        The brand splash is generous (19 rows), and the live frame is only
+        `rows - 3` tall, so it can only be on screen while there is nothing
+        else to show. Once the first message lands the StatusBar takes over
+        as the live header — same identity, plus the token counts — and those
+        19 rows go back to the conversation. Leaving both on screen is what
+        squeezed the message list down to a handful of rows and clipped the
+        newest messages away entirely; inside the alternate screen there is
+        no scrollback for them to scroll into, so the banner has to yield.
+        `/clear` empties the log and the banner comes back with it.
+
+        The `width: '100%'` on the non-TTY path is load-bearing: a `<Static>`
+        box is absolutely positioned, so with no width it sizes to its
+        content and the banner frame stops meeting the terminal's right edge.
+      */}
+      {state.entries.length === 0 &&
+        (stdout?.isTTY === true ? (
+          <Banner selection={selection} sessionId={agent.id} />
+        ) : (
+          <Static items={[0]} style={{ width: '100%' }}>
+            {() => <Banner key="banner" selection={selection} sessionId={agent.id} />}
+          </Static>
+        ))}
       {state.entries.length > 0 && (
         <StatusBar
           selection={selection}
@@ -178,7 +201,34 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
           elapsedSeconds={elapsedSeconds}
         />
       )}
-      <MessageList state={state} />
+      <MessageList
+        state={state}
+        offset={scroll.offset}
+        pinTop={scroll.pinTop}
+        onGeometry={scroll.reportGeometry}
+      />
+      {/*
+        The only cue that the view is not at the live tail. A terminal
+        scrollbar would say this for free, but the alternate screen has
+        neither one nor a scrollback, so the row has to be earned from the
+        layout.
+
+        It is reserved unconditionally, and that is the point: a hint row
+        that appears only while scrolled steals a row from the viewport at
+        the moment it appears, so PageUp and PageDown size their steps
+        against different heights and a page down no longer undoes the page
+        up that preceded it. One permanently reserved row buys invertible
+        paging and a viewport that does not reflow the instant you touch the
+        wheel. Only the text is conditional.
+      */}
+      <Box paddingX={1} height={1} flexShrink={0}>
+        {scroll.atTail ? null : (
+          <Text color="yellow" dimColor wrap="truncate">
+            ↓ {scroll.offset} more row{scroll.offset === 1 ? '' : 's'} below · End jumps to the
+            latest
+          </Text>
+        )}
+      </Box>
       <Prompt
         active={state.status === 'idle'}
         onSubmit={onSubmit}

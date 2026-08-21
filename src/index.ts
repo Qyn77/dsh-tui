@@ -45,6 +45,24 @@ interface TuiIo {
 const ALT_SCREEN_ENTER = '\u001B[?1049h\u001B[2J\u001B[H'
 const ALT_SCREEN_EXIT = '\u001B[?1049l'
 const CLEAR_SCREEN = '\u001B[2J\u001B[H'
+/**
+ * Ask the terminal to report button and wheel events (`?1000h`) in the SGR
+ * encoding (`?1006h`, which lifts the 223-column ceiling of the original
+ * form). The wheel is the first gesture anyone tries on a chat log, and
+ * inside the alternate screen the terminal has no scrollback of its own to
+ * answer it with — without this the wheel does nothing at all.
+ *
+ * The cost is that a drag stops being a text selection while the TUI runs:
+ * iTerm2 needs Option held to select, Terminal.app needs Fn. That is the
+ * accepted trade for a wheel that works.
+ */
+const MOUSE_TRACK_ENTER = '\u001B[?1000h\u001B[?1006h'
+/**
+ * Turn tracking off again, in reverse order. This has to run on *every*
+ * exit path, a crash included: a terminal left reporting mouse events
+ * spits escape sequences into the user's shell on every click.
+ */
+const MOUSE_TRACK_EXIT = '\u001B[?1006l\u001B[?1000l'
 const RESIZE_QUIET_MS = 120
 const RESIZE_LOG = '/tmp/dsh-tui-resize.log'
 const resizeDebug = process.env['DSH_TUI_DEBUG_RESIZE'] === '1'
@@ -122,7 +140,10 @@ async function run(ctx: Context): Promise<void> {
 
   const alternateScreen = process.stdout.isTTY === true
   try {
-    if (alternateScreen) internals.stdout.write(ALT_SCREEN_ENTER)
+    if (alternateScreen) {
+      internals.stdout.write(ALT_SCREEN_ENTER)
+      internals.stdout.write(MOUSE_TRACK_ENTER)
+    }
     const instance = inkRender(
       React.createElement(App, { ctx, agent: agent as Agent, exit: exitHook }),
       {
@@ -166,8 +187,12 @@ async function run(ctx: Context): Promise<void> {
     instance.unmount()
   } finally {
     // If Ink exits through an error, never leave the shell in the alternate
-    // screen buffer.
-    if (alternateScreen) internals.stdout.write(ALT_SCREEN_EXIT)
+    // screen buffer — or in mouse-reporting mode, which would turn every
+    // later click in the user's shell into pasted escape sequences.
+    if (alternateScreen) {
+      internals.stdout.write(MOUSE_TRACK_EXIT)
+      internals.stdout.write(ALT_SCREEN_EXIT)
+    }
     // no signal handler to detach
   }
 }

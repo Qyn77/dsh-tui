@@ -129,8 +129,16 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/exit`, `/quit` | Leave the REPL |
 | `Ctrl-C` (idle) | Same as `/exit` |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
-| `PageUp` / `PageDown` | Scroll the conversation viewport one page |
-| `Home` / `End` | Jump to the oldest / newest visible messages |
+| `PageUp` / `PageDown` | Scroll the conversation one viewport (two rows of overlap) |
+| `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
+| `Ctrl-U` / `Ctrl-D` | Scroll half a viewport |
+| `Home` / `End` | Jump to the oldest row / back to the newest |
+| Mouse wheel | Scroll three rows a notch |
+
+The alternate screen has no scrollback, so scrolling is the TUI's own. The
+wheel needs mouse reporting turned on, which means the terminal's native text
+selection wants a modifier while dsh runs: hold `Option` in iTerm2, `Fn` in
+macOS Terminal.
 
 ## Develop it
 
@@ -239,8 +247,10 @@ src/
 ├── types.ts                 UiEntry, UiState, isRenderable, declaration-merged event map
 ├── commands.ts              /help /clear /status /exit /quit dispatch
 ├── invariant.ts             Empty package-invariant companion
+├── scroll.ts                Pure scroll math + key/mouse parsing
 ├── hooks/
 │   ├── useSessionEvents.ts  Replay log + subscribe to session/event
+│   ├── useMessageListScroll.ts  Scroll offset, key bindings, measured geometry
 │   └── useResizeRepaint.ts  Non-TTY resize regression harness
 └── components/
     ├── StatusBar.tsx        Top: model · session · status · tokens

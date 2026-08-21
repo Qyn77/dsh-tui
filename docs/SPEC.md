@@ -51,10 +51,37 @@ Each zone has a fixed role and stays in that role forever:
      `<Static>` has one cost worth knowing before reaching for it elsewhere: it renders its items, then advances an index in a `useLayoutEffect`, and that re-entrant `setState` flushes React's pending *passive* effects early — where an error thrown is swallowed instead of reaching Ink's error boundary. Ink's own non-TTY failure travels that exact path, which is why the TTY check is now an explicit precondition in `index.ts` (Part 2) rather than something Ink is trusted to report.
 
   The empty session deliberately has **no** empty-state copy in the MessageList. The banner sits directly above it and its tip line already says how to start; a second hint saying the same thing read as clutter.
-- **MessageList** — the session log viewport. It has a fixed available height,
-  clips overflow instead of letting Yoga compress every entry, and exposes
-  `PageUp` / `PageDown` plus `Home` / `End` navigation. New content follows the
-  newest page until the user scrolls into history.
+- **MessageList** — the session log viewport. Its height is **measured, not
+  calculated**: the box flexes into whatever the StatusBar and the prompt leave
+  it, `measureElement` reports the result back to `useMessageListScroll`, and
+  that measurement is what bounds the scroll offset. The offset counts **rows
+  above the newest row**, never entries — the old entry-count window clipped
+  its own bottom edge and made the newest messages unreachable (see
+  [the scroll lesson](lessons/message-list-scroll.md)). Clipping is
+  tail-anchored structurally: `flexDirection="column-reverse"` with
+  `overflow: "hidden"` and a negative `marginBottom` on the inner column, so
+  new content follows the live tail with no measurement at all until the user
+  scrolls into history.
+
+  | Key | Action |
+  | --- | --- |
+  | `PageUp` / `PageDown` | One viewport, less two rows of overlap |
+  | `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
+  | `Ctrl-U` / `Ctrl-D` | Half a viewport |
+  | `Home` / `End` | Oldest row / back to the live tail |
+  | Wheel | Three rows a notch |
+
+  The wheel needs the terminal to report it: `index.ts` enables SGR mouse
+  tracking (`?1000h` + `?1006h`) alongside the alternate screen and disables it
+  in the same `finally`. The cost is that native text selection then needs
+  `Option` (iTerm2) or `Fn` (Terminal.app), which is the documented trade-off
+  for a viewport with no scrollback behind it.
+
+  One row directly under the list is reserved unconditionally for the
+  "scrolled into history" hint. Reserving it while at the tail looks like
+  waste and is not: a row that appears only once you scroll changes the
+  viewport height at that moment, so `PageDown` would size its step against a
+  different height than the `PageUp` it is meant to undo.
 - **Prompt** — the input line, always the bottom row.
 
 **The live frame reserves the terminal's last column.** `App`'s root box carries `marginRight={1}`, and that single column is the other half of rule 7 — the half that applies to everything Ink *does* redraw. Ink stretches the root to the full terminal width, so a framed child emits lines *exactly* as wide as the terminal, and a line that fills the last column leaves the terminal with a wrap decision that terminals do not answer the same way: park the cursor in the last column and let the following newline move down one row (the VT100 reading), or wrap at once so that newline lands a row further down. Under the second reading a 3-row prompt box occupies six physical rows while Ink erases `eraseLines(<logical line count>)` = four, so **every redraw leaks two rows** — which is what a window drag looked like in practice: a ladder of half-drawn prompt boxes, each one column narrower than the last, exactly like the banner ladder that came before it. One reserved column is unwrappable under either reading and also absorbs a one-column lag between `SIGWINCH` and the write, which is what a fast drag does to `stdout.columns`.
@@ -269,7 +296,7 @@ Known gaps (deferred, not bugs):
 
 ### Aspirational (no commitment)
 
-- Mouse support (click to focus, scroll the MessageList)
+- Mouse support beyond the wheel (click to focus, drag to select rows)
 - Image paste (iTerm / Kitty / Sixel)
 - Multi-session tabs
 - Remote session attach (SSH in, see the same TUI)

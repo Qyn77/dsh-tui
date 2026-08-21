@@ -123,8 +123,15 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/exit`, `/quit` | 退出 REPL |
 | `Ctrl-C`（空闲时） | 等同 `/exit` |
 | `Ctrl-C`（turn 运行时） | 取消正在跑的 turn |
-| `PageUp` / `PageDown` | 按页滚动聊天内容 |
-| `Home` / `End` | 跳到最早 / 最新的可见消息 |
+| `PageUp` / `PageDown` | 按屏滚动聊天内容（保留两行重叠） |
+| `Ctrl-B` / `Ctrl-F` | 同上，不用按 `Fn` |
+| `Ctrl-U` / `Ctrl-D` | 滚动半屏 |
+| `Home` / `End` | 跳到最早一行 / 回到最新 |
+| 鼠标滚轮 | 一格滚三行 |
+
+备用屏没有 scrollback，滚动完全由 TUI 自己实现。滚轮需要开启鼠标上报，所以 dsh
+运行期间，终端自带的文本选择需要加修饰键：iTerm2 按住 `Option`，macOS Terminal
+按住 `Fn`。
 
 要求：Node ≥ 22.19、pnpm ≥ 9、真正的终端（Ink 需要 TTY）、一个 DeepSeek API key。
 
@@ -234,8 +241,10 @@ src/
 ├── types.ts                 UiEntry、UiState、isRenderable、declaration-merged 事件表
 ├── commands.ts              /help /clear /status /exit /quit 派发
 ├── invariant.ts             空的 package-invariant companion
+├── scroll.ts                纯滚动算术 + 按键/鼠标解析
 ├── hooks/
 │   ├── useSessionEvents.ts  回放 log + 订阅 session/event
+│   ├── useMessageListScroll.ts  滚动偏移、按键绑定、实测几何
 │   └── useResizeRepaint.ts  非 TTY resize 回归测试辅助
 └── components/
     ├── StatusBar.tsx        顶部：模型 · session · 状态 · token
