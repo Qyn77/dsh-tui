@@ -65,8 +65,12 @@ const WHALE_BITMAP: readonly string[] = [
   '..#####################.....',
   '..BBBBBBBBBBBBBBBBBBBBB.....',
   '..BBBBBBBBBBBBBBBBBBBBB.....',
+  '..BBBBBBBBBBBBBBBBBBBBB.....',
+  '...BBBBBBBBBBBBBBBBBBB......',
   '....BBBBBBBBBBBBBBBBB.......',
   '.....BBBBBBBBBBBBBBB........',
+  '.......BBBBBBBBBBB..........',
+  '..........BBBBB.............',
 ]
 
 /** One text row of an encoded bitmap. */
