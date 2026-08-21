@@ -5,26 +5,33 @@ English | [中文](README.zh.md)
 A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It's a single Cordis bundle (`tui-runner`) that mounts on top of `dsh-base` and replaces the default web UI with a full-screen Ink REPL. Same Agent, same tools, same model — just a terminal.
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│ ds · deepseek-official/deepseek-chat   session:tui-7a3  ⏵ idle  in:0 out:0│
-└──────────────────────────────────────────────────────────────────────────┘
-
- ┌────────────────────────────────────────────────────────────────────────┐
- │ > What files are in this directory?                                    │
- └────────────────────────────────────────────────────────────────────────┘
-   ┌─ bash ─────────────────────────────────────────────────────────────┐
-   │ ls -la                                                             │
-   └────────────────────────────────────────────────────────────────────┘
-   total 12
-   drwxr-xr-x  3 user  staff   96 Aug 19 10:30 .
-   drwx------  5 user  staff  160 Aug 19 10:30 ..
-   -rw-r--r--  1 user  staff  403 Aug 19 10:30 README.md
-   ✓ ok
+╭──────────────────────────────────────────────────────────────────────────╮
+│                                                                          │
+│                      ██    ██   ███  ████ ████ ███  ████ ████ ████ █  █  │
+│       ▄▄▄▄▄▄         ▀█▄▄█▀    █  █ █    █    █  █ █    █    █    █ █   │
+│    ▄██████████▄▄   ▄▄███▀      █  █ ███  ███  ███  ████ ███  ███  ██    │
+│   ████  ████  ███████████      █  █ █    █    █       █ █    █    █ █   │
+│   ███████████████████████      ███  ████ ████ █    ████ ████ ████ █  █  │
+│   ▀█████████████████████▀      █  █  ██  ███  █  █ ████ ████ ████       │
+│    █████████████████████       █  █ █  █ █  █ ██ █ █    █    █          │
+│      ▀███████████████▀         ████ ████ ███  █ ██ ███  ████ ████       │
+│                                █  █ █  █ █ █  █  █ █       █    █       │
+│        探索未至之境！           █  █ █  █ █  █ █  █ ████ ████ ████       │
+│                                                                          │
+│  tui-01e62198 · v0.1.0-rc.7       deepseek-official/deepseek-v4-flash   │
+│  ~/Desktop/dsh-tui (main*)           Tip: /help · /status · Tab completes │
+╰──────────────────────────────────────────────────────────────────────────╯
 
 ╭──────────────────────────────────────────────────────────────────────────╮
 │ > Ask dsh anything…                                                      │
 ╰──────────────────────────────────────────────────────────────────────────╯
 ```
+
+The TUI uses the terminal's alternate screen buffer, like `vim` or `htop`.
+The startup banner, messages, status bar, and prompt are redrawn as one frame
+after a resize settles; the primary shell screen and scrollback are restored
+when the REPL exits. The banner has three responsive width tiers: full
+whale/wordmark (wide), wordmark (medium), and a compact plain tier (narrow).
 
 ## Use it
 
@@ -231,7 +238,8 @@ src/
 ├── commands.ts              /help /clear /status /exit /quit dispatch
 ├── invariant.ts             Empty package-invariant companion
 ├── hooks/
-│   └── useSessionEvents.ts  Replay log + subscribe to session/event
+│   ├── useSessionEvents.ts  Replay log + subscribe to session/event
+│   └── useResizeRepaint.ts  Non-TTY resize regression harness
 └── components/
     ├── StatusBar.tsx        Top: model · session · status · tokens
     ├── MessageList.tsx      Middle: user / assistant / tool / compaction
