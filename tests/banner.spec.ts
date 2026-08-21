@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import {
   renderBlockWord,
   displayCwd,
@@ -12,6 +13,7 @@ import {
   fitTail,
   displayWidth,
   centerText,
+  metaText,
   BANNER_MIN_WIDTH,
 } from '../src/components/Banner.tsx'
 
@@ -191,5 +193,32 @@ describe('BANNER_MIN_WIDTH', () => {
     // terminal gets the full art. If a future edit widens the whale
     // or the wordmark past 80 columns, this test is the tripwire.
     expect(BANNER_MIN_WIDTH).toBeLessThanOrEqual(80)
+  })
+})
+
+describe('metaText', () => {
+  const selection = { provider: 'deepseek', model: 'deepseek-v4-flash' }
+  const sessionId = SessionId('tui-0f3a91c2-77bd-4e51-9a0c-1d2e3f4a5b6c')
+
+  it('pairs the provider with the model', () => {
+    expect(metaText(selection, sessionId, undefined, '/tmp').model).toBe(
+      'deepseek/deepseek-v4-flash',
+    )
+  })
+
+  it('truncates the session id so the line cannot blow the column', () => {
+    // A raw UUID is 36 characters and would swallow the whole left
+    // column on its own.
+    expect(metaText(selection, sessionId, undefined, '/tmp').session).toBe(
+      'tui-0f3a91c2 · vdev',
+    )
+  })
+
+  it('puts the branch on the path line rather than a line of its own', () => {
+    expect(metaText(selection, sessionId, 'main*', '~/x').location).toBe('~/x (main*)')
+  })
+
+  it('leaves the path bare outside a git repository', () => {
+    expect(metaText(selection, sessionId, undefined, '~/x').location).toBe('~/x')
   })
 })

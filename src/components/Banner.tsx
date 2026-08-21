@@ -250,30 +250,42 @@ const SESSION_ID_CHARS = 12
  */
 const TIP = 'Tip: /help · /status · Tab completes'
 
-const MetaLines: FC<{ selection: ModelSelection; sessionId: SessionId; width: number }> = ({
-  selection,
-  sessionId,
-  width,
-}) => {
-  const shortSession = String(sessionId).slice(0, SESSION_ID_CHARS)
-  const repo = readRepoLabel()
-  // Each line is one pre-composed string in one <Text>. Several
-  // <Text> children on a row would let Ink wrap mid-word.
-  const modelLine = fitTail(`${selection.provider}/${selection.model}`, width)
-  const sessionLine = fitTail(`${shortSession} · v${VERSION}`, width)
-  const cwd = displayCwd(process.cwd(), process.env['HOME'])
-  // The branch label rides on the cwd line: they answer the same
-  // question ("where am I working?") and deserve one row, not two.
-  const cwdLine = fitTail(repo === undefined ? cwd : `${cwd} (${repo})`, width)
-  const tipLine = fitTail(TIP, width)
-  return (
-    <>
-      <Text color="white" bold>{modelLine}</Text>
-      <Text color="gray">{sessionLine}</Text>
-      <Text color="gray">{cwdLine}</Text>
-      <Text color={BRAND_BLUE_LIGHT}>{tipLine}</Text>
-    </>
-  )
+/** The four meta facts, unfitted. Each column budgets its own width. */
+export interface MetaText {
+  /** `provider/model`. */
+  model: string
+  /** `<session id> · v<version>`. */
+  session: string
+  /** `<cwd>` plus ` (<branch>)` when inside a git repository. */
+  location: string
+  /** The static tip line. */
+  tip: string
+}
+
+/**
+ * Compose the banner's meta facts as raw strings. Kept separate from
+ * rendering because the two columns budget different widths: the left
+ * column is locked to the sprite's width and the right to the
+ * wordmark's, so a single pre-fitted string could not serve both.
+ * @param selection - the active model selection.
+ * @param sessionId - the live session's id.
+ * @param repo - the git label, or `undefined` outside a repository.
+ * @param cwd - the working directory, already home-shortened.
+ */
+export function metaText(
+  selection: ModelSelection,
+  sessionId: SessionId,
+  repo: string | undefined,
+  cwd: string,
+): MetaText {
+  return {
+    model: `${selection.provider}/${selection.model}`,
+    session: `${String(sessionId).slice(0, SESSION_ID_CHARS)} · v${VERSION}`,
+    // The branch rides on the path: both answer "where am I working?"
+    // and deserve one row, not two.
+    location: repo === undefined ? cwd : `${cwd} (${repo})`,
+    tip: TIP,
+  }
 }
 
 export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
@@ -281,14 +293,24 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
   // Ink does not surface the column count when stdout is piped; 80 is
   // the safe assumption and is wide enough for the full banner.
   const columns = stdout?.columns ?? 80
+  const meta = metaText(
+    selection,
+    sessionId,
+    readRepoLabel(),
+    displayCwd(process.cwd(), process.env['HOME']),
+  )
 
   // Compact form: drop the whale and the block type, keep every fact.
+  // With no two columns to balance, all four lines stack.
   if (columns < BANNER_MIN_WIDTH) {
-    const compactWidth = Math.max(8, columns - FRAME_PADDING)
+    const w = Math.max(8, columns - FRAME_PADDING)
     return (
       <Box borderStyle="round" borderColor={BRAND_BLUE} flexDirection="column" paddingX={2} paddingY={1}>
         <Text color={BRAND_BLUE} bold>DEEPSEEK HARNESS</Text>
-        <MetaLines selection={selection} sessionId={sessionId} width={compactWidth} />
+        <Text color="white" bold>{fitTail(meta.model, w)}</Text>
+        <Text color="gray">{fitTail(meta.session, w)}</Text>
+        <Text color="gray">{fitTail(meta.location, w)}</Text>
+        <Text color={BRAND_BLUE_LIGHT}>{fitTail(meta.tip, w)}</Text>
       </Box>
     )
   }
@@ -322,6 +344,18 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
           on `.length` would place it half a whale to the right.
         */}
         <Text color={BRAND_BLUE} bold>{centerText(SLOGAN, WHALE_WIDTH)}</Text>
+        {/*
+          The "where am I?" half of the meta, moved here to use the rows
+          the slogan left empty and to stop the right column carrying
+          four stacked lines on its own. Both are fitted to the sprite's
+          width, not the terminal's: the column takes its width from its
+          widest child, so an unfitted long path would widen this column
+          and shove the wordmark off the right edge.
+        */}
+        <Box marginTop={1} flexDirection="column">
+          <Text color="gray">{fitTail(meta.session, WHALE_WIDTH)}</Text>
+          <Text color="gray">{fitTail(meta.location, WHALE_WIDTH)}</Text>
+        </Box>
       </Box>
       <Box flexDirection="column">
         {/* Matches the whale column's leading blank so the wordmark's
@@ -333,8 +367,11 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
         {HARNESS_ROWS.map((row, i) => (
           <Text key={`hn-${i}`} color={BRAND_BLUE_LIGHT}>{row}</Text>
         ))}
+        {/* The "what and how" half: which model answers, and how to
+            drive it. */}
         <Box marginTop={1} flexDirection="column">
-          <MetaLines selection={selection} sessionId={sessionId} width={META_WIDTH} />
+          <Text color="white" bold>{fitTail(meta.model, META_WIDTH)}</Text>
+          <Text color={BRAND_BLUE_LIGHT}>{fitTail(meta.tip, META_WIDTH)}</Text>
         </Box>
       </Box>
     </Box>
