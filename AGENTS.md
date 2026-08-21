@@ -21,11 +21,12 @@ src/
 ├── state.ts                  Pure reducer: SessionEvent → UiState      [test-first]
 ├── types.ts                  UiEntry, UiState, declaration-merged events
 ├── commands.ts               /help /clear /status /exit /quit          [test-first]
+├── environment.ts            Version + git branch probing (memoized)   [test-first]
 ├── invariant.ts              Type companion for dsh-invariants (no runtime)
 ├── markdown.ts               Pure markdown → UI AST (no React, no Ink) [test-first]
 ├── hooks/useSessionEvents.ts Replay log + live subscribe
 ├── hooks/useMessageListScroll.ts Scroll math + bindings
-└── components/{StatusBar, MessageList, Prompt, Markdown}.tsx
+└── components/{StatusBar, MessageList, Prompt, Markdown, Banner, SlashPalette}.tsx
 tests/                          vitest specs
 docs/
 ├── SPEC.md                   design contract and visual rules

@@ -193,13 +193,11 @@ function Entry({ entry }: { entry: UiEntry }) {
 
 export const MessageList: FC<MessageListProps> = ({ state }) => {
   if (state.entries.length === 0) {
-    return (
-      <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
-        <Text color="gray" dimColor>
-          Type a message and press Enter. Use /help for slash commands.
-        </Text>
-      </Box>
-    )
+    // No empty-state copy: on an empty session the Banner is on screen
+    // directly above, and its tip line already says how to start and
+    // where the commands are. A second hint saying the same thing read
+    // as clutter.
+    return <Box flexGrow={1} />
   }
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1}>

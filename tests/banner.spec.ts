@@ -10,8 +10,66 @@ import {
   displayCwd,
   encodeBitmap,
   fitTail,
+  displayWidth,
+  centerText,
   BANNER_MIN_WIDTH,
 } from '../src/components/Banner.tsx'
+
+describe('displayWidth', () => {
+  it('counts ASCII as one column each', () => {
+    expect(displayWidth('dsh')).toBe(3)
+  })
+
+  it('counts CJK ideographs as two columns each', () => {
+    // This is the whole reason the helper exists: the slogan is
+    // Chinese, and centering on `.length` would place it half a
+    // whale to the right of where it belongs.
+    expect(displayWidth('探索')).toBe(4)
+  })
+
+  it('counts fullwidth punctuation as two columns', () => {
+    // `！` is U+FF01, in the fullwidth forms block — not the ASCII `!`.
+    expect(displayWidth('！')).toBe(2)
+  })
+
+  it('measures the slogan at twice its character count', () => {
+    expect(displayWidth('探索未至之境！')).toBe(14)
+  })
+
+  it('handles a mixed string', () => {
+    expect(displayWidth('dsh 探索')).toBe(8)
+  })
+
+  it('is zero for the empty string', () => {
+    expect(displayWidth('')).toBe(0)
+  })
+})
+
+describe('centerText', () => {
+  it('centers a CJK string by display columns, not character count', () => {
+    // 14 columns of slogan in a 28-column field leaves 7 columns of
+    // padding on each side.
+    expect(centerText('探索未至之境！', 28)).toBe(`${' '.repeat(7)}探索未至之境！`)
+  })
+
+  it('centers an ASCII string', () => {
+    expect(centerText('dsh', 9)).toBe('   dsh')
+  })
+
+  it('floors an odd remainder so the text leans left, never off the edge', () => {
+    expect(centerText('dsh', 8)).toBe('  dsh')
+  })
+
+  it('returns the text unpadded when it is wider than the field', () => {
+    // Never emit negative padding; on a narrow terminal the slogan
+    // simply sits flush left.
+    expect(centerText('探索未至之境！', 4)).toBe('探索未至之境！')
+  })
+
+  it('returns the text unpadded when it exactly fills the field', () => {
+    expect(centerText('dsh', 3)).toBe('dsh')
+  })
+})
 
 describe('encodeBitmap', () => {
   it('packs two pixel rows into one text row', () => {

@@ -24,12 +24,16 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **Banner / StatusBar** — the top zone. While the session log is empty it renders the **Banner**: a two-column brand splash (pixel-art whale + DeepSeek slogan on the left; a block-letter `DEEPSEEK` / `HARNESS` wordmark, the active model, the working directory, and a tip line on the right). The moment the first message lands it collapses into the compact **StatusBar**, which carries the same identity in two rows plus the live token counts and run state. The splash only earns its keep when there is nothing else to show; it never permanently costs the user screen. Below `BANNER_MIN_WIDTH` (76) columns the banner degrades to a compact form that keeps every fact and drops only the decoration.
+- **Banner / StatusBar** — the top zone. While the session log is empty it renders the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark followed by four meta lines: `provider/model`, `<session id> · v<version>`, `<cwd> (<branch>*)`, and the tip line. The moment the first message lands the whole thing collapses into the compact **StatusBar**, which carries the same identity in two rows plus the live token counts and run state. The splash only earns its keep when there is nothing else to show; it never permanently costs the user screen. Below `BANNER_MIN_WIDTH` (76) columns the banner degrades to a compact form that keeps every fact and drops only the decoration.
 
-  Two rules make the banner tidy, and both were learned by getting them wrong:
+  Four rules make the banner tidy, and each was learned by getting it wrong:
 
   1. **The whale is a bitmap, not a string of block characters.** A terminal cell is roughly twice as tall as it is wide, so art drawn one-cell-per-pixel comes out vertically stretched and unreadable. `WHALE_BITMAP` is a 28×16 pixel grid and `encodeBitmap` packs each *pair* of pixel rows into one text row (`█` both set, `▀` top only, `▄` bottom only, space neither) so the pixels end up square. A consequence worth remembering: a feature that must read as a clean hole — the whale's eyes — has to sit on a single pixel-row *pair*. Split across two pairs it encodes as `▀▀` above `▄▄` and reads as teeth.
   2. **Every meta line is one pre-composed string in one `<Text>`.** A row built from several `<Text>` children lets Ink wrap mid-word; that is what once rendered `/help` as `/hel` and `/status` as `/stat`. Each line is budgeted against the wordmark's width and truncated with `fitTail`, which cuts from the *front* (`…top/dsh-tui`) because paths and session ids carry their identity in the tail.
+  3. **Centering CJK text requires `displayWidth`, not `.length`.** The slogan is Chinese, so every character occupies two terminal columns. `centerText` measures in display columns and floors an odd remainder, so the text leans left rather than off the edge; a string wider than the field is returned unpadded instead of pushed negative.
+  4. **The version is injected at build time, not read at runtime.** `tsdown.config.ts` defines `__DSH_TUI_VERSION__` from `package.json#version`, and `src/environment.ts` guards the identifier with `typeof` so dev and vitest runs fall back to `dev` instead of a `ReferenceError`. The banner can therefore never print a version that disagrees with the package.
+
+  The empty session deliberately has **no** empty-state copy in the MessageList. The banner sits directly above it and its tip line already says how to start; a second hint saying the same thing read as clutter.
 - **MessageList** — the entire session log, scrollable when it overflows the terminal height. Owns the middle; flex-grows to fill available space.
 - **Prompt** — the input line, always the bottom row.
 
@@ -75,7 +79,7 @@ The palette is theme-aware. Both light and dark terminals are first-class; `NO_C
 | Plan mode off | `gray` | `⤷ plan mode off`. |
 | Meta / separators | `gray` | `·`, `in:`, `out:`, `session:`, turn/step counters. |
 | Notes | `gray` dim | Free-floating side remarks. |
-| Empty state | `gray` dim | `Type a message and press Enter. Use /help for slash commands.` |
+| Version / repo meta | `gray` | `v<version>`, `<cwd> (<branch>*)` on the banner. |
 
 Colors are semantic, not aesthetic. Don't introduce new colors without a reason in this spec.
 

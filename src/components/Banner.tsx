@@ -33,6 +33,7 @@ import React, { type FC } from 'react'
 import { Box, Text, useStdout } from 'ink'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import { VERSION, readRepoLabel } from '../environment.ts'
 
 /** DeepSeek's brand blue. Used for the whale's body and the DEEPSEEK wordmark. */
 const BRAND_BLUE = '#4D6BFE'
@@ -65,12 +66,8 @@ const WHALE_BITMAP: readonly string[] = [
   '..#####################.....',
   '..BBBBBBBBBBBBBBBBBBBBB.....',
   '..BBBBBBBBBBBBBBBBBBBBB.....',
-  '..BBBBBBBBBBBBBBBBBBBBB.....',
-  '...BBBBBBBBBBBBBBBBBBB......',
   '....BBBBBBBBBBBBBBBBB.......',
   '.....BBBBBBBBBBBBBBB........',
-  '.......BBBBBBBBBBB..........',
-  '..........BBBBB.............',
 ]
 
 /** One text row of an encoded bitmap. */
@@ -113,8 +110,51 @@ export function encodeBitmap(bitmap: readonly string[]): BitmapRow[] {
 /** Pre-encoded so the sprite is packed once, not on every render. */
 const WHALE_ROWS = encodeBitmap(WHALE_BITMAP)
 
-/** DeepSeek's slogan, shown under the whale. */
+/** DeepSeek's slogan, shown centered under the whale. */
 const SLOGAN = '探索未至之境！'
+
+/**
+ * Display width of `text` in terminal columns. CJK characters occupy
+ * two columns, which matters here because the slogan is Chinese and
+ * `String.length` would report half its true width — centering on
+ * `.length` puts it visibly off to the right.
+ *
+ * The ranges covered are the ones the UI actually uses: CJK ideographs,
+ * the Chinese/Japanese punctuation block (which is where `！` lives),
+ * Hiragana/Katakana, and Hangul. A full `wcwidth` implementation is
+ * not worth the dependency for one slogan.
+ * @param text - the string to measure.
+ */
+export function displayWidth(text: string): number {
+  let width = 0
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    const isWide =
+      (code >= 0x1100 && code <= 0x115f) || // Hangul Jamo
+      (code >= 0x2e80 && code <= 0xa4cf) || // CJK radicals … Yi
+      (code >= 0xac00 && code <= 0xd7a3) || // Hangul syllables
+      (code >= 0xf900 && code <= 0xfaff) || // CJK compatibility ideographs
+      (code >= 0xfe30 && code <= 0xfe6f) || // CJK compatibility forms
+      (code >= 0xff00 && code <= 0xff60) || // Fullwidth forms
+      (code >= 0xffe0 && code <= 0xffe6) ||
+      (code >= 0x20000 && code <= 0x3fffd) // CJK extension planes
+    width += isWide ? 2 : 1
+  }
+  return width
+}
+
+/**
+ * Left-pad `text` so it sits centered in a field of `width` columns.
+ * Padding is measured in display columns (see {@link displayWidth}),
+ * and a string wider than the field is returned unpadded rather than
+ * pushed negative.
+ * @param text - the string to center.
+ * @param width - the field width, in columns.
+ */
+export function centerText(text: string, width: number): string {
+  const pad = Math.floor((width - displayWidth(text)) / 2)
+  return pad > 0 ? `${' '.repeat(pad)}${text}` : text
+}
 
 /**
  * A 4×5 block font, just wide enough for the two words in the
@@ -216,14 +256,20 @@ const MetaLines: FC<{ selection: ModelSelection; sessionId: SessionId; width: nu
   width,
 }) => {
   const shortSession = String(sessionId).slice(0, SESSION_ID_CHARS)
+  const repo = readRepoLabel()
   // Each line is one pre-composed string in one <Text>. Several
   // <Text> children on a row would let Ink wrap mid-word.
-  const modelLine = fitTail(`${selection.model} · ${shortSession}`, width)
-  const cwdLine = fitTail(displayCwd(process.cwd(), process.env['HOME']), width)
+  const modelLine = fitTail(`${selection.provider}/${selection.model}`, width)
+  const sessionLine = fitTail(`${shortSession} · v${VERSION}`, width)
+  const cwd = displayCwd(process.cwd(), process.env['HOME'])
+  // The branch label rides on the cwd line: they answer the same
+  // question ("where am I working?") and deserve one row, not two.
+  const cwdLine = fitTail(repo === undefined ? cwd : `${cwd} (${repo})`, width)
   const tipLine = fitTail(TIP, width)
   return (
     <>
       <Text color="white" bold>{modelLine}</Text>
+      <Text color="gray">{sessionLine}</Text>
       <Text color="gray">{cwdLine}</Text>
       <Text color={BRAND_BLUE_LIGHT}>{tipLine}</Text>
     </>
@@ -257,16 +303,30 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
       columnGap={COLUMN_GAP}
     >
       <Box flexDirection="column">
+        {/*
+          A blank row above and below the sprite so the whale reads as
+          a framed illustration rather than something wedged against
+          the wordmark's cap height.
+        */}
+        <Text> </Text>
         {WHALE_ROWS.map((row, i) => (
           <Text key={`whale-${i}`} color={row.belly ? BRAND_BLUE_LIGHT : BRAND_BLUE}>
             {row.text}
           </Text>
         ))}
-        <Box marginTop={1}>
-          <Text color={BRAND_BLUE} bold>{SLOGAN}</Text>
-        </Box>
+        <Text> </Text>
+        {/*
+          Centered on the sprite's own width, not the column's, so the
+          slogan sits under the whale's midline. The measurement has to
+          be in display columns — the slogan is Chinese, and centering
+          on `.length` would place it half a whale to the right.
+        */}
+        <Text color={BRAND_BLUE} bold>{centerText(SLOGAN, WHALE_WIDTH)}</Text>
       </Box>
       <Box flexDirection="column">
+        {/* Matches the whale column's leading blank so the wordmark's
+            cap height lines up with the sprite's top row. */}
+        <Text> </Text>
         {DEEPSEEK_ROWS.map((row, i) => (
           <Text key={`ds-${i}`} color={BRAND_BLUE}>{row}</Text>
         ))}
