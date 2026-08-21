@@ -118,8 +118,6 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `Enter` | Send the current input as a user message to the model |
 | `/help` | Print available slash commands |
 | `/clear` | Clear the visible chat (the session log is unchanged) |
-| `/model` | Print the current selection and the provider catalog |
-| `/model <provider>/<model>` | Switch the model for this session and future ones. A bare `<model>` works when only one provider advertises it |
 | `/status` | Print the current model and session id |
 | `/exit`, `/quit` | Leave the REPL |
 | `Ctrl-C` (idle) | Same as `/exit` |
@@ -230,8 +228,7 @@ src/
 ├── renderer.tsx             Ink root component
 ├── state.ts                 Pure reducer: SessionEvent → UiState
 ├── types.ts                 UiEntry, UiState, isRenderable, declaration-merged event map
-├── commands.ts              slash dispatch (async — /model reads catalogs)
-├── model.ts                 /model argument parsing + catalog matching
+├── commands.ts              /help /clear /status /exit /quit dispatch
 ├── invariant.ts             Empty package-invariant companion
 ├── hooks/
 │   └── useSessionEvents.ts  Replay log + subscribe to session/event

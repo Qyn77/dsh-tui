@@ -67,18 +67,13 @@ async function run(ctx: Context): Promise<void> {
   if (agents === undefined || defaultModel === undefined) return
 
   const selection = defaultModel.currentSelection()
-  // The ref is created out here, not inside `setup`, because `/model`
-  // has to write it: prompt assembly reads `current` at the start of
-  // every step, so mutating it is what actually re-routes the live
-  // agent. Built inside the closure it would be unreachable, and
-  // `/model` could only change the default for the *next* launch.
-  const selectionRef: ModelSelectionRef = { current: selection, assembled: undefined }
   const { agent } = await agents.create({
     sessionId: SessionId(`tui-${randomUUID()}`),
     meta: { cwd: process.cwd() },
     agentOptions: { provider: selection.provider, model: selection.model },
     setup: (agentCtx) => {
-      installModelSelection(agentCtx, selectionRef)
+      const ref: ModelSelectionRef = { current: selection, assembled: undefined }
+      installModelSelection(agentCtx, ref)
     },
   })
 
@@ -92,7 +87,7 @@ async function run(ctx: Context): Promise<void> {
 
   try {
     const { waitUntilExit, unmount, cleanup } = inkRender(
-      React.createElement(App, { ctx, agent: agent as Agent, exit: exitHook, selectionRef }),
+      React.createElement(App, { ctx, agent: agent as Agent, exit: exitHook }),
       {
         exitOnCtrlC: false,
         patchConsole: false,

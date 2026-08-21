@@ -24,7 +24,7 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **Banner / StatusBar** — the top zone. While the session log is empty it renders the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, plus ` · <effort>` when a reasoning effort is selected, and the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. The moment the first message lands the whole thing collapses into the compact **StatusBar**, which carries the same identity in two rows plus the live token counts and run state. The splash only earns its keep when there is nothing else to show; it never permanently costs the user screen.
+- **Banner / StatusBar** — the top zone. While the session log is empty it renders the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. The moment the first message lands the whole thing collapses into the compact **StatusBar**, which carries the same identity in two rows plus the live token counts and run state. The splash only earns its keep when there is nothing else to show; it never permanently costs the user screen.
 
   **Three width tiers**, chosen by `bannerTier(columns)`:
 
@@ -76,7 +76,7 @@ The palette is theme-aware. Both light and dark terminals are first-class; `NO_C
 | DeepSeek brand blue | `#4D6BFE` | Banner whale + `DEEPSEEK` wordmark; Banner/StatusBar border; tip keys; StatusBar `dsh`. |
 | DeepSeek blue, light | `#9BADFF` | `HARNESS` wordmark; the whale's belly row. |
 | App brand | `cyan` bold | `>` in the prompt; slash palette border and command names. |
-| Model name | `green` | `provider/model · <effort>` in the StatusBar. |
+| Model name | `green` | `provider/model` in the StatusBar. |
 | User label | `blue` bold | `you` prefix on user messages. |
 | Assistant label | `magenta` bold | `assistant` prefix on assistant messages. |
 | Tool name | `cyan` bold | Inside tool cards. |
@@ -117,8 +117,6 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `Enter` | Send the current input as a user message. |
 | `/help` | Print the list of available slash commands. |
 | `/clear` | Clear the visible chat. The session log is unchanged. |
-| `/model` | Print the current selection and the provider catalog. |
-| `/model <provider>/<model>` | Switch the model. A bare `<model>` is accepted when exactly one provider advertises it. |
 | `/status` | Print the current model and session id. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (idle) | Same as `/exit`. |
@@ -126,27 +124,9 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 
 Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash command iff it starts with `/` and matches a known name; anything else is sent to the model as a user message.
 
-`dispatch` is **async** — `/model` reads provider catalogs and writes a setting. The renderer fires it and forgets it rather than awaiting inside the input handler, so a slow provider endpoint delays the reply message instead of freezing the prompt.
+Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/cost`, `/copy`. Everything that affects REPL behavior is a slash command.
 
-Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/effort <id>`, `/cost`, `/copy`. Everything that affects REPL behavior is a slash command.
-
-#### 1.5.1 `/model`
-
-Three facts shape this command, and the first two come from the `dsh-llm` contract rather than from taste:
-
-1. **Catalog membership is advisory.** `dsh-llm` states twice that an adapter may accept model ids it does not advertise and that consumers "must not turn absence into request rejection". So `/model quiet/some-preview` **switches** and prints a note; it does not refuse. The catalog exists to suggest, not to validate.
-2. **Providers are authoritative.** `llm.listProviders()` returns only routes with a registered adapter, so an unlisted provider has nothing to stream the request. `/model nope/x` is a hard error that changes nothing, and it names the providers that do exist.
-3. **A switch has two lifetimes, and needs two writes.** Writing `ModelSelectionRef.current` re-routes the *running* agent — prompt assembly snapshots the ref when a step begins, so the switch lands on the next step instead of tearing the current one in half. Calling `agentDefaultModel.saveSelection()` only affects agents created *later*. `/model` does both. The ref is therefore created in `index.ts` outside `agents.create`'s `setup` callback; built inside that closure it would be unreachable and `/model` could only change the next launch.
-
-Consequences worth keeping straight:
-
-- **The UI reads the ref, not the setting.** `CommandResult.selection` carries the applied route back to the renderer. If persistence fails the two diverge, and the status bar must show what the agent actually routes to — so the failed save is reported as a warning and the live switch stands.
-- **Reasoning effort is dropped across a switch.** Effort ids are adapter-owned and scoped to one exact provider/model route, so carrying the old model's id onto a new model is at best rejected and at worst silently means something else. Dropping it restores the new model's provider default, and the command says so.
-- **A bare model id resolves by catalog lookup**: one owner is the happy path, several is `ambiguous` (the command lists the qualified forms rather than guessing), none falls back to the provider already in use — which is the useful reading of `/model some-preview-id` against an incomplete catalog.
-- **The argument splits on the first `/` only.** Provider routes never contain a slash but model ids sometimes do, so when the prefix is not a registered provider the whole argument is retried as a single model id.
-- **One broken adapter costs one provider's rows.** Catalogs are read with `Promise.allSettled`; a rejected `listModels` drops that provider's models and nothing else. An explicit registered `provider/model` argument only reads *that* provider's catalog, so an unambiguous switch does not pay for interrogating every other endpoint.
-
-#### 1.5.2 Slash palette
+#### 1.5.1 Slash palette
 
 When the buffer starts with `/` and contains no space yet, a `round` cyan-bordered palette floats above the prompt showing the commands whose names start with the buffer (case-insensitive). The first row is selected by default.
 
@@ -228,7 +208,7 @@ The package is at **v0.1.0-rc.7**. Each milestone below lists what users see whe
 - Ink-based renderer mounted as a Cordis bundle on `dsh-base`
 - Three-zone layout: StatusBar / MessageList / Prompt
 - Session log replay + live subscription
-- Slash commands: `/help`, `/clear`, `/model`, `/status`, `/exit`, `/quit`
+- Slash commands: `/help`, `/clear`, `/status`, `/exit`, `/quit`
 - Token counters in StatusBar
 - 20 unit tests covering state and commands
 
@@ -252,8 +232,7 @@ Known gaps (deferred, not bugs):
 - **Slash-command tab completion.** `Tab` after `/` fills in matching command names.
 - **`@`-mention file picker.** `@<Tab>` opens a fuzzy file picker.
 - **Tool approval flow.** When a tool call requires consent, render a `y/n/all` prompt inside the Prompt zone, not as a modal.
-- **`/effort <id>`.** Pick a reasoning effort for the current route, from `resolveModelInfo`'s advertised list. `/model` clears the effort on every switch; this is how it gets set back.
-- **`/model` picker.** An arrow-key selectable catalog reusing the slash palette's visual language, instead of today's printed listing plus typed argument.
+- **`/model <id>`.** Switch the agent's model mid-session.
 - **`/cost` / `/usage`.** Per-turn and cumulative token + dollar cost.
 - **History.** `↑` / `↓` navigates the user's prior inputs in this session.
 

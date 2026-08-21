@@ -6,9 +6,9 @@
  */
 
 import { Box, useApp, useInput } from 'ink'
-import React, { useCallback, useState, type FC } from 'react'
+import React, { useCallback, useMemo, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
@@ -29,27 +29,18 @@ export interface AppProps {
    * `index.ts` (see AGENTS.md rule 7). Same path `/exit` uses.
    */
   exit: (code: number) => void
-  /**
-   * The live agent's mutable model selection, owned by the runner.
-   * `/model` writes it to re-route the running agent; the App reads the
-   * result back to keep the status bar honest.
-   */
-  selectionRef?: ModelSelectionRef
 }
 
 /**
  * The TUI root. Subscribes to the agent's session, dispatches user input
  * to the agent or to a slash command, and composes the three-pane layout.
  */
-export const App: FC<AppProps> = ({ ctx, agent, exit, selectionRef }) => {
+export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   const { exit: closeUi } = useApp()
   const { state, resetView } = useSessionEvents(ctx, agent)
-  // State, not a memo: `/model` changes this mid-session. The initial
-  // value comes from the ref the runner installed on the agent, so the
-  // bar shows what the agent will actually route to rather than what
-  // the settings file happens to say.
-  const [selection, setSelection] = useState(
-    () => selectionRef?.current ?? ctx.get('agentDefaultModel')?.currentSelection(),
+  const selection = useMemo(
+    () => ctx.get('agentDefaultModel')?.currentSelection(),
+    [ctx],
   )
   // The animated "thinking" indicator. One interval per status
   // transition; both the StatusBar (right-side) and the Prompt
@@ -74,19 +65,14 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, selectionRef }) => {
       const trimmed = text.trim()
       if (trimmed === '') return
       if (trimmed.startsWith('/')) {
-        // Fire and forget: dispatch is async only because `/model` reads
-        // provider catalogs. Awaiting here would block the input handler
-        // and freeze the prompt while a provider endpoint is slow.
-        void dispatch(trimmed, { ctx, agent, resetView, selectionRef }).then((result) => {
-          if (result.kind === 'handled') {
-            if (result.selection) setSelection(result.selection)
-            if (result.message) process.stderr.write(`\n${result.message}\n`)
-          } else if (result.kind === 'unknown') {
-            process.stderr.write(`\nunknown command: ${result.input}\n`)
-          }
-          // 'exit' is handled inside dispatch by calling appExit; nothing
-          // more to do here.
-        })
+        const result = dispatch(trimmed, { ctx, agent, resetView })
+        if (result.kind === 'handled' && result.message) {
+          process.stderr.write(`\n${result.message}\n`)
+        } else if (result.kind === 'unknown') {
+          process.stderr.write(`\nunknown command: ${result.input}\n`)
+        }
+        // 'exit' is handled inside dispatch by calling appExit; nothing more
+        // to do here.
         return
       }
       agent.followup(
@@ -96,7 +82,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, selectionRef }) => {
         }),
       )
     },
-    [ctx, agent, resetView, selectionRef],
+    [ctx, agent, resetView],
   )
 
   if (selection === undefined) {

@@ -34,7 +34,6 @@ import { Box, Text, useStdout } from 'ink'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { VERSION, readRepoLabel } from '../environment.ts'
-import { formatSelection } from '../model.ts'
 
 /** DeepSeek's brand blue. Used for the whale's body and the DEEPSEEK wordmark. */
 const BRAND_BLUE = '#4D6BFE'
@@ -276,11 +275,11 @@ const SESSION_ID_CHARS = 12
  * columns, and only advertises commands that exist today — a tip
  * pointing at an unimplemented command is worse than no tip.
  */
-const TIP = 'Tip: /model · /help · Tab completes'
+const TIP = 'Tip: /help · /status · Tab completes'
 
 /** The four meta facts, unfitted. Each column budgets its own width. */
 export interface MetaText {
-  /** `provider/model`, plus ` · <effort>` when one is selected. */
+  /** `provider/model`. */
   model: string
   /** `<session id> · v<version>`. */
   session: string
@@ -307,7 +306,7 @@ export function metaText(
   cwd: string,
 ): MetaText {
   return {
-    model: formatSelection(selection),
+    model: `${selection.provider}/${selection.model}`,
     session: `${String(sessionId).slice(0, SESSION_ID_CHARS)} · v${VERSION}`,
     // The branch rides on the path: both answer "where am I working?"
     // and deserve one row, not two.

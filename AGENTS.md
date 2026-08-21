@@ -20,8 +20,7 @@ src/
 ├── renderer.tsx              Ink root — wires state + components
 ├── state.ts                  Pure reducer: SessionEvent → UiState      [test-first]
 ├── types.ts                  UiEntry, UiState, declaration-merged events
-├── commands.ts               Slash dispatch (async — /model does I/O)   [test-first]
-├── model.ts                  /model arg parsing + catalog matching      [test-first]
+├── commands.ts               /help /clear /status /exit /quit          [test-first]
 ├── environment.ts            Version + git branch probing (memoized)   [test-first]
 ├── invariant.ts              Type companion for dsh-invariants (no runtime)
 ├── markdown.ts               Pure markdown → UI AST (no React, no Ink) [test-first]
