@@ -88,18 +88,34 @@ function padLabel(label: string): string {
  * 2. Drop the provider prefix — the model usually carries enough
  *    identity on its own (especially when the variant tag is in the
  *    tail, e.g. `:tui-b1-flash`).
- * 3. Otherwise, keep the tail and prepend `…` so the user still sees
+ * 3. Drop the reasoning-effort suffix.
+ * 4. Otherwise, keep the tail and prepend `…` so the user still sees
  *    the model "tag" they picked, not a mid-word cut.
+ *
+ * The effort survives longer than the provider because it is short and
+ * because it is the half the user just changed with `/model`; the
+ * provider is usually constant for a whole session.
  *
  * The `…` is a single column in terminals we have tested; the
  * function is column-unaware because model names are ASCII in
  * practice. If a future model ships a CJK name, swap `.length` for
  * a width library — the call sites do not need to change.
+ * @param provider - registered provider route.
+ * @param model - provider-owned model id.
+ * @param maxWidth - columns available.
+ * @param effort - selected reasoning effort, when the user picked one.
  */
-export function fitModelName(provider: string, model: string, maxWidth: number): string {
+export function fitModelName(
+  provider: string,
+  model: string,
+  maxWidth: number,
+  effort?: string,
+): string {
   if (maxWidth <= 0) return ''
-  const full = `${provider}/${model}`
+  const suffix = effort === undefined || effort === '' ? '' : ` · ${effort}`
+  const full = `${provider}/${model}${suffix}`
   if (full.length <= maxWidth) return full
+  if (model.length + suffix.length <= maxWidth) return `${model}${suffix}`
   if (model.length <= maxWidth) return model
   if (maxWidth === 1) return '…'
   return `…${model.slice(-(maxWidth - 1))}`
@@ -127,7 +143,12 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
   // margin, and the budget must be at least 8 so the function has
   // room to choose a meaningful form (provider/model vs bare model).
   const modelBudget = Math.max(8, columns - 5)
-  const displayModel = fitModelName(selection.provider, selection.model, modelBudget)
+  const displayModel = fitModelName(
+    selection.provider,
+    selection.model,
+    modelBudget,
+    selection.reasoningEffort === undefined ? undefined : String(selection.reasoningEffort),
+  )
   return (
     <Box
       borderStyle="round"

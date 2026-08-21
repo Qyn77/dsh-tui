@@ -58,4 +58,22 @@ describe('fitModelName', () => {
   it('emits a lone `…` only when the model itself does not fit', () => {
     expect(fitModelName('p', 'mm', 1)).toBe('…')
   })
+
+  it('appends the reasoning effort when it fits', () => {
+    expect(fitModelName('dsh', 'v4', 20, 'high')).toBe('dsh/v4 · high')
+  })
+
+  it('drops the provider before the effort', () => {
+    // The effort is short and is the half the user just changed with
+    // `/model`; the provider is usually constant for a whole session.
+    expect(fitModelName('deepseek-official', 'v4-flash', 16, 'high')).toBe('v4-flash · high')
+  })
+
+  it('drops the effort when even the bare model plus effort will not fit', () => {
+    expect(fitModelName('deepseek-official', 'v4-flash', 10, 'high')).toBe('v4-flash')
+  })
+
+  it('ignores an empty effort string', () => {
+    expect(fitModelName('dsh', 'v4', 20, '')).toBe('dsh/v4')
+  })
 })

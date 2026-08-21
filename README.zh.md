@@ -113,6 +113,8 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `Enter` | 把当前输入作为用户消息发给模型 |
 | `/help` | 打印可用的斜杠命令 |
 | `/clear` | 清空可见的聊天区（session log 不变） |
+| `/model` | 打印当前选择和 provider 目录 |
+| `/model <provider>/<model>` | 切换模型，本次会话立即生效，同时存为下次启动的默认值。只有一个 provider 提供该模型时可以只写 `<model>` |
 | `/status` | 打印当前模型和 session id |
 | `/exit`, `/quit` | 退出 REPL |
 | `Ctrl-C`（空闲时） | 等同 `/exit` |
@@ -224,7 +226,8 @@ src/
 ├── renderer.tsx             Ink 根组件
 ├── state.ts                 纯 reducer：SessionEvent → UiState
 ├── types.ts                 UiEntry、UiState、isRenderable、declaration-merged 事件表
-├── commands.ts              /help /clear /status /exit /quit 派发
+├── commands.ts              斜杠命令派发（异步 —— /model 要读目录）
+├── model.ts                 /model 参数解析 + 目录匹配
 ├── invariant.ts             空的 package-invariant companion
 ├── hooks/
 │   └── useSessionEvents.ts  回放 log + 订阅 session/event
