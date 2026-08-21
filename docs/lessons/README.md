@@ -24,3 +24,4 @@ is for closed cases only.
 |---|---|---|---|
 | [Ctrl-C shutdown](ctrl-c-shutdown.md) | Ink raw mode delivers Ctrl-C as a keypress, not a `SIGINT`; teardown order is `closeUi()` → `ctx.appExit(0)`. | terminal, ink, lifecycle | Resolved · `5f0ae88` |
 | [Prompt / scroll snap regression](prompt-scroll-snaps.md) | Timer-driven prompt rerenders can make the terminal alt-screen feel like the chat is snapping to the top or bottom; keep custom cursors stable and low-churn. | terminal, ink, prompt, scroll | Resolved |
+| [Resize reflow and Ink frame ownership](resize-reflow.md) | A resize must have one owner: debounce outside React, reset Ink with `instance.clear()`, then repaint once in the alternate screen; never mix raw clears with Ink's cached frame. | terminal, ink, resize, reflow | Resolved |

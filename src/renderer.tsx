@@ -6,7 +6,7 @@
  */
 
 import { Box, Static, useApp, useInput, useStdout } from 'ink'
-import React, { useCallback, useEffect, useMemo, useState, type FC } from 'react'
+import React, { useCallback, useMemo, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -15,10 +15,12 @@ import { Prompt } from './components/Prompt.tsx'
 import { StatusBar } from './components/StatusBar.tsx'
 import { Banner } from './components/Banner.tsx'
 import { useRunningClock } from './hooks/useRunningClock.ts'
-import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { useResizeRepaint } from './hooks/useResizeRepaint.ts'
+import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
+
+
 
 /** Props for the TUI root component. */
 export interface AppProps {
@@ -39,18 +41,6 @@ export interface AppProps {
 export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   const { exit: closeUi } = useApp()
   const { stdout } = useStdout()
-  const realTty = stdout?.isTTY === true
-  const [terminalRows, setTerminalRows] = useState(() => stdout?.rows ?? 24)
-  useEffect(() => {
-    if (stdout === undefined || typeof stdout.on !== 'function') return
-    const onResize = (): void => {
-      setTerminalRows(stdout.rows ?? 24)
-    }
-    stdout.on('resize', onResize)
-    return () => {
-      stdout.off('resize', onResize)
-    }
-  }, [stdout])
   const { state, resetView } = useSessionEvents(ctx, agent)
   const selection = useMemo(
     () => ctx.get('agentDefaultModel')?.currentSelection(),
@@ -62,12 +52,15 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   // glyph is in lock-step on screen.
   const { spinnerFrame, elapsedSeconds } = useRunningClock(state.status === 'running')
 
+  // Real TTY resize is coordinated by index.ts through Ink's render
+  // instance. Keep the hook for non-TTY test streams only.
+  useResizeRepaint()
+
 
   // Ink's frame eraser is cursor-relative, so a terminal that rewraps the
   // rows already on screen when the window narrows leaves debris behind
   // that no width arithmetic can prevent. Once a resize settles, throw the
   // screen away and let Ink lay the frame down again.
-  useResizeRepaint()
 
   const clearView = useCallback(() => {
     resetView()
@@ -123,7 +116,11 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   // scrolling the banner out of the viewport on startup. Once there is
   // conversation content, the message list can flex and the prompt belongs
   // at the bottom of the terminal.
-  const frameHeight = state.entries.length > 0 ? Math.max(1, terminalRows - 1) : undefined
+  // Leave three rows outside Ink's dynamic output. If outputHeight reaches
+  // stdout.rows, Ink intentionally switches to clearTerminal + append mode,
+  // which cannot erase a previous frame during a resize. Keeping the frame
+  // strictly shorter makes log-update erase the previous render normally.
+  const frameHeight = state.entries.length > 0 ? Math.max(1, (stdout?.rows ?? 24) - 3) : undefined
 
   return (
     <Box flexDirection="column" height={frameHeight} marginRight={1}>
@@ -165,7 +162,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
         The StatusBar takes over as the live header as soon as there is a
         message to head, carrying the same identity plus the token counts.
       */}
-      {realTty ? (
+      {stdout?.isTTY === true ? (
         <Banner selection={selection} sessionId={agent.id} />
       ) : (
         <Static items={[0]} style={{ width: '100%' }}>

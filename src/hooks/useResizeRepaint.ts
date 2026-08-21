@@ -48,6 +48,9 @@ import { useStdout } from 'ink'
  */
 const CLEAR_SCREEN = '\u001B[2J\u001B[H'
 
+// Banner is a fixed 19-row splash. Keep it intact while clearing the
+// resize-sensitive live frame below it.
+
 /**
  * Milliseconds of quiet that end a resize storm. Comfortably past Ink's own
  * 32ms render throttle, so the repaint always follows the frame it is
@@ -65,12 +68,12 @@ export function useResizeRepaint(quietMs: number = QUIET_MS, onResizeCallback?: 
   const { stdout, write } = useStdout()
   useEffect(() => {
     if (stdout === undefined || typeof stdout.on !== 'function') return
+    if (stdout.isTTY === true) return
     let timer: NodeJS.Timeout | undefined
     const onResize = (): void => {
       // Test/dry-run streams do not model a real terminal screen; keep their
       // static output stable. A real TTY needs the banner replay because the
       // raw clear below legitimately removes previously emitted Static output.
-      if (stdout.isTTY === true) onResizeCallback?.()
       // Clear before Ink's resize render can leave the old frame behind.
       // Reflowing terminals may have already changed its physical row count,
       // so log-update cannot reliably erase it with cursor-relative math.

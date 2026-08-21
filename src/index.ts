@@ -6,6 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import React from 'react'
 import { render as inkRender } from 'ink'
 import type { Context } from '@deepseek-ai/cordis'
@@ -41,6 +42,17 @@ interface TuiIo {
   stderr: { write(chunk: string): unknown }
 }
 
+const ALT_SCREEN_ENTER = '\u001B[?1049h\u001B[2J\u001B[H'
+const ALT_SCREEN_EXIT = '\u001B[?1049l'
+const CLEAR_SCREEN = '\u001B[2J\u001B[H'
+const RESIZE_QUIET_MS = 120
+const RESIZE_LOG = '/tmp/dsh-tui-resize.log'
+const resizeDebug = process.env['DSH_TUI_DEBUG_RESIZE'] === '1'
+function resizeLog(message: string): void {
+  if (!resizeDebug) return
+  appendFileSync(RESIZE_LOG, `${new Date().toISOString()} ${message}\n`)
+}
+
 /** Streams the TUI writes to; tests substitute captures. */
 export const internals: TuiIo = {
   stdout: process.stdout,
@@ -59,6 +71,7 @@ function fail(io: TuiIo, error: unknown): void {
  * @param io - process-facing effects.
  */
 async function run(ctx: Context): Promise<void> {
+  if (resizeDebug) writeFileSync(RESIZE_LOG, `${new Date().toISOString()} start\n`)
   // Ink needs raw mode on stdin to read keys and a TTY on stdout to know
   // how wide to draw. AGENTS.md rule 6 and docs/SPEC.md have always
   // required the runner to refuse without both; until now that was
@@ -107,18 +120,54 @@ async function run(ctx: Context): Promise<void> {
   // itself. The dispatch logic is in `interrupt.ts`.
   const exitHook = ctx.get('appExit') ?? ((code: number) => process.exit(code))
 
+  const alternateScreen = process.stdout.isTTY === true
   try {
-    const { waitUntilExit, unmount, cleanup } = inkRender(
+    if (alternateScreen) internals.stdout.write(ALT_SCREEN_ENTER)
+    const instance = inkRender(
       React.createElement(App, { ctx, agent: agent as Agent, exit: exitHook }),
       {
         exitOnCtrlC: false,
         patchConsole: false,
       },
     )
-    cleanup()
-    await waitUntilExit()
-    unmount()
+    let resizeTimer: NodeJS.Timeout | undefined
+    const onResize = (): void => {
+      resizeLog(`event columns=${process.stdout.columns ?? 0} rows=${process.stdout.rows ?? 0}`)
+      if (resizeTimer !== undefined) clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(() => {
+        resizeTimer = undefined
+        resizeLog(`settled before-clear columns=${process.stdout.columns ?? 0} rows=${process.stdout.rows ?? 0}`)
+        // Use Ink's public instance API so its line-count bookkeeping and
+        // the terminal screen are reset as one operation. Rendering from a
+        // child hook cannot access this state and leaves the next frame
+        // positioned relative to the old cursor after a resize.
+        instance.clear()
+        resizeLog('instance.clear done')
+        internals.stdout.write(CLEAR_SCREEN)
+        resizeLog('clear-screen written')
+        instance.rerender(React.createElement(App, { ctx, agent: agent as Agent, exit: exitHook }))
+        resizeLog('instance.rerender called')
+      }, RESIZE_QUIET_MS)
+      if (typeof resizeTimer.unref === 'function') resizeTimer.unref()
+    }
+    if (alternateScreen) {
+      // Ink installs an eager resize listener that renders immediately for
+      // every SIGWINCH. Remove it so it cannot race this debounced full
+      // repaint; App reads stdout.rows directly during rerender.
+      process.stdout.removeAllListeners('resize')
+      process.stdout.on('resize', onResize)
+    }
+    instance.cleanup()
+    await instance.waitUntilExit()
+    if (alternateScreen) {
+      process.stdout.off('resize', onResize)
+      if (resizeTimer !== undefined) clearTimeout(resizeTimer)
+    }
+    instance.unmount()
   } finally {
+    // If Ink exits through an error, never leave the shell in the alternate
+    // screen buffer.
+    if (alternateScreen) internals.stdout.write(ALT_SCREEN_EXIT)
     // no signal handler to detach
   }
 }
