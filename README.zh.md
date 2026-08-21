@@ -123,6 +123,8 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/exit`, `/quit` | 退出 REPL |
 | `Ctrl-C`（空闲时） | 等同 `/exit` |
 | `Ctrl-C`（turn 运行时） | 取消正在跑的 turn |
+| `PageUp` / `PageDown` | 按页滚动聊天内容 |
+| `Home` / `End` | 跳到最早 / 最新的可见消息 |
 
 要求：Node ≥ 22.19、pnpm ≥ 9、真正的终端（Ink 需要 TTY）、一个 DeepSeek API key。
 

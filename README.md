@@ -129,6 +129,8 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/exit`, `/quit` | Leave the REPL |
 | `Ctrl-C` (idle) | Same as `/exit` |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
+| `PageUp` / `PageDown` | Scroll the conversation viewport one page |
+| `Home` / `End` | Jump to the oldest / newest visible messages |
 
 ## Develop it
 

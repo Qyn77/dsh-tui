@@ -4,8 +4,8 @@
  * @module @deepseek-ai/dsh-tui/components/MessageList
  */
 
-import React, { type FC } from 'react'
-import { Box, Text } from 'ink'
+import React, { useEffect, useMemo, useState, type FC } from 'react'
+import { Box, Text, useInput, useStdout } from 'ink'
 import type { UiEntry, UiState } from '../types.ts'
 import { userMessageText } from '../types.ts'
 import { Markdown } from './Markdown.tsx'
@@ -14,6 +14,8 @@ import { Markdown } from './Markdown.tsx'
 export interface MessageListProps {
   state: UiState
 }
+
+const PAGE_ROWS = 12
 
 const COMPACTION_LABELS: Record<Extract<UiEntry, { kind: 'compaction' }>['stage'], string> = {
   start: 'compacting…',
@@ -192,6 +194,41 @@ function Entry({ entry }: { entry: UiEntry }) {
 }
 
 export const MessageList: FC<MessageListProps> = ({ state }) => {
+  const { stdout } = useStdout()
+  const [page, setPage] = useState(0)
+
+  useEffect(() => {
+    // New entries should follow the live tail when the user is already at
+    // the latest page; keep an intentional historical position stable.
+    if (page === 0) return
+    setPage((current) => Math.min(current, Math.max(0, state.entries.length - 1)))
+  }, [state.entries.length, page])
+
+  useInput((input, key) => {
+    if (key.pageUp) {
+      setPage((current) => Math.min(state.entries.length - 1, current + PAGE_ROWS))
+      return
+    }
+    if (key.pageDown) {
+      setPage((current) => Math.max(0, current - PAGE_ROWS))
+      return
+    }
+    if (input === '\u001B[H' || input === '\u001B[1~') {
+      setPage(Math.max(0, state.entries.length - 1))
+      return
+    }
+    if (input === '\u001B[F' || input === '\u001B[4~') {
+      setPage(0)
+    }
+  })
+
+  const viewportRows = Math.max(1, (stdout?.rows ?? 24) - 8)
+  const visible = useMemo(() => {
+    const end = state.entries.length - page
+    const start = Math.max(0, end - PAGE_ROWS)
+    return state.entries.slice(start, end)
+  }, [page, state.entries])
+
   if (state.entries.length === 0) {
     // No empty-state copy: on an empty session the Banner is on screen
     // directly above, and its tip line already says how to start and
@@ -200,10 +237,13 @@ export const MessageList: FC<MessageListProps> = ({ state }) => {
     // pushing it to the bottom of a tall terminal.
     return <Box height={1} />
   }
+
   return (
-    <Box flexDirection="column" flexGrow={1} paddingX={1}>
-      {state.entries.map((entry, idx) => (
-        <Entry key={idx} entry={entry} />
+    <Box flexDirection="column" flexGrow={1} height={viewportRows} overflow="hidden" paddingX={1}>
+      {visible.map((entry, idx) => (
+        <Box key={idx} flexShrink={0}>
+          <Entry entry={entry} />
+        </Box>
       ))}
     </Box>
   )
