@@ -30,6 +30,10 @@ export interface SlashPaletteProps {
 /** Padded width of the name column. Two spaces of gutter, then name, then gutter. */
 const NAME_GUTTER = 2
 
+/**
+ * Compute the name column width across the filtered slice. Two spaces
+ * of gutter so the descriptions do not crowd the names.
+ */
 function nameColumnWidth(commands: readonly CommandMeta[]): number {
   let max = 0
   for (const c of commands) {
@@ -37,18 +41,6 @@ function nameColumnWidth(commands: readonly CommandMeta[]): number {
   }
   return max + NAME_GUTTER
 }
-
-/**
- * Compute the name column width across the full registry, not the
- * filtered slice — so a long command that gets filtered out does not
- * shrink the column. Exported so a future test can pin it.
- */
-export const PALETTE_NAME_COL_WIDTH = (() => {
-  let max = 0
-  // We can't import COMMANDS here without a cycle; use a conservative
-  // minimum. The internal helper covers the per-render width.
-  return max
-})()
 
 export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected }) => {
   if (commands.length === 0) return null

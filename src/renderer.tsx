@@ -13,6 +13,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
 import { StatusBar } from './components/StatusBar.tsx'
+import { Banner } from './components/Banner.tsx'
 import { useRunningClock } from './hooks/useRunningClock.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { dispatch } from './commands.ts'
@@ -90,13 +91,23 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
 
   return (
     <Box flexDirection="column" height="100%">
-      <StatusBar
-        selection={selection}
-        sessionId={agent.id}
-        state={state}
-        spinnerFrame={spinnerFrame}
-        elapsedSeconds={elapsedSeconds}
-      />
+      {/*
+        The brand splash is generous (13 rows) so it only earns its
+        keep while there is nothing else to show. As soon as the first
+        message lands it collapses into the compact StatusBar, which
+        carries the same information plus the live token counts.
+      */}
+      {state.entries.length === 0 ? (
+        <Banner selection={selection} sessionId={agent.id} />
+      ) : (
+        <StatusBar
+          selection={selection}
+          sessionId={agent.id}
+          state={state}
+          spinnerFrame={spinnerFrame}
+          elapsedSeconds={elapsedSeconds}
+        />
+      )}
       <MessageList state={state} />
       <Prompt
         active={state.status === 'idle'}

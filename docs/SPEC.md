@@ -24,7 +24,7 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **StatusBar** — two vertical columns inside a heavy cyan frame so the chrome has visual weight on par with the message list below. Left column = brand identity (ASCII whale `<°)))><`, `dsh` wordmark, `DeepSeek Harness` tagline, and the active `provider/model` in green bold). Right column = runtime state (`session: <id>`, `in: <n>`, `out: <n>`, and the run state on the last line). The model line is width-aware (`useStdout` + `fitModelName`) and tail-truncates with a leading `…` when even the bare model would not fit. Padding (`paddingX={4} paddingY={1}`) plus a 6-column gap between the two columns give the bar real breathing room.
+- **Banner / StatusBar** — the top zone. While the session log is empty it renders the **Banner**: a generous two-column brand splash (block-art whale + DeepSeek slogan on the left; a block-letter `DEEPSEEK` / `HARNESS` wordmark, the active model, the working directory, and a tip line on the right). The moment the first message lands it collapses into the compact **StatusBar**, which carries the same identity in two rows plus the live token counts and run state. The splash is 13 rows, so it only earns its keep when there is nothing else to show; it never permanently costs the user screen. Below `BANNER_MIN_WIDTH` columns the banner degrades to a compact form that keeps every piece of information and drops only the decoration.
 - **MessageList** — the entire session log, scrollable when it overflows the terminal height. Owns the middle; flex-grows to fill available space.
 - **Prompt** — the input line, always the bottom row.
 
@@ -34,7 +34,8 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 
 | Element | Border | Why |
 |---|---|---|
-| StatusBar | `bold` (`┏━┓┃┗━┛`) `cyan` | Persistent chrome with brand weight; visually anchors the top of the screen. |
+| Banner | `round` `#4D6BFE` | Startup splash; brand blue frames the art. |
+| StatusBar | `round` `#4D6BFE` | Persistent chrome in the same brand blue as the banner it replaces. |
 | Tool card | `round` (`╭─╮│╰─╯`) | Friendly, distinct from the status bar. |
 | Prompt | `round` (`╭─╮│╰─╯`) | Affordance for an empty input. Cyan when active, gray when a turn is running. |
 | User message | none | Floats freely; reads as text, not as a frame. |
@@ -51,7 +52,9 @@ The palette is theme-aware. Both light and dark terminals are first-class; `NO_C
 
 | Role | Color | Where |
 |---|---|---|
-| App brand | `cyan` bold | `dsh` in the StatusBar; `>` in the prompt. |
+| DeepSeek brand blue | `#4D6BFE` | Banner whale + `DEEPSEEK` wordmark; Banner/StatusBar border; tip keys; StatusBar `dsh`. |
+| DeepSeek blue, light | `#9BADFF` | `HARNESS` wordmark; the whale's belly row. |
+| App brand | `cyan` bold | `>` in the prompt; slash palette border and command names. |
 | Model name | `green` | `provider/model` in the StatusBar. |
 | User label | `blue` bold | `you` prefix on user messages. |
 | Assistant label | `magenta` bold | `assistant` prefix on assistant messages. |

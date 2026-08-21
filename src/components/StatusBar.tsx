@@ -44,14 +44,14 @@ export interface StatusBarProps {
 }
 
 /**
- * Brand glyph for the top of the brand column. The classic ASCII
- * whale `<°)))><` reads as "head, eye, three water waves, tail"
- * and is the visual nod to DeepSeek's mascot. 8 columns, ASCII-only.
+ * Brand glyph for the top of the brand column. A small block-art
+ * whale echoing the startup {@link Banner}'s full-size one, sized to
+ * a single terminal row so the persistent chrome stays cheap.
  */
-const WHALE = '<°)))><'
+const WHALE = '▄█▀▀█▄'
 
-/** Full name shown on the brand column, below the `dsh` wordmark. */
-const TAGLINE = 'DeepSeek Harness'
+/** DeepSeek's brand blue. Shared with the startup banner. */
+const BRAND_BLUE = '#4D6BFE'
 
 /** Width of the right-column label column. Chosen so the numbers align. */
 const LABEL_WIDTH = 'session: '.length
@@ -130,34 +130,28 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
   const displayModel = fitModelName(selection.provider, selection.model, modelBudget)
   return (
     <Box
-      borderStyle="bold"
-      borderColor="cyan"
-      paddingX={4}
-      paddingY={1}
+      borderStyle="round"
+      borderColor={BRAND_BLUE}
+      paddingX={2}
       flexDirection="row"
-      columnGap={6}
+      columnGap={4}
     >
       <Box flexDirection="column">
-        <Text color="cyan" bold>{WHALE}</Text>
-        <Text color="cyan" bold>dsh</Text>
-        <Text color="cyan">{TAGLINE}</Text>
+        <Text color={BRAND_BLUE} bold>{WHALE} dsh</Text>
         <Text color="green" bold>{displayModel}</Text>
       </Box>
       <Box flexDirection="column">
         <Box>
           <Text color="gray">{padLabel('session:')}</Text>
           <Text>{shortId(sessionId)}</Text>
+          <Text color="gray"> · </Text>
+          <Text color={isRunning ? 'yellow' : 'gray'}>{statusText}</Text>
         </Box>
         <Box>
           <Text color="gray">{padLabel('in:')}</Text>
           <Text>{usage.input.toLocaleString()}</Text>
-        </Box>
-        <Box>
-          <Text color="gray">{padLabel('out:')}</Text>
+          <Text color="gray">{'   out: '}</Text>
           <Text>{usage.output.toLocaleString()}</Text>
-        </Box>
-        <Box>
-          <Text color={isRunning ? 'yellow' : 'gray'}>{statusText}</Text>
         </Box>
       </Box>
     </Box>
