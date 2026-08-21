@@ -2,21 +2,30 @@
  * The startup banner — the generous brand splash shown on an empty
  * session, before the first message. Two columns:
  *
- *   left  · a block-art whale + the DeepSeek slogan
+ *   left  · a pixel-art whale + the DeepSeek slogan
  *   right · a block-letter DEEPSEEK / HARNESS wordmark, then the
  *           active model, the working directory, and a tip line
  *
- * A terminal cannot reproduce true pixel art, so the whale and the
- * wordmark are drawn with the half/full block characters (U+2580,
- * U+2584, U+2588, U+258C, U+2590) that every monospace font we
- * support ships. The result reads as the same shape at terminal
- * resolution.
+ * **The whale is a bitmap, not a string of block characters.** A
+ * terminal cell is roughly twice as tall as it is wide, so art drawn
+ * one-cell-per-pixel comes out vertically stretched and unreadable.
+ * Instead {@link WHALE_BITMAP} is a 28×16 pixel grid and
+ * {@link encodeBitmap} packs each *pair* of pixel rows into one text
+ * row using the half-block characters `▀▄█` — so the pixels end up
+ * square and the sprite reads as a whale.
  *
- * The banner is deliberately tall (13 rows). It is rendered *instead
- * of* the compact {@link StatusBar} while the session log is empty and
- * collapses into it the moment the first message lands — so the splash
- * never permanently costs the user screen rows. On terminals too
- * narrow for the block wordmark it degrades to a compact form.
+ * Every meta line below the wordmark is a single pre-composed,
+ * width-budgeted string rendered as one `<Text>`. That is deliberate:
+ * a row of several `<Text>` children lets Ink wrap mid-word, which is
+ * what turned `/help` into `/hel` and `/status` into `/stat` in an
+ * earlier revision.
+ *
+ * The banner is rendered *instead of* the compact {@link StatusBar}
+ * while the session log is empty and collapses into it the moment the
+ * first message lands — so the splash never permanently costs the user
+ * screen rows. On terminals too narrow for the block wordmark it
+ * degrades to a compact form that keeps every fact and drops only the
+ * decoration.
  * @module @deepseek-ai/dsh-tui/components/Banner
  */
 
@@ -25,38 +34,80 @@ import { Box, Text, useStdout } from 'ink'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 
-/** Props for {@link Banner}. */
-export interface BannerProps {
-  /** Currently selected model for the agent. */
-  selection: ModelSelection
-  /** Session id of the live agent. */
-  sessionId: SessionId
-}
-
-/** DeepSeek's brand blue. Used for the whale and the DEEPSEEK wordmark. */
+/** DeepSeek's brand blue. Used for the whale's body and the DEEPSEEK wordmark. */
 const BRAND_BLUE = '#4D6BFE'
 
-/** A lighter tint of the brand blue, for the HARNESS half of the wordmark. */
+/** A lighter tint of the brand blue, for HARNESS and the whale's belly. */
 const BRAND_BLUE_LIGHT = '#9BADFF'
 
 /**
- * The whale, drawn with block characters. Rows are padded to a
- * uniform width so the right-hand column starts at a fixed offset
- * regardless of which row is widest. The final row is rendered in a
- * lighter color as the belly.
+ * The whale as a pixel grid. `#` is body, `B` is belly (drawn in the
+ * lighter tint), `.` is transparent. Height must be even so every
+ * pixel row pairs off; width is padded to a uniform 28 so the
+ * right-hand column starts at a fixed offset.
+ *
+ * The eyes are the two 2×2 holes on rows 6–7. They sit on the *same*
+ * pixel-row pair on purpose: split across two pairs they encode as
+ * `▀▀` above `▄▄` and read as teeth rather than eyes.
  */
-const WHALE: readonly string[] = [
-  '                 ▄█▀',
-  '    ▄▄▄▄▄▄▄▄   ▄█▀  ',
-  '  ▄█▀▀     ▀▀▄█▀    ',
-  ' ▐█  █   █     ▀█▄  ',
-  ' ▐█              █▌ ',
-  '  ▀█▄▄        ▄▄█▀  ',
-  '    ▀▀███████▀▀     ',
+const WHALE_BITMAP: readonly string[] = [
+  '....................##....##',
+  '....................##....##',
+  '.....................##..##.',
+  '.....######...........####..',
+  '...##########........####...',
+  '..#############....#####....',
+  '.####..####..###########....',
+  '.####..####..###########....',
+  '.#######################....',
+  '.#######################....',
+  '.#######################....',
+  '..#####################.....',
+  '..BBBBBBBBBBBBBBBBBBBBB.....',
+  '..BBBBBBBBBBBBBBBBBBBBB.....',
+  '....BBBBBBBBBBBBBBBBB.......',
+  '.....BBBBBBBBBBBBBBB........',
 ]
 
-/** Index into {@link WHALE} of the row drawn as the (lighter) belly. */
-const WHALE_BELLY_ROW = WHALE.length - 1
+/** One text row of an encoded bitmap. */
+export interface BitmapRow {
+  /** The row's half-block characters. */
+  text: string
+  /** True when either pixel row was belly (`B`), so it draws lighter. */
+  belly: boolean
+}
+
+/**
+ * Pack a pixel bitmap into text rows using half-block characters.
+ * Each output row encodes two input rows: `█` both set, `▀` top only,
+ * `▄` bottom only, space neither. This is what makes the pixels
+ * square on a terminal cell that is twice as tall as it is wide.
+ * @param bitmap - rows of `#` (set), `B` (set + belly), `.` (clear).
+ * @returns one {@link BitmapRow} per pair of input rows.
+ */
+export function encodeBitmap(bitmap: readonly string[]): BitmapRow[] {
+  const rows: BitmapRow[] = []
+  for (let y = 0; y < bitmap.length; y += 2) {
+    const top = bitmap[y] ?? ''
+    const bottom = bitmap[y + 1] ?? ''
+    const width = Math.max(top.length, bottom.length)
+    let text = ''
+    let belly = false
+    for (let x = 0; x < width; x += 1) {
+      const t = top[x] ?? '.'
+      const b = bottom[x] ?? '.'
+      const tSet = t !== '.'
+      const bSet = b !== '.'
+      if (t === 'B' || b === 'B') belly = true
+      text += tSet && bSet ? '█' : tSet ? '▀' : bSet ? '▄' : ' '
+    }
+    rows.push({ text, belly })
+  }
+  return rows
+}
+
+/** Pre-encoded so the sprite is packed once, not on every render. */
+const WHALE_ROWS = encodeBitmap(WHALE_BITMAP)
 
 /** DeepSeek's slogan, shown under the whale. */
 const SLOGAN = '探索未至之境！'
@@ -87,7 +138,7 @@ const BLOCK_ROWS = 5
  * {@link BLOCK_FONT} render as blank cells rather than throwing, so a
  * future rename cannot crash the banner.
  * @param word - the word to render, in any case.
- * @returns exactly {@link BLOCK_ROWS} strings of equal length.
+ * @returns exactly {@link BLOCK_ROWS} strings.
  */
 export function renderBlockWord(word: string): string[] {
   const rows = Array.from({ length: BLOCK_ROWS }, () => '')
@@ -104,21 +155,26 @@ export function renderBlockWord(word: string): string[] {
 const DEEPSEEK_ROWS = renderBlockWord('DEEPSEEK')
 const HARNESS_ROWS = renderBlockWord('HARNESS')
 
+const WHALE_WIDTH = Math.max(...WHALE_ROWS.map((r) => r.text.length))
 /**
- * Total columns the two-column banner needs: the whale, a gap, and
- * the wider of the two wordmark lines, plus the frame's own padding.
- * Below this the banner switches to its compact form.
+ * Width of the right-hand column. Every meta line is budgeted against
+ * this so the block type sets the column and the text never widens the
+ * banner or wraps inside it.
  */
-const WHALE_WIDTH = Math.max(...WHALE.map((r) => r.length))
-const WORDMARK_WIDTH = Math.max(DEEPSEEK_ROWS[0]?.length ?? 0, HARNESS_ROWS[0]?.length ?? 0)
+const META_WIDTH = Math.max(...renderBlockWord('DEEPSEEK').map((r) => r.length))
 const COLUMN_GAP = 3
+/** Frame border (2) plus `paddingX={2}` on both sides (4). */
 const FRAME_PADDING = 6
-export const BANNER_MIN_WIDTH = WHALE_WIDTH + COLUMN_GAP + WORDMARK_WIDTH + FRAME_PADDING
+
+/**
+ * Total columns the two-column banner needs. Below this the banner
+ * switches to its compact form rather than letting the art clip.
+ */
+export const BANNER_MIN_WIDTH = WHALE_WIDTH + COLUMN_GAP + META_WIDTH + FRAME_PADDING
 
 /**
  * Shorten `cwd` for display by replacing the home-directory prefix
- * with `~`. Long paths are left intact — the banner row has the full
- * terminal width and Ink will wrap rather than corrupt the layout.
+ * with `~`.
  */
 export function displayCwd(cwd: string, home: string | undefined): string {
   if (home !== undefined && home !== '' && cwd.startsWith(home)) {
@@ -127,35 +183,48 @@ export function displayCwd(cwd: string, home: string | undefined): string {
   return cwd
 }
 
-/** The tip line. Only advertises commands that actually exist today. */
-const TIP_PARTS: readonly (readonly [string, string])[] = [
-  ['/help', 'list commands'],
-  ['/status', 'show model + session'],
-  ['Tab', 'complete a slash command'],
-]
+/**
+ * Trim `line` to `width` columns, keeping the tail and marking the cut
+ * with a leading `…`. Paths and ids carry their identity in the tail,
+ * which is why this truncates from the front — the opposite of the
+ * message-list `truncate`.
+ */
+export function fitTail(line: string, width: number): string {
+  if (width <= 0) return ''
+  if (line.length <= width) return line
+  if (width === 1) return '…'
+  return `…${line.slice(-(width - 1))}`
+}
 
-const MetaLines: FC<{ selection: ModelSelection; sessionId: SessionId }> = ({ selection, sessionId }) => (
-  <>
-    <Box>
-      <Text color="white" bold>{selection.model}</Text>
-      <Text color="gray"> · </Text>
-      <Text color="gray">{String(sessionId)}</Text>
-    </Box>
-    <Box>
-      <Text color="gray">{displayCwd(process.cwd(), process.env['HOME'])}</Text>
-    </Box>
-    <Box>
-      <Text color="gray">Tip: </Text>
-      {TIP_PARTS.map(([key, label], i) => (
-        <React.Fragment key={key}>
-          {i > 0 ? <Text color="gray"> · </Text> : null}
-          <Text color={BRAND_BLUE} bold>{key}</Text>
-          <Text color="gray">{` ${label}`}</Text>
-        </React.Fragment>
-      ))}
-    </Box>
-  </>
-)
+/** How many characters of the session id to show. */
+const SESSION_ID_CHARS = 12
+
+/**
+ * The tip line. Kept short enough to fit {@link META_WIDTH} at 80
+ * columns, and only advertises commands that exist today — a tip
+ * pointing at an unimplemented command is worse than no tip.
+ */
+const TIP = 'Tip: /help · /status · Tab completes'
+
+const MetaLines: FC<{ selection: ModelSelection; sessionId: SessionId; width: number }> = ({
+  selection,
+  sessionId,
+  width,
+}) => {
+  const shortSession = String(sessionId).slice(0, SESSION_ID_CHARS)
+  // Each line is one pre-composed string in one <Text>. Several
+  // <Text> children on a row would let Ink wrap mid-word.
+  const modelLine = fitTail(`${selection.model} · ${shortSession}`, width)
+  const cwdLine = fitTail(displayCwd(process.cwd(), process.env['HOME']), width)
+  const tipLine = fitTail(TIP, width)
+  return (
+    <>
+      <Text color="white" bold>{modelLine}</Text>
+      <Text color="gray">{cwdLine}</Text>
+      <Text color={BRAND_BLUE_LIGHT}>{tipLine}</Text>
+    </>
+  )
+}
 
 export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
   const { stdout } = useStdout()
@@ -163,17 +232,13 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
   // the safe assumption and is wide enough for the full banner.
   const columns = stdout?.columns ?? 80
 
-  // Compact form: no block wordmark and no whale, just the brand line
-  // and the meta rows. Keeps every piece of information, drops only
-  // the decoration — the opposite trade-off from clipping the art.
+  // Compact form: drop the whale and the block type, keep every fact.
   if (columns < BANNER_MIN_WIDTH) {
+    const compactWidth = Math.max(8, columns - FRAME_PADDING)
     return (
       <Box borderStyle="round" borderColor={BRAND_BLUE} flexDirection="column" paddingX={2} paddingY={1}>
-        <Box>
-          <Text color={BRAND_BLUE} bold>DEEPSEEK</Text>
-          <Text color={BRAND_BLUE_LIGHT} bold> HARNESS</Text>
-        </Box>
-        <MetaLines selection={selection} sessionId={sessionId} />
+        <Text color={BRAND_BLUE} bold>DEEPSEEK HARNESS</Text>
+        <MetaLines selection={selection} sessionId={sessionId} width={compactWidth} />
       </Box>
     )
   }
@@ -188,13 +253,9 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
       columnGap={COLUMN_GAP}
     >
       <Box flexDirection="column">
-        {WHALE.map((row, i) => (
-          <Text
-            key={`whale-${i}`}
-            color={i === WHALE_BELLY_ROW ? BRAND_BLUE_LIGHT : BRAND_BLUE}
-            bold
-          >
-            {row}
+        {WHALE_ROWS.map((row, i) => (
+          <Text key={`whale-${i}`} color={row.belly ? BRAND_BLUE_LIGHT : BRAND_BLUE}>
+            {row.text}
           </Text>
         ))}
         <Box marginTop={1}>
@@ -203,15 +264,23 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
       </Box>
       <Box flexDirection="column">
         {DEEPSEEK_ROWS.map((row, i) => (
-          <Text key={`ds-${i}`} color={BRAND_BLUE} bold>{row}</Text>
+          <Text key={`ds-${i}`} color={BRAND_BLUE}>{row}</Text>
         ))}
         {HARNESS_ROWS.map((row, i) => (
-          <Text key={`hn-${i}`} color={BRAND_BLUE_LIGHT} bold>{row}</Text>
+          <Text key={`hn-${i}`} color={BRAND_BLUE_LIGHT}>{row}</Text>
         ))}
         <Box marginTop={1} flexDirection="column">
-          <MetaLines selection={selection} sessionId={sessionId} />
+          <MetaLines selection={selection} sessionId={sessionId} width={META_WIDTH} />
         </Box>
       </Box>
     </Box>
   )
+}
+
+/** Props for {@link Banner}. */
+export interface BannerProps {
+  /** Currently selected model for the agent. */
+  selection: ModelSelection
+  /** Session id of the live agent. */
+  sessionId: SessionId
 }

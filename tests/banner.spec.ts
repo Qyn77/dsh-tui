@@ -5,7 +5,73 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { renderBlockWord, displayCwd, BANNER_MIN_WIDTH } from '../src/components/Banner.tsx'
+import {
+  renderBlockWord,
+  displayCwd,
+  encodeBitmap,
+  fitTail,
+  BANNER_MIN_WIDTH,
+} from '../src/components/Banner.tsx'
+
+describe('encodeBitmap', () => {
+  it('packs two pixel rows into one text row', () => {
+    // A terminal cell is twice as tall as it is wide, so each output
+    // row must carry two input rows for the pixels to come out square.
+    expect(encodeBitmap(['##..', '#.#.'])).toEqual([{ text: '█▀▄ ', belly: false }])
+  })
+
+  it('maps each of the four pixel-pair states to its own glyph', () => {
+    const [row] = encodeBitmap(['#.#.', '##..'])
+    // col 0: both set, col 1: bottom only, col 2: top only, col 3: neither
+    expect(row?.text).toBe('█▄▀ ')
+  })
+
+  it('marks a row as belly when either pixel row is B', () => {
+    expect(encodeBitmap(['BB', '..'])[0]?.belly).toBe(true)
+    expect(encodeBitmap(['..', 'BB'])[0]?.belly).toBe(true)
+    expect(encodeBitmap(['##', '##'])[0]?.belly).toBe(false)
+  })
+
+  it('treats B as a set pixel, not as transparent', () => {
+    expect(encodeBitmap(['BB', 'BB'])[0]?.text).toBe('██')
+  })
+
+  it('pads a short row rather than dropping columns', () => {
+    // A ragged bitmap must not silently shorten the sprite — the
+    // right-hand column's offset depends on a uniform width.
+    expect(encodeBitmap(['####', '#'])[0]?.text).toBe('█▀▀▀')
+  })
+
+  it('tolerates an odd number of rows by treating the missing row as clear', () => {
+    expect(encodeBitmap(['##'])).toEqual([{ text: '▀▀', belly: false }])
+  })
+
+  it('returns an empty list for an empty bitmap', () => {
+    expect(encodeBitmap([])).toEqual([])
+  })
+})
+
+describe('fitTail', () => {
+  it('leaves a line that already fits', () => {
+    expect(fitTail('short', 10)).toBe('short')
+    expect(fitTail('exactly10!', 10)).toBe('exactly10!')
+  })
+
+  it('keeps the tail and marks the cut with a leading …', () => {
+    // Paths and session ids carry their identity in the tail, so the
+    // cut is at the front: 1 col for the … plus the last 11 chars.
+    expect(fitTail('/Users/qiao/Desktop/dsh-tui', 12)).toBe('…top/dsh-tui')
+  })
+
+  it('emits a lone … at a width of one', () => {
+    expect(fitTail('abcdef', 1)).toBe('…')
+  })
+
+  it('returns empty for a non-positive width', () => {
+    expect(fitTail('abc', 0)).toBe('')
+    expect(fitTail('abc', -3)).toBe('')
+  })
+})
 
 describe('renderBlockWord', () => {
   it('renders exactly five rows', () => {
