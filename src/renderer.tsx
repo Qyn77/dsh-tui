@@ -110,11 +110,33 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   )
 
   if (selection === undefined) {
-    return <Box><Prompt active={false} onSubmit={() => {}} spinnerFrame={spinnerFrame} /></Box>
+    return (
+      <Box marginRight={1}>
+        <Prompt active={false} onSubmit={() => {}} spinnerFrame={spinnerFrame} />
+      </Box>
+    )
   }
 
   return (
-    <Box flexDirection="column" height="100%">
+    <Box flexDirection="column" height="100%" marginRight={1}>
+      {/*
+        `marginRight={1}` keeps the terminal's last column empty, and it is
+        load-bearing rather than styling. Ink stretches this column to the
+        full terminal width, so every framed child — the prompt box, the
+        StatusBar — would otherwise emit lines *exactly* as wide as the
+        terminal. A line that fills the last column leaves the terminal with
+        a wrap decision to make, and terminals disagree about it: park the
+        cursor in the last column and let the following newline move down
+        one row (the VT100 reading), or wrap immediately so that newline
+        lands a row further down. Under the second reading a 3-line frame
+        occupies 6 physical rows while Ink erases
+        `eraseLines(<logical line count>)` = 4, so every redraw leaks two
+        rows onto the screen — which is exactly the ladder of half-drawn
+        prompt boxes a window drag produced. One reserved column costs
+        nothing visible, makes the frame unwrappable under either reading,
+        and absorbs a one-column lag between SIGWINCH and the write. See
+        `tests/frame-erase.spec.ts`.
+      */}
       {/*
         The brand splash is generous (19 rows), so it is written once as
         static output and then scrolls away like any other past output —
