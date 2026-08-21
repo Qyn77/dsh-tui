@@ -16,6 +16,7 @@ import { StatusBar } from './components/StatusBar.tsx'
 import { Banner } from './components/Banner.tsx'
 import { useRunningClock } from './hooks/useRunningClock.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
+import { useResizeRepaint } from './hooks/useResizeRepaint.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
 
@@ -47,6 +48,12 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   // (placeholder) read from the same frame index so the spinner
   // glyph is in lock-step on screen.
   const { spinnerFrame, elapsedSeconds } = useRunningClock(state.status === 'running')
+
+  // Ink's frame eraser is cursor-relative, so a terminal that rewraps the
+  // rows already on screen when the window narrows leaves debris behind
+  // that no width arithmetic can prevent. Once a resize settles, throw the
+  // screen away and let Ink lay the frame down again.
+  useResizeRepaint()
 
   // The banner is *static* output: Ink writes each `<Static>` item to the
   // terminal exactly once and never redraws it. That is not a

@@ -1,24 +1,38 @@
 /**
  * How the *live* frame survives being redrawn. `banner-frame.spec.ts` pins
- * the banner's width; this file pins the one thing that makes Ink's eraser
- * work at all.
+ * the banner's width; this file pins the two things that make Ink's eraser
+ * work at all, and both were measured rather than reasoned about — the
+ * second one only after a run of the real binary inside a real pty proved
+ * the first fix insufficient.
  *
  * Ink erases the previous dynamic frame with `eraseLines(<logical line
- * count>)` — a count of `\n`s, not of physical terminal rows. The two agree
- * only while every line is *narrower* than the terminal. A line that fills
- * the last column leaves the terminal with a wrap decision, and terminals
- * disagree about it: park the cursor in the last column and let the next
- * newline move down one row (the VT100 reading), or wrap immediately so the
- * newline lands a row further down. Under the second reading a 3-line frame
- * occupies 6 physical rows, Ink erases 4, and every redraw leaks 2 rows
- * onto the screen — which is precisely the ladder of half-drawn prompt
- * boxes a window drag used to leave behind.
+ * count>)`: cursor-relative arithmetic that assumes one logical line still
+ * occupies one physical row. Two things break that assumption.
  *
- * The tests below replay a real resize storm through a small terminal
- * emulator under both readings, plus a one-column lag between the resize
- * event and the write (what a fast drag does to `stdout.columns`). All
- * three must end with exactly one prompt box on screen. The frame keeps the
- * last column empty, so none of them can wrap it.
+ *  1. **A line that fills the last column.** Terminals disagree about what
+ *     that means — park the cursor in the last column and let the following
+ *     newline move down one row (the VT100 reading), or wrap at once so the
+ *     newline lands a row further down. Under the second reading a 3-line
+ *     frame occupies six physical rows, Ink erases four, and every redraw
+ *     leaks two rows. Fixed by reserving the last column
+ *     (`App`'s `marginRight={1}`).
+ *  2. **Reflow.** Terminals that rewrap the rows already on screen when the
+ *     window narrows turn each row of the last frame into two, so the same
+ *     undercount happens at *any* frame width. This is what a real window
+ *     drag actually hit. Nothing about the frame can prevent it, so
+ *     `useResizeRepaint` stops counting: when the resize storm goes quiet it
+ *     erases the screen and lets Ink lay the frame down again.
+ *
+ * The debris that reflow leaves is worth recognising by eye, because it is
+ * what the bug report looked like: the survivors are soft-wrapped halves, so
+ * copying them out of the scrollback rejoins the top border into a
+ * convincing `╭───╮` while the content row's continuation — the half
+ * carrying its closing `│` — is missing.
+ *
+ * `Term` below is a small terminal that implements both wrap readings, an
+ * optional reflow, and the five escapes Ink actually emits. The tests replay
+ * a real six-step drag through it and require that exactly one prompt box
+ * survives under every combination.
  */
 
 import { EventEmitter } from 'node:events'
@@ -31,18 +45,23 @@ import { displayWidth } from '../src/components/Banner.tsx'
 import { StatusBar } from '../src/components/StatusBar.tsx'
 import { App } from '../src/renderer.tsx'
 
-/** ``, spelled out so this file contains no literal control bytes. */
+/** `` spelled out, so this file contains no literal control bytes. */
 const ESC = String.fromCharCode(27)
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 const sessionId = SessionId('tui-0f3a91c2-77bd-4e51-9a0c-1d2e3f4a5b6c')
 
-/** A stdout stand-in that records the terminal width in force at each write. */
+/** What the app did, in order: terminal resizes interleaved with writes. */
+type Step =
+  | { kind: 'resize', columns: number }
+  | { kind: 'write', text: string, columns: number }
+
+/** A stdout stand-in that records both, in order. */
 interface FakeStdout extends EventEmitter {
   columns: number
   rows: number
   write: (chunk: string) => boolean
-  chunks: { text: string, columns: number }[]
+  steps: Step[]
   resize: (columns: number) => void
 }
 
@@ -50,13 +69,16 @@ function fakeStdout(columns: number, rows: number): FakeStdout {
   const out = new EventEmitter() as FakeStdout
   out.columns = columns
   out.rows = rows
-  out.chunks = []
+  out.steps = []
   out.write = (text: string) => {
-    out.chunks.push({ text, columns: out.columns })
+    out.steps.push({ kind: 'write', text, columns: out.columns })
     return true
   }
   out.resize = (next: number) => {
     out.columns = next
+    // Recorded before the event fires, so the replay resizes the terminal
+    // before Ink's listener writes the frame it laid out for that width.
+    out.steps.push({ kind: 'resize', columns: next })
     out.emit('resize')
   }
   return out
@@ -77,19 +99,25 @@ function fakeTtyStdin(): NodeJS.ReadStream {
   }) as never
 }
 
+/** One physical row. `soft` means it continues onto the next one. */
+interface Row { text: string, soft: boolean }
+
 /**
- * A terminal: scrollback plus a screen grid, understanding the handful of
- * escapes Ink actually emits (`2K`, `nA`, `G`, `2J`/`3J`, `H`) and both
- * autowrap readings.
+ * A terminal: scrollback plus a screen of physical rows, the five escapes
+ * Ink emits (`2K`, `nA`, `G`, `2J`/`3J`, `H`), both autowrap readings, and
+ * optional reflow on resize.
  *
- * - `deferred` — filling the last column only arms a pending wrap, which a
- *   newline consumes. This is what VT100-lineage terminals do.
- * - `immediate` — filling the last column moves to the next row at once, so
- *   the newline that follows costs a second row.
+ * - `deferred` wrap — filling the last column only arms a pending wrap,
+ *   which the next glyph consumes and a newline discards (VT100, and what
+ *   every terminal worth naming actually does).
+ * - `immediate` wrap — filling the last column moves to the next row at
+ *   once, so a following newline costs a second row.
+ * - `reflow` — on resize, rejoin soft-wrapped rows and re-split them at the
+ *   new width, the way iTerm2 and Terminal.app do.
  */
 class Term {
-  scrollback: string[] = []
-  screen: string[] = ['']
+  scrollback: Row[] = []
+  screen: Row[] = [{ text: '', soft: false }]
   row = 0
   col = 0
   pendingWrap = false
@@ -97,33 +125,38 @@ class Term {
   constructor(
     public width: number,
     public rows: number,
-    public policy: 'deferred' | 'immediate',
+    public policy: 'deferred' | 'immediate' = 'deferred',
+    public reflow = false,
   ) {}
 
-  private at(row: number): string {
-    while (this.screen.length <= row) this.screen.push('')
-    return this.screen[row] ?? ''
+  private at(row: number): Row {
+    while (this.screen.length <= row) this.screen.push({ text: '', soft: false })
+    return this.screen[row] as Row
   }
 
-  private newline(): void {
+  /** Move to the next row. `soft` records whether a wrap caused it. */
+  private newline(soft: boolean): void {
+    this.at(this.row).soft = soft
     this.pendingWrap = false
     this.row += 1
     this.col = 0
     while (this.row >= this.rows) {
-      this.scrollback.push(this.screen.shift() ?? '')
+      this.scrollback.push(this.screen.shift() ?? { text: '', soft: false })
       this.row -= 1
     }
     this.at(this.row)
   }
 
   private print(glyph: string): void {
-    if (this.pendingWrap) this.newline()
-    const line = this.at(this.row)
-    const padded = line.length < this.col ? line + ' '.repeat(this.col - line.length) : line
-    this.screen[this.row] = padded.slice(0, this.col) + glyph + padded.slice(this.col + 1)
+    if (this.pendingWrap) this.newline(true)
+    const row = this.at(this.row)
+    const padded = row.text.length < this.col
+      ? row.text + ' '.repeat(this.col - row.text.length)
+      : row.text
+    row.text = padded.slice(0, this.col) + glyph + padded.slice(this.col + 1)
     this.col += 1
     if (this.col >= this.width) {
-      if (this.policy === 'immediate') this.newline()
+      if (this.policy === 'immediate') this.newline(true)
       else this.pendingWrap = true
     }
   }
@@ -138,35 +171,106 @@ class Term {
           const params = match[1] ?? ''
           const final = match[2]
           const n = params === '' ? 1 : Number.parseInt(params, 10)
-          if (final === 'K') { this.screen[this.row] = ''; this.pendingWrap = false }
+          if (final === 'K') { this.at(this.row).text = ''; this.at(this.row).soft = false; this.pendingWrap = false }
           else if (final === 'A') { this.row = Math.max(0, this.row - n); this.pendingWrap = false }
           else if (final === 'G') { this.col = 0; this.pendingWrap = false }
-          else if (final === 'J') { if (n === 2) this.screen = ['']; if (n === 3) this.scrollback = [] }
+          else if (final === 'J') {
+            if (n === 2) { this.screen = [{ text: '', soft: false }]; this.row = 0; this.col = 0 }
+            if (n === 3) this.scrollback = []
+            this.pendingWrap = false
+          }
           else if (final === 'H') { this.row = 0; this.col = 0; this.pendingWrap = false }
           i += 1 + match[0].length
           continue
         }
       }
-      if (ch === '\n') { this.newline(); i += 1; continue }
+      if (ch === '\n') { this.newline(false); i += 1; continue }
       if (ch === '\r') { this.col = 0; this.pendingWrap = false; i += 1; continue }
       this.print(ch)
       i += 1
     }
   }
 
-  /** Everything the user can scroll back to, plus what is on screen now. */
-  lines(): string[] {
-    return [...this.scrollback, ...this.screen]
+  /**
+   * Resize. With `reflow` off the rows are left alone (they simply get
+   * clipped by the narrower window); with it on, soft-wrapped rows are
+   * rejoined and re-split at the new width, and the cursor is carried along
+   * by its offset within its own logical line.
+   */
+  resize(width: number): void {
+    if (!this.reflow || width === this.width) {
+      this.width = width
+      return
+    }
+    // Where is the cursor, in logical terms?
+    const groups: { text: string, rows: number[] }[] = []
+    let current: { text: string, rows: number[] } | undefined
+    for (const [index, row] of this.screen.entries()) {
+      if (current === undefined) { current = { text: '', rows: [] }; groups.push(current) }
+      current.text += row.text
+      current.rows.push(index)
+      if (!row.soft) current = undefined
+    }
+    let cursorGroup = groups.findIndex((g) => g.rows.includes(this.row))
+    let cursorOffset = this.col
+    if (cursorGroup >= 0) {
+      for (const index of groups[cursorGroup]?.rows ?? []) {
+        if (index === this.row) break
+        cursorOffset += this.width
+      }
+    } else {
+      cursorGroup = groups.length
+      cursorOffset = this.col
+    }
+
+    this.width = width
+    const rebuilt: Row[] = []
+    const starts: number[] = []
+    for (const group of groups) {
+      starts.push(rebuilt.length)
+      // A logical line shorter than the width still takes one row.
+      const chunks: string[] = []
+      for (let at = 0; at < group.text.length || chunks.length === 0; at += width) {
+        chunks.push(group.text.slice(at, at + width))
+      }
+      for (const [index, text] of chunks.entries()) {
+        rebuilt.push({ text, soft: index < chunks.length - 1 })
+      }
+    }
+    this.screen = rebuilt.length > 0 ? rebuilt : [{ text: '', soft: false }]
+    const start = starts[cursorGroup] ?? this.screen.length - 1
+    this.row = Math.min(start + Math.floor(cursorOffset / width), this.screen.length - 1)
+    this.col = cursorOffset % width
+    while (this.screen.length > this.rows) {
+      this.scrollback.push(this.screen.shift() ?? { text: '', soft: false })
+      this.row = Math.max(0, this.row - 1)
+    }
+  }
+
+  /**
+   * Everything the user could select and copy — scrollback then screen, with
+   * soft-wrapped rows rejoined, which is what a terminal puts on the
+   * clipboard and therefore what a pasted bug report shows.
+   */
+  copied(): string[] {
+    const out: string[] = []
+    let pending = ''
+    for (const row of [...this.scrollback, ...this.screen]) {
+      pending += row.text
+      if (!row.soft) { out.push(pending); pending = '' }
+    }
+    if (pending !== '') out.push(pending)
+    return out
   }
 }
 
 /**
- * Mount the real `App` against a fake TTY and replay `widths` as `resize`
- * events, returning every chunk Ink wrote along with the width it was
- * written at. Non-debug mode on purpose: the `log-update` path with its
- * line-counting eraser is the thing under test.
+ * Mount the real `App` against a fake TTY, replay `widths` as `resize`
+ * events, and return the ordered list of resizes and writes. Non-debug mode
+ * on purpose: the `log-update` path with its line-counting eraser is the
+ * thing under test.
  */
-async function storm(widths: number[]): Promise<{ text: string, columns: number }[]> {
+async function storm(widths: number[]): Promise<Step[]> {
   const stdout = fakeStdout(102, 26)
   const ctx = new Context()
   ctx.provide('agentDefaultModel', { currentSelection: () => selection } as never)
@@ -182,62 +286,101 @@ async function storm(widths: number[]): Promise<{ text: string, columns: number 
     React.createElement(App, { ctx, agent: agent as never, exit: () => {} }),
     { stdout: stdout as never, stdin: fakeTtyStdin(), patchConsole: false, exitOnCtrlC: false },
   )
-  // Ink throttles renders at 32ms with a trailing call, so each step has to
-  // be given more than that to land as its own frame — which is what makes
-  // this a storm rather than one coalesced redraw.
-  const settle = (): Promise<void> => new Promise((resolve) => { setTimeout(resolve, 60) })
-  await settle()
+  // Ink throttles renders at 32ms with a trailing call, so each drag step
+  // needs more than that to land as its own frame — that is what makes this
+  // a storm rather than one coalesced redraw. The steps stay *under*
+  // `useResizeRepaint`'s 120ms settle, so the repaint has to coalesce the
+  // whole drag into a single repaint at the end, and the final wait is long
+  // enough to catch it.
+  const settle = (ms: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms) })
+  await settle(60)
   for (const columns of widths) {
     stdout.resize(columns)
-    await settle()
+    await settle(60)
   }
-  await settle()
+  await settle(300)
   instance.unmount()
-  return stdout.chunks
+  return stdout.steps
 }
 
-/** The widths a window drag steps through, one column at a time. */
-const DRAG = [101, 100, 99, 98, 97, 96]
+/** The widths a real window drag stepped through, from the pty trace. */
+const DRAG = [97, 83, 81, 78, 65, 102]
+
+/**
+ * Count prompt boxes the way the user counted them — by pasting the
+ * scrollback and looking. The placeholder appears once per box drawn and
+ * nowhere else, which survives the terminal rejoining soft-wrapped rows
+ * (border counting does not: a debris row and the frame drawn under it can
+ * end up as one copied line).
+ */
+const boxes = (term: Term): number =>
+  term.copied().join('\n').split('Ask dsh anything').length - 1
 
 describe('live frame erasure', () => {
   it('never lets a rendered line fill the terminal’s last column', async () => {
-    const chunks = await storm([])
-    for (const { text, columns } of chunks) {
-      // eslint-disable-next-line no-control-regex
-      const visible = text.replace(new RegExp(`${ESC}\\[[0-9;]*[A-Za-z]`, 'g'), '')
+    for (const step of await storm([])) {
+      if (step.kind !== 'write') continue
+      const visible = step.text.replace(new RegExp(`${ESC}\\[[0-9;]*[A-Za-z]`, 'g'), '')
       for (const line of visible.split('\n')) {
-        expect(displayWidth(line)).toBeLessThanOrEqual(columns - 1)
+        expect(displayWidth(line)).toBeLessThanOrEqual(step.columns - 1)
       }
     }
   })
 
-  for (const [policy, lag] of [['deferred', 0], ['immediate', 0], ['deferred', 1]] as const) {
-    it(`leaves one prompt box after a resize storm (${policy} wrap, ${lag}-column lag)`, async () => {
-      const chunks = await storm(DRAG)
-      const term = new Term(102, 26, policy)
-      for (const { text, columns } of chunks) {
-        // A lag models `stdout.columns` trailing the real window during a
-        // fast drag: Ink lays out one column wider than the terminal is.
-        term.width = columns - lag
-        term.write(text)
+  // The drag ends with a repaint, and a repaint clears the screen — so the
+  // banner (static output, written once, above the frame) goes with it and
+  // exactly one prompt is left. Anything more is a frame the eraser failed to
+  // remove. `was` is what each case measured with `useResizeRepaint` disabled:
+  // the two non-reflowing readings are already clean, because reserving the
+  // last column (`marginRight={1}`, commit 2ab806d) keeps the logical and
+  // physical row counts equal. Reflow breaks that equality no matter how wide
+  // the frame is, and only the repaint recovers from it.
+  const cases = [
+    { policy: 'deferred', reflow: false, was: 1 },
+    { policy: 'immediate', reflow: false, was: 1 },
+    { policy: 'deferred', reflow: true, was: 6 },
+    { policy: 'immediate', reflow: true, was: 6 },
+  ] as const
+
+  for (const { policy, reflow, was } of cases) {
+    it(`leaves one prompt after a drag (${policy} wrap${reflow ? ', reflowing' : ''}) — was ${was}`, async () => {
+      const steps = await storm(DRAG)
+      const term = new Term(102, 26, policy, reflow)
+      for (const step of steps) {
+        if (step.kind === 'resize') term.resize(step.columns)
+        else term.write(step.text)
       }
-      // Two boxes are drawn in total — the banner (static, written once)
-      // and the prompt. Anything more is a frame the eraser failed to
-      // remove. Before the reserved column this reported 8.
-      const boxes = term.lines().filter((line) => line.startsWith('╭')).length
-      expect(boxes).toBe(2)
+      expect(boxes(term)).toBe(1)
     })
   }
+
+  it('leaves the surviving prompt row whole', async () => {
+    // The reported bug had a shape, not just a count: each residue block was a
+    // complete `╭───╮` (the copy rejoins the two halves of a soft-wrapped
+    // border) above a content row with no closing `│`, because that half had
+    // been erased. So it is not enough to end with one prompt row — the row
+    // has to be a whole one. With the repaint disabled this found six rows,
+    // several of them a debris row and the frame beneath it run together.
+    const steps = await storm(DRAG)
+    const term = new Term(102, 26, 'deferred', true)
+    for (const step of steps) {
+      if (step.kind === 'resize') term.resize(step.columns)
+      else term.write(step.text)
+    }
+    const rows = term.copied().filter((line) => line.includes('Ask dsh anything'))
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.trimEnd().endsWith('│')).toBe(true)
+  })
 })
 
 describe('status bar inside the reserved frame', () => {
-  // The StatusBar is the live frame's other framed child, and it is the one
-  // that does its own width arithmetic (`fitModelName` against a budget
-  // derived from the column count). If that budget is off by even one, the
-  // frame overflows and the eraser breaks for the rest of the session — the
-  // same failure the prompt box had, just needing a long model name or a
-  // narrow window to show up. So: measure, at widths from generous to
-  // absurd, with the longest plausible model name and seven-figure counts.
+  // The StatusBar is the live frame's other framed child, and the one that
+  // does its own width arithmetic (`fitModelName` against a budget derived
+  // from the column count). If that budget is off by even one the frame
+  // overflows and the eraser breaks for the rest of the session — the same
+  // failure the prompt box had, just needing a long model name or a narrow
+  // window to show up. So: measure, at widths from generous to absurd, with
+  // the longest plausible model name and seven-figure counts.
   const state = {
     status: 'running',
     currentTurn: 3,
@@ -277,8 +420,9 @@ describe('status bar inside the reserved frame', () => {
       await new Promise((resolve) => { setTimeout(resolve, 20) })
       instance.unmount()
 
-      const last = stdout.chunks.at(-1)?.text ?? ''
-      const visible = last.replace(new RegExp(`${ESC}\\[[0-9;]*[A-Za-z]`, 'g'), '')
+      const last = stdout.steps.at(-1)
+      const visible = (last?.kind === 'write' ? last.text : '')
+        .replace(new RegExp(`${ESC}\\[[0-9;]*[A-Za-z]`, 'g'), '')
       for (const line of visible.split('\n')) {
         expect(displayWidth(line)).toBeLessThanOrEqual(columns - 1)
       }
