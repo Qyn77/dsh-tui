@@ -64,9 +64,10 @@ export function clampOffset(offset: number, contentRows: number, viewportRows: n
  * has to recognise and drop them — otherwise a spin of the wheel types
  * its own coordinates into the buffer.
  *
- * Both encodings are accepted: SGR (`[<b;x;yM`, what `?1006h` asks for)
- * and the legacy X10 form (`[M` plus three bytes) in case a terminal
- * ignores the SGR request.
+ * Both encodings are accepted: SGR (`[<b;x;yM`) and the legacy X10 form
+ * (`[M` plus three bytes). Note that `index.ts` no longer *asks* for mouse
+ * reporting — that costs the terminal's own click-to-select — but a
+ * terminal configured to report anyway must scroll rather than type.
  */
 export function isMouseReport(input: string): boolean {
   return /^\[(?:<[0-9;]*[Mm]|M)/.test(input)

@@ -188,9 +188,26 @@ describe('message list viewport', () => {
     expect(atEnd).not.toMatch(/more rows? below/)
   })
 
-  it('scrolls on a wheel report and never types it into the prompt', async () => {
+  it('scrolls a row at a time on the arrow keys, which is how the wheel arrives', async () => {
+    // `index.ts` asks for alternate scroll mode rather than mouse reporting,
+    // so the terminal answers a wheel notch with cursor keys and keeps its
+    // own click-to-select. Three notches up, one row each.
     const painted = await paint(10)
-    // Two wheel-up notches: SGR encoding, button 64, at column 12 row 30.
+    for (let notch = 0; notch < 3; notch += 1) await painted.send(`${ESC}[A`)
+    const scrolledUp = painted.screen()
+    await painted.send(`${ESC}[B`)
+    const oneBack = painted.screen()
+    painted.unmount()
+
+    expect(scrolledUp).toContain('↓ 3 more rows below')
+    expect(oneBack).toContain('↓ 2 more rows below')
+  })
+
+  it('still scrolls on an SGR wheel report and never types it into the prompt', async () => {
+    // We no longer ask for mouse reporting, but a terminal configured to
+    // send it anyway must scroll rather than paste the report into the input.
+    const painted = await paint(10)
+    // One wheel-up notch: SGR encoding, button 64, at column 12 row 30.
     await painted.send(`${ESC}[<64;12;30M`)
     const scrolled = painted.screen()
     painted.unmount()

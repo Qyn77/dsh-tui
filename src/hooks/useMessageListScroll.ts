@@ -9,8 +9,9 @@
  * estimate.
  *
  * There are two input paths on purpose. Everything Ink reports faithfully
- * (`PageUp`/`PageDown`, `Ctrl-`-modified letters, and the mouse reports it
- * forwards as ordinary input) is handled through `useInput`. `Home` and
+ * (arrows, `PageUp`/`PageDown`, `Ctrl-`-modified letters, and any mouse
+ * report it forwards as ordinary input) is handled through `useInput`.
+ * `Home` and
  * `End` cannot be: Ink blanks `input` for those key names and publishes no
  * flag for them, so the keystroke is indistinguishable from noise by the
  * time `useInput` sees it. Those two are read from the raw chunk Ink
@@ -100,6 +101,21 @@ export function useMessageListScroll(): MessageListScroll {
 
   useInput((input, key) => {
     const { viewportRows } = geometry.current
+    // ↑/↓ scroll a row at a time, and that is also how the *wheel* arrives:
+    // `index.ts` asks the terminal for alternate scroll mode rather than
+    // mouse reporting, so a notch is delivered as cursor keys and the
+    // terminal keeps its own click-to-select. The Prompt leaves these keys
+    // alone unless the slash palette is open (history is a v0.2 feature), so
+    // there is nothing to collide with yet — when history lands, it takes
+    // these two keys back and the wheel needs a different answer.
+    if (key.upArrow) {
+      scrollBy(1)
+      return
+    }
+    if (key.downArrow) {
+      scrollBy(-1)
+      return
+    }
     if (key.pageUp) {
       scrollBy(pageDelta(viewportRows))
       return
@@ -130,9 +146,10 @@ export function useMessageListScroll(): MessageListScroll {
           return
       }
     }
-    // Ink forwards mouse reports as ordinary input. The wheel is the
-    // gesture people reach for first, and inside the alternate screen the
-    // terminal's own scrollback is not there to answer it.
+    // Ink forwards mouse reports as ordinary input. We no longer *ask* the
+    // terminal for them — that costs click-to-select, see `index.ts` — but a
+    // terminal configured to send them anyway should still scroll rather
+    // than type gibberish into the prompt.
     if (isMouseReport(input)) scrollBy(parseWheelDelta(input))
   })
 

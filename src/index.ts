@@ -46,23 +46,32 @@ const ALT_SCREEN_ENTER = '\u001B[?1049h\u001B[2J\u001B[H'
 const ALT_SCREEN_EXIT = '\u001B[?1049l'
 const CLEAR_SCREEN = '\u001B[2J\u001B[H'
 /**
- * Ask the terminal to report button and wheel events (`?1000h`) in the SGR
- * encoding (`?1006h`, which lifts the 223-column ceiling of the original
- * form). The wheel is the first gesture anyone tries on a chat log, and
- * inside the alternate screen the terminal has no scrollback of its own to
- * answer it with — without this the wheel does nothing at all.
+ * Ask the terminal to translate the wheel into cursor-key presses while the
+ * alternate screen is up — xterm's "alternate scroll mode" — instead of
+ * asking it to report mouse events at all.
  *
- * The cost is that a drag stops being a text selection while the TUI runs:
- * iTerm2 needs Option held to select, Terminal.app needs Fn. That is the
- * accepted trade for a wheel that works.
+ * Full mouse tracking (`?1000h` + `?1006h`) was the first attempt and it
+ * cost too much. Once the application is receiving clicks and drags, the
+ * *terminal's own* selection stops working: dragging across the transcript
+ * selects nothing unless a modifier is held (`Option` in iTerm2, `Fn` in
+ * Terminal.app). Selecting output to paste somewhere else is not an
+ * advanced gesture; it is most of what a chat log is for, and a wheel is
+ * not worth it.
+ *
+ * Alternate scroll keeps the wheel and leaves the pointer alone: notches
+ * arrive as ↑/↓, which `useMessageListScroll` scrolls a row at a time, and
+ * no click is ever intercepted. A terminal that ignores `?1007` just keeps
+ * its own wheel behaviour — the keyboard bindings still reach every row.
+ * The hook also still understands SGR mouse reports, so a terminal
+ * configured to send them anyway continues to scroll.
  */
-const MOUSE_TRACK_ENTER = '\u001B[?1000h\u001B[?1006h'
+const ALT_SCROLL_ENTER = '\u001B[?1007h'
 /**
- * Turn tracking off again, in reverse order. This has to run on *every*
- * exit path, a crash included: a terminal left reporting mouse events
- * spits escape sequences into the user's shell on every click.
+ * Turn it off again. This has to run on *every* exit path, a crash
+ * included: a private mode left set outlives the process and changes how
+ * the user's shell answers the wheel.
  */
-const MOUSE_TRACK_EXIT = '\u001B[?1006l\u001B[?1000l'
+const ALT_SCROLL_EXIT = '\u001B[?1007l'
 const RESIZE_QUIET_MS = 120
 const RESIZE_LOG = '/tmp/dsh-tui-resize.log'
 const resizeDebug = process.env['DSH_TUI_DEBUG_RESIZE'] === '1'
@@ -142,7 +151,7 @@ async function run(ctx: Context): Promise<void> {
   try {
     if (alternateScreen) {
       internals.stdout.write(ALT_SCREEN_ENTER)
-      internals.stdout.write(MOUSE_TRACK_ENTER)
+      internals.stdout.write(ALT_SCROLL_ENTER)
     }
     const instance = inkRender(
       React.createElement(App, { ctx, agent: agent as Agent, exit: exitHook }),
@@ -187,10 +196,10 @@ async function run(ctx: Context): Promise<void> {
     instance.unmount()
   } finally {
     // If Ink exits through an error, never leave the shell in the alternate
-    // screen buffer — or in mouse-reporting mode, which would turn every
-    // later click in the user's shell into pasted escape sequences.
+    // screen buffer — or in alternate scroll mode, which would leave the
+    // user's wheel sending arrow keys to whatever runs next.
     if (alternateScreen) {
-      internals.stdout.write(MOUSE_TRACK_EXIT)
+      internals.stdout.write(ALT_SCROLL_EXIT)
       internals.stdout.write(ALT_SCREEN_EXIT)
     }
     // no signal handler to detach

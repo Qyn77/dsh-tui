@@ -65,17 +65,28 @@ Each zone has a fixed role and stays in that role forever:
 
   | Key | Action |
   | --- | --- |
+  | `↑` / `↓` | One row |
   | `PageUp` / `PageDown` | One viewport, less two rows of overlap |
   | `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
   | `Ctrl-U` / `Ctrl-D` | Half a viewport |
   | `Home` / `End` | Oldest row / back to the live tail |
-  | Wheel | Three rows a notch |
+  | Wheel | Delivered as `↑` / `↓` — see below |
 
-  The wheel needs the terminal to report it: `index.ts` enables SGR mouse
-  tracking (`?1000h` + `?1006h`) alongside the alternate screen and disables it
-  in the same `finally`. The cost is that native text selection then needs
-  `Option` (iTerm2) or `Fn` (Terminal.app), which is the documented trade-off
-  for a viewport with no scrollback behind it.
+  **The wheel must not cost click-to-select.** `index.ts` asks for xterm's
+  alternate scroll mode (`?1007h`) alongside the alternate screen, and turns it
+  off in the same `finally`. Full mouse tracking (`?1000h` + `?1006h`) was
+  tried first and reverted: once the application receives clicks and drags, the
+  terminal's own selection stops working, and copying a transcript needs
+  `Option` (iTerm2) or `Fn` (Terminal.app). Selecting output to paste elsewhere
+  is most of what a chat log is for. Under alternate scroll the terminal
+  answers a notch with cursor keys, which cost nothing and collide with
+  nothing — the prompt leaves `↑`/`↓` alone unless the slash palette is open.
+  A terminal that ignores `?1007` keeps its own wheel behaviour and the
+  keyboard still reaches every row. `useMessageListScroll` also still
+  understands SGR reports, so a terminal configured to send them scrolls too.
+
+  When prompt history lands (v0.2) it takes `↑`/`↓` back, and the wheel will
+  need a different answer than cursor keys.
 
   One row directly under the list is reserved unconditionally for the
   "scrolled into history" hint. Reserving it while at the tail looks like

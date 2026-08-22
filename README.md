@@ -129,16 +129,17 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/exit`, `/quit` | Leave the REPL |
 | `Ctrl-C` (idle) | Same as `/exit` |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
-| `PageUp` / `PageDown` | Scroll the conversation one viewport (two rows of overlap) |
+| `↑` / `↓` | Scroll the conversation one row |
+| `PageUp` / `PageDown` | Scroll one viewport (two rows of overlap) |
 | `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
 | `Ctrl-U` / `Ctrl-D` | Scroll half a viewport |
 | `Home` / `End` | Jump to the oldest row / back to the newest |
-| Mouse wheel | Scroll three rows a notch |
+| Mouse wheel | Scrolls, in terminals that support alternate scroll mode |
 
-The alternate screen has no scrollback, so scrolling is the TUI's own. The
-wheel needs mouse reporting turned on, which means the terminal's native text
-selection wants a modifier while dsh runs: hold `Option` in iTerm2, `Fn` in
-macOS Terminal.
+The alternate screen has no scrollback, so scrolling is the TUI's own. dsh
+asks the terminal to answer the wheel with arrow keys rather than to report
+mouse events, so **selecting and copying text with the mouse keeps working
+normally** — no modifier needed.
 
 ## Develop it
 

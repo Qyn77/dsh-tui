@@ -123,15 +123,16 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/exit`, `/quit` | 退出 REPL |
 | `Ctrl-C`（空闲时） | 等同 `/exit` |
 | `Ctrl-C`（turn 运行时） | 取消正在跑的 turn |
-| `PageUp` / `PageDown` | 按屏滚动聊天内容（保留两行重叠） |
+| `↑` / `↓` | 滚动一行 |
+| `PageUp` / `PageDown` | 按屏滚动（保留两行重叠） |
 | `Ctrl-B` / `Ctrl-F` | 同上，不用按 `Fn` |
 | `Ctrl-U` / `Ctrl-D` | 滚动半屏 |
 | `Home` / `End` | 跳到最早一行 / 回到最新 |
-| 鼠标滚轮 | 一格滚三行 |
+| 鼠标滚轮 | 支持 alternate scroll 的终端里可滚动 |
 
-备用屏没有 scrollback，滚动完全由 TUI 自己实现。滚轮需要开启鼠标上报，所以 dsh
-运行期间，终端自带的文本选择需要加修饰键：iTerm2 按住 `Option`，macOS Terminal
-按住 `Fn`。
+备用屏没有 scrollback，滚动完全由 TUI 自己实现。dsh 只请求终端「用方向键回答滚
+轮」，而不是请求上报鼠标事件，所以**鼠标选中、复制文本一切照常**，不需要按任何修
+饰键。
 
 要求：Node ≥ 22.19、pnpm ≥ 9、真正的终端（Ink 需要 TTY）、一个 DeepSeek API key。
 

@@ -61,6 +61,16 @@ Two further wrong turns, both found the same way:
   bottom of a clipping box. In Ink 5.2.1 it **drops alternate rows**: a
   4-row viewport over 8 rows of content renders rows 1, 3, 5, 7. Use
   `flexDirection="column-reverse"` instead.
+- SGR mouse tracking (`?1000h` + `?1006h`) is the obvious way to get the
+  wheel, and it was shipped that way for exactly one round of use before
+  the first thing the user tried — dragging to select a reply — stopped
+  working. An application that receives clicks takes selection away from
+  the terminal, and no amount of "hold `Option`" documentation makes that
+  an acceptable default: copying a transcript is most of what a chat log is
+  for. xterm's **alternate scroll mode** (`?1007h`) is the right primitive:
+  the terminal answers a notch with `↑`/`↓` and never stops owning the
+  pointer. Reach for mouse *reporting* only when the application genuinely
+  needs the pointer, not merely the wheel.
 - The hint row ("↓ N more rows below") was rendered only while scrolled.
   That makes the viewport one row shorter at the moment you start
   scrolling, so `PageDown` sizes its step against a different height than
@@ -83,6 +93,10 @@ Two further wrong turns, both found the same way:
   mounts more.
 - `Home` / `End` read the **raw chunk** from Ink's own stdin event emitter
   (`useStdin().internal_eventEmitter`), ahead of Ink's normalisation.
+- The wheel comes in as `↑`/`↓` via alternate scroll mode, which also gives
+  keyboard row-at-a-time scrolling for free. The SGR parser stays, so a
+  terminal that reports mouse events anyway still scrolls instead of typing
+  the report into the prompt.
 - The banner renders only while the log is empty.
 
 ## Invariants to keep
@@ -103,7 +117,10 @@ Two further wrong turns, both found the same way:
    diagnostic (`cat -A` is not available on macOS).
 4. **A viewport that changes height while you scroll makes paging
    non-invertible.** Reserve conditional chrome.
-5. **Layout claims about Ink get measured, not assumed.** Render the tree
+5. **Never take the pointer from the terminal for a feature the keyboard
+   can serve.** Mouse reporting disables click-to-select; a wheel is not
+   worth a transcript you cannot copy.
+6. **Layout claims about Ink get measured, not assumed.** Render the tree
    against a fake TTY and read the frame; `tests/message-scroll.spec.ts`
    keeps that check permanent. A fake **stdin** that only emits `data`
    delivers nothing — queue the chunk and hand it out from `read()`.
@@ -114,4 +131,4 @@ Two further wrong turns, both found the same way:
 - `src/hooks/useMessageListScroll.ts`
 - `src/components/MessageList.tsx`, `tests/message-scroll.spec.ts`
 - `src/renderer.tsx` (banner condition, reserved hint row)
-- `src/index.ts` (SGR mouse tracking enter/exit)
+- `src/index.ts` (alternate scroll mode enter/exit)
