@@ -25,10 +25,12 @@ src/
 ├── invariant.ts              Type companion for dsh-invariants (no runtime)
 ├── markdown.ts               Pure markdown → UI AST (no React, no Ink) [test-first]
 ├── scroll.ts                 Pure scroll math + input parsing            [test-first]
+├── prompt-layout.ts          Pure input fold, caret, window, scrollbar    [test-first]
+├── width.ts                  Pure display width (CJK counts as two)       [test-first]
 ├── hooks/useSessionEvents.ts Replay log + live subscribe
 ├── hooks/useMessageListScroll.ts Scroll math + bindings
 └── components/{StatusBar, MessageList, Prompt, Markdown, Banner, SlashPalette}.tsx
-tests/                          vitest specs
+tests/                          vitest specs (`fake-tty.ts` = frame-level harness)
 docs/
 ├── SPEC.md                   design contract and visual rules
 ├── TUI-ROADMAP.md            product plan and milestone sequencing

@@ -40,6 +40,7 @@ import { Box, Text, useStdout } from 'ink'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { VERSION, readRepoLabel } from '../environment.ts'
+import { displayWidth } from '../width.ts'
 
 /** DeepSeek's brand blue. Used for the whale's body and the DEEPSEEK wordmark. */
 const BRAND_BLUE = '#4D6BFE'
@@ -125,36 +126,6 @@ const SLOGAN = '探索未至之境！'
  * recognisable across every width.
  */
 const SMALL_WHALE = '▄█▀▀█▄'
-
-/**
- * Display width of `text` in terminal columns. CJK characters occupy
- * two columns, which matters here because the slogan is Chinese and
- * `String.length` would report half its true width — centering on
- * `.length` puts it visibly off to the right.
- *
- * The ranges covered are the ones the UI actually uses: CJK ideographs,
- * the Chinese/Japanese punctuation block (which is where `！` lives),
- * Hiragana/Katakana, and Hangul. A full `wcwidth` implementation is
- * not worth the dependency for one slogan.
- * @param text - the string to measure.
- */
-export function displayWidth(text: string): number {
-  let width = 0
-  for (const char of text) {
-    const code = char.codePointAt(0) ?? 0
-    const isWide =
-      (code >= 0x1100 && code <= 0x115f) || // Hangul Jamo
-      (code >= 0x2e80 && code <= 0xa4cf) || // CJK radicals … Yi
-      (code >= 0xac00 && code <= 0xd7a3) || // Hangul syllables
-      (code >= 0xf900 && code <= 0xfaff) || // CJK compatibility ideographs
-      (code >= 0xfe30 && code <= 0xfe6f) || // CJK compatibility forms
-      (code >= 0xff00 && code <= 0xff60) || // Fullwidth forms
-      (code >= 0xffe0 && code <= 0xffe6) ||
-      (code >= 0x20000 && code <= 0x3fffd) // CJK extension planes
-    width += isWide ? 2 : 1
-  }
-  return width
-}
 
 /**
  * Left-pad `text` so it sits centered in a field of `width` columns.

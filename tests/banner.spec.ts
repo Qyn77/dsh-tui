@@ -11,13 +11,13 @@ import {
   displayCwd,
   encodeBitmap,
   fitTail,
-  displayWidth,
   centerText,
   metaText,
   bannerTier,
   BANNER_MIN_WIDTH,
   BANNER_WORDMARK_WIDTH,
 } from '../src/components/Banner.tsx'
+import { displayWidth } from '../src/width.ts'
 
 describe('displayWidth', () => {
   it('counts ASCII as one column each', () => {

@@ -6,7 +6,7 @@
  */
 
 import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
-import React, { useCallback, useMemo, type FC } from 'react'
+import React, { useCallback, useMemo, useState, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -57,11 +57,20 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   // instance. Keep the hook for non-TTY test streams only.
   useResizeRepaint()
 
+  // Ink hands every keystroke to every `useInput` handler and offers no way
+  // to stop one from propagating, so ↑/↓ can only have one meaning at a
+  // time and someone who can see both consumers has to pick it. That is
+  // here: the Prompt reports when it needs the arrows for its own caret
+  // (multi-row buffer, or the slash palette is open) and the log's scroll
+  // hook stands down for exactly those two keys. PageUp/PageDown and
+  // Ctrl-B/F/U/D never move, so the whole log always stays reachable.
+  const [promptClaimsArrows, setPromptClaimsArrows] = useState(false)
+
   // Scroll position for the conversation viewport, in rows above the newest
   // row. It lives here rather than inside the MessageList because the
   // "scrolled into history" hint is a sibling of the list, and because the
   // key bindings belong at the root next to the Ctrl-C handler.
-  const scroll = useMessageListScroll()
+  const scroll = useMessageListScroll({ arrowsScroll: !promptClaimsArrows })
 
 
   // Ink's frame eraser is cursor-relative, so a terminal that rewraps the
@@ -233,6 +242,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
         active={state.status === 'idle'}
         onSubmit={onSubmit}
         spinnerFrame={spinnerFrame}
+        onArrowClaimChange={setPromptClaimsArrows}
       />
     </Box>
   )

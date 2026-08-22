@@ -152,7 +152,12 @@ Priority features:
 - better prompt editing ergonomics
 - stronger scroll handling under narrow terminals
 - history navigation in the prompt
-- multiline editor preparation
+- ~~multiline editor preparation~~ — **done**: the box grows with the buffer to
+  `MAX_PROMPT_ROWS` (10), then scrolls internally with a scrollbar; `Ctrl-J`
+  inserts a newline and `↑`/`↓` walk the caret by row. `prompt-layout.ts` holds
+  the fold/caret/window arithmetic, which is what history navigation will build
+  on. What is left: a remembered desired column across short rows, and word
+  motions.
 
 Definition of done:
 

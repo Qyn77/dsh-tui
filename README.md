@@ -129,7 +129,8 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/exit`, `/quit` | Leave the REPL |
 | `Ctrl-C` (idle) | Same as `/exit` |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
-| `↑` / `↓` | Scroll the conversation one row |
+| `Ctrl-J` | Insert a newline in the input (so does `\` then `Enter`) |
+| `↑` / `↓` | Scroll the conversation one row — or move the caret, once the input is more than one row tall |
 | `PageUp` / `PageDown` | Scroll one viewport (two rows of overlap) |
 | `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
 | `Ctrl-U` / `Ctrl-D` | Scroll half a viewport |
@@ -140,6 +141,12 @@ The alternate screen has no scrollback, so scrolling is the TUI's own. dsh
 asks the terminal to answer the wheel with arrow keys rather than to report
 mouse events, so **selecting and copying text with the mouse keeps working
 normally** — no modifier needed.
+
+The input box grows as you type, up to 10 rows, and then scrolls inside itself
+with a scrollbar on the right — so a long message never pushes the
+conversation off the screen. While the box is taller than one row, `↑`/`↓`
+move the caret through it; `PageUp`/`PageDown` and `Ctrl-B`/`Ctrl-F` always
+scroll the conversation.
 
 ## Develop it
 
@@ -249,6 +256,8 @@ src/
 ├── commands.ts              /help /clear /status /exit /quit dispatch
 ├── invariant.ts             Empty package-invariant companion
 ├── scroll.ts                Pure scroll math + key/mouse parsing
+├── prompt-layout.ts         Pure input fold, caret, window, scrollbar
+├── width.ts                 Pure display width (CJK counts as two columns)
 ├── hooks/
 │   ├── useSessionEvents.ts  Replay log + subscribe to session/event
 │   ├── useMessageListScroll.ts  Scroll offset, key bindings, measured geometry
@@ -256,7 +265,7 @@ src/
 └── components/
     ├── StatusBar.tsx        Top: model · session · status · tokens
     ├── MessageList.tsx      Middle: user / assistant / tool / compaction
-    └── Prompt.tsx           Bottom: input box
+    └── Prompt.tsx           Bottom: auto-growing input box, capped at 10 rows
 
 tests/                       vitest specs for state, commands, apply()
 ```

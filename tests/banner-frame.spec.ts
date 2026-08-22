@@ -19,7 +19,8 @@ import React from 'react'
 import { Box, render } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { Banner, displayWidth } from '../src/components/Banner.tsx'
+import { Banner } from '../src/components/Banner.tsx'
+import { displayWidth } from '../src/width.ts'
 import { App } from '../src/renderer.tsx'
 
 /**

@@ -124,11 +124,39 @@ Two further wrong turns, both found the same way:
    against a fake TTY and read the frame; `tests/message-scroll.spec.ts`
    keeps that check permanent. A fake **stdin** that only emits `data`
    delivers nothing — queue the chunk and hand it out from `read()`.
+   The harness is shared: `tests/fake-tty.ts`.
+7. **A key can only mean one thing at a time, and Ink will not decide for
+   you.** Every `useInput` handler sees every keystroke; there is no
+   bubbling and no `stopPropagation`. So a key two components both want has
+   to be arbitrated by whoever renders both — here the `Prompt` reports
+   through `onArrowClaimChange` and `App` passes `arrowsScroll` to this
+   hook. Corollary: **leave at least one binding the other side can never
+   claim.** `PageUp`/`PageDown` and `Ctrl-B/F/U/D` always scroll the log, so
+   the whole history stays reachable whatever the prompt is doing.
+
+## Follow-up: the prompt now claims the arrows sometimes
+
+The input box grew an auto-height with an internal scroll
+(`src/prompt-layout.ts`), which means `↑`/`↓` have a second job: walking the
+caret through a multi-row buffer. Ownership is negotiated as invariant 7
+describes. Two notes for whoever reads this next:
+
+- The height cap lives in `visibleStart`, **not** in the `rows.slice(...)`
+  that renders the window. Breaking the slice's length looks like it should
+  uncap the box and does nothing once the window is already at the bottom —
+  which is exactly how a break-check can pass and reassure you about a test
+  that is asserting nothing. Break the *cap argument* instead.
+- `Ctrl-J` needed no key handling at all. Ink parses it as the linefeed it
+  is (`{name: 'enter', ctrl: false, sequence: '\n'}`), and neither `enter`
+  nor `return` is in `nonAlphanumericKeys`, so it arrives as ordinary input
+  `'\n'` and the existing insert path handles it. The prompt's
+  `if (key.ctrl) return` guard never sees it.
 
 ## Related files
 
 - `src/scroll.ts`, `tests/scroll.spec.ts`
 - `src/hooks/useMessageListScroll.ts`
 - `src/components/MessageList.tsx`, `tests/message-scroll.spec.ts`
+- `src/prompt-layout.ts`, `src/components/Prompt.tsx`, `tests/prompt-frame.spec.ts`
 - `src/renderer.tsx` (banner condition, reserved hint row)
 - `src/index.ts` (alternate scroll mode enter/exit)

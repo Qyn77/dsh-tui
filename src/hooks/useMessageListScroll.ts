@@ -62,8 +62,26 @@ export interface MessageListScroll {
   reportGeometry: (contentRows: number, viewportRows: number) => void
 }
 
+/** Optional wiring for {@link useMessageListScroll}. */
+export interface MessageListScrollOptions {
+  /**
+   * Whether ↑/↓ scroll the log. The Prompt claims those keys while its
+   * slash palette is open or its buffer occupies more than one row, and Ink
+   * hands one keystroke to *every* `useInput` handler with no way to stop
+   * it — so ownership has to be decided by whoever renders both, and passed
+   * in here. Defaults to true.
+   *
+   * Only the arrows are negotiable: `PageUp`/`PageDown` and `Ctrl-B/F/U/D`
+   * always scroll the log, so the keyboard never loses its way through
+   * history no matter what the prompt is doing.
+   */
+  arrowsScroll?: boolean
+}
+
 /** Own the conversation viewport's scroll position and its bindings. */
-export function useMessageListScroll(): MessageListScroll {
+export function useMessageListScroll(
+  { arrowsScroll = true }: MessageListScrollOptions = {},
+): MessageListScroll {
   // eslint-disable-next-line @typescript-eslint/naming-convention
   const { internal_eventEmitter: events } = useStdin()
   const [offset, setOffset] = useState(0)
@@ -104,15 +122,13 @@ export function useMessageListScroll(): MessageListScroll {
     // ↑/↓ scroll a row at a time, and that is also how the *wheel* arrives:
     // `index.ts` asks the terminal for alternate scroll mode rather than
     // mouse reporting, so a notch is delivered as cursor keys and the
-    // terminal keeps its own click-to-select. The Prompt leaves these keys
-    // alone unless the slash palette is open (history is a v0.2 feature), so
-    // there is nothing to collide with yet — when history lands, it takes
-    // these two keys back and the wheel needs a different answer.
-    if (key.upArrow) {
+    // terminal keeps its own click-to-select. They are the one binding the
+    // prompt can take away from us — see `arrowsScroll`.
+    if (arrowsScroll && key.upArrow) {
       scrollBy(1)
       return
     }
-    if (key.downArrow) {
+    if (arrowsScroll && key.downArrow) {
       scrollBy(-1)
       return
     }

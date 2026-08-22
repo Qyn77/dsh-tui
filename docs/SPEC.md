@@ -79,21 +79,37 @@ Each zone has a fixed role and stays in that role forever:
   terminal's own selection stops working, and copying a transcript needs
   `Option` (iTerm2) or `Fn` (Terminal.app). Selecting output to paste elsewhere
   is most of what a chat log is for. Under alternate scroll the terminal
-  answers a notch with cursor keys, which cost nothing and collide with
-  nothing — the prompt leaves `↑`/`↓` alone unless the slash palette is open.
+  answers a notch with cursor keys, which cost almost nothing: the prompt only
+  claims `↑`/`↓` while its slash palette is open or its buffer occupies more
+  than one row (see §1.5), and the paging keys are never negotiable, so the
+  whole log stays reachable no matter what the prompt is doing.
   A terminal that ignores `?1007` keeps its own wheel behaviour and the
   keyboard still reaches every row. `useMessageListScroll` also still
   understands SGR reports, so a terminal configured to send them scrolls too.
 
-  When prompt history lands (v0.2) it takes `↑`/`↓` back, and the wheel will
-  need a different answer than cursor keys.
+  When prompt history lands (v0.2) it takes `↑`/`↓` back on a single row too,
+  and the wheel will need a different answer than cursor keys.
 
   One row directly under the list is reserved unconditionally for the
   "scrolled into history" hint. Reserving it while at the tail looks like
   waste and is not: a row that appears only once you scroll changes the
   viewport height at that moment, so `PageDown` would size its step against a
   different height than the `PageUp` it is meant to undo.
-- **Prompt** — the input line, always the bottom row.
+- **Prompt** — the input box, always at the bottom. It is one row while the
+  buffer fits on one, grows with the buffer up to
+  `MAX_PROMPT_ROWS` (10), and past that scrolls inside itself with the caret
+  always in view. The cap is what keeps a long paste from pushing the
+  conversation off the screen.
+
+  The buffer is folded to rows by `prompt-layout.ts`, not by `<Text>`'s own
+  wrapping: Ink would wrap it for free, but then nothing would know how many
+  rows the result occupies or which row the caret is on, and both are needed
+  to cap the height and to scroll. The fold width is *measured*
+  (`measureElement` on the text column), the same pattern the MessageList
+  uses. A one-column scrollbar is reserved unconditionally on the right,
+  blanks included — a bar that appeared only on overflow would narrow the
+  text at that moment and re-fold every row under the caret. Same reasoning
+  as the list's reserved hint row.
 
 **The live frame reserves the terminal's last column.** `App`'s root box carries `marginRight={1}`, and that single column is the other half of rule 7 — the half that applies to everything Ink *does* redraw. Ink stretches the root to the full terminal width, so a framed child emits lines *exactly* as wide as the terminal, and a line that fills the last column leaves the terminal with a wrap decision that terminals do not answer the same way: park the cursor in the last column and let the following newline move down one row (the VT100 reading), or wrap at once so that newline lands a row further down. Under the second reading a 3-row prompt box occupies six physical rows while Ink erases `eraseLines(<logical line count>)` = four, so **every redraw leaks two rows** — which is what a window drag looked like in practice: a ladder of half-drawn prompt boxes, each one column narrower than the last, exactly like the banner ladder that came before it. One reserved column is unwrappable under either reading and also absorbs a one-column lag between `SIGWINCH` and the write, which is what a fast drag does to `stdout.columns`.
 
@@ -202,10 +218,23 @@ Both the palette and `/help` read from a single `COMMANDS` registry in `src/comm
 | `Backspace` | Prompt | Delete one char |
 | `Tab` | Slash palette | Complete the highlighted command |
 | `Esc` | Slash palette | Dismiss palette and clear buffer |
-| `↑` / `↓` | Slash palette | Move palette selection; future History in v0.2 |
+| `↑` / `↓` | Slash palette | Move palette selection |
+| `↑` / `↓` | Prompt (multi-row buffer) | Move the caret one row |
+| `↑` / `↓` | MessageList (otherwise) | Scroll one row |
 | `Ctrl-C` | Anywhere | Cancel turn (when running) or exit (when idle) |
-| `\` + `Enter` | Prompt | Insert a newline (multi-line escape for v0.1) |
+| `Ctrl-J` | Prompt | Insert a newline |
+| `\` + `Enter` | Prompt | Insert a newline (the older escape; still works) |
 | `Ctrl-L` | Anywhere | Clear screen, redraw (v0.4) |
+
+`↑`/`↓` appear three times on purpose: Ink dispatches every keystroke to
+*every* `useInput` handler and offers no way to stop one propagating, so the
+two keys can only have one meaning at a time and the choice has to be made by
+whoever renders both. The Prompt reports through `onArrowClaimChange` whether
+it needs them (palette open, or buffer taller than one row); `App` holds that
+in state and passes `arrowsScroll` to `useMessageListScroll`. Only the arrows
+are negotiable — `PageUp`/`PageDown` and `Ctrl-B/F/U/D` always scroll the log,
+so a half-written multi-row message can never lock the log shut.
+`tests/prompt-frame.spec.ts` pins both directions.
 
 ### 1.7 Text conventions
 

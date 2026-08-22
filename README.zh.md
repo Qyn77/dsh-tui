@@ -123,7 +123,8 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/exit`, `/quit` | 退出 REPL |
 | `Ctrl-C`（空闲时） | 等同 `/exit` |
 | `Ctrl-C`（turn 运行时） | 取消正在跑的 turn |
-| `↑` / `↓` | 滚动一行 |
+| `Ctrl-J` | 在输入框里换行（`\` 加 `Enter` 也可以）|
+| `↑` / `↓` | 滚动一行；输入框超过一行时改为移动光标 |
 | `PageUp` / `PageDown` | 按屏滚动（保留两行重叠） |
 | `Ctrl-B` / `Ctrl-F` | 同上，不用按 `Fn` |
 | `Ctrl-U` / `Ctrl-D` | 滚动半屏 |
@@ -133,6 +134,10 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 备用屏没有 scrollback，滚动完全由 TUI 自己实现。dsh 只请求终端「用方向键回答滚
 轮」，而不是请求上报鼠标事件，所以**鼠标选中、复制文本一切照常**，不需要按任何修
 饰键。
+
+输入框会随内容变高，最多 10 行，超过之后在框内滚动，右侧出现滚动条——再长的消息
+也不会把对话挤出屏幕。输入框高于一行时，`↑`/`↓` 归它移动光标；`PageUp`/`PageDown`
+和 `Ctrl-B`/`Ctrl-F` 永远滚动对话。
 
 要求：Node ≥ 22.19、pnpm ≥ 9、真正的终端（Ink 需要 TTY）、一个 DeepSeek API key。
 
@@ -243,6 +248,8 @@ src/
 ├── commands.ts              /help /clear /status /exit /quit 派发
 ├── invariant.ts             空的 package-invariant companion
 ├── scroll.ts                纯滚动算术 + 按键/鼠标解析
+├── prompt-layout.ts         纯输入折行、光标、可视窗口、滚动条
+├── width.ts                 纯显示宽度（CJK 占两列）
 ├── hooks/
 │   ├── useSessionEvents.ts  回放 log + 订阅 session/event
 │   ├── useMessageListScroll.ts  滚动偏移、按键绑定、实测几何
@@ -250,7 +257,7 @@ src/
 └── components/
     ├── StatusBar.tsx        顶部：模型 · session · 状态 · token
     ├── MessageList.tsx      中部：user / assistant / tool / compaction
-    └── Prompt.tsx           底部：输入框
+    └── Prompt.tsx           底部：自动增高的输入框，最多 10 行
 
 tests/                       state、commands、apply() 的 vitest 单元测试
 ```
