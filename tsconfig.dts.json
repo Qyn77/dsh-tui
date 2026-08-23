@@ -6,7 +6,12 @@
     "noEmit": false,
     "emitDeclarationOnly": true,
     "declaration": true,
-    "declarationMap": true
+    // Off on purpose. `package.json#files` ships `lib/types/**/*.d.ts` and
+    // not `src/`, so a `.d.ts.map` would be both dead weight in the tarball
+    // and a dangling `sourceMappingURL` in every declaration. The base
+    // config keeps `declarationMap` on for the editor, where `noEmit`
+    // makes it inert anyway.
+    "declarationMap": false
   },
   "include": ["src"],
   "exclude": ["tests", "tsdown.config.ts"]

@@ -3,7 +3,8 @@ lib
 *.log
 .DS_Store
 coverage
-.tsbuildinfo
+*.tsbuildinfo
+*.tgz
 
 # Local API keys / model credentials. dsh loads `~/.dsh/.env` for runtime
 # credentials; this protects any project-local `.env` a contributor might

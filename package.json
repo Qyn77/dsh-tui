@@ -5,6 +5,14 @@
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qyn77/dsh-tui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Qyn77/dsh-tui/issues"
+  },
+  "homepage": "https://github.com/Qyn77/dsh-tui#readme",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -22,8 +30,11 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "lib",
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts",
     "cordis.patch.yml",
+    "LICENSE",
     "README.md",
     "README.zh.md"
   ],
@@ -45,10 +56,13 @@
   "engines": {
     "node": ">=22.19"
   },
+  "packageManager": "pnpm@11.10.0",
   "scripts": {
-    "build": "tsc -p tsconfig.dts.json && tsdown",
+    "clean": "node scripts/clean.mjs",
+    "build": "pnpm run clean && tsc -p tsconfig.dts.json && tsdown",
     "tui-dev": "pnpm run build && dsh --profile tui-dev",
     "typecheck": "tsc",
+    "pack:check": "node scripts/verify-pack.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
