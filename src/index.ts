@@ -11,12 +11,12 @@ import React from 'react'
 import { render as inkRender } from 'ink'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type { Agent } from '@deepseek-ai/dsh-agent'
 import { installModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
-// Empty type imports carry the loader Context merge for the settlement await
+// Empty type import carries the loader Context merge for the settlement await
 // and the cordis EventMap merge for `session/event` and `agent/*`.
 import type {} from '@deepseek-ai/cordis-plugin-loader'
+import { appExit, service, type AppExit } from './services.ts'
 import { App } from './renderer.tsx'
 
 /** Stable Cordis plugin name. */
@@ -111,21 +111,21 @@ async function run(ctx: Context): Promise<void> {
   // observable failure would be a silent hang. A precondition we own
   // cannot be swallowed, trips before a Session is created, and says
   // something more useful than Ink's stdin advice.
-  if (process.stdin.isTTY !== true) {
+  if (!process.stdin.isTTY) {
     throw new Error(
       'needs an interactive terminal — stdin is not a TTY. Run it from a terminal, or use the dsh-headless bundle for non-interactive work.',
     )
   }
-  if (process.stdout.isTTY !== true) {
+  if (!process.stdout.isTTY) {
     throw new Error(
       'needs an interactive terminal — stdout is not a TTY. Piping the UI to a file or another process is not a supported mode.',
     )
   }
   // Loader siblings mount concurrently. Await the complete application before
   // creating an Agent so its scoped tools and adapters are not half-composed.
-  await ctx.get('loader')?.await()
-  const agents = ctx.get('agents')
-  const defaultModel = ctx.get('agentDefaultModel')
+  await service(ctx, 'loader')?.await()
+  const agents = service(ctx, 'agents')
+  const defaultModel = service(ctx, 'agentDefaultModel')
   if (agents === undefined || defaultModel === undefined) return
 
   const selection = defaultModel.currentSelection()
@@ -145,16 +145,16 @@ async function run(ctx: Context): Promise<void> {
   // ("no process.exit outside commands.ts and index.ts") is preserved:
   // the App calls it through a prop and never touches process.exit
   // itself. The dispatch logic is in `interrupt.ts`.
-  const exitHook = ctx.get('appExit') ?? ((code: number) => process.exit(code))
+  const exitHook: AppExit = appExit(ctx) ?? ((code: number) => process.exit(code))
 
-  const alternateScreen = process.stdout.isTTY === true
+  const alternateScreen = process.stdout.isTTY
   try {
     if (alternateScreen) {
       internals.stdout.write(ALT_SCREEN_ENTER)
       internals.stdout.write(ALT_SCROLL_ENTER)
     }
     const instance = inkRender(
-      React.createElement(App, { ctx, agent: agent as Agent, exit: exitHook }),
+      React.createElement(App, { ctx, agent, exit: exitHook }),
       {
         exitOnCtrlC: false,
         patchConsole: false,
@@ -175,7 +175,7 @@ async function run(ctx: Context): Promise<void> {
         resizeLog('instance.clear done')
         internals.stdout.write(CLEAR_SCREEN)
         resizeLog('clear-screen written')
-        instance.rerender(React.createElement(App, { ctx, agent: agent as Agent, exit: exitHook }))
+        instance.rerender(React.createElement(App, { ctx, agent, exit: exitHook }))
         resizeLog('instance.rerender called')
       }, RESIZE_QUIET_MS)
       if (typeof resizeTimer.unref === 'function') resizeTimer.unref()
@@ -217,7 +217,7 @@ export function apply(ctx: Context, _config: Config): void {
   const io: TuiIo = { stdout: internals.stdout, stderr: internals.stderr }
   void run(ctx).catch((error: unknown) => {
     fail(io, error)
-    const exit = ctx.get('appExit')
+    const exit = appExit(ctx)
     if (exit !== undefined) exit(1)
     else process.exit(1)
   })

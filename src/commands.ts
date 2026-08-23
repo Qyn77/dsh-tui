@@ -11,6 +11,7 @@
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { appExit, service } from './services.ts'
 
 /** What a command decided. */
 export type CommandResult =
@@ -54,7 +55,7 @@ export function filterCommands(buffer: string): CommandMeta[] {
   const query = buffer.toLowerCase()
   if (!query.startsWith('/')) return []
   return COMMANDS
-    .filter((c) => c.name.toLowerCase().startsWith(query))
+    .filter(c => c.name.toLowerCase().startsWith(query))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -64,10 +65,10 @@ export function filterCommands(buffer: string): CommandMeta[] {
  * surfaces stay in lock-step.
  */
 function helpText(): string {
-  const nameCol = Math.max(...COMMANDS.map((c) => c.name.length))
+  const nameCol = Math.max(...COMMANDS.map(c => c.name.length))
   const rows = [...COMMANDS]
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map((c) => `  ${c.name.padEnd(nameCol)}  ${c.description}`)
+    .map(c => `  ${c.name.padEnd(nameCol)}  ${c.description}`)
   return ['Available commands:', ...rows].join('\n')
 }
 
@@ -97,7 +98,7 @@ export function dispatch(raw: string, cmd: CommandContext): CommandResult {
       return { kind: 'handled', message: 'View cleared.' }
 
     case '/status': {
-      const selection = cmd.ctx.get('agentDefaultModel')?.currentSelection()
+      const selection = service(cmd.ctx, 'agentDefaultModel')?.currentSelection()
       const model = selection ? `${selection.provider}/${selection.model}` : 'unknown'
       return {
         kind: 'handled',
@@ -108,7 +109,7 @@ export function dispatch(raw: string, cmd: CommandContext): CommandResult {
     case '/exit':
     case '/quit': {
       // Request a process exit through the launcher's bounded host hook.
-      const exit = cmd.ctx.get('appExit')
+      const exit = appExit(cmd.ctx)
       if (exit !== undefined) exit(0)
       else process.exit(0)
       return { kind: 'exit' }

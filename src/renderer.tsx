@@ -18,6 +18,7 @@ import { useRunningClock } from './hooks/useRunningClock.ts'
 import { useResizeRepaint } from './hooks/useResizeRepaint.ts'
 import { useMessageListScroll } from './hooks/useMessageListScroll.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
+import { service } from './services.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
 
@@ -44,7 +45,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   const { stdout } = useStdout()
   const { state, resetView } = useSessionEvents(ctx, agent)
   const selection = useMemo(
-    () => ctx.get('agentDefaultModel')?.currentSelection(),
+    () => service(ctx, 'agentDefaultModel')?.currentSelection(),
     [ctx],
   )
   // The animated "thinking" indicator. One interval per status
@@ -194,7 +195,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
         content and the banner frame stops meeting the terminal's right edge.
       */}
       {state.entries.length === 0 &&
-        (stdout?.isTTY === true ? (
+        (stdout?.isTTY ? (
           <Banner selection={selection} sessionId={agent.id} />
         ) : (
           <Static items={[0]} style={{ width: '100%' }}>
