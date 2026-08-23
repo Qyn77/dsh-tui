@@ -213,7 +213,7 @@ export const Prompt: FC<PromptProps> = ({
       // (see `claimsArrows`), so bail and let the scroll hook have them.
       if (key.upArrow) {
         if (palette.length > 0) {
-          setPaletteIndex((i) => clampPaletteIndex(i - 1, palette))
+          setPaletteIndex(i => clampPaletteIndex(i - 1, palette))
           return
         }
         if (rows.length > 1) moveCaretRow(-1)
@@ -221,7 +221,7 @@ export const Prompt: FC<PromptProps> = ({
       }
       if (key.downArrow) {
         if (palette.length > 0) {
-          setPaletteIndex((i) => clampPaletteIndex(i + 1, palette))
+          setPaletteIndex(i => clampPaletteIndex(i + 1, palette))
           return
         }
         if (rows.length > 1) moveCaretRow(1)
@@ -238,7 +238,7 @@ export const Prompt: FC<PromptProps> = ({
         // against the registry's `name` so case is normalized.
         if (palette.length > 0) {
           const normalized = value.toLowerCase()
-          const exact = palette.find((c) => c.name === normalized)
+          const exact = palette.find(c => c.name === normalized)
           if (exact) {
             setValue('')
             setCursorIndex(0)
@@ -266,11 +266,11 @@ export const Prompt: FC<PromptProps> = ({
         return
       }
       if (key.leftArrow) {
-        setCursorIndex((i) => Math.max(0, i - 1))
+        setCursorIndex(i => Math.max(0, i - 1))
         return
       }
       if (key.rightArrow) {
-        setCursorIndex((i) => Math.min(value.length, i + 1))
+        setCursorIndex(i => Math.min(value.length, i + 1))
         return
       }
       if (key.backspace || key.delete) {

@@ -204,7 +204,7 @@ export function windowStart(
   while (index > 0) {
     if (rows >= needed && entries.length - index >= MIN_MOUNTED_ENTRIES) break
     index -= 1
-    rows += estimateEntryRows(entries[index]!, columns)
+    rows += estimateEntryRows(entries[index], columns)
   }
   return index
 }

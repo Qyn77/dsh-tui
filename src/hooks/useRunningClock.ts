@@ -54,14 +54,19 @@ export function useRunningClock(running: boolean): RunningClock {
     const startedAt = Date.now()
     let lastElapsed = -1
     const interval = setInterval(() => {
-      setSpinnerFrame((f) => (f + 1) % SPINNER_FRAMES.length)
+      setSpinnerFrame(f => (f + 1) % SPINNER_FRAMES.length)
       const seconds = Math.floor((Date.now() - startedAt) / 1000)
       if (seconds !== lastElapsed) {
         lastElapsed = seconds
         setElapsedSeconds(seconds)
       }
     }, TICK_MS)
-    return () => clearInterval(interval)
+    // The braces matter: an arrow that *returns* `clearInterval(...)` hands
+    // React the Timeout as the cleanup's return value, and React only accepts
+    // a cleanup function or undefined there.
+    return () => {
+      clearInterval(interval)
+    }
   }, [running])
 
   return { spinnerFrame, elapsedSeconds }

@@ -146,7 +146,7 @@ describe('renderBlockWord', () => {
     // Rows are right-trimmed, so a row whose last glyph column is
     // blank would be shorter. Compare against the widest row and
     // assert none exceeds it — that is what the layout depends on.
-    const widest = Math.max(...rows.map((r) => r.length))
+    const widest = Math.max(...rows.map(r => r.length))
     for (const row of rows) {
       expect(row.length).toBeLessThanOrEqual(widest)
     }

@@ -82,7 +82,8 @@ export interface MessageListScrollOptions {
 export function useMessageListScroll(
   { arrowsScroll = true }: MessageListScrollOptions = {},
 ): MessageListScroll {
-  // eslint-disable-next-line @typescript-eslint/naming-convention
+  // `internal_eventEmitter` is Ink's own name for its stdin event bus; the
+  // underscore is part of its public-but-unstable API, not a local style choice.
   const { internal_eventEmitter: events } = useStdin()
   const [offset, setOffset] = useState(0)
   const [pinTop, setPinTop] = useState(false)
@@ -94,7 +95,7 @@ export function useMessageListScroll(
   const scrollBy = useCallback((rows: number): void => {
     if (rows === 0) return
     setPinTop(false)
-    setOffset((current) =>
+    setOffset(current =>
       clampOffset(current + rows, geometry.current.contentRows, geometry.current.viewportRows),
     )
   }, [])
@@ -108,7 +109,7 @@ export function useMessageListScroll(
       // newest row as a turn streams in (content grows, offset 0 stays 0),
       // and what collapses the offset back to the tail after `/clear`
       // empties the log.
-      setOffset((current) =>
+      setOffset(current =>
         pinTop
           ? Math.max(0, contentRows - viewportRows)
           : clampOffset(current, contentRows, viewportRows),

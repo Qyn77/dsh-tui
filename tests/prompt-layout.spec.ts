@@ -19,7 +19,7 @@ import {
 
 /** Just the text of each row — the shape most assertions care about. */
 const texts = (value: string, width: number): string[] =>
-  wrapBuffer(value, width).map((row) => row.text)
+  wrapBuffer(value, width).map(row => row.text)
 
 describe('wrapBuffer', () => {
   it('returns one empty row for an empty buffer', () => {
@@ -172,13 +172,13 @@ describe('scrollbarColumn', () => {
 
   it('keeps a visible thumb even for a very long buffer', () => {
     const column = scrollbarColumn(2000, 10, 500)
-    expect(column.filter((glyph) => glyph === '█')).toHaveLength(1)
+    expect(column.filter(glyph => glyph === '█')).toHaveLength(1)
   })
 
   it('sizes the thumb in proportion to the visible fraction', () => {
     // Half the buffer visible → half the bar is thumb.
     const column = scrollbarColumn(20, 10, 0)
-    expect(column.filter((glyph) => glyph === '█')).toHaveLength(5)
+    expect(column.filter(glyph => glyph === '█')).toHaveLength(5)
   })
 })
 

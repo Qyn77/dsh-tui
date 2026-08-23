@@ -15,7 +15,6 @@ import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
  * type imports carry their declaration merging into this module.
  */
 declare module '@deepseek-ai/dsh-session/types' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface SessionEventMap {
     'compaction/start': { trigger: 'auto' | 'manual' }
     'compaction/summary': { tokensBefore: number; tokensAfter: number }
@@ -29,24 +28,24 @@ declare module '@deepseek-ai/dsh-session/types' {
 export type UiEntry =
   | { kind: 'user'; message: UserMessage }
   | {
-      kind: 'assistant'
-      turn: number
-      step: number
-      text: string
-      finalized: boolean
-      usage?: TokenUsage
-    }
+    kind: 'assistant'
+    turn: number
+    step: number
+    text: string
+    finalized: boolean
+    usage?: TokenUsage
+  }
   | {
-      kind: 'tool'
-      callId: CallId
-      name: string
-      args: string
-      turn: number
-      step: number
-      result?: ToolResultMessage
-      error?: { name: string; code: string }
-      status: 'running' | 'ok' | 'error'
-    }
+    kind: 'tool'
+    callId: CallId
+    name: string
+    args: string
+    turn: number
+    step: number
+    result?: ToolResultMessage
+    error?: { name: string; code: string }
+    status: 'running' | 'ok' | 'error'
+  }
   | { kind: 'compaction'; stage: 'start' | 'summary' | 'end' | 'prune'; text?: string }
   | { kind: 'plan'; enabled: boolean; at: number }
   | { kind: 'note'; text: string }

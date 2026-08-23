@@ -1,0 +1,288 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "categories": {
+    "correctness": "off"
+  },
+  "options": {
+    "reportUnusedDisableDirectives": "warn",
+    "typeAware": true
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": [
+    "**/lib/**",
+    "**/node_modules/**",
+    "**/coverage/**",
+    "**/*.mjs",
+    "**/*.config.ts"
+  ],
+  "overrides": [
+    {
+      // Shared strict type-aware rules. This is the subset of
+      // deepseek-harness's .oxlintrc.json that applies to a single Ink
+      // bundle; the rule names and options are copied verbatim so a future
+      // merge into the monorepo produces no new diagnostics. Source/test
+      // differences stay in the short overrides below.
+      "files": [
+        "src/**/*.{ts,tsx}",
+        "tests/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "no-var": "error",
+        "prefer-const": "error",
+        "prefer-rest-params": "error",
+        "prefer-spread": "error",
+        "no-array-constructor": "error",
+        "no-unused-expressions": "error",
+        "no-unused-vars": [
+          "error",
+          {
+            "argsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_",
+            "caughtErrorsIgnorePattern": "^_"
+          }
+        ],
+        "no-useless-constructor": "error",
+        "typescript/await-thenable": "error",
+        "typescript/ban-ts-comment": [
+          "error",
+          {
+            "minimumDescriptionLength": 10
+          }
+        ],
+        "typescript/no-array-delete": "error",
+        "typescript/no-base-to-string": "error",
+        "typescript/no-confusing-void-expression": "error",
+        "typescript/no-deprecated": "error",
+        "typescript/no-duplicate-enum-values": "error",
+        "typescript/no-duplicate-type-constituents": "error",
+        "typescript/no-dynamic-delete": "error",
+        "typescript/no-empty-object-type": "off", // Config carries an intentional empty-object placeholder.
+        "typescript/no-explicit-any": "error", // Every intentional any needs a narrow suppression with rationale.
+        "typescript/no-extra-non-null-assertion": "error",
+        "typescript/no-extraneous-class": "error",
+        // Lost promises in the render/agent handoff are the highest-value linted bug class here.
+        "typescript/no-floating-promises": "error",
+        "typescript/no-for-in-array": "error",
+        "typescript/no-implied-eval": "error",
+        "typescript/no-invalid-void-type": "off", // Event and callback signatures intentionally use void in source.
+        "typescript/no-meaningless-void-operator": "error",
+        "typescript/no-misused-new": "error",
+        "typescript/no-misused-promises": "error",
+        "typescript/no-misused-spread": "error",
+        "typescript/no-mixed-enums": "error",
+        "typescript/no-namespace": "off", // Cordis Config namespaces are the upstream idiom.
+        "typescript/no-non-null-asserted-nullish-coalescing": "error",
+        "typescript/no-non-null-asserted-optional-chain": "error",
+        "typescript/no-redundant-type-constituents": "error",
+        "typescript/no-require-imports": "error",
+        "typescript/no-this-alias": "error",
+        "typescript/no-unnecessary-boolean-literal-compare": "error",
+        "typescript/no-unnecessary-template-expression": "error",
+        "typescript/no-unnecessary-type-arguments": "error",
+        "typescript/no-unnecessary-type-assertion": "error",
+        "typescript/no-unnecessary-type-constraint": "error",
+        "typescript/no-unnecessary-type-conversion": "error",
+        "typescript/no-unnecessary-type-parameters": "error",
+        "typescript/no-unsafe-argument": "error",
+        "typescript/no-unsafe-assignment": "error",
+        "typescript/no-unsafe-call": "error",
+        "typescript/no-unsafe-declaration-merging": "error",
+        "typescript/no-unsafe-enum-comparison": "error",
+        "typescript/no-unsafe-function-type": "error",
+        "typescript/no-unsafe-member-access": "error",
+        "typescript/no-unsafe-return": "error",
+        "typescript/no-unsafe-unary-minus": "error",
+        "typescript/no-useless-default-assignment": "error",
+        "typescript/no-wrapper-object-types": "error",
+        "typescript/prefer-as-const": "error",
+        "typescript/prefer-literal-enum-member": "error",
+        "typescript/prefer-namespace-keyword": "error",
+        "typescript/prefer-promise-reject-errors": "error",
+        "typescript/prefer-reduce-type-parameter": "error",
+        "typescript/prefer-return-this-type": "error",
+        "typescript/related-getter-setter-pairs": "error",
+        "typescript/restrict-plus-operands": [
+          "error",
+          {
+            "allowAny": false,
+            "allowBoolean": false,
+            "allowNullish": false,
+            "allowNumberAndString": false,
+            "allowRegExp": false
+          }
+        ],
+        "typescript/return-await": [
+          "error",
+          "error-handling-correctness-only"
+        ],
+        "typescript/triple-slash-reference": "error",
+        "typescript/unbound-method": "error",
+        "typescript/unified-signatures": "error",
+        "typescript/use-unknown-in-catch-callback-variable": "error",
+        "no-void": "off" // void foo() marks deliberate fire-and-forget arrow listeners.
+      },
+      "plugins": [
+        "typescript"
+      ]
+    },
+    {
+      // Stricter still for shipped source than for tests.
+      "files": [
+        "src/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "typescript/no-non-null-assertion": "error",
+        // DELIBERATE DEVIATION from the parent repo, which sets this to "error".
+        //
+        // The rule trusts every dependency's .d.ts completely, and this package
+        // is a terminal UI built on two libraries whose declarations overstate
+        // what they guarantee at runtime. Ink's `useStdout()` types `stdout` as
+        // a non-optional WriteStream, but the components are mounted against
+        // fakes in tests and against a stream with no `isTTY` in a pipe.
+        // `marked` types token fields like `text` as required, and this package
+        // already wraps every parse in try/catch because it does not trust
+        // that. Under "error" the rule reports 46 such guards in src — each one
+        // load-bearing, and the fix it wants is to delete them.
+        //
+        // A crashed TUI leaves the user in the alternate screen buffer with no
+        // prompt, so a redundant guard is much cheaper here than a missing one.
+        // "warn" keeps every report visible (and `pnpm lint` still prints them)
+        // without making the guards a CI failure. Revisit if Ink and marked
+        // tighten their types — the goal is still parent parity.
+        "typescript/no-unnecessary-condition": [
+          "warn",
+          {
+            "allowConstantLoopConditions": true
+          }
+        ],
+        "typescript/only-throw-error": "error",
+        "typescript/require-await": "error",
+        "typescript/restrict-template-expressions": [
+          "error",
+          {
+            "allowNumber": true,
+            "allowBoolean": true
+          }
+        ],
+        // The reducer's and MessageList's exhaustive `kind` switches are a
+        // documented invariant (docs/SPEC.md Part 3). This is the rule that
+        // enforces it instead of trusting review.
+        "typescript/switch-exhaustiveness-check": [
+          "error",
+          {
+            "considerDefaultExhaustiveForUnions": true
+          }
+        ]
+      },
+      "plugins": [
+        "typescript"
+      ]
+    },
+    {
+      "files": [
+        "tests/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "typescript/no-invalid-void-type": "error",
+        "typescript/no-non-null-assertion": "off", // Assertions commonly follow an expect() that proves presence.
+        "typescript/no-unnecessary-condition": "off",
+        "typescript/only-throw-error": "off", // Tests deliberately exercise non-Error throws.
+        "typescript/require-await": "off", // Fake-TTY and mock implementations must retain async signatures.
+        "typescript/restrict-template-expressions": "off"
+      },
+      "plugins": [
+        "typescript"
+      ]
+    },
+    {
+      "files": [
+        "src/**/*.{ts,tsx}",
+        "tests/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "sonarjs/duplicates-in-character-class": "error",
+        "sonarjs/no-all-duplicated-branches": "error",
+        "sonarjs/no-duplicate-in-composite": "error",
+        "sonarjs/no-duplicate-test-title": "error",
+        "sonarjs/no-identical-conditions": "error",
+        "sonarjs/no-identical-expressions": "error",
+        "sonarjs/no-identical-functions": "error",
+        "sonarjs/no-duplicated-branches": "error"
+      },
+      "jsPlugins": [
+        "eslint-plugin-sonarjs"
+      ]
+    },
+    {
+      "files": [
+        "src/**/*.{ts,tsx}",
+        "tests/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "@stylistic/indent": [
+          "error",
+          2
+        ],
+        "@stylistic/semi": [
+          "error",
+          "never"
+        ],
+        "@stylistic/quotes": [
+          "error",
+          "single",
+          {
+            "avoidEscape": true
+          }
+        ],
+        "@stylistic/comma-dangle": [
+          "error",
+          "always-multiline"
+        ],
+        "@stylistic/eol-last": [
+          "error",
+          "always"
+        ],
+        "@stylistic/no-trailing-spaces": "error",
+        "@stylistic/object-curly-spacing": [
+          "error",
+          "always"
+        ],
+        "@stylistic/arrow-parens": [
+          "error",
+          "as-needed",
+          {
+            "requireForBlockBody": true
+          }
+        ],
+        "@stylistic/member-delimiter-style": [
+          "error",
+          {
+            "multiline": {
+              "delimiter": "none"
+            },
+            "singleline": {
+              "delimiter": "semi",
+              "requireLast": false
+            }
+          }
+        ],
+        // Validation-only: line length has no safe formatter fix.
+        "@stylistic/max-len": [
+          "error",
+          {
+            "code": 140,
+            "ignoreUrls": true,
+            "ignoreStrings": true,
+            "ignoreTemplateLiterals": true
+          }
+        ]
+      },
+      "jsPlugins": [
+        "@stylistic/eslint-plugin"
+      ]
+    }
+  ]
+}

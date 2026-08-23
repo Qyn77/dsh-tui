@@ -81,7 +81,7 @@ describe('tui state reducer', () => {
     const state = replay(session.events)
     const assistants = state.entries.filter(e => e.kind === 'assistant')
     expect(assistants).toHaveLength(1)
-    const a = assistants[0] as Extract<(typeof assistants)[number], { kind: 'assistant' }>
+    const a = assistants[0]
     expect(a.text).toBe('Hello, world')
     expect(a.finalized).toBe(true)
   })
@@ -141,7 +141,7 @@ describe('tui state reducer', () => {
       { type: 'session/end-seed' as const, seq: 1, time: 0, data: {} },
       { type: 'user/message' as const, seq: 2, time: 0, data: createUserMessage({ content: [{ type: 'text', text: 'new' }], source: { kind: 'user' } }), surfaceOp: 'append' as const },
     ]
-    const state = replay(events as never)
+    const state = replay(events)
     // Only the post-seed "new" message survives.
     expect(state.entries).toHaveLength(1)
     expect((state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'user' }>).message.content[0]).toMatchObject({ type: 'text', text: 'new' })

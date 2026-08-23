@@ -53,8 +53,8 @@ const sessionId = SessionId('tui-0f3a91c2-77bd-4e51-9a0c-1d2e3f4a5b6c')
 
 /** What the app did, in order: terminal resizes interleaved with writes. */
 type Step =
-  | { kind: 'resize', columns: number }
-  | { kind: 'write', text: string, columns: number }
+  | { kind: 'resize'; columns: number }
+  | { kind: 'write'; text: string; columns: number }
 
 /** A stdout stand-in that records both, in order. */
 interface FakeStdout extends EventEmitter {
@@ -96,11 +96,11 @@ function fakeTtyStdin(): NodeJS.ReadStream {
     unref: () => stdin,
     resume: () => stdin,
     pause: () => stdin,
-  }) as never
+  })
 }
 
 /** One physical row. `soft` means it continues onto the next one. */
-interface Row { text: string, soft: boolean }
+interface Row { text: string; soft: boolean }
 
 /**
  * A terminal: scrollback plus a screen of physical rows, the five escapes
@@ -131,7 +131,7 @@ class Term {
 
   private at(row: number): Row {
     while (this.screen.length <= row) this.screen.push({ text: '', soft: false })
-    return this.screen[row] as Row
+    return this.screen[row]
   }
 
   /** Move to the next row. `soft` records whether a wrap caused it. */
@@ -203,15 +203,15 @@ class Term {
       return
     }
     // Where is the cursor, in logical terms?
-    const groups: { text: string, rows: number[] }[] = []
-    let current: { text: string, rows: number[] } | undefined
+    const groups: { text: string; rows: number[] }[] = []
+    let current: { text: string; rows: number[] } | undefined
     for (const [index, row] of this.screen.entries()) {
       if (current === undefined) { current = { text: '', rows: [] }; groups.push(current) }
       current.text += row.text
       current.rows.push(index)
       if (!row.soft) current = undefined
     }
-    let cursorGroup = groups.findIndex((g) => g.rows.includes(this.row))
+    let cursorGroup = groups.findIndex(g => g.rows.includes(this.row))
     let cursorOffset = this.col
     if (cursorGroup >= 0) {
       for (const index of groups[cursorGroup]?.rows ?? []) {
@@ -377,7 +377,7 @@ describe('live frame erasure', () => {
       if (step.kind === 'resize') term.resize(step.columns)
       else term.write(step.text)
     }
-    const rows = term.copied().filter((line) => line.includes('Ask dsh anything'))
+    const rows = term.copied().filter(line => line.includes('Ask dsh anything'))
     expect(rows).toHaveLength(1)
     expect(rows[0]?.trimEnd().endsWith('│')).toBe(true)
   })

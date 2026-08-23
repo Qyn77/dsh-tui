@@ -15,7 +15,7 @@ import { apply, Config, internals, name } from '../src/index.ts'
 describe('tui plugin shape', () => {
   it('exports the stable Cordis plugin name and accepts an empty config', () => {
     expect(name).toBe('tui-runner')
-    expect(new Config({} as never)).toEqual({})
+    expect(new Config({})).toEqual({})
   })
 
   it('exposes internals streams for tests to substitute', () => {
@@ -66,7 +66,7 @@ describe('tui runner apply()', () => {
     // agents service resolves to a no-op agent.
     const ctx = new Context()
     let release: () => void = () => {}
-    const settlement = new Promise<void>(resolve => { release = resolve })
+    const settlement = new Promise<void>((resolve) => { release = resolve })
     ctx.provide('loader', { await: () => settlement } as never)
     ctx.provide('agentDefaultModel', {
       currentSelection: () => ({ provider: 'p', model: 'm' }),
@@ -100,7 +100,7 @@ describe('tui runner apply()', () => {
     // banner) makes React swallow errors thrown there. Asserting our own
     // failure path keeps that guarantee from rotting — a silent hang is
     // what the alternative looks like.
-    apply(ctx, {} as never)
+    apply(ctx, {})
     release()
     await new Promise(resolve => setTimeout(resolve, 100))
     expect(err).toMatch(/not a TTY/i)

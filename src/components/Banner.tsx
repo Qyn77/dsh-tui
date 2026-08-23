@@ -176,14 +176,14 @@ export function renderBlockWord(word: string): string[] {
       rows[r] += `${glyph[r]} `
     }
   }
-  return rows.map((row) => row.trimEnd())
+  return rows.map(row => row.trimEnd())
 }
 
 /** Pre-rendered so the block type is computed once, not per keystroke. */
 const DEEPSEEK_ROWS = renderBlockWord('DEEPSEEK')
 const HARNESS_ROWS = renderBlockWord('HARNESS')
 
-const WHALE_WIDTH = Math.max(...WHALE_ROWS.map((r) => r.text.length))
+const WHALE_WIDTH = Math.max(...WHALE_ROWS.map(r => r.text.length))
 /**
  * Width of the block-letter wordmark, and therefore of the right-hand
  * column. Both columns pin an explicit width so the art lands at its
@@ -192,7 +192,7 @@ const WHALE_WIDTH = Math.max(...WHALE_ROWS.map((r) => r.text.length))
  * the one failure Ink cannot recover from (see the note on
  * {@link Banner}).
  */
-const WORDMARK_WIDTH = Math.max(...renderBlockWord('DEEPSEEK').map((r) => r.length))
+const WORDMARK_WIDTH = Math.max(...renderBlockWord('DEEPSEEK').map(r => r.length))
 const COLUMN_GAP = 3
 /** Frame border (2) plus `paddingX={2}` on both sides (4). */
 const FRAME_PADDING = 6

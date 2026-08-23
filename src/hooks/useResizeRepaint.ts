@@ -68,7 +68,7 @@ export function useResizeRepaint(quietMs: number = QUIET_MS, onResizeCallback?: 
   const { stdout, write } = useStdout()
   useEffect(() => {
     if (stdout === undefined || typeof stdout.on !== 'function') return
-    if (stdout.isTTY === true) return
+    if (stdout.isTTY) return
     let timer: NodeJS.Timeout | undefined
     const onResize = (): void => {
       // Test/dry-run streams do not model a real terminal screen; keep their

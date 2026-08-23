@@ -44,7 +44,7 @@ describe('parseMarkdown', () => {
 
   it('parses headings with the right level', () => {
     const blocks = parseMarkdown('# H1\n\n## H2\n\n###### H6')
-    const headings = blocks.filter((b) => b.kind === 'heading')
+    const headings = blocks.filter(b => b.kind === 'heading')
     expect(headings).toHaveLength(3)
     expect(headings[0]).toMatchObject({ kind: 'heading', level: 1 })
     expect(headings[1]).toMatchObject({ kind: 'heading', level: 2 })
@@ -103,7 +103,7 @@ describe('parseMarkdown', () => {
     expect(list?.kind === 'list' && list.ordered).toBe(false)
     if (list?.kind === 'list') {
       expect(list.items).toHaveLength(3)
-      expect(list.items.map((c) => inlineToText(c))).toEqual(['one', 'two', 'three'])
+      expect(list.items.map(c => inlineToText(c))).toEqual(['one', 'two', 'three'])
     }
   })
 
@@ -128,13 +128,13 @@ describe('parseMarkdown', () => {
 
   it('parses a thematic break from `---`', () => {
     const blocks = parseMarkdown('above\n\n---\n\nbelow')
-    expect(blocks.some((b) => b.kind === 'thematic-break')).toBe(true)
+    expect(blocks.some(b => b.kind === 'thematic-break')).toBe(true)
   })
 
   it('handles a multi-block document in order', () => {
     const md = '# Title\n\nintro\n\n```js\nx\n```\n\n- a\n- b'
     const blocks = parseMarkdown(md)
-    expect(blocks.map((b) => b.kind)).toEqual([
+    expect(blocks.map(b => b.kind)).toEqual([
       'heading', 'paragraph', 'code-block', 'list',
     ])
   })
