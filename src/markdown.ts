@@ -16,7 +16,7 @@
  * @module @deepseek-ai/dsh-tui/markdown
  */
 
-import { marked, type Token } from 'marked'
+import { marked, type MarkedToken, type Token } from 'marked'
 
 /** Inline node — rendered inline with surrounding text. */
 export type InlineNode =
@@ -87,34 +87,60 @@ function pushText(out: InlineNode[], text: string): void {
   out.push({ kind: 'text', text: stripLeadingIndent(text) })
 }
 
+/**
+ * Narrow marked's `Token[]` to its closed `MarkedToken` union.
+ *
+ * `Token` is `MarkedToken | Tokens.Generic`, and `Generic` declares
+ * `[index: string]: any` alongside `type: string`. Because its `type` is the
+ * open `string`, no `switch (tok.type)` in this file can ever exclude it, so
+ * every `tok.text`, `tok.href` and `tok.tokens` read below silently resolved
+ * through that index signature as `any`. Two things followed: the walkers were
+ * unchecked (a renamed marked field would have compiled and produced empty
+ * output at runtime), and `case 'tag'` survived as dead code — no member of
+ * `MarkedToken` carries that type, and only `Generic` made it typecheck.
+ *
+ * marked emits `Generic` only for tokens created by custom extensions. This
+ * package registers none — `marked.lexer` is called bare below — so the cast
+ * is sound today. Registering an extension is what would invalidate it, and
+ * this is the one place to revisit if that ever happens.
+ * @param tokens - a token list from marked, at any nesting depth.
+ * @returns the same list, typed as the closed union.
+ */
+function closed(tokens: readonly Token[]): readonly MarkedToken[] {
+  return tokens as readonly MarkedToken[]
+}
+
 /** Walk a marked inline-token list into our own inline AST. */
-function walkInline(tokens: readonly Token[]): InlineNode[] {
-  const out: InlineNode[] = []
+function walkInline(tokens: readonly MarkedToken[]): InlineNode[] {  const out: InlineNode[] = []
   for (const tok of tokens) {
     walkOneInline(tok, out)
   }
   return out
 }
 
-function walkOneInline(tok: Token, out: InlineNode[]): void {
+function walkOneInline(tok: MarkedToken, out: InlineNode[]): void {
   switch (tok.type) {
     case 'text': {
       // `text` may carry nested inline tokens (links, em, strong).
       if (tok.tokens && tok.tokens.length > 0) {
-        for (const inner of tok.tokens) walkOneInline(inner, out)
+        for (const inner of closed(tok.tokens)) walkOneInline(inner, out)
         return
       }
       pushText(out, tok.text ?? '')
       return
     }
+    // `escape` and `image` both reduce to their literal text: an escape is
+    // the character it escaped, and an image has no terminal analog, so its
+    // alt text is the most useful thing left to show.
     case 'escape':
+    case 'image':
       pushText(out, tok.text ?? '')
       return
     case 'strong':
-      out.push({ kind: 'bold', children: walkInline(tok.tokens ?? []) })
+      out.push({ kind: 'bold', children: walkInline(closed(tok.tokens ?? [])) })
       return
     case 'em':
-      out.push({ kind: 'italic', children: walkInline(tok.tokens ?? []) })
+      out.push({ kind: 'italic', children: walkInline(closed(tok.tokens ?? [])) })
       return
     case 'codespan':
       out.push({ kind: 'code', text: tok.text ?? '' })
@@ -132,21 +158,19 @@ function walkOneInline(tok: Token, out: InlineNode[]): void {
       out.push({ kind: 'link', href: tok.href ?? '', children })
       return
     }
-    case 'image':
-      // No terminal analog; fall through to a plain text marker.
-      pushText(out, tok.text ?? '')
-      return
     case 'del':
       // Strikethrough has no clean SGR; keep the inner text plain.
-      for (const inner of walkInline(tok.tokens ?? [])) out.push(inner)
+      for (const inner of walkInline(closed(tok.tokens ?? []))) out.push(inner)
       return
     case 'checkbox':
       pushText(out, tok.checked ? '[x] ' : '[ ] ')
       return
     case 'html':
-    case 'tag':
       // Strip raw HTML — Ink cannot safely render it, and an LLM
-      // emitting `<script>` should never reach the user.
+      // emitting `<script>` should never reach the user. marked reports
+      // inline tags as `html` too (`Tokens.Tag.type` is `"html"`), so this
+      // one case covers both; a separate `case 'tag'` used to sit here and
+      // was unreachable.
       return
     default:
       pushText(out, extractRaw(tok))
@@ -155,21 +179,21 @@ function walkOneInline(tok: Token, out: InlineNode[]): void {
 }
 
 /** Walk a marked block-token list into our own block AST. */
-function walkBlock(tokens: readonly Token[]): BlockNode[] {
+function walkBlock(tokens: readonly MarkedToken[]): BlockNode[] {
   const out: BlockNode[] = []
   for (const tok of tokens) walkOneBlock(tok, out)
   return out
 }
 
-function walkOneBlock(tok: Token, out: BlockNode[]): void {
+function walkOneBlock(tok: MarkedToken, out: BlockNode[]): void {
   switch (tok.type) {
     case 'heading': {
       const level = Math.min(6, Math.max(1, tok.depth)) as 1 | 2 | 3 | 4 | 5 | 6
-      out.push({ kind: 'heading', level, children: walkInline(tok.tokens ?? []) })
+      out.push({ kind: 'heading', level, children: walkInline(closed(tok.tokens ?? [])) })
       return
     }
     case 'paragraph':
-      out.push({ kind: 'paragraph', children: walkInline(tok.tokens ?? []) })
+      out.push({ kind: 'paragraph', children: walkInline(closed(tok.tokens ?? [])) })
       return
     case 'code': {
       const lang = (tok.lang ?? '').trim().split(/\s+/)[0] ?? ''
@@ -183,7 +207,7 @@ function walkOneBlock(tok: Token, out: BlockNode[]): void {
       const children: InlineNode[] = []
       for (const inner of tok.tokens ?? []) {
         if (inner.type === 'paragraph' || inner.type === 'text') {
-          for (const node of walkInline(inner.tokens ?? [])) children.push(node)
+          for (const node of walkInline(closed(inner.tokens ?? []))) children.push(node)
           pushText(children, '\n')
         }
       }
@@ -199,9 +223,9 @@ function walkOneBlock(tok: Token, out: BlockNode[]): void {
       for (const item of tok.items ?? []) {
         // Each list item holds its content as nested tokens; flatten
         // them into one inline stream per item.
-        items.push(flattenListItem(item.tokens ?? []))
+        items.push(flattenListItem(closed(item.tokens ?? [])))
       }
-      out.push({ kind: 'list', ordered: Boolean(tok.ordered), items })
+      out.push({ kind: 'list', ordered: tok.ordered, items })
       return
     }
     case 'hr':
@@ -223,11 +247,11 @@ function walkOneBlock(tok: Token, out: BlockNode[]): void {
   }
 }
 
-function flattenListItem(tokens: readonly Token[]): InlineNode[] {
+function flattenListItem(tokens: readonly MarkedToken[]): InlineNode[] {
   const out: InlineNode[] = []
   for (const tok of tokens) {
     if (tok.type === 'paragraph' || tok.type === 'text') {
-      for (const inner of walkInline(tok.tokens ?? [])) out.push(inner)
+      for (const inner of walkInline(closed(tok.tokens ?? []))) out.push(inner)
     } else if (tok.type === 'code') {
       out.push({ kind: 'code', text: tok.text ?? '' })
     } else {
@@ -238,7 +262,7 @@ function flattenListItem(tokens: readonly Token[]): InlineNode[] {
 }
 
 /** Pull the `raw` field off any token (always present on marked tokens). */
-function extractRaw(tok: Token): string {
+function extractRaw(tok: MarkedToken): string {
   // `raw` is a string on every concrete token. The union type widens
   // it through `Generic`, so we narrow with a typeof check.
   const raw = (tok as { raw?: unknown }).raw
@@ -272,7 +296,7 @@ export function parseMarkdown(text: string): BlockNode[] {
     return [{ kind: 'paragraph', children: [{ kind: 'text', text: cleaned }] }]
   }
   try {
-    return walkBlock(tokens)
+    return walkBlock(closed(tokens))
   } catch {
     return [{ kind: 'paragraph', children: [{ kind: 'text', text: cleaned }] }]
   }
