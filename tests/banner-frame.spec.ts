@@ -18,6 +18,10 @@ import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { Box, render } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
+// `strip` is shared with the other frame tests: the widths asserted here must
+// be measured the same way, and this file used to keep a narrower copy that
+// missed private-mode sequences like `\x1b[?1007h`.
+import { strip } from './fake-tty.ts'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { Banner } from '../src/components/Banner.tsx'
 import { displayWidth } from '../src/width.ts'
@@ -70,15 +74,12 @@ function fakeTtyStdin(): NodeJS.ReadStream {
     unref: () => stdin,
     resume: () => stdin,
     pause: () => stdin,
-  }) as never
+  })
 }
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 const sessionId = SessionId('tui-0f3a91c2-77bd-4e51-9a0c-1d2e3f4a5b6c')
 
-/** Strip the SGR/cursor escapes so the widths measured are the visible ones. */
-// eslint-disable-next-line no-control-regex
-const strip = (frame: string): string => frame.replace(/\[[0-9;]*[A-Za-z]/g, '')
 
 /**
  * Render the banner the way `renderer.tsx` does — inside a full-height
@@ -102,7 +103,7 @@ async function paint(columns: number): Promise<{
   const settle = (): Promise<void> => new Promise((resolve) => { setTimeout(resolve, 20) })
   await settle()
   return {
-    frame: () => strip(stdout.frames.at(-1) ?? '').split('\n').filter((l) => l !== ''),
+    frame: () => strip(stdout.frames.at(-1) ?? '').split('\n').filter(l => l !== ''),
     async resize(next: number) {
       stdout.resize(next)
       await settle()

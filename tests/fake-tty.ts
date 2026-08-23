@@ -64,12 +64,22 @@ export function fakeTtyStdin(): NodeJS.ReadStream & { send: (data: string) => vo
       queue.push(data)
       ;(stdin as unknown as EventEmitter).emit('readable')
     },
-  }) as never
+  })
 }
 
-/** Strip SGR/cursor escapes so assertions read the visible characters. */
-// eslint-disable-next-line no-control-regex
-export const strip = (frame: string): string => frame.replace(/\[[0-9;?]*[A-Za-z]/g, '')
+/**
+ * Strip SGR/cursor escapes so assertions read the visible characters.
+ *
+ * The `ESC` prefix is part of the match on purpose. Without it the pattern
+ * consumes only the `[2J` half of `\x1b[2J` and leaves the bare ESC byte
+ * behind, so `screen()` returned a string that looked visually clean but still
+ * carried one invisible character per escape — enough to skew any assertion
+ * that measures a width or compares a whole line. `ESC` is built with
+ * `String.fromCharCode` rather than written literally so this file holds no
+ * raw control character.
+ */
+export const strip = (frame: string): string =>
+  frame.replace(new RegExp(`${ESC}\\[[0-9;?]*[A-Za-z]`, 'g'), '')
 
 /**
  * Seed a session with `turns` question/answer pairs. Two entries per turn,
@@ -141,7 +151,7 @@ export async function paintApp(
     React.createElement(App, { ctx, agent: agent as never, exit: () => {} }),
     {
       stdout: stdout as never,
-      stdin: stdin as never,
+      stdin: stdin,
       patchConsole: false,
       exitOnCtrlC: false,
       debug: true,

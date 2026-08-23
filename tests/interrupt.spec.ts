@@ -59,7 +59,7 @@ describe('handleInterrupt', () => {
   it('uses code 0 to signal a clean exit (not an error code)', () => {
     const { deps, exit } = makeDeps({ status: 'idle' })
     handleInterrupt(deps)
-    const code = exit.mock.calls[0]?.[0]
+    const code: unknown = exit.mock.calls[0]?.[0]
     expect(code).toBe(0)
   })
 
