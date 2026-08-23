@@ -257,6 +257,7 @@ src/
 ├── invariant.ts             Empty package-invariant companion
 ├── scroll.ts                Pure scroll math + key/mouse parsing
 ├── prompt-layout.ts         Pure input fold, caret, window, scrollbar
+├── message-layout.ts        Pure gutter glyphs, tool call + result summaries
 ├── width.ts                 Pure display width (CJK counts as two columns)
 ├── hooks/
 │   ├── useSessionEvents.ts  Replay log + subscribe to session/event
@@ -264,7 +265,7 @@ src/
 │   └── useResizeRepaint.ts  Non-TTY resize regression harness
 └── components/
     ├── StatusBar.tsx        Top: model · session · status · tokens
-    ├── MessageList.tsx      Middle: user / assistant / tool / compaction
+    ├── MessageList.tsx      Middle: glyph-gutter conversation viewport
     └── Prompt.tsx           Bottom: auto-growing input box, capped at 10 rows
 
 tests/                       vitest specs for state, commands, apply()

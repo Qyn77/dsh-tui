@@ -249,6 +249,7 @@ src/
 ├── invariant.ts             空的 package-invariant companion
 ├── scroll.ts                纯滚动算术 + 按键/鼠标解析
 ├── prompt-layout.ts         纯输入折行、光标、可视窗口、滚动条
+├── message-layout.ts        纯字形栏字符、工具调用与结果摘要
 ├── width.ts                 纯显示宽度（CJK 占两列）
 ├── hooks/
 │   ├── useSessionEvents.ts  回放 log + 订阅 session/event
@@ -256,7 +257,7 @@ src/
 │   └── useResizeRepaint.ts  非 TTY resize 回归测试辅助
 └── components/
     ├── StatusBar.tsx        顶部：模型 · session · 状态 · token
-    ├── MessageList.tsx      中部：user / assistant / tool / compaction
+    ├── MessageList.tsx      中部：字形栏对话视口
     └── Prompt.tsx           底部：自动增高的输入框，最多 10 行
 
 tests/                       state、commands、apply() 的 vitest 单元测试

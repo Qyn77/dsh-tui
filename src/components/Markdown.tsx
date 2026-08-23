@@ -39,24 +39,52 @@ export function Markdown({ source }: MarkdownProps): ReactNode {
   return (
     <Box flexDirection="column">
       {blocks.map((block, idx) => (
-        <BlockRow key={idx} block={block} />
+        <BlockRow
+          key={idx}
+          block={block}
+          first={idx === 0}
+          last={idx === blocks.length - 1}
+        />
       ))}
     </Box>
   )
 }
 
-function BlockRow({ block }: { block: BlockNode }): ReactNode {
+/**
+ * One markdown block, spaced against its siblings but not against its
+ * container.
+ *
+ * Blocks are separated by a blank row — without it, model-written lyrics and
+ * dialog look smushed together (§1.9). Ink does not collapse margins, so that
+ * row has to be suppressed at the document's outer edges: a markdown document
+ * padding its own top and bottom would put a blank row between an assistant
+ * turn's header and its first line, and another before the next entry, on top
+ * of whatever spacing the conversation itself asked for.
+ */
+function BlockRow({ block, first, last }: {
+  block: BlockNode
+  /** First block in the document — no leading blank row. */
+  first: boolean
+  /** Last block in the document — no trailing blank row. */
+  last: boolean
+}): ReactNode {
+  const top = first ? 0 : 1
+  const bottom = last ? 0 : 1
   switch (block.kind) {
     case 'heading':
-      return <HeadingBlock level={block.level}>{block.children}</HeadingBlock>
+      return (
+        <HeadingBlock level={block.level} marginTop={top} marginBottom={bottom}>
+          {block.children}
+        </HeadingBlock>
+      )
     case 'paragraph':
-      // `marginY={1}` gives one line of breathing room between
-      // paragraphs (and between a paragraph and the next block).
-      // Without it, model-written song lyrics and dialog look
-      // smushed against the surrounding blocks. See §1.9.
-      return <Box marginY={1}><Inlines nodes={block.children} /></Box>
+      return (
+        <Box marginTop={top} marginBottom={bottom}>
+          <Inlines nodes={block.children} />
+        </Box>
+      )
     case 'code-block':
-      return <CodeBlock lang={block.lang} text={block.text} />
+      return <CodeBlock lang={block.lang} text={block.text} marginTop={top} marginBottom={bottom} />
     case 'list':
       return <ListBlock ordered={block.ordered} items={block.items} />
     case 'blockquote':
@@ -66,13 +94,15 @@ function BlockRow({ block }: { block: BlockNode }): ReactNode {
   }
 }
 
-function HeadingBlock({ level, children }: {
+function HeadingBlock({ level, children, marginTop, marginBottom }: {
   level: 1 | 2 | 3 | 4 | 5 | 6
   children: InlineNode[]
+  marginTop: number
+  marginBottom: number
 }): ReactNode {
   const color = level <= 2 ? 'cyan' : level === 3 ? 'magenta' : 'gray'
   return (
-    <Box marginY={1}>
+    <Box marginTop={marginTop} marginBottom={marginBottom}>
       <Text bold color={color}>
         <Inlines nodes={children} />
       </Text>
@@ -80,10 +110,22 @@ function HeadingBlock({ level, children }: {
   )
 }
 
-function CodeBlock({ lang, text }: { lang: string; text: string }): ReactNode {
+function CodeBlock({ lang, text, marginTop, marginBottom }: {
+  lang: string
+  text: string
+  marginTop: number
+  marginBottom: number
+}): ReactNode {
   const label = lang === '' ? '' : lang
   return (
-    <Box flexDirection="column" marginY={1} borderStyle="round" borderColor="gray" paddingX={1}>
+    <Box
+      flexDirection="column"
+      marginTop={marginTop}
+      marginBottom={marginBottom}
+      borderStyle="round"
+      borderColor="gray"
+      paddingX={1}
+    >
       {label !== '' && (
         <Box>
           <Text color="gray">code · </Text>

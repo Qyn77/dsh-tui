@@ -125,13 +125,19 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 |---|---|---|
 | Banner | `round` `#4D6BFE` | Startup splash; brand blue frames the art. |
 | StatusBar | `round` `#4D6BFE` | Persistent chrome in the same brand blue as the banner above it. |
-| Tool card | `round` (`╭─╮│╰─╯`) | Friendly, distinct from the status bar. |
 | Prompt | `round` (`╭─╮│╰─╯`) | Affordance for an empty input. Cyan when active, gray when a turn is running. |
+| Tool call | none | A marked line, not a block; see the gutter below. |
 | User message | none | Floats freely; reads as text, not as a frame. |
 | Assistant message | none | Floats freely. |
 | Note / compaction / plan | none | Single lines, prefixed with `⤷`. |
 
-Frames are reserved for **persistent chrome** (status bar, prompt) and **self-contained blocks** (tool cards). Message text never gets a frame.
+Frames are reserved for **persistent chrome** — the status bar and the prompt. Nothing in the conversation gets a frame.
+
+**The conversation is a glyph gutter.** Every entry renders as a fixed two-cell marker column beside a body column: `⏺` for an assistant turn or a tool call, `>` for a user line, `⎿` for a tool's outcome hanging under its call, `⤷` for a lifecycle note. The two-column form is what gives wrapped text a hanging indent — a long turn continues under the body, never back under the marker — and it keeps the conversation's left edge on one column regardless of what an entry is. Entries are separated by a single blank row, applied as a top margin so a tool's outcome stays welded to the call above it.
+
+A tool call is **one line**, `Read(src/scroll.ts) ✓`, with its result abridged to one line beneath. It was a `round`-bordered card through rc.7: four rows of frame before any content, and two columns of extra indent for everything inside it. A transcript is mostly tool calls, so their per-entry overhead is what decides how much conversation fits on screen — the card cost more than it explained. Which argument becomes the subject in `Name(subject)` is chosen by convention (`file_path`, `command`, `pattern`, …) rather than by tool name, because this package does not own the tool registry and cannot enumerate it.
+
+The glyphs, the gutter width, and the one-line summaries live in [`src/message-layout.ts`](./../src/message-layout.ts) as pure functions, and `src/scroll.ts` reads them to estimate how many rows an entry costs. That sharing is load-bearing: the estimate decides how much history stays mounted, and an estimate that *over*-counts stops the mount short of the offset the user is scrolling to, which puts the oldest entries out of reach.
 
 **The prompt cursor.** Ink hides the terminal cursor while in raw mode, so the Prompt renders its own. A stable `▌` (LEFT HALF BLOCK, `cyan` bold) sits at the end of the input whenever the prompt is active. During a running turn the cursor disappears, so a locked prompt never visually invites input. The placeholder switches to `… working` in the same step.
 
@@ -145,12 +151,13 @@ The palette is theme-aware. Both light and dark terminals are first-class; `NO_C
 | DeepSeek blue, light | `#9BADFF` | `HARNESS` wordmark; the whale's belly row. |
 | App brand | `cyan` bold | `>` in the prompt; slash palette border and command names. |
 | Model name | `green` | `provider/model` in the StatusBar. |
-| User label | `blue` bold | `you` prefix on user messages. |
-| Assistant label | `magenta` bold | `assistant` prefix on assistant messages. |
-| Tool name | `cyan` bold | Inside tool cards. |
-| Tool success border + label | `green` | Tool card with `ok` status; `✓ done`. |
-| Tool running border | `yellow` | Tool card with `running` status; `… running`. |
-| Tool error border + label | `red` | Tool card with `error` status; `✗ error`. |
+| User marker | `blue` | `>` in the gutter of a user line. |
+| Assistant marker + label | `magenta` bold | `⏺` in the gutter; `assistant` in the metadata header. |
+| Tool name | bold | The `Name(subject)` line. |
+| Tool marker + status — ok | `green` | `⏺` on the call line; `✓`. |
+| Tool marker + status — running | `yellow` | `⏺` on the call line; `…`. |
+| Tool marker + status — error | `red` | `⏺` on the call line; `✗`; the `⎿ Name: code` row. |
+| Tool result | `gray` dim | The `⎿` row under a call. |
 | Run state — idle | `gray` | StatusBar status glyph. |
 | Run state — running | `yellow` | StatusBar status glyph. |
 | Streaming | `yellow` | `· streaming` suffix on the assistant block. |
@@ -238,23 +245,23 @@ so a half-written multi-row message can never lock the log shut.
 
 ### 1.7 Text conventions
 
-- User messages prefixed with `you` label in the MessageList; not echoed in the prompt itself.
-- Assistant text starts after the `assistant` label; the turn/step counter is meta and goes in `gray`.
-- Tool call results prefixed with the exit status: `✓ done`, `✗ error`, `… running`.
+- User messages are marked with `>` in the gutter and carry no label. The marker already says whose line it is, and a user message has no metadata to hang off a header row — so the text sits on the marker's own row.
+- Assistant turns keep a header row, `assistant · turn N step N`, because they *do* have metadata; the counter is meta and goes in `gray`. The body starts on the next row.
+- Tool calls carry their status as a trailing glyph on the call line: `✓`, `✗`, `…`.
 - Errors prefixed with `Error:` and rendered in `red`.
 - Notes / compactions / plan toggles use the `⤷` prefix and a single-line layout.
-- **Runtime context** (a `user/message` event whose `source.kind` is not `user`, per dsh-session's contract) renders as `⤷ runtime context · <plugin> (<form>)` with a short dimmed preview (≤ 80 chars) of the injected payload. It does **not** get the `you` label — that would falsely attribute the agent's system context to the human at the keyboard. The reducer routes on the typed `source` field, never on text sniffing.
+- **Runtime context** (a `user/message` event whose `source.kind` is not `user`, per dsh-session's contract) renders as `⤷ runtime context · <plugin> (<form>)` with a short dimmed preview (≤ 80 chars) of the injected payload. It takes the note marker, **not** the user's `>` — the latter would falsely attribute the agent's system context to the human at the keyboard. The reducer routes on the typed `source` field, never on text sniffing.
 
 ### 1.8 Rendering rules
 
-- **Width-aware.** Layout re-measures on terminal `resize`. No hard-coded widths beyond 80 chars; long output truncates with `…` (see `truncate(text, 240)` in the tool card).
+- **Width-aware.** Layout re-measures on terminal `resize`. No hard-coded widths beyond 80 chars; long output truncates with `…` (see `truncate` in [`src/message-layout.ts`](./../src/message-layout.ts), which caps a call's subject and its result summary separately).
 - **No flicker.** Already-emitted messages are static; only the streaming assistant block, the running tool, and the StatusBar re-render.
 - **TTY required.** The runner refuses to start without a TTY and prints a one-line error to stderr. Plain pipes are not a use case. The check is the first thing `run()` in `index.ts` does — before the loader await, so it costs nothing and no Session is created. It is ours rather than Ink's on purpose: Ink reports the same condition by throwing from inside `useInput`'s *passive effect*, and `<Static>` (which the banner uses) makes React swallow errors thrown there, turning the failure into a silent hang. See Part 1 banner rule 7.
 - **Graceful shutdown.** In raw mode, Ink receives Ctrl-C as a keypress rather than `SIGINT`. While a turn is running it cancels the turn. While idle it unmounts Ink first (restoring the terminal), then triggers the same launcher `ctx.appExit` path as `/exit`. The runner never calls `process.exit` outside `commands.ts` and `index.ts`. See [Lessons → Ctrl-C shutdown](./lessons/ctrl-c-shutdown.md) for the investigation playbook behind this ordering.
 
 ### 1.9 Markdown rendering
 
-Finalized assistant turns render a curated subset of GitHub-flavored markdown. The parser lives in [src/markdown.ts](../src/markdown.ts) (pure, no React, no Ink) and the Ink renderer in [src/components/Markdown.tsx](../src/components/Markdown.tsx). Only the assistant block is markdown-aware; user messages, tool cards, and notes remain plain text.
+Finalized assistant turns render a curated subset of GitHub-flavored markdown. The parser lives in [src/markdown.ts](../src/markdown.ts) (pure, no React, no Ink) and the Ink renderer in [src/components/Markdown.tsx](../src/components/Markdown.tsx). Only the assistant block is markdown-aware; user messages, tool calls, and notes remain plain text.
 
 | Construct | Terminal style |
 |---|---|
@@ -272,7 +279,7 @@ Finalized assistant turns render a curated subset of GitHub-flavored markdown. T
 
 Raw HTML (`<script>`, etc.) is stripped before the AST is built — see §3.1. Unclosed fences and stray delimiters fall back to a plain `paragraph` so the chat surface never goes blank.
 
-**Spacing and indent normalization.** Paragraphs render with one line of vertical breathing room (`marginY=1`) above and below, so model-written song lyrics and dialog don't look smushed against surrounding blocks. The parser pre-strips every leading space and tab at the start of each newline-continued line — the strip runs at the parse boundary (pre-`marked.lexer`) so the model's habit of hand-indenting continuation lines by 10+ spaces does not promote blank-line-separated blocks to a `╭─╮` code frame under CommonMark's 4-space rule. The renderer then applies a uniform **2-space hanging indent** to every soft line break in a text node — a `\n` not followed by another `\n` — so lyrics and dialog continuations read as a hanging indent rather than flush-left (the pre-strip's output) or right-shifted (the model's own 10+-space input). Blank lines (`\n\n`) are preserved end-to-end. Spaces at the very start of the text, and spaces between inline elements (`**bold**` and the next word), are preserved. The indent constant lives in [`src/markdown.ts`](./../src/markdown.ts) as `HANGING_INDENT`; the transform is `applyHangingIndent`.
+**Spacing and indent normalization.** Paragraphs render with one line of vertical breathing room above and below, so model-written song lyrics and dialog don't look smushed against surrounding blocks. That row is suppressed at the document's own outer edges — a markdown document does not pad its container, because Ink does not collapse margins and the conversation has already decided how much space sits between one entry and the next. The parser pre-strips every leading space and tab at the start of each newline-continued line — the strip runs at the parse boundary (pre-`marked.lexer`) so the model's habit of hand-indenting continuation lines by 10+ spaces does not promote blank-line-separated blocks to a `╭─╮` code frame under CommonMark's 4-space rule. The renderer then applies a uniform **2-space hanging indent** to every soft line break in a text node — a `\n` not followed by another `\n` — so lyrics and dialog continuations read as a hanging indent rather than flush-left (the pre-strip's output) or right-shifted (the model's own 10+-space input). Blank lines (`\n\n`) are preserved end-to-end. Spaces at the very start of the text, and spaces between inline elements (`**bold**` and the next word), are preserved. The indent constant lives in [`src/markdown.ts`](./../src/markdown.ts) as `HANGING_INDENT`; the transform is `applyHangingIndent`.
 
 **Streaming rule.** While a turn is still receiving `assistant/chunk` events, the assistant block stays as raw text. The block re-renders as markdown on the `assistant/message` finalization event. This avoids re-parsing partial input on every keystroke of the model — a half-open code fence or a closing `*` that hasn't arrived yet would otherwise churn the layout, in tension with the lesson in [docs/lessons/prompt-scroll-snaps.md](./lessons/prompt-scroll-snaps.md).
 

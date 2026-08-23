@@ -13,6 +13,7 @@
 
 import type { UiEntry } from './types.ts'
 import { userMessageText } from './types.ts'
+import { GUTTER_WIDTH, toolCallSummary, toolResultSummary } from './message-layout.ts'
 
 /**
  * Escape, built rather than quoted. Every control character in this
@@ -149,30 +150,44 @@ function textRows(text: string, width: number): number {
  * That is why a plain character count is good enough: it is exact for
  * ASCII and *under*-counts wide (CJK) glyphs, and under-counting is the
  * safe direction — it mounts more entries than needed, never fewer.
+ *
+ * The arithmetic tracks `MessageList`'s layout, so it has to move whenever
+ * that layout does. Every entry is a gutter row: one blank row of separation,
+ * then the rows its own text wraps to, indented by the gutter width. No
+ * border, no bottom margin. Over-counting here is the failure that bites — it
+ * stops the mount short of the history the offset is asking for, and the
+ * oldest entries become unreachable.
  */
 export function estimateEntryRows(entry: UiEntry, columns: number): number {
-  // Every block carries `marginY={1}`, so two rows before anything else.
-  const width = Math.max(1, columns - 6)
+  const width = Math.max(1, columns - GUTTER_WIDTH)
+  // Every entry carries `marginTop={1}` to separate it from the one above.
+  return 1 + entryBodyRows(entry, width)
+}
+
+/** Rows one entry's own content occupies, excluding its separating margin. */
+function entryBodyRows(entry: UiEntry, width: number): number {
   switch (entry.kind) {
     case 'user':
-      return 2 + 1 + textRows(userMessageText(entry.message) || ' ', width)
+      return textRows(userMessageText(entry.message) || ' ', width)
     case 'assistant':
       // Finalized turns re-render as markdown, which adds a blank row
       // between blocks; the raw text is the floor, which is the safe side.
-      return 2 + 1 + textRows(entry.text || ' ', width)
+      return 1 + textRows(entry.text || ' ', width)
     case 'tool': {
-      let rows = 2 + 2 + 1 // marginY, round border, header
-      if (entry.args) rows += textRows(entry.args.slice(0, 240), width)
-      if (entry.result) rows += 2
-      if (entry.error) rows += 2
+      // The call line, plus one line of outcome when there is one. Both
+      // summaries are collapsed to a single line before they are drawn, so
+      // they only cost more than a row by wrapping.
+      let rows = textRows(toolCallSummary(entry.name, entry.args), width)
+      if (entry.error !== undefined) rows += 1
+      else if (entry.result) rows += textRows(toolResultSummary(entry.result), width)
       return rows
     }
     case 'runtime-context':
-      return 2 + 1 + (entry.preview === '' ? 0 : textRows(entry.preview, width))
+      return 1 + (entry.preview === '' ? 0 : textRows(entry.preview, width))
     case 'note':
     case 'compaction':
     case 'plan':
-      return 2 + 1
+      return 1
     default: {
       const _exhaustive: never = entry
       return 1 + Number(Boolean(_exhaustive))

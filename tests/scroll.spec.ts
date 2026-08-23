@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { CallId, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { CallId, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import {
   clampOffset,
   estimateEntryRows,
@@ -37,6 +37,10 @@ function userEntry(text: string): UiEntry {
       source: { kind: 'user' },
     }),
   }
+}
+
+function assistantEntry(text: string): UiEntry {
+  return { kind: 'assistant', text, turn: 1, step: 1, finalized: true }
 }
 
 describe('page arithmetic', () => {
@@ -127,10 +131,16 @@ describe('parseNavKey', () => {
 })
 
 describe('estimateEntryRows', () => {
-  it('counts the chrome every block carries', () => {
-    // marginY (2) + header (1) + one row of text.
-    expect(estimateEntryRows(userEntry('hi'), 80)).toBe(4)
-    expect(estimateEntryRows({ kind: 'note', text: 'x' }, 80)).toBe(3)
+  it('charges an entry for its separator and the rows it draws', () => {
+    // One blank row of separation plus one row of text — no border, no bottom
+    // margin. Anything more would over-count, and over-counting is what puts
+    // history out of reach.
+    expect(estimateEntryRows(userEntry('hi'), 80)).toBe(2)
+    expect(estimateEntryRows({ kind: 'note', text: 'x' }, 80)).toBe(2)
+  })
+
+  it('adds the metadata header an assistant turn carries', () => {
+    expect(estimateEntryRows(assistantEntry('hi'), 80)).toBe(3)
   })
 
   it('grows with wrapped text', () => {
@@ -140,10 +150,10 @@ describe('estimateEntryRows', () => {
   })
 
   it('counts each hard line break', () => {
-    expect(estimateEntryRows(userEntry('a\nb\nc'), 80)).toBe(6)
+    expect(estimateEntryRows(userEntry('a\nb\nc'), 80)).toBe(4)
   })
 
-  it('counts a tool card down to its border rows', () => {
+  it('charges a pending tool call for its invocation line alone', () => {
     const rows = estimateEntryRows(
       {
         kind: 'tool',
@@ -156,8 +166,32 @@ describe('estimateEntryRows', () => {
       },
       80,
     )
-    // marginY 2 + border 2 + header 1 + args 1.
-    expect(rows).toBe(6)
+    // Separator plus `bash(ls)` — the outcome row appears once there is one.
+    expect(rows).toBe(2)
+  })
+
+  it('adds a row once the call has an outcome', () => {
+    const base = {
+      kind: 'tool',
+      callId: CallId('call-1'),
+      name: 'bash',
+      args: '{"command":"ls"}',
+      turn: 1,
+      step: 1,
+    } as const
+    const ok = estimateEntryRows(
+      {
+        ...base,
+        status: 'ok',
+        result: createToolResultMessage({
+          callId: CallId('call-1'),
+          content: [{ type: 'text', text: 'a.ts' }],
+          isError: false,
+        }),
+      },
+      80,
+    )
+    expect(ok).toBe(3)
   })
 })
 

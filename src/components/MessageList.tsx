@@ -1,6 +1,12 @@
 /**
  * The scrollable conversation area. Renders user messages, streaming
- * assistant text, tool call cards, and lifecycle notes.
+ * assistant text, tool calls, and lifecycle notes.
+ *
+ * Every entry kind draws through {@link Row}: a fixed-width marker column and
+ * a body column beside it. That uniformity is deliberate — it keeps the left
+ * edge of the conversation on one column no matter what an entry is, and it
+ * gives wrapped text a hanging indent for free. The markers and the row costs
+ * they imply live in `message-layout.ts`, which `scroll.ts` also reads.
  *
  * The viewport's height is **measured, not calculated**. It is a flex item
  * with a zero basis, so the layout hands it whatever the StatusBar and the
@@ -28,6 +34,16 @@ import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
 import type { UiEntry, UiState } from '../types.ts'
 import { userMessageText } from '../types.ts'
 import { windowStart } from '../scroll.ts'
+import {
+  ASSISTANT_GLYPH,
+  GUTTER_WIDTH,
+  NOTE_GLYPH,
+  RESULT_GLYPH,
+  USER_GLYPH,
+  toolCallSummary,
+  toolResultSummary,
+  toolStatusGlyph,
+} from '../message-layout.ts'
 import { Markdown } from './Markdown.tsx'
 
 /** Props for {@link MessageList}. */
@@ -51,54 +67,70 @@ const COMPACTION_LABELS: Record<Extract<UiEntry, { kind: 'compaction' }>['stage'
   end: 'compaction complete',
 }
 
-function ToolCard({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
-  const borderColor =
-    entry.status === 'error' ? 'red' : entry.status === 'ok' ? 'green' : 'yellow'
-  const statusLabel =
-    entry.status === 'error' ? '✗ error' : entry.status === 'ok' ? '✓ done' : '… running'
+/**
+ * One entry, drawn as a fixed-width marker column beside a body column.
+ *
+ * The two-column form is what gives wrapped text a hanging indent: a long
+ * assistant turn or a long tool path continues under the body, never back
+ * under the marker. `flexShrink={0}` on the marker keeps that true at narrow
+ * widths, where Ink would otherwise borrow the cells it needs from the
+ * narrowest column first.
+ *
+ * `marginTop` separates one entry from the next. It goes on the top rather
+ * than the bottom so a tool call's outcome, which lives inside the same row,
+ * stays welded to the call it belongs to.
+ */
+function Row({
+  glyph,
+  color,
+  dim = false,
+  children,
+}: {
+  glyph: string
+  color?: string
+  dim?: boolean
+  children: React.ReactNode
+}) {
   return (
-    <Box flexDirection="column" marginY={1} borderStyle="round" borderColor={borderColor} paddingX={1}>
-      <Box>
-        <Text color="gray">tool </Text>
-        <Text bold color="cyan">
-          {entry.name}
-        </Text>
-        <Text color="gray">  </Text>
-        <Text color={borderColor}>{statusLabel}</Text>
+    <Box marginTop={1}>
+      <Box width={GUTTER_WIDTH} flexShrink={0}>
+        <Text color={color} dimColor={dim}>{glyph}</Text>
       </Box>
-      {entry.args && (
-        <Box marginLeft={2}>
-          <Text color="gray">{truncate(entry.args, 240)}</Text>
-        </Box>
-      )}
-      {entry.result && (
-        <Box flexDirection="column" marginLeft={2} marginTop={1}>
-          <Text color="gray">result:</Text>
-          <Text>{summarizeResult(entry.result)}</Text>
-        </Box>
-      )}
-      {entry.error && (
-        <Box marginLeft={2} marginTop={1}>
-          <Text color="red">
-            {entry.error.name}: {entry.error.code}
-          </Text>
-        </Box>
-      )}
+      <Box flexDirection="column" flexGrow={1}>
+        {children}
+      </Box>
     </Box>
   )
 }
 
-function summarizeResult(message: { content: readonly { type: string; text?: string }[] }): string {
-  const text = message.content
-    .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
-    .map(b => b.text)
-    .join('')
-  return truncate(text, 400)
-}
-
-function truncate(text: string, max: number): string {
-  if (text.length <= max) return text
-  return `${text.slice(0, max - 1)}…`
+/**
+ * A tool call: the invocation on one row, its outcome hanging below.
+ *
+ * The round-bordered card this replaced cost four rows of frame before any
+ * content and pushed the conversation's own indentation two columns right. A
+ * transcript is mostly tool calls, so their per-entry overhead sets how much
+ * real conversation fits on screen.
+ */
+function ToolCall({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
+  const color = entry.status === 'error' ? 'red' : entry.status === 'ok' ? 'green' : 'yellow'
+  const result = entry.result ? toolResultSummary(entry.result) : ''
+  return (
+    <Row glyph={ASSISTANT_GLYPH} color={color}>
+      <Text>
+        <Text bold>{toolCallSummary(entry.name, entry.args)}</Text>
+        <Text color={color}> {toolStatusGlyph(entry.status)}</Text>
+      </Text>
+      {entry.error !== undefined ? (
+        <Text color="red">
+          {RESULT_GLYPH} {entry.error.name}: {entry.error.code}
+        </Text>
+      ) : result !== '' ? (
+        <Text dimColor>
+          {RESULT_GLYPH} {result}
+        </Text>
+      ) : null}
+    </Row>
+  )
 }
 
 function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant' }> }) {
@@ -110,67 +142,55 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
   // event, not on a timer, so it doesn't trigger the scroll-snap
   // regression that lives in `docs/lessons/prompt-scroll-snaps.md`.
   return (
-    <Box flexDirection="column" marginY={1} paddingX={1}>
-      <Box>
-        <Text color="magenta" bold>
-          assistant
-        </Text>
+    <Row glyph={ASSISTANT_GLYPH} color="magenta">
+      <Text>
+        <Text color="magenta" bold>assistant</Text>
         <Text color="gray"> · turn {entry.turn} step {entry.step}</Text>
         {!entry.finalized && <Text color="yellow"> · streaming</Text>}
-      </Box>
-      <Box marginLeft={2} flexDirection="column">
-        {entry.finalized ? (
-          <Markdown source={entry.text} />
-        ) : (
-          <Text>{entry.text || ' '}</Text>
-        )}
-      </Box>
-    </Box>
+      </Text>
+      {entry.finalized ? (
+        <Markdown source={entry.text} />
+      ) : (
+        <Text>{entry.text || ' '}</Text>
+      )}
+    </Row>
   )
 }
 
 function UserBlock({ entry }: { entry: Extract<UiEntry, { kind: 'user' }> }) {
+  // No `you` label: the marker already says whose line this is, and a user
+  // message carries no metadata to hang off a header row. Dropping it puts
+  // the text itself on the marker's row and saves a row per turn.
   return (
-    <Box flexDirection="column" marginY={1} paddingX={1}>
-      <Box>
-        <Text color="blue" bold>
-          you
-        </Text>
-      </Box>
-      <Box marginLeft={2}>
-        <Text>{userMessageText(entry.message) || ' '}</Text>
-      </Box>
-    </Box>
+    <Row glyph={USER_GLYPH} color="blue">
+      <Text>{userMessageText(entry.message) || ' '}</Text>
+    </Row>
   )
 }
 
 function NoteLine({ entry }: { entry: Extract<UiEntry, { kind: 'note' }> }) {
   return (
-    <Box marginY={1}>
-      <Text color="gray" dimColor>
-        {entry.text}
-      </Text>
-    </Box>
+    <Row glyph={NOTE_GLYPH} color="gray" dim>
+      <Text color="gray" dimColor>{entry.text}</Text>
+    </Row>
   )
 }
 
 function CompactionLine({ entry }: { entry: Extract<UiEntry, { kind: 'compaction' }> }) {
   return (
-    <Box marginY={1}>
-      <Text color="cyan" dimColor>
-        ⤷ {COMPACTION_LABELS[entry.stage]}
-      </Text>
-    </Box>
+    <Row glyph={NOTE_GLYPH} color="cyan" dim>
+      <Text color="cyan" dimColor>{COMPACTION_LABELS[entry.stage]}</Text>
+    </Row>
   )
 }
 
 function PlanLine({ entry }: { entry: Extract<UiEntry, { kind: 'plan' }> }) {
   return (
-    <Box marginY={1}>
+    <Row glyph={NOTE_GLYPH} color={entry.enabled ? 'yellow' : 'gray'} dim>
       <Text color={entry.enabled ? 'yellow' : 'gray'}>
-        ⤷ plan mode {entry.enabled ? 'on' : 'off'}
+        plan mode {entry.enabled ? 'on' : 'off'}
       </Text>
-    </Box>
+    </Row>
   )
 }
 
@@ -179,20 +199,14 @@ function RuntimeContextLine({ entry }: { entry: Extract<UiEntry, { kind: 'runtim
   // plugin injected this context (e.g. agent-instructions shipping a
   // <system-reminder>). The preview is a short, dimmed sample of the
   // payload — full text would crowd the chat surface.
-  const header = `⤷ runtime context${entry.plugin ? ` · ${entry.plugin}` : ''}${entry.form ? ` (${entry.form})` : ''}`
+  const header = `runtime context${entry.plugin ? ` · ${entry.plugin}` : ''}${entry.form ? ` (${entry.form})` : ''}`
   return (
-    <Box flexDirection="column" marginY={1}>
-      <Text color="gray" dimColor>
-        {header}
-      </Text>
+    <Row glyph={NOTE_GLYPH} color="gray" dim>
+      <Text color="gray" dimColor>{header}</Text>
       {entry.preview !== '' && (
-        <Box marginLeft={2}>
-          <Text color="gray" dimColor>
-            {entry.preview}
-          </Text>
-        </Box>
+        <Text color="gray" dimColor>{entry.preview}</Text>
       )}
-    </Box>
+    </Row>
   )
 }
 
@@ -203,7 +217,7 @@ function Entry({ entry }: { entry: UiEntry }) {
     case 'assistant':
       return <AssistantBlock entry={entry} />
     case 'tool':
-      return <ToolCard entry={entry} />
+      return <ToolCall entry={entry} />
     case 'note':
       return <NoteLine entry={entry} />
     case 'compaction':

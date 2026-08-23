@@ -84,7 +84,7 @@ The user must be able to read an ongoing session clearly:
 
 - replay session history
 - live session event projection
-- user messages, assistant messages, tool cards, notes, compaction events
+- user messages, assistant messages, tool calls, notes, compaction events
 - scroll to older history
 - auto-follow when the user is at the tail
 - explicit “hidden lines” indicator when scrolled up

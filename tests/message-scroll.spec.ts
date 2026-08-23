@@ -68,7 +68,11 @@ describe('message list viewport', () => {
     // `index.ts` asks for alternate scroll mode rather than mouse reporting,
     // so the terminal answers a wheel notch with cursor keys and keeps its
     // own click-to-select. Three notches up, one row each.
-    const painted = await paintApp({ turns: 10 })
+    //
+    // The terminal is short on purpose: the log has to stand more rows above
+    // the fold than the notches being sent, or the offset clamps at the top
+    // and the test measures the clamp instead of the step.
+    const painted = await paintApp({ turns: 10, rows: 20 })
     for (let notch = 0; notch < 3; notch += 1) await painted.send(`${ESC}[A`)
     const scrolledUp = painted.screen()
     await painted.send(`${ESC}[B`)
