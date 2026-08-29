@@ -162,6 +162,42 @@ describe('prompt editing', () => {
     expect(buffer(atEnd)).toContain('abcd▌')
   })
 
+  it('deletes the word before the caret on Ctrl-W', async () => {
+    const painted = await paintApp()
+    await painted.send('git commit')
+    await painted.send('\x17')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(buffer(screen)).toContain('git ▌')
+  })
+
+  it('deletes to the end of the buffer on Ctrl-K', async () => {
+    const painted = await paintApp()
+    await painted.send('git commit')
+    await painted.send('\x01')
+    await painted.send('\x0b')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // Caret to the start, then kill: the box is empty again, placeholder back.
+    expect(buffer(screen)).toContain('Ask dsh anything…')
+  })
+
+  it('walks the caret by words on Alt-B and Alt-F', async () => {
+    // Sent as the bytes a terminal sends for Option/Alt: ESC then the letter.
+    const painted = await paintApp()
+    await painted.send('git commit')
+    await painted.send(`${ESC}b`)
+    const back = painted.screen()
+    await painted.send(`${ESC}f`)
+    const forward = painted.screen()
+    painted.unmount()
+
+    expect(buffer(back)).toContain('git ▌commit')
+    expect(buffer(forward)).toContain('git commit▌')
+  })
+
   it('does not type a Ctrl- keystroke into the buffer', async () => {
     // Every Ctrl- binding the app has lives above the prompt. If one fell
     // through to the text path it would arrive as its bare letter, so

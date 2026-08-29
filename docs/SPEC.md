@@ -244,6 +244,9 @@ its way to someone else.
 | `Backspace` | Prompt | Delete the character before the caret |
 | `←` / `→` | Prompt | Move the caret one character |
 | `Ctrl-A` / `Ctrl-E` | Prompt | Caret to start / end of the buffer |
+| `Alt-B` / `Alt-F` | Prompt | Caret back / forward one word |
+| `Ctrl-W` | Prompt | Delete the word before the caret |
+| `Ctrl-K` | Prompt | Delete from the caret to the end of the buffer |
 | `Ctrl-J` | Prompt | Insert a newline |
 | `\` + `Enter` | Prompt | Insert a newline (the older escape; still works) |
 | `Tab` | Slash palette | Complete the highlighted command |
@@ -272,10 +275,23 @@ Two rows are decided rather than inherited, and both cost something:
   bearing of the two meanings. They are read off raw stdin rather than through
   `useInput` because Ink 5 does not decode them.
 
-The prompt enforces its side of this by handling exactly the `Ctrl-` keys
-listed above and returning for the rest — never falling through to the text
-path, where Ink would deliver a `Ctrl-` keystroke as its bare letter and type
-it. `tests/prompt-frame.spec.ts` pins that guard directly.
+There is also one binding that is *absent* rather than assigned. **Forward
+delete (the `Delete` key) is not implemented**, because Ink 5 cannot express
+it: `\x7f` — what the `Backspace` key sends — and `\x1b[3~` — what `Delete`
+sends — both arrive as `key.delete` with empty input, so a handler cannot tell
+which key the user pressed. Implementing it means reading the escape sequence
+off raw stdin, the same hatch `Home`/`End` use. That is a real cost for a key
+`Ctrl-K` and `Ctrl-W` already cover between them, so it stays unbuilt until
+somebody asks. A word on it is here so the next reader does not re-derive the
+`key.delete` collision from scratch.
+
+The prompt enforces its side of this by handling exactly the `Ctrl-` and
+`Alt-` keys listed above and returning for the rest — never falling through to
+the text path, where Ink would deliver a `Ctrl-` keystroke as its bare letter
+and type it. The `Alt-` branch has to sit *below* the `Esc` handling, because
+Ink sets `key.meta` for a lone `Esc` too; above it, `Esc` would be eaten by
+the word motions and never reach the palette.
+`tests/prompt-frame.spec.ts` pins the guard and both orderings directly.
 
 `↑`/`↓` appear four times on purpose: Ink dispatches every keystroke to
 *every* `useInput` handler and offers no way to stop one propagating, so the

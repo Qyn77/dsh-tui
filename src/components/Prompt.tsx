@@ -38,6 +38,14 @@ import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { filterCommands, type CommandMeta } from '../commands.ts'
 import { isMouseReport } from '../scroll.ts'
 import {
+  deleteToEnd,
+  deleteWordBefore,
+  insertTextAtCursor,
+  removeCharBeforeCursor,
+  wordEndAfter,
+  wordStartBefore,
+} from '../prompt-editing.ts'
+import {
   MAX_PROMPT_ROWS,
   cursorAt,
   scrollbarColumn,
@@ -75,16 +83,12 @@ const CHROME_COLUMNS = 8
  * The single-line prompt with a `\` continuation marker. Backspace works
  * naturally; Enter submits unless the buffer ends in `\`, in which case it
  * becomes a newline character.
+ *
+ * The text operations themselves live in `prompt-editing.ts` and are
+ * re-exported here for the callers that imported them from this module
+ * before they moved.
  */
-export function insertTextAtCursor(text: string, cursor: number, input: string): string {
-  const safeCursor = Math.min(Math.max(0, cursor), text.length)
-  return `${text.slice(0, safeCursor)}${input}${text.slice(safeCursor)}`
-}
-
-export function removeCharBeforeCursor(text: string, cursor: number): string {
-  if (cursor <= 0 || cursor > text.length) return text
-  return `${text.slice(0, cursor - 1)}${text.slice(cursor)}`
-}
+export { insertTextAtCursor, removeCharBeforeCursor } from '../prompt-editing.ts'
 
 /**
  * The buffer is in "palette mode" when it starts with `/` and has no
@@ -172,17 +176,22 @@ export const Prompt: FC<PromptProps> = ({
   useInput(
     (input, key) => {
       // `Ctrl-` keystrokes are split with the layers above us, per the
-      // ownership table in SPEC §1.6: we take the two caret ends, and
-      // Ctrl-C (App) plus Ctrl-B/F/U/D (log scroll) pass straight through.
-      // What must never happen is falling through to the text path below,
-      // where Ink delivers a `Ctrl-` keystroke as its bare letter — so
-      // Ctrl-C would append a 'c' to the buffer on its way out.
+      // ownership table in SPEC §1.6: we take the caret ends and the two
+      // deletions, and Ctrl-C (App) plus Ctrl-B/F/U/D (log scroll) pass
+      // straight through. What must never happen is falling through to the
+      // text path below, where Ink delivers a `Ctrl-` keystroke as its bare
+      // letter — so Ctrl-C would append a 'c' to the buffer on its way out.
       //
       // Ctrl-J is not handled here and does not need to be: Ink parses it
       // as the linefeed it is, so it arrives as ordinary input '\n'.
       if (key.ctrl) {
         if (input === 'a') setCursorIndex(0)
         else if (input === 'e') setCursorIndex(value.length)
+        else if (input === 'w') {
+          const next = deleteWordBefore(value, cursorIndex)
+          setValue(next.text)
+          setCursorIndex(next.cursor)
+        } else if (input === 'k') setValue(deleteToEnd(value, cursorIndex))
         return
       }
       // Mouse reports reach every `useInput` handler as ordinary input
@@ -200,6 +209,16 @@ export const Prompt: FC<PromptProps> = ({
           setPaletteIndex(0)
           setScrollTop(0)
         }
+        return
+      }
+      // `Alt-`/`Option-` word motions. Ink reports these as the bare letter
+      // with `key.meta`, because that is what the terminal sends: ESC then
+      // the letter. That also means a lone Esc arrives with `key.meta` set,
+      // so this branch has to sit *below* the Esc handling above — above it,
+      // Esc would return here and never reach the palette.
+      if (key.meta) {
+        if (input === 'b') setCursorIndex(wordStartBefore(value, cursorIndex))
+        else if (input === 'f') setCursorIndex(wordEndAfter(value, cursorIndex))
         return
       }
       // Tab — complete the highlighted command. The cursor lands
