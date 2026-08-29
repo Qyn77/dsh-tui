@@ -95,7 +95,11 @@ export function dispatch(raw: string, cmd: CommandContext): CommandResult {
 
     case '/clear':
       cmd.resetView()
-      return { kind: 'handled', message: 'View cleared.' }
+      // Deliberately silent. Command output is now an entry in the log, so a
+      // "View cleared." message would leave the log one entry long — which
+      // both contradicts what the user just watched happen and keeps the
+      // banner from returning, since it renders only on an empty log.
+      return { kind: 'handled' }
 
     case '/status': {
       const selection = service(cmd.ctx, 'agentDefaultModel')?.currentSelection()

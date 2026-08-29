@@ -184,6 +184,10 @@ function entryBodyRows(entry: UiEntry, width: number): number {
     }
     case 'runtime-context':
       return 1 + (entry.preview === '' ? 0 : textRows(entry.preview, width))
+    case 'command':
+      // The echoed command line, then its output. `/help` is the tall one
+      // and it is exactly as tall as its own newlines say.
+      return 1 + (entry.text === '' ? 0 : textRows(entry.text, width))
     case 'note':
     case 'compaction':
     case 'plan':

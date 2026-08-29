@@ -51,7 +51,7 @@ export interface AppProps {
 export const App: FC<AppProps> = ({ ctx, agent, exit, repaint }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
-  const { state, resetView } = useSessionEvents(ctx, agent)
+  const { state, resetView, appendEntry } = useSessionEvents(ctx, agent)
   const selection = useMemo(
     () => service(ctx, 'agentDefaultModel')?.currentSelection(),
     [ctx],
@@ -122,10 +122,19 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, repaint }) => {
       if (trimmed === '') return
       if (trimmed.startsWith('/')) {
         const result = dispatch(trimmed, { ctx, agent, resetView: clearView })
-        if (result.kind === 'handled' && result.message) {
-          process.stderr.write(`\n${result.message}\n`)
+        // Command output goes into the log, not to stderr. Inside the
+        // alternate screen a stderr write lands on the same rows Ink is
+        // driving, so it is erased by the next frame or wedged into one —
+        // which made `/help` and `/status` print nothing readable at all.
+        if (result.kind === 'handled' && result.message !== undefined) {
+          appendEntry({ kind: 'command', input: trimmed, text: result.message, failed: false })
         } else if (result.kind === 'unknown') {
-          process.stderr.write(`\nunknown command: ${result.input}\n`)
+          appendEntry({
+            kind: 'command',
+            input: result.input,
+            text: 'unknown command — /help lists them',
+            failed: true,
+          })
         }
         // 'exit' is handled inside dispatch by calling appExit; nothing more
         // to do here.
@@ -138,7 +147,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, repaint }) => {
         }),
       )
     },
-    [ctx, agent, clearView],
+    [ctx, agent, clearView, appendEntry],
   )
 
   if (selection === undefined) {

@@ -50,6 +50,17 @@ export type UiEntry =
   | { kind: 'plan'; enabled: boolean; at: number }
   | { kind: 'note'; text: string }
   | { kind: 'runtime-context'; plugin?: string; form?: string; preview: string }
+  /**
+   * A slash command and what it printed. Commands never reach the model, so
+   * they produce no session event and the reducer cannot mint this — it is
+   * appended locally by the App (see `useSessionEvents`' `appendEntry`).
+   *
+   * It lives in the log rather than on stderr because the REPL runs inside
+   * the alternate screen: a stderr write there is either erased by Ink's next
+   * frame or interleaved into one, which is how `/help` and `/status` came to
+   * print nothing a user could read.
+   */
+  | { kind: 'command'; input: string; text: string; failed: boolean }
 
 /** State shape held by the TUI. */
 export interface UiState {

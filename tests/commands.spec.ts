@@ -68,6 +68,10 @@ describe('slash command dispatch', () => {
     const result = dispatch('/clear', cmd)
     expect(result.kind).toBe('handled')
     expect(reset).toHaveBeenCalledOnce()
+    // Silent on purpose: command output is an entry in the log, so any
+    // message here would leave the log one entry long and suppress the
+    // banner the empty log is supposed to bring back.
+    if (result.kind === 'handled') expect(result.message).toBeUndefined()
   })
 
   it('reports the current model and session for /status', () => {

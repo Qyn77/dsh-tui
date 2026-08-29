@@ -162,6 +162,9 @@ The palette is theme-aware. Both light and dark terminals are first-class; `NO_C
 | Run state — running | `yellow` | StatusBar status glyph. |
 | Streaming | `yellow` | `· streaming` suffix on the assistant block. |
 | Compaction | `cyan` dim | `⤷ compacting…` lines. |
+| Command echo | `cyan` | `⤷ /help` — the command line the user ran, echoed in the log. Same `cyan` as the palette's command names. |
+| Command output | default fg | The command's own text under the echo. Never dimmed: it is content the user explicitly asked for, and `gray dim` makes the `/help` table hard to read on a light terminal. |
+| Command failed | `red` | Both rows of an unknown command. |
 | Plan mode on | `yellow` | `⤷ plan mode on`. |
 | Plan mode off | `gray` | `⤷ plan mode off`. |
 | Meta / separators | `gray` | `·`, `in:`, `out:`, `session:`, turn/step counters. |
@@ -191,13 +194,17 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 |---|---|
 | `Enter` | Send the current input as a user message. |
 | `/help` | Print the list of available slash commands. |
-| `/clear` | Clear the visible chat. The session log is unchanged. |
+| `/clear` | Clear the visible chat. The session log is unchanged. Prints nothing — see below. |
 | `/status` | Print the current model and session id. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (idle) | Same as `/exit`. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
 
 Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash command iff it starts with `/` and matches a known name; anything else is sent to the model as a user message.
+
+**Command output is an entry in the conversation, never a write to `stdout`/`stderr`.** The REPL runs inside the alternate screen buffer, where Ink owns every row of the live frame: a direct write lands on rows Ink is driving and is either erased by the next frame or wedged into one. `/help` and `/status` printed to `process.stderr` for exactly this reason and produced nothing a user could read. Output therefore becomes a `command` entry (echoed command line + its text), appended locally by the App — commands never reach the model, so there is no session event behind them and the pure reducer cannot mint one.
+
+A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
 Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/cost`, `/copy`. Everything that affects REPL behavior is a slash command.
 
@@ -400,12 +407,14 @@ The reducer is the unit-test surface for the model layer. Every new `SessionEven
 
 - Slash commands are case-sensitive: `/exit`, not `/Exit`.
 - A line is a slash command iff it starts with `/` and matches a known name.
-- Unknown `/foo` returns `{ kind: 'unknown' }` (the Prompt falls back to sending it as a user message; the model will reply that it doesn't know that command).
+- Unknown `/foo` returns `{ kind: 'unknown' }`. The renderer turns it into a failed `command` entry in the log; it is **not** forwarded to the model, which would spend a turn having the model guess at a typo.
+- A `handled` result with no `message` prints nothing. Output that exists is appended as a `command` entry — never written to `stdout`/`stderr`, see §1.5.
 - Reserved prefixes (`/`, `!`) cannot be redefined.
 - Adding a slash command requires:
   1. A case in `commands.ts`
   2. A test in `tests/commands.spec.ts` (every command, every invalid input shape)
   3. An entry in `README.md` and `README.zh.md` slash-command table
+  4. A frame assertion in `tests/command-output.spec.ts` if it prints anything — that its text reaches the screen, which unit tests over `dispatch` cannot see
 
 ### 3.4 Testing
 
@@ -417,6 +426,7 @@ The reducer is the unit-test surface for the model layer. Every new `SessionEven
 | `hooks/*` | Behavior tests via `renderHook`; one happy path + one error path each |
 | `components/*` | Snapshot test for layout + interaction test for input handling |
 | `resize.ts` | A settled drag always ends with a frame on screen — including the drags that produce a byte-identical frame (height-only, and back to the starting width) |
+| Command output | Frame-level, in `tests/command-output.spec.ts`: every command that prints reaches the screen, an unknown command is reported in the log, and nothing is ever written to `stderr`. `dispatch` returning the right string is not evidence the user saw it |
 | `index.ts` | Smoke test: instantiate the plugin with a mock Agent and assert `render` was called |
 
 Use `vitest`. Tests live in `tests/` mirroring `src/`. Run with `pnpm test`. Test files do **not** import from `lib/`; they import from `src/`.

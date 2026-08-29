@@ -210,6 +210,27 @@ function RuntimeContextLine({ entry }: { entry: Extract<UiEntry, { kind: 'runtim
   )
 }
 
+/**
+ * A slash command and its output.
+ *
+ * The output is drawn in the default foreground rather than dimmed. Unlike a
+ * note or a tool result this is content the user explicitly asked for, and the
+ * `gray dim` used for incidental rows makes a `/help` table hard to read on a
+ * light terminal. Only the echoed command line carries the brand color, which
+ * is the same `cyan` the slash palette uses for command names.
+ */
+function CommandLine({ entry }: { entry: Extract<UiEntry, { kind: 'command' }> }) {
+  const color = entry.failed ? 'red' : 'cyan'
+  return (
+    <Row glyph={NOTE_GLYPH} color={color}>
+      <Text color={color}>{entry.input}</Text>
+      {entry.text !== '' && (
+        <Text color={entry.failed ? 'red' : undefined}>{entry.text}</Text>
+      )}
+    </Row>
+  )
+}
+
 function Entry({ entry }: { entry: UiEntry }) {
   switch (entry.kind) {
     case 'user':
@@ -226,6 +247,8 @@ function Entry({ entry }: { entry: UiEntry }) {
       return <PlanLine entry={entry} />
     case 'runtime-context':
       return <RuntimeContextLine entry={entry} />
+    case 'command':
+      return <CommandLine entry={entry} />
     default: {
       // Exhaustiveness: a new UiEntry variant will fail to compile here.
       const _exhaustive: never = entry

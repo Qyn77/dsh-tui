@@ -5,27 +5,42 @@
  * @module @deepseek-ai/dsh-tui/hooks/useSessionEvents
  */
 
-import { useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useReducer, useRef } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { isRenderable, type UiState } from '../types.ts'
+import { isRenderable, type UiEntry, type UiState } from '../types.ts'
 import { initialState, reduce } from '../state.ts'
+
+/**
+ * What can change the projected view.
+ *
+ * `event` is the only action the pure reducer sees. The other two are local
+ * view operations with no session event behind them: `reset` backs `/clear`,
+ * and `append` backs output that the TUI itself produced (slash command
+ * results), which must not be written into the durable session log because
+ * the model never saw it.
+ */
+type ViewAction =
+  | { type: 'event'; event: import('@deepseek-ai/dsh-session').SessionEvent }
+  | { type: 'reset' }
+  | { type: 'append'; entry: UiEntry }
 
 /**
  * Reactive UI state derived from a live Agent. The returned value re-renders
  * the consumer whenever a relevant session event arrives.
  * @param ctx - the root Cordis context (used to subscribe to `session/event`).
  * @param agent - the agent whose session drives the projection.
- * @returns the current projected UI state plus a resetter for the visible view.
+ * @returns the current projected UI state, a resetter, and a local appender.
  */
 export function useSessionEvents(ctx: Context, agent: Agent): {
   state: UiState
   resetView: () => void
+  appendEntry: (entry: UiEntry) => void
 } {
   const [state, dispatch] = useReducer(
-    (acc: UiState, action: { type: 'event' | 'reset'; event?: import('@deepseek-ai/dsh-session').SessionEvent }) => {
+    (acc: UiState, action: ViewAction) => {
       if (action.type === 'reset') return { ...acc, entries: [] }
-      if (action.event === undefined) return acc
+      if (action.type === 'append') return { ...acc, entries: [...acc.entries, action.entry] }
       return reduce(acc, action.event)
     },
     undefined,
@@ -57,9 +72,13 @@ export function useSessionEvents(ctx: Context, agent: Agent): {
     return () => { off() }
   }, [ctx, agent.session.id])
 
-  const resetView = (): void => {
+  const resetView = useCallback((): void => {
     dispatch({ type: 'reset' })
-  }
+  }, [])
 
-  return { state, resetView }
+  const appendEntry = useCallback((entry: UiEntry): void => {
+    dispatch({ type: 'append', entry })
+  }, [])
+
+  return { state, resetView, appendEntry }
 }
