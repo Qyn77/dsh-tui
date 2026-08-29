@@ -25,6 +25,7 @@ src/
 ├── invariant.ts              Type companion for dsh-invariants (no runtime)
 ├── markdown.ts               Pure markdown → UI AST (no React, no Ink) [test-first]
 ├── scroll.ts                 Pure scroll math + input parsing            [test-first]
+├── resize.ts                 The one owner of real-TTY resize repainting  [test-first]
 ├── prompt-layout.ts          Pure input fold, caret, window, scrollbar    [test-first]
 ├── width.ts                  Pure display width (CJK counts as two)       [test-first]
 ├── hooks/useSessionEvents.ts Replay log + live subscribe

@@ -6,7 +6,7 @@
  */
 
 import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
-import React, { useCallback, useMemo, useState, type FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useState, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -21,6 +21,7 @@ import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { service } from './services.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
+import type { RepaintRef } from './resize.ts'
 
 
 
@@ -34,15 +35,22 @@ export interface AppProps {
    * `index.ts` (see AGENTS.md rule 7). Same path `/exit` uses.
    */
   exit: (code: number) => void
+  /**
+   * Where the App publishes Ink's `useStdout().write` for the resize owner
+   * in `index.ts` to borrow. That writer is the only way to make Ink emit a
+   * frame it considers unchanged, and it is reachable from inside the tree
+   * only. Omitted by tests that do not resize.
+   */
+  repaint?: RepaintRef
 }
 
 /**
  * The TUI root. Subscribes to the agent's session, dispatches user input
  * to the agent or to a slash command, and composes the three-pane layout.
  */
-export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
+export const App: FC<AppProps> = ({ ctx, agent, exit, repaint }) => {
   const { exit: closeUi } = useApp()
-  const { stdout } = useStdout()
+  const { stdout, write } = useStdout()
   const { state, resetView } = useSessionEvents(ctx, agent)
   const selection = useMemo(
     () => service(ctx, 'agentDefaultModel')?.currentSelection(),
@@ -57,6 +65,19 @@ export const App: FC<AppProps> = ({ ctx, agent, exit }) => {
   // Real TTY resize is coordinated by index.ts through Ink's render
   // instance. Keep the hook for non-TTY test streams only.
   useResizeRepaint()
+
+  // Hand the resize owner Ink's own stdout writer. It clears log-update's
+  // frame, writes what it is given, and then re-emits Ink's cached frame
+  // whether or not Ink thinks it changed — which is the only way a settled
+  // resize that produced an identical frame still ends up on screen. See
+  // `resize.ts` for why that case is common rather than exotic.
+  useEffect(() => {
+    if (repaint === undefined) return
+    repaint.current = write
+    return () => {
+      repaint.current = undefined
+    }
+  }, [repaint, write])
 
   // Ink hands every keystroke to every `useInput` handler and offers no way
   // to stop one from propagating, so ↑/↓ can only have one meaning at a

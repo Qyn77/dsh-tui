@@ -251,6 +251,7 @@ src/
 ├── prompt-layout.ts         纯输入折行、光标、可视窗口、滚动条
 ├── message-layout.ts        纯字形栏字符、工具调用与结果摘要
 ├── width.ts                 纯显示宽度（CJK 占两列）
+├── resize.ts                真实 TTY 的 resize 唯一负责方——防抖、清屏、重渲染、强制重绘
 ├── hooks/
 │   ├── useSessionEvents.ts  回放 log + 订阅 session/event
 │   ├── useMessageListScroll.ts  滚动偏移、按键绑定、实测几何

@@ -259,6 +259,7 @@ src/
 ├── prompt-layout.ts         Pure input fold, caret, window, scrollbar
 ├── message-layout.ts        Pure gutter glyphs, tool call + result summaries
 ├── width.ts                 Pure display width (CJK counts as two columns)
+├── resize.ts                Real-TTY resize owner — debounce, clear, rerender, repaint
 ├── hooks/
 │   ├── useSessionEvents.ts  Replay log + subscribe to session/event
 │   ├── useMessageListScroll.ts  Scroll offset, key bindings, measured geometry

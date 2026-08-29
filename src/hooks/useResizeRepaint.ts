@@ -39,25 +39,16 @@
 
 import { useEffect } from 'react'
 import { useStdout } from 'ink'
-
-/**
- * Erase the visible screen and park the cursor at its top-left. Spelled
- * with `\u001B` escapes rather than literal escape bytes, so the source
- * stays greppable and diffable. Deliberately *not* `clearTerminal`, which also drops the
- * scrollback (`3J`) — the user's shell history above the app is theirs.
- */
-const CLEAR_SCREEN = '\u001B[2J\u001B[H'
+import { CLEAR_SCREEN, RESIZE_QUIET_MS } from '../resize.ts'
 
 // Banner is a fixed 19-row splash. Keep it intact while clearing the
 // resize-sensitive live frame below it.
 
 /**
- * Milliseconds of quiet that end a resize storm. Comfortably past Ink's own
- * 32ms render throttle, so the repaint always follows the frame it is
- * repairing, and short enough that letting go of a window edge feels like
- * the redraw was part of the drag.
+ * Milliseconds of quiet that end a resize storm. Shared with the real-TTY
+ * owner in `resize.ts` so both paths settle on the same beat.
  */
-const QUIET_MS = 120
+const QUIET_MS = RESIZE_QUIET_MS
 
 /**
  * Subscribe to `resize` and repaint once it settles. No-op when stdout is

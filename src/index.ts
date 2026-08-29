@@ -18,6 +18,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { appExit, service, type AppExit } from './services.ts'
 import { App } from './renderer.tsx'
+import { installResizeOwner, type RepaintRef } from './resize.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'tui-runner'
@@ -44,7 +45,6 @@ interface TuiIo {
 
 const ALT_SCREEN_ENTER = '\u001B[?1049h\u001B[2J\u001B[H'
 const ALT_SCREEN_EXIT = '\u001B[?1049l'
-const CLEAR_SCREEN = '\u001B[2J\u001B[H'
 /**
  * Ask the terminal to translate the wheel into cursor-key presses while the
  * alternate screen is up — xterm's "alternate scroll mode" — instead of
@@ -72,7 +72,6 @@ const ALT_SCROLL_ENTER = '\u001B[?1007h'
  * the user's shell answers the wheel.
  */
 const ALT_SCROLL_EXIT = '\u001B[?1007l'
-const RESIZE_QUIET_MS = 120
 const RESIZE_LOG = '/tmp/dsh-tui-resize.log'
 const resizeDebug = process.env['DSH_TUI_DEBUG_RESIZE'] === '1'
 function resizeLog(message: string): void {
@@ -153,46 +152,31 @@ async function run(ctx: Context): Promise<void> {
       internals.stdout.write(ALT_SCREEN_ENTER)
       internals.stdout.write(ALT_SCROLL_ENTER)
     }
-    const instance = inkRender(
-      React.createElement(App, { ctx, agent, exit: exitHook }),
-      {
-        exitOnCtrlC: false,
-        patchConsole: false,
-      },
-    )
-    let resizeTimer: NodeJS.Timeout | undefined
-    const onResize = (): void => {
-      resizeLog(`event columns=${process.stdout.columns ?? 0} rows=${process.stdout.rows ?? 0}`)
-      if (resizeTimer !== undefined) clearTimeout(resizeTimer)
-      resizeTimer = setTimeout(() => {
-        resizeTimer = undefined
-        resizeLog(`settled before-clear columns=${process.stdout.columns ?? 0} rows=${process.stdout.rows ?? 0}`)
-        // Use Ink's public instance API so its line-count bookkeeping and
-        // the terminal screen are reset as one operation. Rendering from a
-        // child hook cannot access this state and leaves the next frame
-        // positioned relative to the old cursor after a resize.
-        instance.clear()
-        resizeLog('instance.clear done')
-        internals.stdout.write(CLEAR_SCREEN)
-        resizeLog('clear-screen written')
-        instance.rerender(React.createElement(App, { ctx, agent, exit: exitHook }))
-        resizeLog('instance.rerender called')
-      }, RESIZE_QUIET_MS)
-      if (typeof resizeTimer.unref === 'function') resizeTimer.unref()
-    }
+    // Filled in by the App's mount effect; the resize owner borrows it to
+    // force the settled frame onto the screen. See `resize.ts`.
+    const repaint: RepaintRef = { current: undefined }
+    const element = (): React.ReactElement =>
+      React.createElement(App, { ctx, agent, exit: exitHook, repaint })
+    const instance = inkRender(element(), {
+      exitOnCtrlC: false,
+      patchConsole: false,
+    })
+    // Resize repainting has exactly one owner and it lives outside React.
+    // The primary screen never gets one: without the alternate screen there
+    // is no frame of ours to repair.
+    let detachResize: (() => void) | undefined
     if (alternateScreen) {
-      // Ink installs an eager resize listener that renders immediately for
-      // every SIGWINCH. Remove it so it cannot race this debounced full
-      // repaint; App reads stdout.rows directly during rerender.
-      process.stdout.removeAllListeners('resize')
-      process.stdout.on('resize', onResize)
+      detachResize = installResizeOwner({
+        stdout: process.stdout,
+        clear: instance.clear,
+        rerender: () => { instance.rerender(element()) },
+        repaint,
+        log: resizeDebug ? resizeLog : undefined,
+      })
     }
     instance.cleanup()
     await instance.waitUntilExit()
-    if (alternateScreen) {
-      process.stdout.off('resize', onResize)
-      if (resizeTimer !== undefined) clearTimeout(resizeTimer)
-    }
+    detachResize?.()
     instance.unmount()
   } finally {
     // If Ink exits through an error, never leave the shell in the alternate
