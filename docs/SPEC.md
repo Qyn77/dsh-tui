@@ -209,7 +209,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/cost`, `/copy`. Everything that affects REPL behavior is a slash command.
+Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/cost`, `/copy`. Everything that affects REPL behavior is a slash command. Two of those are blocked on structure rather than effort — see §3.3.1 before picking one up.
 
 #### 1.5.1 Slash palette
 
@@ -483,6 +483,47 @@ The reducer is the unit-test surface for the model layer. Every new `SessionEven
   2. A test in `tests/commands.spec.ts` (every command, every invalid input shape)
   3. An entry in `README.md` and `README.zh.md` slash-command table
   4. A frame assertion in `tests/command-output.spec.ts` if it prints anything — that its text reaches the screen, which unit tests over `dispatch` cannot see
+
+#### 3.3.1 What the dispatcher cannot express yet
+
+Two commands named as future work in §1.5 are blocked on structure, not on
+effort. Both were investigated and deliberately not built; the reasons are
+recorded here so the next attempt starts from the blocker instead of
+rediscovering it.
+
+`/model` needs three separate changes, none of which is about the command:
+
+- **`dispatch` is synchronous.** The model catalog is not: the only way to
+  enumerate what a provider advertises is `ctx.llm.listModels(provider)`, which
+  returns a promise. So even a read-only `/model` that just lists the choices
+  cannot be written as a `CommandResult` today. Making dispatch async ripples
+  into the Prompt's submit path and every command test.
+- **Saving the default does not switch the live agent.** `agentDefaultModel`
+  has `saveSelection()`, but what actually routes the running agent is the
+  `ModelSelectionRef` handed to `installModelSelection(agentCtx, ref)` in
+  `index.ts`. That ref lives in `run()`'s closure, created *before* Ink mounts,
+  and nothing above the App can reach it. Persisting without mutating it would
+  leave the current session on the old model — the worst of the two outcomes,
+  because the status bar would agree with the setting and disagree with reality.
+- **The status bar would not notice.** `renderer.tsx` reads `currentSelection()`
+  through `useMemo(…, [ctx])`, so it is read once per mount and never again.
+
+`/resume` is blocked one layer lower, on where the events would come from:
+
+- `ctx.sessions.list()` returns **live** sessions only. In a freshly launched
+  TUI that is our own session and nothing else, so it cannot enumerate history.
+- No persistence or storage package is a dependency of this one. The harness has
+  a `session-query` plugin, but whether `ctx.sessionQuery` exists at all depends
+  on what the launcher mounted, so this package cannot assume it.
+- Restoring is otherwise ready: `agents.create` accepts `seed?: readonly
+  SessionEvent[]`, and the runtime already distinguishes a seeded create
+  (`startup`) from a persisted load (`resume`). `useSessionEvents` also follows
+  its agent onto a different session id, which is pinned by a test. What is
+  missing is only discovery — and an agent-swap path, since `index.ts` builds
+  the agent before `inkRender` and passes it to the App as a prop.
+
+One smaller gap sits underneath both: `dispatch` reads only the first token of
+the line, so no command can take an argument yet.
 
 ### 3.4 Testing
 
