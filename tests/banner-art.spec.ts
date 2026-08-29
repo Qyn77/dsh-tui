@@ -1,7 +1,9 @@
 /**
- * The startup banner's pure helpers. The block-type renderer and the
- * cwd shortener are the only logic in `Banner.tsx` worth pinning; the
- * rest is layout that a snapshot test would only make brittle.
+ * The startup banner's art and text — everything in `banner-art.ts`.
+ * The block-type renderer, the bitmap encoder, the width thresholds and
+ * the meta composition are the logic worth pinning; the layout that
+ * consumes them is exercised through the frame in `banner-frame.spec.ts`
+ * instead, where a snapshot would only be brittle.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -16,7 +18,7 @@ import {
   bannerTier,
   BANNER_MIN_WIDTH,
   BANNER_WORDMARK_WIDTH,
-} from '../src/components/Banner.tsx'
+} from '../src/banner-art.ts'
 import { displayWidth } from '../src/width.ts'
 
 describe('displayWidth', () => {

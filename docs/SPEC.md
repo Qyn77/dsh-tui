@@ -433,25 +433,37 @@ Rules contributors must follow. Breaking any of them needs a PR that updates thi
 
 ```
 src/
-├── index.ts          # Cordis plugin entry — side effects
-├── renderer.tsx      # Ink root — wires state + components
-├── state.ts          # Pure reducer — (UiState, SessionEvent) → UiState
-├── types.ts          # Type-only — UiEntry, UiState, isRenderable
-├── commands.ts       # Pure dispatch — string → CommandResult
-├── invariant.ts      # Type companion for dsh-invariants (no runtime)
-├── markdown.ts       # Pure markdown → UI AST (no React, no Ink)
-├── resize.ts         # Real-TTY resize owner — debounce, clear, rerender, repaint
-├── hooks/            # React-only — useInput, useEffect, useState
-└── components/       # React components — pure functions of state
+├── index.ts            # Cordis plugin entry — side effects
+├── renderer.tsx        # Ink root — wires state + components
+├── state.ts            # Pure reducer — (UiState, SessionEvent) → UiState
+├── types.ts            # Type-only — UiEntry, UiState, isRenderable
+├── commands.ts         # Pure dispatch — string → CommandResult
+├── invariant.ts        # Type companion for dsh-invariants (no runtime)
+├── markdown.ts         # Pure markdown → UI AST (no React, no Ink)
+├── resize.ts           # Real-TTY resize owner — debounce, clear, rerender, repaint
+├── services.ts         # Typed optional-service reads off the Cordis context
+├── environment.ts      # Process facts — version, cwd, git label
+├── interrupt.ts        # Ctrl-C / abort plumbing
+├── width.ts            # Display-column measurement (CJK-aware)
+├── scroll.ts           # Pure scroll arithmetic
+├── message-layout.ts   # Pure message-list layout arithmetic
+├── prompt-editing.ts   # Pure prompt buffer edits — beside Prompt.tsx
+├── prompt-layout.ts    # Pure prompt layout arithmetic
+├── banner-art.ts       # Pure banner art + text — beside Banner.tsx
+├── hooks/              # React-only — useInput, useEffect, useState
+└── components/         # React components — pure functions of state
 ```
+
+The bottom third of that list is one pattern repeated: **a component whose logic outgrew it gets a pure module beside it, not a bigger component.** `prompt-editing.ts`/`prompt-layout.ts` came out of `Prompt.tsx`, `message-layout.ts` out of `MessageList.tsx`, `banner-art.ts` out of `Banner.tsx`. Each is importable and testable without mounting anything, which is why the pure half is unit-tested directly and only the layout goes through the frame (§3.4).
 
 **Import rules:**
 
 - `state.ts` may import from `types.ts` only.
-- `commands.ts` may import from `types.ts` and any type-only package export.
+- `commands.ts` may import from `types.ts`, `services.ts`, and any type-only package export.
 - `markdown.ts` may import from external parsers (`marked`) and `types.ts`. It must not import React, Ink, or any component.
-- `hooks/` may import from `state.ts` (as a function call), `markdown.ts` (as a function call), `types.ts`, and React.
-- `components/` may import from `hooks/`, `markdown.ts` (for the `Markdown` component and AST types), `types.ts`, and React. They do **not** import `state.ts` directly — they receive derived props from the renderer.
+- The pure layout/art/editing modules (`width.ts`, `scroll.ts`, `message-layout.ts`, `prompt-editing.ts`, `prompt-layout.ts`, `banner-art.ts`) may import each other, `types.ts`, and `environment.ts`. They must not import React, Ink, or any component — that is the whole point of extracting them.
+- `hooks/` may import from `state.ts` (as a function call), `markdown.ts` (as a function call), the pure modules, `types.ts`, and React.
+- `components/` may import from `hooks/`, `markdown.ts` (for the `Markdown` component and AST types), the pure modules, `types.ts`, and React. They do **not** import `state.ts` directly — they receive derived props from the renderer.
 - `renderer.tsx` is the only file that wires the reducer to the hooks.
 - `index.ts` is the only file that imports Cordis, runs side effects, calls `randomUUID`, and calls `render()`.
 
