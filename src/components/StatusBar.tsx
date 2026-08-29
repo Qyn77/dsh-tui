@@ -61,13 +61,32 @@ function shortId(id: SessionId): string {
   return String(id).slice(0, 8)
 }
 
-function totalUsage(state: UiState): { input: number; output: number } {
+/**
+ * Sum the token usage across every assistant entry in the log.
+ *
+ * `input` is **billed** input, which is the sum of three disjoint counts.
+ * `TokenUsage` documents them that way: `inputTokens` is uncached input only,
+ * and cache hits are reported separately as `cacheReadTokens` /
+ * `cacheWriteTokens`. Reading `inputTokens` alone — which this did — silently
+ * under-reports, and it under-reports *worse the longer the conversation runs*,
+ * because a longer prompt is a better cache hit. A user watching that number to
+ * decide when to `/compact` was being shown the one component of the prompt
+ * that stops growing.
+ */
+export function totalUsage(state: UiState): { input: number; output: number } {
   let input = 0
   let output = 0
   for (const entry of state.entries) {
     if (entry.kind === 'assistant' && entry.usage) {
-      input += entry.usage.inputTokens ?? 0
-      output += entry.usage.outputTokens ?? 0
+      input += entry.usage.inputTokens
+      input += entry.usage.cacheReadTokens ?? 0
+      input += entry.usage.cacheWriteTokens ?? 0
+      // `reasoningTokens` is deliberately left out. The cache counts above are
+      // documented as disjoint from `inputTokens`, which is what made adding
+      // them a fix; nothing documents whether `reasoningTokens` is already
+      // inside `outputTokens`. Adding it on a guess would double-count on every
+      // thinking model, so it stays out until the contract says otherwise.
+      output += entry.usage.outputTokens
     }
   }
   return { input, output }

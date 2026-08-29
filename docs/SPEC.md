@@ -209,7 +209,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/cost`, `/copy`. Everything that affects REPL behavior is a slash command. Two of those are blocked on structure rather than effort — see §3.3.1 before picking one up.
+Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/copy`. Everything that affects REPL behavior is a slash command. Two of those are blocked on structure rather than effort — see §3.3.1 before picking one up. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -394,9 +394,9 @@ Known gaps (deferred, not bugs):
 
 - **Slash-command tab completion.** `Tab` after `/` fills in matching command names.
 - **`@`-mention file picker.** `@<Tab>` opens a fuzzy file picker.
-- **Tool approval flow.** When a tool call requires consent, render a `y/n/all` prompt inside the Prompt zone, not as a modal.
+- **Tool approval flow.** When a tool call requires consent, render a `y/n/all` prompt inside the Prompt zone, not as a modal. Blocked on a dependency, not on design — see §3.2.1.
 - **`/model <id>`.** Switch the agent's model mid-session.
-- **`/cost` / `/usage`.** Per-turn and cumulative token + dollar cost.
+- **`/usage`.** Per-turn token counts and context-window occupancy. Deliberately not "dollar cost": see §3.3.2 for why no price can be computed here, and for the one trap in the occupancy figure.
 - **History.** `↑` / `↓` navigates the user's prior inputs in this session.
 
 ### v0.4 — Polish
@@ -546,6 +546,36 @@ rediscovering it.
 
 One smaller gap sits underneath both: `dispatch` reads only the first token of
 the line, so no command can take an argument yet.
+
+#### 3.3.2 `/cost` cannot be built, and `/context` can
+
+`/cost` is named in §1.5 as future work. It should be un-named: **there is no
+price data anywhere in the peer tree.** `TokenUsage` counts tokens,
+`LlmModelInfo` and `LlmResolvedModelInfo` carry identity, context capacity,
+output caps and reasoning metadata — and nothing carries a rate. A currency
+figure would therefore have to come from a price table hardcoded in this
+package, which would be stale on the day it shipped, wrong per provider, and
+wrong again across the three separately-priced input tiers (uncached, cache
+read, cache write). Showing a confidently wrong number about the user's money is
+worse than showing nothing. If pricing ever becomes a provider-owned fact the
+adapter reports, revisit; until then the token counts in the status bar *are*
+the cost surface.
+
+A **context-window percentage** is a different matter and is buildable, with one
+trap worth writing down before someone reaches for it:
+
+- The denominator exists: `ctx.llm.resolveModelInfo(provider, model, signal)`
+  resolves `context?.contextWindow`. It is a promise, and it is optional — an
+  adapter that does not know the capacity omits it, so the UI needs an
+  unknown state, not a zero.
+- **The numerator is not the number already on screen.** `totalUsage` sums
+  billed input across every turn, which is cumulative spend. Occupancy is the
+  *latest* turn's prompt plus its output, because each request resends the
+  conversation. Dividing the running total by the window would sail past 100%
+  after a few turns while the context was half empty.
+- Being async, it belongs in a `useEffect` in `renderer.tsx` — not in the
+  reducer, which is pure (§3.2), and not in `dispatch`, which is sync (§3.3.1).
+  This is the one item in this section that is not blocked on structure.
 
 ### 3.4 Testing
 
