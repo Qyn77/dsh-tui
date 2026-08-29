@@ -108,6 +108,114 @@ describe('prompt box height', () => {
   })
 })
 
+/**
+ * The editing behaviour the box is *for*. These were unpinned for a long
+ * while — `prompt.spec.ts` covered the two pure string helpers, so a caret
+ * that never moved, a Backspace that ate the tail instead of the character
+ * under the caret, or a Ctrl- keystroke typed into the buffer as text would
+ * all have shipped green. The keystrokes are sent as the bytes a terminal
+ * actually sends, so what is pinned is the whole path from stdin to frame.
+ */
+describe('prompt editing', () => {
+  /** The buffer row, caret glyph included. */
+  function buffer(screen: string): string {
+    return promptBox(screen)[1] ?? ''
+  }
+
+  it('inserts at the caret after walking it left', async () => {
+    const painted = await paintApp()
+    await painted.send('abcd')
+    await painted.send(`${ESC}[D`)
+    await painted.send(`${ESC}[D`)
+    await painted.send('X')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(buffer(screen)).toContain('abX▌cd')
+  })
+
+  it('deletes the character under the caret, not the tail', async () => {
+    const painted = await paintApp()
+    await painted.send('abcd')
+    await painted.send(`${ESC}[D`)
+    await painted.send(`${ESC}[D`)
+    await painted.send('\x7f')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(buffer(screen)).toContain('a▌cd')
+  })
+
+  it('walks the caret to either end on Ctrl-A and Ctrl-E', async () => {
+    // The first two bindings the prompt is allowed to claim, now that the
+    // blanket `if (key.ctrl) return` is a split rather than a wall. They are
+    // the buffer's ends because Home/End belong to the log — SPEC §1.6.
+    const painted = await paintApp()
+    await painted.send('abcd')
+    await painted.send('\x01')
+    const atStart = painted.screen()
+    await painted.send('\x05')
+    const atEnd = painted.screen()
+    painted.unmount()
+
+    expect(buffer(atStart)).toContain('▌abcd')
+    expect(buffer(atEnd)).toContain('abcd▌')
+  })
+
+  it('does not type a Ctrl- keystroke into the buffer', async () => {
+    // Every Ctrl- binding the app has lives above the prompt. If one fell
+    // through to the text path it would arrive as its bare letter, so
+    // Ctrl-P would silently append a `p` to whatever the user was writing.
+    const painted = await paintApp()
+    await painted.send('hi')
+    await painted.send('\x10')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(buffer(screen)).toContain('hi▌')
+  })
+
+  it('clears the buffer on Esc only while the palette is open', async () => {
+    const painted = await paintApp()
+    await painted.send('/he')
+    await painted.send(ESC)
+    const dismissed = painted.screen()
+    await painted.send('plain text')
+    await painted.send(ESC)
+    const kept = painted.screen()
+    painted.unmount()
+
+    // Palette open: Esc is the way out, and it takes the buffer with it.
+    expect(buffer(dismissed)).toContain('Ask dsh anything…')
+    // Palette closed: Esc has no meaning here and must not discard work.
+    expect(buffer(kept)).toContain('plain text▌')
+  })
+
+  it('completes the highlighted command on Tab, with a trailing space', async () => {
+    const painted = await paintApp()
+    await painted.send('/he')
+    await painted.send('\t')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // The space is deliberate: arguments can be typed without another key.
+    expect(buffer(screen)).toContain('/help ▌')
+  })
+
+  it('turns a trailing backslash plus Enter into a newline', async () => {
+    const painted = await paintApp()
+    await painted.send('first\\')
+    await painted.send('\r')
+    await painted.send('second')
+    const box = promptBox(painted.screen())
+    painted.unmount()
+
+    expect(box).toHaveLength(4)
+    expect(box[1]).toContain('first')
+    expect(box[2]).toContain('second')
+  })
+})
+
 describe('prompt and log both want the arrow keys', () => {
   it('moves the caret and leaves the log alone once the buffer is multi-row', async () => {
     const painted = await paintApp({ turns: 10 })

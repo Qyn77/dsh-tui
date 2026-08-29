@@ -229,21 +229,55 @@ Both the palette and `/help` read from a single `COMMANDS` registry in `src/comm
 
 ### 1.6 Keyboard bindings
 
-| Key | Where | Action |
+Ink hands every keystroke to *every* mounted `useInput` handler and offers no
+`stopPropagation`. So there is no such thing as a key being "handled" here —
+only a convention about which layer is allowed to act on it, enforced by
+guards on both sides. This table **is** that convention: an owner acts, and
+every other layer must let the key pass untouched. Two layers acting on one
+keystroke is a bug, and so is a key the prompt swallows into its text path on
+its way to someone else.
+
+| Key | Owner | Action |
 |---|---|---|
+| printable input | Prompt | Insert at the caret |
 | `Enter` | Prompt | Send (or dispatch exact slash command, or complete highlight) |
-| `Backspace` | Prompt | Delete one char |
+| `Backspace` | Prompt | Delete the character before the caret |
+| `←` / `→` | Prompt | Move the caret one character |
+| `Ctrl-A` / `Ctrl-E` | Prompt | Caret to start / end of the buffer |
+| `Ctrl-J` | Prompt | Insert a newline |
+| `\` + `Enter` | Prompt | Insert a newline (the older escape; still works) |
 | `Tab` | Slash palette | Complete the highlighted command |
 | `Esc` | Slash palette | Dismiss palette and clear buffer |
 | `↑` / `↓` | Slash palette | Move palette selection |
 | `↑` / `↓` | Prompt (multi-row buffer) | Move the caret one row |
 | `↑` / `↓` | MessageList (otherwise) | Scroll one row |
-| `Ctrl-C` | Anywhere | Cancel turn (when running) or exit (when idle) |
-| `Ctrl-J` | Prompt | Insert a newline |
-| `\` + `Enter` | Prompt | Insert a newline (the older escape; still works) |
-| `Ctrl-L` | Anywhere | Clear screen, redraw (v0.4) |
+| `PageUp` / `PageDown` | MessageList | Scroll a page |
+| `Ctrl-B` / `Ctrl-F` | MessageList | Scroll a page (no `Fn` needed) |
+| `Ctrl-U` / `Ctrl-D` | MessageList | Scroll half a page |
+| `Home` / `End` | MessageList | Jump to the oldest row / back to the tail |
+| `Ctrl-C` | App | Cancel turn (when running) or exit (when idle) |
+| `Ctrl-L` | App | Clear screen, redraw (v0.4) |
 
-`↑`/`↓` appear three times on purpose: Ink dispatches every keystroke to
+Two rows are decided rather than inherited, and both cost something:
+
+- **`Ctrl-U` scrolls; it does not kill the line.** In readline it is
+  kill-to-start, and that muscle memory is real. But `PageUp`/`PageDown` need
+  `Fn` on a laptop, `Ctrl-B/F/U/D` are the bindings that make history
+  navigable one-handed, and losing half-page scroll is the larger regression.
+  The prompt's line-editing keys are therefore drawn from what is left.
+- **`Home`/`End` move through history, not through the buffer.** The prompt
+  has `Ctrl-A`/`Ctrl-E` for its two ends, so the caret loses nothing; the log
+  has no other way to reach the top of a long conversation. `End` is also the
+  only way back to the tail after scrolling, which makes it the more load
+  bearing of the two meanings. They are read off raw stdin rather than through
+  `useInput` because Ink 5 does not decode them.
+
+The prompt enforces its side of this by handling exactly the `Ctrl-` keys
+listed above and returning for the rest — never falling through to the text
+path, where Ink would deliver a `Ctrl-` keystroke as its bare letter and type
+it. `tests/prompt-frame.spec.ts` pins that guard directly.
+
+`↑`/`↓` appear four times on purpose: Ink dispatches every keystroke to
 *every* `useInput` handler and offers no way to stop one propagating, so the
 two keys can only have one meaning at a time and the choice has to be made by
 whoever renders both. The Prompt reports through `onArrowClaimChange` whether

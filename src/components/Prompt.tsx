@@ -171,13 +171,20 @@ export const Prompt: FC<PromptProps> = ({
   // on a terminal UI that has to stay smooth while scrolling the log.
   useInput(
     (input, key) => {
-      // Ctrl-modified keystrokes are reserved for the App-level
-      // handlers (Ctrl-C exits the REPL; Ctrl-B/F/U/D scroll the log).
-      // If we let them fall through, Ctrl-C would append 'c' to the
-      // buffer. Ctrl-J is the exception and never reaches here as a
-      // Ctrl-keystroke: Ink parses it as the linefeed it is, so it
-      // arrives as ordinary input '\n' and inserts a newline below.
-      if (key.ctrl) return
+      // `Ctrl-` keystrokes are split with the layers above us, per the
+      // ownership table in SPEC §1.6: we take the two caret ends, and
+      // Ctrl-C (App) plus Ctrl-B/F/U/D (log scroll) pass straight through.
+      // What must never happen is falling through to the text path below,
+      // where Ink delivers a `Ctrl-` keystroke as its bare letter — so
+      // Ctrl-C would append a 'c' to the buffer on its way out.
+      //
+      // Ctrl-J is not handled here and does not need to be: Ink parses it
+      // as the linefeed it is, so it arrives as ordinary input '\n'.
+      if (key.ctrl) {
+        if (input === 'a') setCursorIndex(0)
+        else if (input === 'e') setCursorIndex(value.length)
+        return
+      }
       // Mouse reports reach every `useInput` handler as ordinary input
       // with the leading ESC stripped, so without this a spin of the
       // wheel types `[<64;12;30M` into the prompt. The scroll hook is
