@@ -42,22 +42,68 @@ function pushNote(entries: UiEntry[], text: string, tone?: 'error' | 'warn'): Ui
   return [...entries, { kind: 'note', text, ...(tone ? { tone } : {}) }]
 }
 
-/** Find the last assistant entry matching (turn, step) and return its index. */
-function findAssistant(entries: UiEntry[], turn: number, step: number): number {
-  for (let i = entries.length - 1; i >= 0; i -= 1) {
-    const e = entries[i]
-    if (e && e.kind === 'assistant' && e.turn === turn && e.step === step) return i
-  }
-  return -1
+/** The member of {@link UiEntry} carrying one `kind`. */
+type EntryOf<K extends UiEntry['kind']> = Extract<UiEntry, { kind: K }>
+
+/** An entry found in the list, paired with the index it was found at. */
+interface Located<T extends UiEntry> {
+  index: number
+  entry: T
 }
 
-/** Find the most recent still-running tool entry. */
-function findLastRunningTool(entries: UiEntry[]): number {
-  for (let i = entries.length - 1; i >= 0; i -= 1) {
-    const e = entries[i]
-    if (e && e.kind === 'tool' && e.status === 'running') return i
+/**
+ * Scan backwards for the last entry matching `match`, returning it *with* its
+ * index. Returning the entry is the point: every call site here needs to rebuild
+ * the entry it found, and handing back a bare index meant reaching into
+ * `entries[idx]` again and asserting the kind with `as Extract<UiEntry, …>`. Those
+ * assertions were all correct, but each one held its guarantee in the distance
+ * between two statements rather than in the type — change a predicate and the
+ * cast keeps compiling while becoming a lie. Carrying the narrowed entry out of
+ * the same `if` that checked it closes that gap.
+ * @param entries - the projected chat list, newest last.
+ * @param match - type predicate selecting the entry to find.
+ * @returns the match and its index, or `undefined` when there is none.
+ */
+function findLast<T extends UiEntry>(
+  entries: readonly UiEntry[],
+  match: (entry: UiEntry) => entry is T,
+): Located<T> | undefined {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    // No `undefined` check: `noUncheckedIndexedAccess` is off in this project,
+    // so the index type is `UiEntry`, and the loop bounds make the read safe
+    // anyway. Guarding here would be dead code oxlint correctly rejects.
+    const entry = entries[index]
+    if (match(entry)) return { index, entry }
   }
-  return -1
+  return undefined
+}
+
+/** Copy `entries` with the item at `index` replaced. */
+function replaceAt(entries: readonly UiEntry[], index: number, entry: UiEntry): UiEntry[] {
+  const next = entries.slice()
+  next[index] = entry
+  return next
+}
+
+/** Match the assistant entry belonging to one `(turn, step)` pair. */
+function assistantAt(turn: number, step: number): (entry: UiEntry) => entry is EntryOf<'assistant'> {
+  return (entry): entry is EntryOf<'assistant'> =>
+    entry.kind === 'assistant' && entry.turn === turn && entry.step === step
+}
+
+/** Match a tool entry that has not reported a result yet. */
+function isRunningTool(entry: UiEntry): entry is EntryOf<'tool'> {
+  return entry.kind === 'tool' && entry.status === 'running'
+}
+
+/** Match any compaction entry. */
+function isCompaction(entry: UiEntry): entry is EntryOf<'compaction'> {
+  return entry.kind === 'compaction'
+}
+
+/** Match the compaction entry that opened the current compaction. */
+function isCompactionStart(entry: UiEntry): entry is EntryOf<'compaction'> {
+  return entry.kind === 'compaction' && entry.stage === 'start'
 }
 
 /** Apply a single session event to a state. */
@@ -140,44 +186,36 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
 
     case 'assistant/chunk': {
       const { turn, step, chunk } = event.data
-      const idx = findAssistant(state.entries, turn, step)
-      if (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta') {
-        if (idx >= 0) {
-          const existing = state.entries[idx] as Extract<UiEntry, { kind: 'assistant' }>
-          const next: UiEntry = { ...existing, text: existing.text + chunk.text }
-          const entries = state.entries.slice()
-          entries[idx] = next
-          return { ...state, entries }
-        }
-        return {
-          ...state,
-          entries: [
-            ...state.entries,
-            { kind: 'assistant', turn, step, text: chunk.text, finalized: false },
-          ],
-        }
+      if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta') return state
+      const found = findLast(state.entries, assistantAt(turn, step))
+      if (found) {
+        const next: UiEntry = { ...found.entry, text: found.entry.text + chunk.text }
+        return { ...state, entries: replaceAt(state.entries, found.index, next) }
       }
-      return state
+      return {
+        ...state,
+        entries: [
+          ...state.entries,
+          { kind: 'assistant', turn, step, text: chunk.text, finalized: false },
+        ],
+      }
     }
 
     case 'assistant/message': {
       const { turn, step, message, usage } = event.data
-      const idx = findAssistant(state.entries, turn, step)
+      const found = findLast(state.entries, assistantAt(turn, step))
       const text = message.content
         .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
         .map(b => b.text)
         .join('')
-      if (idx >= 0) {
-        const existing = state.entries[idx] as Extract<UiEntry, { kind: 'assistant' }>
+      if (found) {
         const next: UiEntry = {
-          ...existing,
-          text: text || existing.text,
+          ...found.entry,
+          text: text || found.entry.text,
           finalized: true,
           ...(usage ? { usage } : {}),
         }
-        const entries = state.entries.slice()
-        entries[idx] = next
-        return { ...state, entries }
+        return { ...state, entries: replaceAt(state.entries, found.index, next) }
       }
       return {
         ...state,
@@ -210,18 +248,15 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
       // `tool/result` does not carry its call id; the log ordering guarantees
       // the result immediately follows its call, so the most recent running
       // tool is the one this result closes.
-      const idx = findLastRunningTool(state.entries)
-      if (idx < 0) return state
-      const existing = state.entries[idx] as Extract<UiEntry, { kind: 'tool' }>
+      const found = findLast(state.entries, isRunningTool)
+      if (!found) return state
       const next: UiEntry = {
-        ...existing,
+        ...found.entry,
         result: event.data.message,
         ...(event.data.error ? { error: event.data.error } : {}),
         status: event.data.error ? 'error' : 'ok',
       }
-      const entries = state.entries.slice()
-      entries[idx] = next
-      return { ...state, entries }
+      return { ...state, entries: replaceAt(state.entries, found.index, next) }
     }
 
     case 'compaction/start':
@@ -231,22 +266,15 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
       }
 
     case 'compaction/summary': {
-      const idx = [...state.entries].reverse().findIndex(
-        (e): e is Extract<UiEntry, { kind: 'compaction' }> =>
-          e.kind === 'compaction' && e.stage === 'start',
-      )
-      if (idx < 0) {
+      const found = findLast(state.entries, isCompactionStart)
+      if (!found) {
         return {
           ...state,
           entries: [...state.entries, { kind: 'compaction', stage: 'summary' }],
         }
       }
-      const realIdx = state.entries.length - 1 - idx
-      const target = state.entries[realIdx] as Extract<UiEntry, { kind: 'compaction' }>
-      const replaced: UiEntry = { ...target, stage: 'summary' }
-      const entries = state.entries.slice()
-      entries[realIdx] = replaced
-      return { ...state, entries }
+      const replaced: UiEntry = { ...found.entry, stage: 'summary' }
+      return { ...state, entries: replaceAt(state.entries, found.index, replaced) }
     }
 
     case 'compaction/prune': {
@@ -257,21 +285,15 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
     }
 
     case 'compaction/end': {
-      const idx = [...state.entries].reverse().findIndex(
-        (e): e is Extract<UiEntry, { kind: 'compaction' }> => e.kind === 'compaction',
-      )
-      if (idx < 0) {
+      const found = findLast(state.entries, isCompaction)
+      if (!found) {
         return {
           ...state,
           entries: [...state.entries, { kind: 'compaction', stage: 'end' }],
         }
       }
-      const realIdx = state.entries.length - 1 - idx
-      const target = state.entries[realIdx] as Extract<UiEntry, { kind: 'compaction' }>
-      const replaced: UiEntry = { ...target, stage: 'end' }
-      const entries = state.entries.slice()
-      entries[realIdx] = replaced
-      return { ...state, entries }
+      const replaced: UiEntry = { ...found.entry, stage: 'end' }
+      return { ...state, entries: replaceAt(state.entries, found.index, replaced) }
     }
 
     case 'plan/mode':
