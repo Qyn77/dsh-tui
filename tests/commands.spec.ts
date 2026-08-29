@@ -84,6 +84,24 @@ describe('slash command dispatch', () => {
     }
   })
 
+  it('reports the model as unknown when no default-model service is mounted', () => {
+    // `service()` returns `undefined` for a service nobody provided, and that is
+    // legitimate: a bare `dsh-tui` in a harness has no `agentDefaultModel`.
+    // `/status` has to degrade to a word rather than print `undefined/undefined`.
+    const ctx = new Context()
+    const cmd: CommandContext = {
+      ctx,
+      agent: { id: 'tui-1' as never, session: undefined as never } as never,
+      resetView: vi.fn(),
+    }
+    const result = dispatch('/status', cmd)
+    expect(result.kind).toBe('handled')
+    if (result.kind === 'handled') {
+      expect(result.message).toContain('model: unknown')
+      expect(result.message).toContain('tui-1')
+    }
+  })
+
   it('asks the launcher to exit for /exit and /quit (case + trailing whitespace)', () => {
     const { cmd, reset: resetA } = makeCommand()
     expect(dispatch('/exit', cmd).kind).toBe('exit')

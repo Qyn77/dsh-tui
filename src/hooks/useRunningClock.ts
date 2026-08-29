@@ -5,10 +5,16 @@
  * and the counter stay in lock-step, and so the App root can pass the
  * result down as plain props instead of reaching for a context.
  *
- * The hook is intentionally simple: one `setInterval` per mount, an
- * 80ms tick (spinner cycle ≈ 0.8s), elapsed-seconds updated only when
- * the integer second changes so a long turn does not force a re-render
- * twelve times a second for a value that has not changed.
+ * The hook is intentionally simple: one `setInterval` per mount and an 80ms
+ * tick (spinner cycle ≈ 0.8s).
+ *
+ * The elapsed-seconds counter is written only when the integer second changes.
+ * That gate used to be described here as saving a re-render twelve times a
+ * second, which is not true and is worth correcting rather than repeating: the
+ * spinner index changes on *every* tick, so the component re-renders at the
+ * tick rate no matter what this counter does. What the gate actually avoids is
+ * a redundant state write per tick. It is kept because that is still the
+ * correct thing to do, not because it buys a frame.
  * @module @deepseek-ai/dsh-tui/hooks/useRunningClock
  */
 

@@ -532,13 +532,21 @@ the line, so no command can take an argument yet.
 | `state.ts` | 100% (every event type, every branch) |
 | `commands.ts` | 100% (every command, every invalid input shape) |
 | `markdown.ts` | Every block-level construct (heading, paragraph, code, list, blockquote, hr) + at least one inline construct + the failure-mode fallback (unclosed fence, stray delimiter) |
-| `hooks/*` | Behavior tests via `renderHook`; one happy path + one error path each |
-| `components/*` | Snapshot test for layout + interaction test for input handling |
+| `hooks/*` | Whatever the hook actually owns. A hook that only wires a pure module to React is covered by that module's spec plus a frame test; a hook that owns state or a timer gets a mounted probe (`tests/running-clock.spec.ts`, `tests/session-events.spec.ts` are the two patterns) |
+| `components/*` | Frame-level, through the fake TTY. See below — there are no snapshots and no `renderHook` in this package |
 | `resize.ts` | A settled drag always ends with a frame on screen — including the drags that produce a byte-identical frame (height-only, and back to the starting width) |
 | Command output | Frame-level, in `tests/command-output.spec.ts`: every command that prints reaches the screen, an unknown command is reported in the log, and nothing is ever written to `stderr`. `dispatch` returning the right string is not evidence the user saw it |
 | `index.ts` | Smoke test: instantiate the plugin with a mock Agent and assert `render` was called |
 
 Use `vitest`. Tests live in `tests/` mirroring `src/`. Run with `pnpm test`. Test files do **not** import from `lib/`; they import from `src/`.
+
+**Where a test goes.** The package tests along a seam, not per file, and the seam is *pure module vs. React*:
+
+- **Pure modules get direct unit specs.** `state.ts`, `markdown.ts`, `scroll.ts`, `resize.ts`, `message-layout.ts`, `prompt-layout.ts`, `prompt-editing.ts`, `width.ts` are all reachable without booting anything, so they are tested by calling them.
+- **Components are tested through the frame**, by rendering the real tree onto a fake TTY and asserting on the characters that reach the screen. `Markdown.tsx`, `MessageList.tsx`, `Prompt.tsx` and `SlashPalette.tsx` therefore have no file named after them in `tests/` — they are covered by `prompt-frame.spec.ts`, `message-scroll.spec.ts`, `command-output.spec.ts` and friends. This is deliberate: a component spec asserting on a React tree would pin the implementation, while the frame test pins the thing the user actually looks at. **An empty row in a file-to-spec table is not automatically a gap here** — check the frame specs before filing one.
+- **Hooks split by what they own.** A hook that only adapts a pure module to React needs no spec of its own. A hook that owns state or a timer gets a mounted probe, because its contract is a sequence over time and no single frame can show it.
+
+Do not add a snapshot test. There is no snapshot in this package and no `renderHook`: Ink ships its own reconciler, so `react-dom/test-utils` is not installed and `act` comes from the `react` root export.
 
 ### 3.5 Secret handling
 
