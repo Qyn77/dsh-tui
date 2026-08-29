@@ -4,7 +4,7 @@
  * @module @deepseek-ai/dsh-tui/state
  */
 
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import type { ToolStatus, UiEntry, UiState } from './types.ts'
 
@@ -44,6 +44,9 @@ function pushNote(entries: UiEntry[], text: string, tone?: 'error' | 'warn'): Ui
 
 /** The member of {@link UiEntry} carrying one `kind`. */
 type EntryOf<K extends UiEntry['kind']> = Extract<UiEntry, { kind: K }>
+
+/** The member of {@link SessionEvent} carrying one `type`. */
+type EventOf<T extends SessionEvent['type']> = Extract<SessionEvent, { type: T }>
 
 /** An entry found in the list, paired with the index it was found at. */
 interface Located<T extends UiEntry> {
@@ -106,7 +109,193 @@ function isCompactionStart(entry: UiEntry): entry is EntryOf<'compaction'> {
   return entry.kind === 'compaction' && entry.stage === 'start'
 }
 
-/** Apply a single session event to a state. */
+/** Append one entry to the projected list. */
+function append(state: UiState, entry: UiEntry): UiEntry[] {
+  return [...state.entries, entry]
+}
+
+/**
+ * The status a tool entry inherits when the turn ends while it is still
+ * `running`. Such a tool never reported a result, so its fate has to be read
+ * off the reason the turn ended for. This used to be an unconditional `ok`,
+ * which meant a tool the user cut off with Ctrl-C rendered as a completed one —
+ * the transcript claimed work had finished that never did. Anything other than
+ * a clean completion or an outright error is `cancelled`: not a failure, just
+ * never finished.
+ */
+function unfinishedToolStatus(reason: TurnEndReason): ToolStatus {
+  if (reason.kind === 'completed') return 'ok'
+  if (reason.kind === 'error') return 'error'
+  return 'cancelled'
+}
+
+/**
+ * The note a finished turn leaves in the log, or `undefined` for a clean
+ * completion. A failed turn is red and a stopped one is yellow: left untoned
+ * they were dim gray, i.e. visually identical to a compaction notice, which is
+ * the wrong weight for the two states the user most needs to notice.
+ */
+function turnEndNote(
+  turn: number,
+  reason: TurnEndReason,
+): { text: string; tone: 'error' | 'warn' } | undefined {
+  switch (reason.kind) {
+    case 'completed':
+      return undefined
+    case 'aborted':
+      return { text: `[turn ${turn} aborted]`, tone: 'warn' }
+    case 'error':
+      return { text: `[turn ${turn} errored: ${reason.error.code}]`, tone: 'error' }
+    case 'interrupted':
+      return { text: `[turn ${turn} interrupted]`, tone: 'warn' }
+    default:
+      return { text: `[turn ${turn} ended: ${reason.kind}]`, tone: 'warn' }
+  }
+}
+
+/** Close out a turn: finalize whatever is still in flight, then note why it ended. */
+function onTurnEnd(state: UiState, event: EventOf<'turn/end'>): UiState {
+  const reason = event.data.reason
+  const unfinished = unfinishedToolStatus(reason)
+  const entries = state.entries.map((e): UiEntry => {
+    if (e.kind === 'assistant' && !e.finalized) return { ...e, finalized: true }
+    if (e.kind === 'tool' && e.status === 'running') return { ...e, status: unfinished }
+    return e
+  })
+  const note = turnEndNote(event.data.turn, reason)
+  return {
+    ...state,
+    entries: note ? pushNote(entries, note.text, note.tone) : entries,
+    status: 'idle',
+    lastReason: reason,
+  }
+}
+
+/** Project a user-role message as either the human's prompt or a runtime injection. */
+function onUserMessage(state: UiState, event: EventOf<'user/message'>): UiState {
+  const msg = event.data
+  if (!isRuntimeContext(msg)) {
+    return { ...state, entries: append(state, { kind: 'user', message: msg }) }
+  }
+  // Synthetic injection (plugin source, or any non-`user` source on
+  // a user-role message). Surface as a `runtime-context` row so
+  // the user can see the model received context, without the chat
+  // surface mislabeling it as a "you" message.
+  const plugin = msg.source.kind === 'plugin' ? msg.source.plugin : undefined
+  const form = msg.source.kind === 'plugin' ? msg.source.form : undefined
+  return {
+    ...state,
+    entries: append(state, {
+      kind: 'runtime-context',
+      ...(plugin !== undefined ? { plugin } : {}),
+      ...(form !== undefined ? { form } : {}),
+      preview: previewText(msg, 80),
+    }),
+  }
+}
+
+/** Stream one delta into the assistant entry for its `(turn, step)`. */
+function onAssistantChunk(state: UiState, event: EventOf<'assistant/chunk'>): UiState {
+  const { turn, step, chunk } = event.data
+  if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta') return state
+  const found = findLast(state.entries, assistantAt(turn, step))
+  if (found) {
+    const next: UiEntry = { ...found.entry, text: found.entry.text + chunk.text }
+    return { ...state, entries: replaceAt(state.entries, found.index, next) }
+  }
+  return {
+    ...state,
+    entries: append(state, { kind: 'assistant', turn, step, text: chunk.text, finalized: false }),
+  }
+}
+
+/** Seal the assistant entry for its `(turn, step)`, attaching usage if the event carried it. */
+function onAssistantMessage(state: UiState, event: EventOf<'assistant/message'>): UiState {
+  const { turn, step, message, usage } = event.data
+  const found = findLast(state.entries, assistantAt(turn, step))
+  const text = message.content
+    .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+    .map(b => b.text)
+    .join('')
+  if (found) {
+    const next: UiEntry = {
+      ...found.entry,
+      // An empty message keeps whatever the deltas already built.
+      text: text || found.entry.text,
+      finalized: true,
+      ...(usage ? { usage } : {}),
+    }
+    return { ...state, entries: replaceAt(state.entries, found.index, next) }
+  }
+  return {
+    ...state,
+    entries: append(state, {
+      kind: 'assistant',
+      turn,
+      step,
+      text,
+      finalized: true,
+      ...(usage ? { usage } : {}),
+    }),
+  }
+}
+
+/** Open a tool entry in the `running` state; `tool/result` closes it. */
+function onToolCall(state: UiState, event: EventOf<'tool/call'>): UiState {
+  return {
+    ...state,
+    entries: append(state, {
+      kind: 'tool',
+      callId: event.data.callId,
+      name: event.data.name,
+      args: event.data.arguments,
+      turn: event.data.turn,
+      step: event.data.step,
+      status: 'running',
+    }),
+  }
+}
+
+/** Close the tool entry this result belongs to. */
+function onToolResult(state: UiState, event: EventOf<'tool/result'>): UiState {
+  // `tool/result` does not carry its call id; the log ordering guarantees
+  // the result immediately follows its call, so the most recent running
+  // tool is the one this result closes.
+  const found = findLast(state.entries, isRunningTool)
+  if (!found) return state
+  const next: UiEntry = {
+    ...found.entry,
+    result: event.data.message,
+    ...(event.data.error ? { error: event.data.error } : {}),
+    status: event.data.error ? 'error' : 'ok',
+  }
+  return { ...state, entries: replaceAt(state.entries, found.index, next) }
+}
+
+/**
+ * Move an open compaction row to its next stage, or start a fresh row when the
+ * event arrives with nothing to advance — a resumed session can join a
+ * compaction midway. `match` is what separates the two callers: `summary`
+ * upgrades the row that opened *this* compaction, while `end` closes whichever
+ * compaction row is most recent.
+ */
+function advanceCompaction(
+  state: UiState,
+  stage: 'summary' | 'end',
+  match: (entry: UiEntry) => entry is EntryOf<'compaction'>,
+): UiState {
+  const found = findLast(state.entries, match)
+  if (!found) return { ...state, entries: append(state, { kind: 'compaction', stage }) }
+  const replaced: UiEntry = { ...found.entry, stage }
+  return { ...state, entries: replaceAt(state.entries, found.index, replaced) }
+}
+
+/**
+ * Apply a single session event to a state. Every branch that needs more than
+ * one expression lives in its own function above, so this reads as the routing
+ * table it is — and so `turn/end`'s two decision ladders are not sharing a
+ * scope with `case 'step/start': return state`.
+ */
 export function reduce(state: UiState, event: SessionEvent): UiState {
   switch (event.type) {
     case 'session/end-seed':
@@ -114,199 +303,51 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
       // the live work; this matters for resumed sessions.
       return { ...state, entries: [] }
 
-    case 'turn/start': {
+    case 'turn/start':
       return { ...state, status: 'running', currentTurn: event.data.turn }
-    }
 
-    case 'turn/end': {
-      const reason = event.data.reason
-      // A tool still marked `running` when the turn ends never reported a
-      // result, so its fate has to be read off the reason the turn ended for.
-      // This used to be an unconditional `ok`, which meant a tool the user cut
-      // off with Ctrl-C rendered as a completed one — the transcript claimed
-      // work had finished that never did. Anything other than a clean
-      // completion or an outright error is `cancelled`: not a failure, just
-      // never finished.
-      const unfinished: ToolStatus = reason.kind === 'completed'
-        ? 'ok'
-        : reason.kind === 'error'
-          ? 'error'
-          : 'cancelled'
-      // Finalize any in-flight assistant or tool entry.
-      const entries = state.entries.map((e): UiEntry => {
-        if (e.kind === 'assistant' && !e.finalized) return { ...e, finalized: true }
-        if (e.kind === 'tool' && e.status === 'running') return { ...e, status: unfinished }
-        return e
-      })
-      // A failed turn is red and a stopped one is yellow. Left untoned they
-      // were dim gray, i.e. visually identical to a compaction notice, which
-      // is the wrong weight for the two states the user most needs to notice.
-      const note = reason.kind === 'completed'
-        ? undefined
-        : reason.kind === 'aborted'
-          ? { text: `[turn ${event.data.turn} aborted]`, tone: 'warn' as const }
-          : reason.kind === 'error'
-            ? { text: `[turn ${event.data.turn} errored: ${reason.error.code}]`, tone: 'error' as const }
-            : reason.kind === 'interrupted'
-              ? { text: `[turn ${event.data.turn} interrupted]`, tone: 'warn' as const }
-              : { text: `[turn ${event.data.turn} ended: ${reason.kind}]`, tone: 'warn' as const }
-      return {
-        ...state,
-        entries: note ? pushNote(entries, note.text, note.tone) : entries,
-        status: 'idle',
-        lastReason: reason,
-      }
-    }
+    case 'turn/end':
+      return onTurnEnd(state, event)
 
-    case 'step/start':
-    case 'step/end':
-      return state
+    case 'user/message':
+      return onUserMessage(state, event)
 
-    case 'user/message': {
-      const msg = event.data
-      if (!isRuntimeContext(msg)) {
-        return { ...state, entries: [...state.entries, { kind: 'user', message: msg }] }
-      }
-      // Synthetic injection (plugin source, or any non-`user` source on
-      // a user-role message). Surface as a `runtime-context` row so
-      // the user can see the model received context, without the chat
-      // surface mislabeling it as a "you" message.
-      const plugin = msg.source.kind === 'plugin' ? msg.source.plugin : undefined
-      const form = msg.source.kind === 'plugin' ? msg.source.form : undefined
-      return {
-        ...state,
-        entries: [...state.entries, {
-          kind: 'runtime-context',
-          ...(plugin !== undefined ? { plugin } : {}),
-          ...(form !== undefined ? { form } : {}),
-          preview: previewText(msg, 80),
-        }],
-      }
-    }
+    case 'assistant/chunk':
+      return onAssistantChunk(state, event)
 
-    case 'assistant/chunk': {
-      const { turn, step, chunk } = event.data
-      if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta') return state
-      const found = findLast(state.entries, assistantAt(turn, step))
-      if (found) {
-        const next: UiEntry = { ...found.entry, text: found.entry.text + chunk.text }
-        return { ...state, entries: replaceAt(state.entries, found.index, next) }
-      }
-      return {
-        ...state,
-        entries: [
-          ...state.entries,
-          { kind: 'assistant', turn, step, text: chunk.text, finalized: false },
-        ],
-      }
-    }
+    case 'assistant/message':
+      return onAssistantMessage(state, event)
 
-    case 'assistant/message': {
-      const { turn, step, message, usage } = event.data
-      const found = findLast(state.entries, assistantAt(turn, step))
-      const text = message.content
-        .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
-        .map(b => b.text)
-        .join('')
-      if (found) {
-        const next: UiEntry = {
-          ...found.entry,
-          text: text || found.entry.text,
-          finalized: true,
-          ...(usage ? { usage } : {}),
-        }
-        return { ...state, entries: replaceAt(state.entries, found.index, next) }
-      }
-      return {
-        ...state,
-        entries: [
-          ...state.entries,
-          { kind: 'assistant', turn, step, text, finalized: true, ...(usage ? { usage } : {}) },
-        ],
-      }
-    }
+    case 'tool/call':
+      return onToolCall(state, event)
 
-    case 'tool/call': {
-      return {
-        ...state,
-        entries: [
-          ...state.entries,
-          {
-            kind: 'tool',
-            callId: event.data.callId,
-            name: event.data.name,
-            args: event.data.arguments,
-            turn: event.data.turn,
-            step: event.data.step,
-            status: 'running',
-          },
-        ],
-      }
-    }
-
-    case 'tool/result': {
-      // `tool/result` does not carry its call id; the log ordering guarantees
-      // the result immediately follows its call, so the most recent running
-      // tool is the one this result closes.
-      const found = findLast(state.entries, isRunningTool)
-      if (!found) return state
-      const next: UiEntry = {
-        ...found.entry,
-        result: event.data.message,
-        ...(event.data.error ? { error: event.data.error } : {}),
-        status: event.data.error ? 'error' : 'ok',
-      }
-      return { ...state, entries: replaceAt(state.entries, found.index, next) }
-    }
+    case 'tool/result':
+      return onToolResult(state, event)
 
     case 'compaction/start':
-      return {
-        ...state,
-        entries: [...state.entries, { kind: 'compaction', stage: 'start' }],
-      }
+      return { ...state, entries: append(state, { kind: 'compaction', stage: 'start' }) }
 
-    case 'compaction/summary': {
-      const found = findLast(state.entries, isCompactionStart)
-      if (!found) {
-        return {
-          ...state,
-          entries: [...state.entries, { kind: 'compaction', stage: 'summary' }],
-        }
-      }
-      const replaced: UiEntry = { ...found.entry, stage: 'summary' }
-      return { ...state, entries: replaceAt(state.entries, found.index, replaced) }
-    }
+    case 'compaction/summary':
+      return advanceCompaction(state, 'summary', isCompactionStart)
 
-    case 'compaction/prune': {
-      return {
-        ...state,
-        entries: [...state.entries, { kind: 'compaction', stage: 'prune' }],
-      }
-    }
+    case 'compaction/prune':
+      return { ...state, entries: append(state, { kind: 'compaction', stage: 'prune' }) }
 
-    case 'compaction/end': {
-      const found = findLast(state.entries, isCompaction)
-      if (!found) {
-        return {
-          ...state,
-          entries: [...state.entries, { kind: 'compaction', stage: 'end' }],
-        }
-      }
-      const replaced: UiEntry = { ...found.entry, stage: 'end' }
-      return { ...state, entries: replaceAt(state.entries, found.index, replaced) }
-    }
+    case 'compaction/end':
+      return advanceCompaction(state, 'end', isCompaction)
 
     case 'plan/mode':
       return {
         ...state,
-        entries: [
-          ...state.entries,
-          { kind: 'plan', enabled: event.data.enabled, at: event.seq },
-        ],
+        entries: append(state, { kind: 'plan', enabled: event.data.enabled, at: event.seq }),
       }
 
+    // Carried in the log but with nothing to project: step boundaries are
+    // implied by the assistant entries between them, and inbox splices are
+    // pure bookkeeping.
+    case 'step/start':
+    case 'step/end':
     case 'agent/inbox/spliced':
-      // Pure inbox bookkeeping; nothing to render.
       return state
 
     default:
