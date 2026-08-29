@@ -247,6 +247,7 @@ its way to someone else.
 | `Alt-B` / `Alt-F` | Prompt | Caret back / forward one word |
 | `Ctrl-W` | Prompt | Delete the word before the caret |
 | `Ctrl-K` | Prompt | Delete from the caret to the end of the buffer |
+| `Ctrl-P` / `Ctrl-N` | Prompt | Walk back / forward through submitted lines |
 | `Ctrl-J` | Prompt | Insert a newline |
 | `\` + `Enter` | Prompt | Insert a newline (the older escape; still works) |
 | `Tab` | Slash palette | Complete the highlighted command |
@@ -261,7 +262,7 @@ its way to someone else.
 | `Ctrl-C` | App | Cancel turn (when running) or exit (when idle) |
 | `Ctrl-L` | App | Clear screen, redraw (v0.4) |
 
-Two rows are decided rather than inherited, and both cost something:
+Three rows are decided rather than inherited, and each costs something:
 
 - **`Ctrl-U` scrolls; it does not kill the line.** In readline it is
   kill-to-start, and that muscle memory is real. But `PageUp`/`PageDown` need
@@ -274,6 +275,19 @@ Two rows are decided rather than inherited, and both cost something:
   only way back to the tail after scrolling, which makes it the more load
   bearing of the two meanings. They are read off raw stdin rather than through
   `useInput` because Ink 5 does not decode them.
+- **History is on `Ctrl-P`/`Ctrl-N`, not on `↑`/`↓`.** Every shell puts it on
+  the arrows and this does not, which is a real cost in muscle memory. It is
+  unavoidable: `index.ts` asks the terminal for alternate scroll mode, so a
+  *wheel notch* is delivered as a cursor key. Putting history on `↑` would
+  mean scrolling the wheel replaces the user's half-written message with an old
+  one. The arrows are already negotiated between the caret and the log (below);
+  history cannot be a third claimant on them.
+
+  History lives in memory for the session only and holds submitted lines,
+  slash commands included — re-running `/status` is a normal thing to want.
+  Empty lines and a repeat of the newest entry are not recorded, and edits to
+  a recalled line are not remembered per entry: keep walking and they are
+  gone, as in `bash`.
 
 There is also one binding that is *absent* rather than assigned. **Forward
 delete (the `Delete` key) is not implemented**, because Ink 5 cannot express

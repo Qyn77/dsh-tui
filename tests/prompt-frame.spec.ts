@@ -252,6 +252,87 @@ describe('prompt editing', () => {
   })
 })
 
+describe('prompt history', () => {
+  /** The buffer row, caret glyph included. */
+  function buffer(screen: string): string {
+    return promptBox(screen)[1] ?? ''
+  }
+
+  /**
+   * Slash commands are submitted for real but handled locally, so the prompt
+   * stays active and can take another keystroke. A plain message would start
+   * a turn and deactivate the input, which is not what these tests are about.
+   */
+  async function submit(app: Awaited<ReturnType<typeof paintApp>>, line: string): Promise<void> {
+    await app.send(line)
+    await app.send('\r')
+  }
+
+  it('walks back through submitted lines on Ctrl-P', async () => {
+    const painted = await paintApp()
+    await submit(painted, '/help')
+    await submit(painted, '/status')
+    await painted.send('\x10')
+    const newest = painted.screen()
+    await painted.send('\x10')
+    const older = painted.screen()
+    painted.unmount()
+
+    expect(buffer(newest)).toContain('/status▌')
+    expect(buffer(older)).toContain('/help▌')
+  })
+
+  it('stops at the oldest entry instead of wrapping around', async () => {
+    const painted = await paintApp()
+    await submit(painted, '/help')
+    await painted.send('\x10')
+    await painted.send('\x10')
+    await painted.send('\x10')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(buffer(screen)).toContain('/help▌')
+  })
+
+  it('hands back the half-written buffer on the way out with Ctrl-N', async () => {
+    const painted = await paintApp()
+    await submit(painted, '/help')
+    await painted.send('unsent words')
+    await painted.send('\x10')
+    const recalled = painted.screen()
+    await painted.send('\x0e')
+    const restored = painted.screen()
+    painted.unmount()
+
+    expect(buffer(recalled)).toContain('/help▌')
+    // The draft was not collateral damage of looking at history.
+    expect(buffer(restored)).toContain('unsent words▌')
+  })
+
+  it('does nothing on Ctrl-P with nothing submitted yet', async () => {
+    const painted = await paintApp()
+    await painted.send('typing')
+    await painted.send('\x10')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(buffer(screen)).toContain('typing▌')
+  })
+
+  it('does not record a repeated submission twice', async () => {
+    const painted = await paintApp()
+    await submit(painted, '/help')
+    await submit(painted, '/help')
+    await painted.send('\x10')
+    await painted.send('\x10')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // Two Ctrl-P presses on a one-entry history land on that one entry.
+    expect(buffer(screen)).toContain('/help▌')
+  })
+})
+
 describe('prompt and log both want the arrow keys', () => {
   it('moves the caret and leaves the log alone once the buffer is multi-row', async () => {
     const painted = await paintApp({ turns: 10 })

@@ -11,6 +11,7 @@ import {
   deleteToEnd,
   deleteWordBefore,
   insertTextAtCursor,
+  pushHistory,
   removeCharBeforeCursor,
   wordEndAfter,
   wordStartBefore,
@@ -90,5 +91,31 @@ describe('word and tail deletion', () => {
     expect(deleteToEnd('git commit', 4)).toBe('git ')
     expect(deleteToEnd('git commit', 0)).toBe('')
     expect(deleteToEnd('git commit', 10)).toBe('git commit')
+  })
+})
+
+describe('prompt history', () => {
+  it('appends the newest line last', () => {
+    expect(pushHistory(['one'], 'two')).toEqual(['one', 'two'])
+  })
+
+  it('drops an empty submission', () => {
+    expect(pushHistory(['one'], '')).toEqual(['one'])
+  })
+
+  it('drops a repeat of the newest entry', () => {
+    // Sending /status twice to watch a number change should not cost two
+    // Ctrl-P presses to walk back past.
+    expect(pushHistory(['one', '/status'], '/status')).toEqual(['one', '/status'])
+  })
+
+  it('keeps a repeat that is not the newest entry', () => {
+    expect(pushHistory(['/status', 'one'], '/status')).toEqual(['/status', 'one', '/status'])
+  })
+
+  it('does not mutate the history it is given', () => {
+    const history = ['one']
+    pushHistory(history, 'two')
+    expect(history).toEqual(['one'])
   })
 })

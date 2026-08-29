@@ -87,3 +87,15 @@ export function deleteWordBefore(text: string, cursor: number): { text: string; 
 export function deleteToEnd(text: string, cursor: number): string {
   return text.slice(0, clamp(cursor, text))
 }
+
+/**
+ * Append a submitted line to the prompt history, newest last. An empty line
+ * and a repeat of the newest entry are both dropped: holding Enter, or
+ * sending `/status` twice to watch something change, should not pad the
+ * history with entries the user then has to walk back through.
+ */
+export function pushHistory(history: readonly string[], entry: string): string[] {
+  if (entry === '') return [...history]
+  if (history[history.length - 1] === entry) return [...history]
+  return [...history, entry]
+}

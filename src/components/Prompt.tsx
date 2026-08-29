@@ -41,6 +41,7 @@ import {
   deleteToEnd,
   deleteWordBefore,
   insertTextAtCursor,
+  pushHistory,
   removeCharBeforeCursor,
   wordEndAfter,
   wordStartBefore,
@@ -125,6 +126,12 @@ export const Prompt: FC<PromptProps> = ({
   const [scrollTop, setScrollTop] = useState(0)
   const [textWidth, setTextWidth] = useState(0)
   const textRef = useRef<DOMElement | null>(null)
+  // Submitted lines, newest last, and where in them the user currently is.
+  // `null` means "on the live buffer"; `draft` is what that buffer held when
+  // they started walking, so Ctrl-N can hand it back.
+  const [history, setHistory] = useState<readonly string[]>([])
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null)
+  const [draft, setDraft] = useState('')
 
   // Filter is a pure derivation from `value`; no effect needed. The
   // selection index is clamped on every keystroke so an out-of-range
@@ -169,6 +176,52 @@ export const Prompt: FC<PromptProps> = ({
     setScrollTop(visibleStart(rows.length, targetRow, MAX_PROMPT_ROWS, scrollTop))
   }
 
+  /**
+   * Walk the history: `-1` towards older entries, `+1` back towards the live
+   * buffer. Stepping off the newest entry restores the draft rather than
+   * leaving an empty box, and stepping off the oldest does nothing at all —
+   * a wall is easier to feel than a silent wrap around to the newest line.
+   *
+   * Edits to a recalled line are not remembered per entry. Keep walking and
+   * they are gone, which is what `bash` does and is not worth another two
+   * pieces of state to improve on.
+   */
+  const recallHistory = (delta: number): void => {
+    if (history.length === 0) return
+    if (historyIndex === null) {
+      if (delta > 0) return
+      setDraft(value)
+      const index = history.length - 1
+      setHistoryIndex(index)
+      const recalled = history[index] ?? ''
+      setValue(recalled)
+      setCursorIndex(recalled.length)
+      setScrollTop(0)
+      return
+    }
+    const next = historyIndex + delta
+    if (next < 0) return
+    if (next >= history.length) {
+      setHistoryIndex(null)
+      setValue(draft)
+      setCursorIndex(draft.length)
+      setScrollTop(0)
+      return
+    }
+    setHistoryIndex(next)
+    const recalled = history[next] ?? ''
+    setValue(recalled)
+    setCursorIndex(recalled.length)
+    setScrollTop(0)
+  }
+
+  /** Record a submitted line and put the prompt back on a fresh buffer. */
+  const rememberSubmission = (submitted: string): void => {
+    setHistory(h => pushHistory(h, submitted))
+    setHistoryIndex(null)
+    setDraft('')
+  }
+
   // Ink's raw mode hides the terminal cursor, so we render our own.
   // Keep it stable instead of blinking: the prompt is already visually
   // distinct while active, and a 500ms re-render loop is unnecessary churn
@@ -192,6 +245,8 @@ export const Prompt: FC<PromptProps> = ({
           setValue(next.text)
           setCursorIndex(next.cursor)
         } else if (input === 'k') setValue(deleteToEnd(value, cursorIndex))
+        else if (input === 'p') recallHistory(-1)
+        else if (input === 'n') recallHistory(1)
         return
       }
       // Mouse reports reach every `useInput` handler as ordinary input
@@ -270,6 +325,7 @@ export const Prompt: FC<PromptProps> = ({
             setCursorIndex(0)
             setPaletteIndex(0)
             setScrollTop(0)
+            rememberSubmission(exact.name)
             onSubmit(exact.name)
             return
           }
@@ -288,6 +344,7 @@ export const Prompt: FC<PromptProps> = ({
         setValue('')
         setCursorIndex(0)
         setScrollTop(0)
+        rememberSubmission(submitted)
         onSubmit(submitted)
         return
       }
