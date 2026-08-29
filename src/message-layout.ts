@@ -13,6 +13,7 @@
  */
 
 import type { ContentBlock, ToolResultMessage } from '@deepseek-ai/dsh-llm'
+import type { ToolStatus } from './types.ts'
 
 /**
  * Glyph column width, in cells — the glyph plus one space.
@@ -165,8 +166,8 @@ function resultText(blocks: readonly ContentBlock[]): string {
   return text
 }
 
-/** Status marker for a tool call. */
-export function toolStatusGlyph(status: 'running' | 'ok' | 'error'): string {
+/** Status marker for a tool call. Glyphs are fixed by `docs/SPEC.md` §1.4. */
+export function toolStatusGlyph(status: ToolStatus): string {
   switch (status) {
     case 'ok':
       return '✓'
@@ -174,5 +175,7 @@ export function toolStatusGlyph(status: 'running' | 'ok' | 'error'): string {
       return '✗'
     case 'running':
       return '…'
+    case 'cancelled':
+      return '⊘'
   }
 }

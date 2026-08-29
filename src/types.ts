@@ -24,6 +24,17 @@ declare module '@deepseek-ai/dsh-session/types' {
   }
 }
 
+/**
+ * Fate of a tool call.
+ *
+ * `cancelled` is not a failure: it means the turn ended while the call was
+ * still in flight, so no result was ever reported. It exists because the
+ * alternative was claiming `ok` for a tool the user interrupted — see the
+ * `turn/end` case in `state.ts`. The glyph and color are fixed by
+ * `docs/SPEC.md` §1.4.
+ */
+export type ToolStatus = 'running' | 'ok' | 'error' | 'cancelled'
+
 /** Visible entry in the chat list. The reducer grows a list of these. */
 export type UiEntry =
   | { kind: 'user'; message: UserMessage }
@@ -44,11 +55,17 @@ export type UiEntry =
     step: number
     result?: ToolResultMessage
     error?: { name: string; code: string }
-    status: 'running' | 'ok' | 'error'
+    status: ToolStatus
   }
   | { kind: 'compaction'; stage: 'start' | 'summary' | 'end' | 'prune'; text?: string }
   | { kind: 'plan'; enabled: boolean; at: number }
-  | { kind: 'note'; text: string }
+  /**
+   * A free-floating remark. `tone` is what keeps a failed turn from looking
+   * like a compaction notice: untoned notes are incidental and dim, an
+   * `error` note is a turn that failed, and a `warn` note is a turn the user
+   * or the runtime stopped on purpose.
+   */
+  | { kind: 'note'; text: string; tone?: 'error' | 'warn' }
   | { kind: 'runtime-context'; plugin?: string; form?: string; preview: string }
   /**
    * A slash command and what it printed. Commands never reach the model, so

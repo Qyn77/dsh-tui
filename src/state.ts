@@ -6,7 +6,7 @@
 
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
-import type { UiEntry, UiState } from './types.ts'
+import type { ToolStatus, UiEntry, UiState } from './types.ts'
 
 /** Initial state. */
 export function initialState(): UiState {
@@ -38,8 +38,8 @@ function previewText(message: UserMessage, max: number): string {
 }
 
 /** Append a textual note to the chat list. */
-function pushNote(entries: UiEntry[], text: string): UiEntry[] {
-  return [...entries, { kind: 'note', text }]
+function pushNote(entries: UiEntry[], text: string, tone?: 'error' | 'warn'): UiEntry[] {
+  return [...entries, { kind: 'note', text, ...(tone ? { tone } : {}) }]
 }
 
 /** Find the last assistant entry matching (turn, step) and return its index. */
@@ -73,25 +73,40 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
     }
 
     case 'turn/end': {
+      const reason = event.data.reason
+      // A tool still marked `running` when the turn ends never reported a
+      // result, so its fate has to be read off the reason the turn ended for.
+      // This used to be an unconditional `ok`, which meant a tool the user cut
+      // off with Ctrl-C rendered as a completed one — the transcript claimed
+      // work had finished that never did. Anything other than a clean
+      // completion or an outright error is `cancelled`: not a failure, just
+      // never finished.
+      const unfinished: ToolStatus = reason.kind === 'completed'
+        ? 'ok'
+        : reason.kind === 'error'
+          ? 'error'
+          : 'cancelled'
       // Finalize any in-flight assistant or tool entry.
       const entries = state.entries.map((e): UiEntry => {
         if (e.kind === 'assistant' && !e.finalized) return { ...e, finalized: true }
-        if (e.kind === 'tool' && e.status === 'running') return { ...e, status: 'ok' }
+        if (e.kind === 'tool' && e.status === 'running') return { ...e, status: unfinished }
         return e
       })
-      const reason = event.data.reason
-      const text = reason.kind === 'completed'
+      // A failed turn is red and a stopped one is yellow. Left untoned they
+      // were dim gray, i.e. visually identical to a compaction notice, which
+      // is the wrong weight for the two states the user most needs to notice.
+      const note = reason.kind === 'completed'
         ? undefined
         : reason.kind === 'aborted'
-          ? `[turn ${event.data.turn} aborted]`
+          ? { text: `[turn ${event.data.turn} aborted]`, tone: 'warn' as const }
           : reason.kind === 'error'
-            ? `[turn ${event.data.turn} errored: ${reason.error.code}]`
+            ? { text: `[turn ${event.data.turn} errored: ${reason.error.code}]`, tone: 'error' as const }
             : reason.kind === 'interrupted'
-              ? `[turn ${event.data.turn} interrupted]`
-              : `[turn ${event.data.turn} ended: ${reason.kind}]`
+              ? { text: `[turn ${event.data.turn} interrupted]`, tone: 'warn' as const }
+              : { text: `[turn ${event.data.turn} ended: ${reason.kind}]`, tone: 'warn' as const }
       return {
         ...state,
-        entries: text ? pushNote(entries, text) : entries,
+        entries: note ? pushNote(entries, note.text, note.tone) : entries,
         status: 'idle',
         lastReason: reason,
       }

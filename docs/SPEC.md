@@ -157,6 +157,7 @@ The palette is theme-aware. Both light and dark terminals are first-class; `NO_C
 | Tool marker + status — ok | `green` | `⏺` on the call line; `✓`. |
 | Tool marker + status — running | `yellow` | `⏺` on the call line; `…`. |
 | Tool marker + status — error | `red` | `⏺` on the call line; `✗`; the `⎿ Name: code` row. |
+| Tool marker + status — cancelled | `gray` | `⏺` on the call line; `⊘`. The turn ended while the call was in flight — not a failure, so never red. |
 | Tool result | `gray` dim | The `⎿` row under a call. |
 | Run state — idle | `gray` | StatusBar status glyph. |
 | Run state — running | `yellow` | StatusBar status glyph. |
@@ -169,6 +170,8 @@ The palette is theme-aware. Both light and dark terminals are first-class; `NO_C
 | Plan mode off | `gray` | `⤷ plan mode off`. |
 | Meta / separators | `gray` | `·`, `in:`, `out:`, `session:`, turn/step counters. |
 | Notes | `gray` dim | Free-floating side remarks. |
+| Note — turn failed | `red` | `⤷ [turn N errored: CODE]`. Full brightness: left dim it read as an incidental remark. |
+| Note — turn stopped | `yellow` | `⤷ [turn N interrupted]`, `⤷ [turn N aborted]`. |
 | Version / repo meta | `gray` | `v<version>`, `<cwd> (<branch>*)` on the banner. |
 
 Colors are semantic, not aesthetic. Don't introduce new colors without a reason in this spec.
@@ -254,9 +257,10 @@ so a half-written multi-row message can never lock the log shut.
 
 - User messages are marked with `>` in the gutter and carry no label. The marker already says whose line it is, and a user message has no metadata to hang off a header row — so the text sits on the marker's own row.
 - Assistant turns keep a header row, `assistant · turn N step N`, because they *do* have metadata; the counter is meta and goes in `gray`. The body starts on the next row.
-- Tool calls carry their status as a trailing glyph on the call line: `✓`, `✗`, `…`.
+- Tool calls carry their status as a trailing glyph on the call line: `✓`, `✗`, `…`, `⊘`.
+- A tool still `running` when its turn ends never reported a result, so its status is derived from the `turn/end` reason: `completed` → `✓`, `error` → `✗`, anything else (`interrupted`, `aborted`) → `⊘ cancelled`. It must **never** be reported as `✓` unconditionally — that told the user a tool they had killed with Ctrl-C had completed.
 - Errors prefixed with `Error:` and rendered in `red`.
-- Notes / compactions / plan toggles use the `⤷` prefix and a single-line layout.
+- Notes / compactions / plan toggles use the `⤷` prefix and a single-line layout. A note carrying a turn failure or a turn cancellation is *toned* (`red` / `yellow`, full brightness) rather than dim, so the two outcomes the user most needs to notice do not look like a compaction notice.
 - **Runtime context** (a `user/message` event whose `source.kind` is not `user`, per dsh-session's contract) renders as `⤷ runtime context · <plugin> (<form>)` with a short dimmed preview (≤ 80 chars) of the injected payload. It takes the note marker, **not** the user's `>` — the latter would falsely attribute the agent's system context to the human at the keyboard. The reducer routes on the typed `source` field, never on text sniffing.
 
 ### 1.8 Rendering rules

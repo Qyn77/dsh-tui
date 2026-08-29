@@ -112,7 +112,15 @@ function Row({
  * real conversation fits on screen.
  */
 function ToolCall({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
-  const color = entry.status === 'error' ? 'red' : entry.status === 'ok' ? 'green' : 'yellow'
+  // `cancelled` is gray rather than red: the call did not fail, it never
+  // finished. Painting it red would report a problem the tool never had.
+  const color = entry.status === 'error'
+    ? 'red'
+    : entry.status === 'ok'
+      ? 'green'
+      : entry.status === 'cancelled'
+        ? 'gray'
+        : 'yellow'
   const result = entry.result ? toolResultSummary(entry.result) : ''
   return (
     <Row glyph={ASSISTANT_GLYPH} color={color}>
@@ -168,10 +176,20 @@ function UserBlock({ entry }: { entry: Extract<UiEntry, { kind: 'user' }> }) {
   )
 }
 
+/**
+ * A side remark. Dim gray by default — these are incidental.
+ *
+ * A toned note is not incidental and must not read as one: a failed turn is
+ * red and a turn that was stopped is yellow, both at full brightness. Left
+ * dim they were indistinguishable from a compaction notice, which is the
+ * wrong weight for the two outcomes the user most needs to see.
+ */
 function NoteLine({ entry }: { entry: Extract<UiEntry, { kind: 'note' }> }) {
+  const color = entry.tone === 'error' ? 'red' : entry.tone === 'warn' ? 'yellow' : 'gray'
+  const dim = entry.tone === undefined
   return (
-    <Row glyph={NOTE_GLYPH} color="gray" dim>
-      <Text color="gray" dimColor>{entry.text}</Text>
+    <Row glyph={NOTE_GLYPH} color={color} dim={dim}>
+      <Text color={color} dimColor={dim}>{entry.text}</Text>
     </Row>
   )
 }

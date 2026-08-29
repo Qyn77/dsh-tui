@@ -132,6 +132,61 @@ describe('tui state reducer', () => {
     expect((note as Extract<(typeof state.entries)[number], { kind: 'note' }>).text).toMatch(/aborted/)
   })
 
+  describe('a tool still running when the turn ends', () => {
+    /**
+     * A turn that opens a tool call and then ends without any result. The
+     * reason is passed loosely and cast at the `append` boundary: `TurnEndReason`
+     * is a union owned by dsh-session and each arm is spelled out at the call
+     * site, which is what these tests are varying.
+     */
+    function unfinishedTool(reason: Record<string, unknown>): ReturnType<typeof replay> {
+      const session = makeSession()
+      session.append('turn/start', { turn: 1 })
+      session.append('step/start', { turn: 1, step: 1 })
+      session.append('tool/call', {
+        callId: 'c1' as never, name: 'bash', arguments: 'sleep 100', turn: 1, step: 1,
+      })
+      session.append('turn/end', { turn: 1, reason } as never)
+      return replay(session.events)
+    }
+
+    function toolStatus(state: ReturnType<typeof replay>): string {
+      const tool = state.entries.find(e => e.kind === 'tool')
+      return (tool as Extract<(typeof state.entries)[number], { kind: 'tool' }>).status
+    }
+
+    function note(state: ReturnType<typeof replay>) {
+      return state.entries.find(e => e.kind === 'note')
+    }
+
+    it('is cancelled, not ok, when the user interrupts', () => {
+      // The defect this whole case exists for: an unconditional `ok` here
+      // told the user a tool they had just killed with Ctrl-C had completed.
+      const state = unfinishedTool({ kind: 'interrupted' })
+      expect(toolStatus(state)).toBe('cancelled')
+      expect(note(state)?.tone).toBe('warn')
+    })
+
+    it('is cancelled when the turn is aborted', () => {
+      const state = unfinishedTool({ kind: 'aborted', reason: { kind: 'user' } })
+      expect(toolStatus(state)).toBe('cancelled')
+      expect(note(state)?.tone).toBe('warn')
+    })
+
+    it('is an error, and the note is toned red, when the turn errored', () => {
+      const state = unfinishedTool({ kind: 'error', error: { name: 'ModelError', code: 'ETIMEDOUT' } })
+      expect(toolStatus(state)).toBe('error')
+      expect(note(state)?.tone).toBe('error')
+      expect(note(state)?.text).toMatch(/ETIMEDOUT/)
+    })
+
+    it('is ok on a clean completion, and leaves no note behind', () => {
+      const state = unfinishedTool({ kind: 'completed' })
+      expect(toolStatus(state)).toBe('ok')
+      expect(note(state)).toBeUndefined()
+    })
+  })
+
   it('handles session/end-seed by wiping the projected view above the seed', () => {
     // Build a session log where some events come before `session/end-seed`
     // (resumed history) and some after (live work). The reducer must drop
