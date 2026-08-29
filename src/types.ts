@@ -79,14 +79,25 @@ export type UiEntry =
    */
   | { kind: 'command'; input: string; text: string; failed: boolean }
 
-/** State shape held by the TUI. */
+/**
+ * State shape held by the TUI.
+ *
+ * `entries` and `status` are the two fields the render tree actually reads.
+ * `currentTurn` and `lastReason` are projected faithfully from the log but have
+ * no renderer, deliberately: a turn counter in the status bar tells the user
+ * something they can already count in the log, and the number that *would* be
+ * worth showing during a long turn is the step, which the session does not
+ * surface. Both are kept because they are the honest projection of the events
+ * and because dropping a field from an exported interface in an `rc` line is a
+ * breaking change for no gain. Do not read this as "wiring in progress".
+ */
 export interface UiState {
   entries: UiEntry[]
-  /** Current agent status. */
+  /** Current agent status. Drives the spinner and the `working`/`idle` label. */
   status: 'idle' | 'running'
-  /** Current turn number when the agent is running. */
+  /** Turn number of the most recent `turn/start`. Projection only — nothing renders it. */
   currentTurn: number
-  /** Last seen `turn/end` reason (for the spinner → idle transition). */
+  /** Reason carried by the most recent `turn/end`. Projection only — nothing renders it. */
   lastReason?: TurnEndReason
 }
 

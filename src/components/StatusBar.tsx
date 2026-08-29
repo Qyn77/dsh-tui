@@ -35,7 +35,7 @@ export interface StatusBarProps {
   selection: ModelSelection
   /** Session id of the live agent. */
   sessionId: SessionId
-  /** Live UI state — used for status + last-finished turn number. */
+  /** Live UI state — read for `status` and for the token totals. */
   state: UiState
   /** Index into {@link SPINNER_FRAMES} for the running glyph. */
   spinnerFrame: number
