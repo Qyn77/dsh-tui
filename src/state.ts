@@ -135,10 +135,27 @@ function unfinishedToolStatus(reason: TurnEndReason): ToolStatus {
  * they were dim gray, i.e. visually identical to a compaction notice, which is
  * the wrong weight for the two states the user most needs to notice.
  */
+/**
+ * The note a finished turn leaves behind, or `undefined` when it ended
+ * cleanly and there is nothing to say.
+ *
+ * Every ending the session *names* gets its own wording, because the name is
+ * vocabulary from the event log and not something a user should have to
+ * decode. `[turn 3 ended: blocked]` is accurate and useless; a rejection the
+ * turn never recovered from is worth saying in words. The `default` arm stays
+ * because `TurnEndReasonMap` is merge-extensible — a backend can add an ending
+ * this build has never heard of, and printing its `kind` is the honest thing to
+ * do with a fact we cannot phrase.
+ */
 function turnEndNote(
   turn: number,
   reason: TurnEndReason,
 ): { text: string; tone: 'error' | 'warn' } | undefined {
+  // Read the tag once, widened to `string`, for the `default` arm to print.
+  // Every variant this build's types declare is named below, which makes
+  // `reason` itself `never` down there — a merge-extended variant is
+  // precisely the case the compiler cannot see and this local preserves.
+  const kind: string = reason.kind
   switch (reason.kind) {
     case 'completed':
       return undefined
@@ -148,8 +165,19 @@ function turnEndNote(
       return { text: `[turn ${turn} errored: ${reason.error.code}]`, tone: 'error' }
     case 'interrupted':
       return { text: `[turn ${turn} interrupted]`, tone: 'warn' }
+    // A pre-step rejection: the turn was refused before it reached the model,
+    // and the messages it had claimed were discarded with it. Saying "nothing
+    // ran" is the part the user needs — a retry is theirs to make, and without
+    // this they cannot tell a blocked turn from a silent one.
+    case 'blocked':
+      return { text: `[turn ${turn} blocked before it ran]`, tone: 'warn' }
+    // The reply exists and is simply cut off at the output ceiling. That is a
+    // different situation from every other ending here, all of which mean the
+    // work is gone, so it must not read as a failure.
+    case 'max-tokens':
+      return { text: `[turn ${turn} hit the output limit — reply truncated]`, tone: 'warn' }
     default:
-      return { text: `[turn ${turn} ended: ${reason.kind}]`, tone: 'warn' }
+      return { text: `[turn ${turn} ended: ${kind}]`, tone: 'warn' }
   }
 }
 

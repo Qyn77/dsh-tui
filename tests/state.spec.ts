@@ -185,6 +185,35 @@ describe('tui state reducer', () => {
       expect(toolStatus(state)).toBe('ok')
       expect(note(state)).toBeUndefined()
     })
+
+    it('says a blocked turn never ran, rather than printing the word "blocked"', () => {
+      // `blocked` is a pre-step rejection: dsh-agent discards the messages the
+      // turn had claimed, so the work will never run. The reducer used to fall
+      // through to the generic arm and print `[turn 1 ended: blocked]`, which
+      // is jargon from the event log rather than something a user can act on.
+      const state = unfinishedTool({ kind: 'blocked' })
+      expect(toolStatus(state)).toBe('cancelled')
+      expect(note(state)?.tone).toBe('warn')
+      expect(note(state)?.text).toMatch(/never ran|before it ran/)
+    })
+
+    it('says the reply was truncated when the turn hit the output limit', () => {
+      // The one ending where output survives: the reply is real and merely cut
+      // short. It must not be phrased like the endings that lose the work.
+      const state = unfinishedTool({ kind: 'max-tokens' })
+      expect(note(state)?.tone).toBe('warn')
+      expect(note(state)?.text).toMatch(/truncated/)
+    })
+
+    it('prints the bare kind for an ending this build has never heard of', () => {
+      // `TurnEndReasonMap` is merge-extensible, so a backend can log an ending
+      // no case here names. The cast is the point of the test: it stands in for
+      // a variant a future peer merges in, and the reducer must degrade to the
+      // raw `kind` instead of dropping the turn's ending on the floor.
+      const state = unfinishedTool({ kind: 'quota-exhausted' } as never)
+      expect(toolStatus(state)).toBe('cancelled')
+      expect(note(state)?.text).toContain('quota-exhausted')
+    })
   })
 
   it('handles session/end-seed by wiping the projected view above the seed', () => {

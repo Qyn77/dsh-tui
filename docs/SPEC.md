@@ -481,6 +481,16 @@ Violating these rules breaks testability. The renderer is the integration point;
 
 The reducer is the unit-test surface for the model layer. Every new `SessionEvent` type needs a `state.spec.ts` case. See the existing test for the exhaustive `kind` switch in `MessageList.tsx` — the same exhaustiveness discipline applies to the reducer.
 
+#### 3.2.1 What the reducer cannot project yet
+
+**Approval prompts have no UI, and cannot have one from here.** `dsh-session` rc.7 lists `approval/asked`, `approval/decided` and `approval/policy` in its generated persistence catalog — the set of event types this build will read back from a log — but they are **not** members of the typed `SessionEventMap`. The plugin that merges those variants in is not a peer dependency of this package, so `SessionEvent` here is a union that says those events cannot occur. A `case 'approval/asked'` in the reducer would not compile without a cast, and the cast would be asserting the shape of a payload no installed type declares.
+
+So the approval flow is blocked on a dependency, not on effort. Building it means taking the approval plugin as a peer first, at which point the events become narrowable and this note should be replaced by a real projection: an entry kind that renders the pending question, and a key binding that answers it.
+
+What *is* typed and is now projected: `TurnEndReasonMap.blocked`, which `dsh-agent` documents as a pre-step rejection — the turn was refused before it reached the model and the messages it had claimed were discarded with it. That is the one approval-shaped fact reachable today, and it renders as a note saying the turn never ran rather than as the raw word `blocked`.
+
+**A `turn/end` reason this build does not name still prints.** `TurnEndReasonMap` is merge-extensible, so the reducer's reason switch keeps a `default` arm that prints the bare `kind`. That arm is not dead code and is not a `TODO`: it is what a forward-compatible union looks like on the read side, and `state.spec.ts` covers it with a deliberately fabricated variant.
+
 ### 3.3 Slash command contract
 
 `commands.ts` is a **pure dispatcher**: `(raw: string, ctx: CommandContext) → CommandResult`. The Prompt calls it; the renderer handles the result.
