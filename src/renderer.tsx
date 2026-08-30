@@ -135,10 +135,12 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint }) => {
    * `installModelSelection` reads at prompt assembly, then persists the choice
    * as the default for future sessions.
    *
-   * The ref write is what actually takes effect. `saveSelection` only reaches
-   * disk when a `settings` provider is mounted, and this bundle does not mount
-   * one — so the switch is scoped to the running session and the persistence
-   * call is a no-op here rather than a lie. See `docs/SPEC.md` §3.3.3.
+   * The two halves have different horizons. The ref write is what the *current*
+   * session obeys: `installModelSelection` snapshots it at the next step, so the
+   * switch lands without tearing the in-flight one. `saveSelection` writes the
+   * choice through the `settings` provider dsh-base mounts (`dsh-settings-file`),
+   * which is what makes it the default the next session starts with. Neither
+   * substitutes for the other, so both run.
    */
   const setModel = useCallback(
     async (provider: string, model: string) => {
