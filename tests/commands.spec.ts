@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import { dispatch, filterCommands, type CommandContext } from '../src/commands.ts'
+import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands.ts'
 import type { UiState } from '../src/types.ts'
 
 interface Stand {
@@ -382,5 +382,68 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     const sorted = [...result].sort((a, b) => a.localeCompare(b))
     expect(result).toEqual(sorted)
+  })
+
+  describe('with plugin registry rows', () => {
+    const extra = [
+      { name: '/compact', description: 'Compact the conversation' },
+      { name: '/goal', description: 'Set the goal' },
+    ]
+
+    it('offers registry commands alongside the built-in table', () => {
+      expect(filterCommands('/', extra).map(c => c.name)).toEqual([
+        '/clear', '/compact', '/context', '/exit', '/goal', '/help', '/model', '/quit', '/status',
+      ])
+    })
+
+    it('sorts registry rows in with the built-ins rather than after them', () => {
+      // `/compact` shares `/c` with two built-ins and must land between them,
+      // not in a separate block — the palette is one list to arrow through.
+      expect(filterCommands('/c', extra).map(c => c.name)).toEqual(['/clear', '/compact', '/context'])
+    })
+
+    it('lets a built-in win a name collision', () => {
+      // `dispatch` handles `/clear` before the registry is consulted, so a
+      // registry definition of that name can never run. Advertising its
+      // description would describe behaviour the user cannot reach.
+      const shadowing = [{ name: '/clear', description: 'something else entirely' }]
+      const rows = filterCommands('/clear', shadowing)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.description).toMatch(/visible chat/)
+    })
+  })
+})
+
+describe('registryCommands', () => {
+  it('returns an empty list when no registry is mounted', () => {
+    const { cmd } = makeCommand()
+    expect(registryCommands(cmd.ctx, cmd.agent)).toEqual([])
+  })
+
+  it('prefixes registry names with a slash and keeps their descriptions', () => {
+    const { cmd } = makeCommand()
+    cmd.ctx.provide('commands', {
+      list: () => [{ name: 'compact', description: 'Compact the conversation' }],
+    } as never)
+    expect(registryCommands(cmd.ctx, cmd.agent)).toEqual([
+      { name: '/compact', description: 'Compact the conversation' },
+    ])
+  })
+})
+
+describe('/help with a registry', () => {
+  it('lists plugin commands alongside the built-in ones', () => {
+    const { cmd } = makeCommand()
+    cmd.ctx.provide('commands', {
+      list: () => [{ name: 'compact', description: 'Compact the conversation' }],
+    } as never)
+    return dispatch('/help', cmd).then((result) => {
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('/compact')
+        expect(result.message).toContain('Compact the conversation')
+        expect(result.message).toContain('/help')
+      }
+    })
   })
 })

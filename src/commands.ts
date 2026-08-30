@@ -64,28 +64,61 @@ export const COMMANDS: readonly CommandMeta[] = [
 ]
 
 /**
+ * Map the plugin registry's commands into palette rows.
+ *
+ * The registry is the authority on what a plugin command is called and what it
+ * says about itself, so nothing is rewritten here beyond the leading `/` this
+ * surface's rows carry and the registry's descriptors do not. An absent
+ * registry is not an error — it means the built-in table is the whole surface.
+ * @param ctx - the context to read the registry from.
+ * @param agent - the receiving agent, whose scoped definitions shadow globals.
+ * @returns one row per effective registry command, registry order preserved.
+ */
+export function registryCommands(ctx: Context, agent: Agent): CommandMeta[] {
+  const registry = service(ctx, 'commands')
+  if (registry === undefined) return []
+  return registry.list(agent).map(d => ({ name: `/${d.name}`, description: d.description }))
+}
+
+/**
+ * Merge the built-in table with registry rows, built-ins winning a name
+ * collision. `/clear` is this surface's view state and {@link dispatch} handles
+ * it before the registry is consulted; a palette that advertised a registry
+ * definition of the same name would be describing behaviour that cannot run.
+ * @param extra - registry rows, typically from {@link registryCommands}.
+ * @returns the merged table, built-ins first.
+ */
+function allCommands(extra: readonly CommandMeta[]): CommandMeta[] {
+  const owned = new Set(COMMANDS.map(c => c.name.toLowerCase()))
+  return [...COMMANDS, ...extra.filter(c => !owned.has(c.name.toLowerCase()))]
+}
+
+/**
  * Return the commands whose names start with `buffer` (case-insensitive).
  * The buffer is expected to start with `/`; an empty result means
  * "no match — hide the palette". Sorted alphabetically so the order
  * is stable across keystrokes.
  * @param buffer - the current prompt buffer, e.g. `/he` or `/`.
+ * @param extra - registry rows to offer alongside the built-in table.
  */
-export function filterCommands(buffer: string): CommandMeta[] {
+export function filterCommands(buffer: string, extra: readonly CommandMeta[] = []): CommandMeta[] {
   const query = buffer.toLowerCase()
   if (!query.startsWith('/')) return []
-  return COMMANDS
+  return allCommands(extra)
     .filter(c => c.name.toLowerCase().startsWith(query))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
  * Pretty-print the command list for `/help`. Two columns, padded so
- * the descriptions line up. Sourced from {@link COMMANDS} so the two
- * surfaces stay in lock-step.
+ * the descriptions line up. Sourced from {@link COMMANDS} plus the plugin
+ * registry so the help text and the palette describe the same surface.
+ * @param extra - registry rows to list alongside the built-in table.
  */
-function helpText(): string {
-  const nameCol = Math.max(...COMMANDS.map(c => c.name.length))
-  const rows = [...COMMANDS]
+function helpText(extra: readonly CommandMeta[]): string {
+  const merged = allCommands(extra)
+  const nameCol = Math.max(...merged.map(c => c.name.length))
+  const rows = [...merged]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map(c => `  ${c.name.padEnd(nameCol)}  ${c.description}`)
   return ['Available commands:', ...rows].join('\n')
@@ -124,7 +157,7 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
   const name = raw.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
   switch (name) {
     case '/help':
-      return { kind: 'handled', message: helpText() }
+      return { kind: 'handled', message: helpText(registryCommands(cmd.ctx, cmd.agent)) }
 
     case '/clear':
       cmd.resetView()

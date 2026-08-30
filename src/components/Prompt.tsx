@@ -70,6 +70,13 @@ export interface PromptProps {
    * the keys.
    */
   onArrowClaimChange?: (claimed: boolean) => void
+  /**
+   * Commands the plugin registry offers, alongside the built-in table. The
+   * prompt has no context to read the registry from, so the App resolves it
+   * (see `useRegistryCommands`) and hands the rows down. Optional: a prompt
+   * rendered without it advertises the built-in table only.
+   */
+  extraCommands?: readonly CommandMeta[]
 }
 
 /**
@@ -118,6 +125,7 @@ export const Prompt: FC<PromptProps> = ({
   onSubmit,
   spinnerFrame,
   onArrowClaimChange,
+  extraCommands,
 }) => {
   const { stdout } = useStdout()
   const [value, setValue] = useState('')
@@ -136,7 +144,7 @@ export const Prompt: FC<PromptProps> = ({
   // Filter is a pure derivation from `value`; no effect needed. The
   // selection index is clamped on every keystroke so an out-of-range
   // cursor from rapid input never escapes.
-  const palette = isPaletteMode(value) ? filterCommands(value) : []
+  const palette = isPaletteMode(value) ? filterCommands(value, extraCommands) : []
   const safePaletteIndex = clampPaletteIndex(paletteIndex, palette)
 
   // The fold, the caret and the window are all derived on every render —

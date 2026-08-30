@@ -18,6 +18,7 @@ import { useRunningClock } from './hooks/useRunningClock.ts'
 import { useResizeRepaint } from './hooks/useResizeRepaint.ts'
 import { useMessageListScroll } from './hooks/useMessageListScroll.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
+import { useRegistryCommands } from './hooks/useRegistryCommands.ts'
 import { service } from './services.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
@@ -60,6 +61,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
   const { state, resetView, appendEntry } = useSessionEvents(ctx, agent)
+  const extraCommands = useRegistryCommands(ctx, agent)
   // The selection has to be state, not a `useMemo` over `ctx`: `/model`
   // mutates it mid-session and the StatusBar has to follow. A memo keyed on
   // `ctx` reads once per mount and would leave the header naming the model
@@ -335,6 +337,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint }) => {
         onSubmit={onSubmit}
         spinnerFrame={spinnerFrame}
         onArrowClaimChange={setPromptClaimsArrows}
+        extraCommands={extraCommands}
       />
     </Box>
   )
