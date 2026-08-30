@@ -14,11 +14,13 @@ import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
 import { StatusBar } from './components/StatusBar.tsx'
 import { Banner } from './components/Banner.tsx'
+import { ApprovalPrompt } from './components/ApprovalPrompt.tsx'
 import { useRunningClock } from './hooks/useRunningClock.ts'
 import { useResizeRepaint } from './hooks/useResizeRepaint.ts'
 import { useMessageListScroll } from './hooks/useMessageListScroll.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { useRegistryCommands } from './hooks/useRegistryCommands.ts'
+import { useApprovalRequests } from './hooks/useApprovalRequests.ts'
 import { service } from './services.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
@@ -62,6 +64,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint }) => {
   const { stdout, write } = useStdout()
   const { state, resetView, appendEntry } = useSessionEvents(ctx, agent)
   const extraCommands = useRegistryCommands(ctx, agent)
+  const approvals = useApprovalRequests(ctx, agent)
   // The selection has to be state, not a `useMemo` over `ctx`: `/model`
   // mutates it mid-session and the StatusBar has to follow. A memo keyed on
   // `ctx` reads once per mount and would leave the header naming the model
@@ -332,6 +335,13 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint }) => {
           </Text>
         )}
       </Box>
+      {/*
+        Above the prompt rather than in place of it. The prompt is inert while a
+        turn runs (`active` is false), so the two never fight over a keystroke,
+        and keeping the input row on screen means the question does not make the
+        layout jump by a variable number of rows as it comes and goes.
+      */}
+      <ApprovalPrompt pending={approvals.pending} onAnswer={approvals.answer} />
       <Prompt
         active={state.status === 'idle'}
         onSubmit={onSubmit}
