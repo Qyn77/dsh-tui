@@ -284,17 +284,6 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
         `tests/frame-erase.spec.ts`.
       */}
       {/*
-        The brand splash is generous (19 rows), so it is written once as
-        static output and then scrolls away like any other past output —
-        it never re-renders and never costs the live frame a row. The
-        `width: '100%'` is load-bearing: a `<Static>` box is absolutely
-        positioned, so with no width it sizes to its content and the
-        banner frame stops meeting the terminal's right edge.
-
-        The StatusBar takes over as the live header as soon as there is a
-        message to head, carrying the same identity plus the token counts.
-      */}
-      {/*
         The brand splash is generous (19 rows), and the live frame is only
         `rows - 3` tall, so it can only be on screen while there is nothing
         else to show. Once the first message lands the StatusBar takes over
@@ -308,15 +297,22 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
         The `width: '100%'` on the non-TTY path is load-bearing: a `<Static>`
         box is absolutely positioned, so with no width it sizes to its
         content and the banner frame stops meeting the terminal's right edge.
+
+        So is keeping that `<Static>` mounted with an empty `items` once the
+        first entry lands, rather than dropping the element. `<Static>` means
+        "already written, never again", and an empty list says that exactly;
+        unmounting it instead leaves Ink holding an absolutely positioned box
+        whose width it re-measures as 0 on the next render, and its border
+        renderer takes `width - 2` as a repeat count and throws
+        `RangeError: Invalid count value: -2`. See `tests/boot-notice.spec.ts`.
       */}
-      {state.entries.length === 0 &&
-        (stdout?.isTTY ? (
-          <Banner selection={selection} sessionId={agent.id} />
-        ) : (
-          <Static items={[0]} style={{ width: '100%' }}>
-            {() => <Banner key="banner" selection={selection} sessionId={agent.id} />}
-          </Static>
-        ))}
+      {stdout?.isTTY ? (
+        state.entries.length === 0 && <Banner selection={selection} sessionId={agent.id} />
+      ) : (
+        <Static items={state.entries.length === 0 ? [0] : []} style={{ width: '100%' }}>
+          {() => <Banner key="banner" selection={selection} sessionId={agent.id} />}
+        </Static>
+      )}
       {state.entries.length > 0 && (
         <StatusBar
           selection={selection}

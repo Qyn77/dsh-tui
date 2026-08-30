@@ -207,10 +207,15 @@ describe('tui state reducer', () => {
 
     it('prints the bare kind for an ending this build has never heard of', () => {
       // `TurnEndReasonMap` is merge-extensible, so a backend can log an ending
-      // no case here names. The cast is the point of the test: it stands in for
-      // a variant a future peer merges in, and the reducer must degrade to the
-      // raw `kind` instead of dropping the turn's ending on the floor.
-      const state = unfinishedTool({ kind: 'quota-exhausted' } as never)
+      // no case here names. `quota-exhausted` stands in for a variant a future
+      // peer merges in, and the reducer must degrade to the raw `kind` instead
+      // of dropping the turn's ending on the floor.
+      //
+      // No cast is needed to express that: `unfinishedTool` takes a
+      // `Record<string, unknown>` precisely so an unknown reason can be written
+      // literally, and the one widening the test does need lives inside it, on
+      // the `turn/end` append.
+      const state = unfinishedTool({ kind: 'quota-exhausted' })
       expect(toolStatus(state)).toBe('cancelled')
       expect(note(state)?.text).toContain('quota-exhausted')
     })

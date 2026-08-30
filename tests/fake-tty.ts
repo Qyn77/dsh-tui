@@ -133,15 +133,22 @@ export interface PaintOptions {
   columns?: number
   /** A boot notice for the App to show above the first turn. Default none. */
   notice?: string
+  /**
+   * Whether stdout claims a TTY. Defaults to true, matching every real run —
+   * the runner refuses to boot without one. Pass false to exercise the
+   * `<Static>` banner fallback the App keeps for a stdout that does not.
+   */
+  tty?: boolean
 }
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 
 /** Mount the real `App` against a fake TTY of the given size. */
 export async function paintApp(
-  { turns = 0, rows = 40, columns = 100, notice }: PaintOptions = {},
+  { turns = 0, rows = 40, columns = 100, notice, tty = true }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
+  stdout.isTTY = tty
   const stdin = fakeTtyStdin()
   const ctx = new Context()
   ctx.provide('agentDefaultModel', { currentSelection: () => selection } as never)
