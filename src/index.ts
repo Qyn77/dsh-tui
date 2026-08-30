@@ -19,6 +19,7 @@ import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { appExit, service, type AppExit } from './services.ts'
 import { App } from './renderer.tsx'
 import { installResizeOwner, type RepaintRef } from './resize.ts'
+import { planResume, requestFromEnv } from './resume.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'tui-runner'
@@ -26,13 +27,20 @@ export const name = 'tui-runner'
 /** Core services required before the interactive REPL can boot. */
 export const inject = ['agentDefaultModel', 'agents', 'sessions']
 
-/** Plugin config. Empty for v1; future surface for theme/keybinding preferences. */
+/** Plugin config. */
 export interface Config {
-  /** No-op placeholder so schemastery produces a valid object. */
-  __placeholder?: never
+  /**
+   * Continue a stored session instead of starting a new one. `'last'` picks the
+   * most recently created stored session; any other value is a session id.
+   * Absent means a fresh session, and `DSH_TUI_RESUME` is consulted as a
+   * fallback so a resume does not require editing a patch file.
+   */
+  resume?: string
 }
 
-export const Config: z<Config> = z.object({})
+export const Config: z<Config> = z.object({
+  resume: z.string(),
+})
 
 /**
  * Process-facing effects of one run. Mirrors `dsh-headless` so future tests
@@ -94,9 +102,9 @@ function fail(io: TuiIo, error: unknown): void {
 /**
  * Boot the Ink REPL against one freshly created Agent.
  * @param ctx - plugin context carrying the Agent, default model, and Session services.
- * @param io - process-facing effects.
+ * @param config - validated plugin config; `resume` selects a stored session.
  */
-async function run(ctx: Context): Promise<void> {
+async function run(ctx: Context, config: Config): Promise<void> {
   if (resizeDebug) writeFileSync(RESIZE_LOG, `${new Date().toISOString()} start\n`)
   // Ink needs raw mode on stdin to read keys and a TTY on stdout to know
   // how wide to draw. AGENTS.md rule 6 and docs/SPEC.md have always
@@ -132,14 +140,23 @@ async function run(ctx: Context): Promise<void> {
   // Hoisted to `run()` scope so it can be passed to the App as a prop —
   // `/model` writes it here, and the next step picks it up.
   const ref: ModelSelectionRef = { current: selection, assembled: undefined }
-  const { agent } = await agents.create({
-    sessionId: SessionId(`tui-${randomUUID()}`),
-    meta: { cwd: process.cwd() },
-    agentOptions: { provider: selection.provider, model: selection.model },
-    setup: (agentCtx) => {
-      installModelSelection(agentCtx, ref)
-    },
-  })
+  // Resolved before the agent exists, because the answer decides which factory
+  // call makes it. A request that cannot be honoured does not stop the boot; it
+  // becomes a notice the App shows, since anything written to stderr from here
+  // is erased by the alternate screen.
+  const plan = await planResume(ctx, config.resume ?? requestFromEnv())
+  const setup = (agentCtx: Context): void => {
+    installModelSelection(agentCtx, ref)
+  }
+  const agentOptions = { provider: selection.provider, model: selection.model }
+  const { agent } = plan.kind === 'resume'
+    ? await agents.resume({ resumeSessionId: plan.id, agentOptions, setup })
+    : await agents.create({
+      sessionId: SessionId(`tui-${randomUUID()}`),
+      meta: { cwd: process.cwd() },
+      agentOptions,
+      setup,
+    })
 
   // Ctrl-C is handled inside the App via Ink's useInput — Ink's raw mode
   // does not deliver SIGINT on Ctrl-C, so a process-level signal handler
@@ -159,7 +176,14 @@ async function run(ctx: Context): Promise<void> {
     // force the settled frame onto the screen. See `resize.ts`.
     const repaint: RepaintRef = { current: undefined }
     const element = (): React.ReactElement =>
-      React.createElement(App, { ctx, agent, exit: exitHook, repaint, modelRef: ref })
+      React.createElement(App, {
+        ctx,
+        agent,
+        exit: exitHook,
+        repaint,
+        modelRef: ref,
+        ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
+      })
     const instance = inkRender(element(), {
       exitOnCtrlC: false,
       patchConsole: false,
@@ -198,11 +222,11 @@ async function run(ctx: Context): Promise<void> {
  * plugin: it consumes the Agent/Session services and the launcher-provided
  * `ctx.appExit` (read through the global store, never via property proxy).
  * @param ctx - plugin context carrying core services and the launcher exit hook.
- * @param _config - validated empty config.
+ * @param config - validated config.
  */
-export function apply(ctx: Context, _config: Config): void {
+export function apply(ctx: Context, config: Config): void {
   const io: TuiIo = { stdout: internals.stdout, stderr: internals.stderr }
-  void run(ctx).catch((error: unknown) => {
+  void run(ctx, config).catch((error: unknown) => {
     fail(io, error)
     const exit = appExit(ctx)
     if (exit !== undefined) exit(1)

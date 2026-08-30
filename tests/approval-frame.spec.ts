@@ -37,7 +37,13 @@ async function paint(pending: readonly PendingApproval[]): Promise<Painted> {
   )
   await act(async () => { await Promise.resolve() })
   return {
-    frame: () => strip(stdout.frames.at(-1) ?? ''),
+    // The last frame with anything in it, not simply the last one: on a TTY Ink
+    // also writes bare cursor-control chunks, and one of those arriving last
+    // would read as an empty screen.
+    frame: () => {
+      const painted = stdout.frames.map(strip).filter(f => f.trim() !== '')
+      return painted.at(-1) ?? ''
+    },
     press: async (keys) => {
       await act(async () => {
         stdin.send(keys)

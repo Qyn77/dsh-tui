@@ -25,6 +25,7 @@ export const ESC = String.fromCharCode(27)
 export interface FakeStdout extends EventEmitter {
   columns: number
   rows: number
+  isTTY: boolean
   write: (chunk: string) => boolean
   frames: string[]
 }
@@ -33,6 +34,10 @@ export function fakeStdout(columns: number, rows: number): FakeStdout {
   const out = new EventEmitter() as FakeStdout
   out.columns = columns
   out.rows = rows
+  // Claims a TTY because the runner refuses to boot without one, so every
+  // production frame is drawn on the TTY branch. A fake without it sent the
+  // App down the `<Static>` banner path, which no real run takes.
+  out.isTTY = true
   out.frames = []
   out.write = (chunk: string) => {
     out.frames.push(chunk)
@@ -126,13 +131,15 @@ export interface PaintOptions {
   turns?: number
   rows?: number
   columns?: number
+  /** A boot notice for the App to show above the first turn. Default none. */
+  notice?: string
 }
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 
 /** Mount the real `App` against a fake TTY of the given size. */
 export async function paintApp(
-  { turns = 0, rows = 40, columns = 100 }: PaintOptions = {},
+  { turns = 0, rows = 40, columns = 100, notice }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
   const stdin = fakeTtyStdin()
@@ -148,7 +155,12 @@ export async function paintApp(
     on: () => () => {},
   }
   const instance = render(
-    React.createElement(App, { ctx, agent: agent as never, exit: () => {} }),
+    React.createElement(App, {
+      ctx,
+      agent: agent as never,
+      exit: () => {},
+      ...notice === undefined ? {} : { notice },
+    }),
     {
       stdout: stdout as never,
       stdin: stdin,

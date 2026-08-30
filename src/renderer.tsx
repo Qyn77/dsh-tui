@@ -6,7 +6,7 @@
  */
 
 import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
-import React, { useCallback, useEffect, useState, type FC } from 'react'
+import React, { useCallback, useEffect, useRef, useState, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -53,18 +53,37 @@ export interface AppProps {
    * only. Omitted by tests that do not resize.
    */
   repaint?: RepaintRef
+  /**
+   * A one-off message from the boot, shown as a warn note above the first turn.
+   * It exists because the run may have been *asked* to resume a stored session
+   * and could not: the alternate screen erases whatever the runner writes to
+   * stderr before Ink's first frame, so the only place a boot-time explanation
+   * survives is the transcript itself.
+   */
+  notice?: string
 }
 
 /**
  * The TUI root. Subscribes to the agent's session, dispatches user input
  * to the agent or to a slash command, and composes the three-pane layout.
  */
-export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint }) => {
+export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
   const { state, resetView, appendEntry } = useSessionEvents(ctx, agent)
   const extraCommands = useRegistryCommands(ctx, agent)
   const approvals = useApprovalRequests(ctx, agent)
+  // Appended once, in an effect rather than as a seeded entry, because the view
+  // is seeded by replaying the session's durable log and a boot notice is not
+  // part of it — writing it into the reducer's seed would put a line in the
+  // transcript that no session event stands behind. A ref, not a dependency
+  // list: the notice is one thing that happened, not a value to track.
+  const noticeShown = useRef(false)
+  useEffect(() => {
+    if (notice === undefined || noticeShown.current) return
+    noticeShown.current = true
+    appendEntry({ kind: 'note', text: notice, tone: 'warn' })
+  }, [notice, appendEntry])
   // The selection has to be state, not a `useMemo` over `ctx`: `/model`
   // mutates it mid-session and the StatusBar has to follow. A memo keyed on
   // `ctx` reads once per mount and would leave the header naming the model
