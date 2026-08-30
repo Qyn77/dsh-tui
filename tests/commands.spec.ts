@@ -1,5 +1,5 @@
 /**
- * Slash command dispatch. The commands run synchronously against a real Cordis
+ * Slash command dispatch. The commands run asynchronously against a real Cordis
  * context (minimal: only the services each command consults) and a real
  * Agent-shaped stand-in, then assert the `CommandResult` and the recorded
  * process effects.
@@ -7,7 +7,9 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { dispatch, filterCommands, type CommandContext } from '../src/commands.ts'
+import type { UiState } from '../src/types.ts'
 
 interface Stand {
   ctx: Context
@@ -24,13 +26,30 @@ function makeStand(): Stand {
   return { ctx, exits }
 }
 
+function emptyState(): UiState {
+  return { entries: [], status: 'idle', currentTurn: 0 }
+}
+
+/**
+ * A real `Session`, because `/context` reads `requestContext()` off it. The
+ * other commands never touch the session, but `Agent.session` is not optional
+ * in the type — an agent stand-in without one would only be papering over the
+ * cast, and `/context` would crash on it exactly as it did the first time.
+ */
+function makeSession(): Session {
+  return Session.create(SessionId('tui-test'))
+}
+
 function makeCommand(overrides?: Partial<CommandContext>): { cmd: CommandContext; reset: ReturnType<typeof vi.fn> } {
   const stand = makeStand()
   const reset = vi.fn()
   const cmd: CommandContext = {
     ctx: stand.ctx,
-    agent: { id: 'tui-1' as never, session: undefined as never } as never,
+    agent: { id: 'tui-1' as never, session: makeSession() } as never,
     resetView: reset,
+    setModel: vi.fn().mockResolvedValue(undefined),
+    refreshSelection: vi.fn(),
+    state: emptyState(),
     ...overrides,
   }
   return { cmd, reset }
@@ -53,9 +72,9 @@ function makeStandWithoutExit(): Context {
 describe('slash command dispatch', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('returns handled with the help text for /help', () => {
+  it('returns handled with the help text for /help', async () => {
     const { cmd } = makeCommand()
-    const result = dispatch('/help', cmd)
+    const result = await dispatch('/help', cmd)
     expect(result.kind).toBe('handled')
     if (result.kind === 'handled') {
       expect(result.message).toMatch(/Available commands/)
@@ -63,9 +82,9 @@ describe('slash command dispatch', () => {
     }
   })
 
-  it('clears the visible view for /clear', () => {
+  it('clears the visible view for /clear', async () => {
     const { cmd, reset } = makeCommand()
-    const result = dispatch('/clear', cmd)
+    const result = await dispatch('/clear', cmd)
     expect(result.kind).toBe('handled')
     expect(reset).toHaveBeenCalledOnce()
     // Silent on purpose: command output is an entry in the log, so any
@@ -74,9 +93,9 @@ describe('slash command dispatch', () => {
     if (result.kind === 'handled') expect(result.message).toBeUndefined()
   })
 
-  it('reports the current model and session for /status', () => {
+  it('reports the current model and session for /status', async () => {
     const { cmd } = makeCommand()
-    const result = dispatch('/status', cmd)
+    const result = await dispatch('/status', cmd)
     expect(result.kind).toBe('handled')
     if (result.kind === 'handled') {
       expect(result.message).toContain('test-provider/test-model')
@@ -84,17 +103,20 @@ describe('slash command dispatch', () => {
     }
   })
 
-  it('reports the model as unknown when no default-model service is mounted', () => {
+  it('reports the model as unknown when no default-model service is mounted', async () => {
     // `service()` returns `undefined` for a service nobody provided, and that is
     // legitimate: a bare `dsh-tui` in a harness has no `agentDefaultModel`.
     // `/status` has to degrade to a word rather than print `undefined/undefined`.
     const ctx = new Context()
     const cmd: CommandContext = {
       ctx,
-      agent: { id: 'tui-1' as never, session: undefined as never } as never,
+      agent: { id: 'tui-1' as never, session: makeSession() } as never,
       resetView: vi.fn(),
+      setModel: vi.fn().mockResolvedValue(undefined),
+      refreshSelection: vi.fn(),
+      state: emptyState(),
     }
-    const result = dispatch('/status', cmd)
+    const result = await dispatch('/status', cmd)
     expect(result.kind).toBe('handled')
     if (result.kind === 'handled') {
       expect(result.message).toContain('model: unknown')
@@ -102,50 +124,173 @@ describe('slash command dispatch', () => {
     }
   })
 
-  it('asks the launcher to exit for /exit and /quit (case + trailing whitespace)', () => {
+  it('asks the launcher to exit for /exit and /quit (case + trailing whitespace)', async () => {
     const { cmd, reset: resetA } = makeCommand()
-    expect(dispatch('/exit', cmd).kind).toBe('exit')
+    expect((await dispatch('/exit', cmd)).kind).toBe('exit')
 
     const { cmd: cmdB } = makeCommand()
-    expect(dispatch('/quit', cmdB).kind).toBe('exit')
-    expect(dispatch('/QUIT  ', cmdB).kind).toBe('exit')
+    expect((await dispatch('/quit', cmdB)).kind).toBe('exit')
+    expect((await dispatch('/QUIT  ', cmdB)).kind).toBe('exit')
 
     // The first command was /exit (no clear), so its resetter was untouched.
     expect(resetA).not.toHaveBeenCalled()
   })
 
-  it('returns unknown for unrecognised commands', () => {
+  it('returns unknown for unrecognised commands', async () => {
     const { cmd } = makeCommand()
-    const result = dispatch('/fly', cmd)
+    const result = await dispatch('/fly', cmd)
     expect(result).toEqual({ kind: 'unknown', input: '/fly' })
   })
 
-  it('falls back to process.exit when no appExit is provided', () => {
+  it('falls back to process.exit when no appExit is provided', async () => {
     const ctx = makeStandWithoutExit()
     const reset = vi.fn()
     const cmd: CommandContext = {
       ctx,
-      agent: { id: 'tui-1' as never, session: undefined as never } as never,
+      agent: { id: 'tui-1' as never, session: makeSession() } as never,
       resetView: reset,
+      setModel: vi.fn().mockResolvedValue(undefined),
+      refreshSelection: vi.fn(),
+      state: emptyState(),
     }
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
-    const result = dispatch('/exit', cmd)
+    const result = await dispatch('/exit', cmd)
     expect(result.kind).toBe('exit')
     expect(exitSpy).toHaveBeenCalledWith(0)
     // resetView was never called — the command was an exit, not a clear.
     expect(reset).not.toHaveBeenCalled()
+  })
+
+  describe('/model', () => {
+    it('shows usage and current model when no argument is given', async () => {
+      const { cmd } = makeCommand()
+      const result = await dispatch('/model', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('Usage: /model <name>')
+        expect(result.message).toContain('test-provider/test-model')
+      }
+    })
+
+    it('switches to the named model within the current provider', async () => {
+      const setModel = vi.fn().mockResolvedValue(undefined)
+      const refreshSelection = vi.fn()
+      const { cmd } = makeCommand({ setModel, refreshSelection })
+      const result = await dispatch('/model deepseek-v4', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('Switched to test-provider/deepseek-v4')
+      }
+      expect(setModel).toHaveBeenCalledWith('test-provider', 'deepseek-v4')
+      expect(refreshSelection).toHaveBeenCalledOnce()
+    })
+
+    it('switches provider and model with a /-separated argument', async () => {
+      const setModel = vi.fn().mockResolvedValue(undefined)
+      const { cmd } = makeCommand({ setModel })
+      const result = await dispatch('/model other-provider/gpt-4', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('other-provider/gpt-4')
+      }
+      expect(setModel).toHaveBeenCalledWith('other-provider', 'gpt-4')
+    })
+
+    it('reports unavailability when no default-model service is mounted', async () => {
+      const ctx = new Context()
+      const cmd: CommandContext = {
+        ctx,
+        agent: { id: 'tui-1' as never, session: makeSession() } as never,
+        resetView: vi.fn(),
+        setModel: vi.fn().mockResolvedValue(undefined),
+        refreshSelection: vi.fn(),
+        state: emptyState(),
+      }
+      const result = await dispatch('/model deepseek-v4', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('No default model service')
+      }
+    })
+  })
+
+  describe('/context', () => {
+    it('reports unknown context window before any request', async () => {
+      const { cmd } = makeCommand()
+      const result = await dispatch('/context', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('test-provider/test-model')
+        expect(result.message).toContain('context window: unknown')
+        expect(result.message).toContain('input (billed): 0')
+        expect(result.message).toContain('output: 0')
+        // No percentage line when input is zero
+        expect(result.message).not.toContain('%')
+      }
+    })
+
+    it('shows the context window and does not show a percentage with zero input', async () => {
+      const session = makeSession()
+      session.append('request/context', {
+        provider: 'test-provider',
+        model: 'test-model',
+        contextWindow: 128_000,
+      })
+      const { cmd } = makeCommand({
+        agent: { id: 'tui-1' as never, session } as never,
+      })
+      const result = await dispatch('/context', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('128,000')
+        // No percentage line when input is zero — the check is inside the
+        // `input > 0` guard.
+        expect(result.message).not.toContain('usage:')
+      }
+    })
+
+    it('sums billed input across assistant entries with usage', async () => {
+      const session = makeSession()
+      const state: UiState = {
+        entries: [
+          { kind: 'assistant', turn: 1, step: 1, text: 'hi', finalized: true, usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 900 } },
+          { kind: 'assistant', turn: 2, step: 1, text: 'bye', finalized: true, usage: { inputTokens: 50, outputTokens: 10, cacheWriteTokens: 200 } },
+        ],
+        status: 'idle',
+        currentTurn: 2,
+      }
+      const { cmd } = makeCommand({ state, agent: { id: 'tui-1' as never, session } as never })
+      const result = await dispatch('/context', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        // input = 100 + 900 + 50 + 200 = 1250
+        expect(result.message).toContain('input (billed): 1,250')
+        expect(result.message).toContain('output: 30')
+      }
+    })
   })
 })
 
 describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
-    expect(result).toEqual(['/clear', '/exit', '/help', '/quit', '/status'])
+    expect(result).toEqual(['/clear', '/context', '/exit', '/help', '/model', '/quit', '/status'])
   })
 
   it('filters to commands whose names start with the buffer (case-insensitive)', () => {
     const result = filterCommands('/h').map(c => c.name)
     expect(result).toEqual(['/help'])
+  })
+
+  it('distinguishes /clear from /context under a shared prefix', () => {
+    // Both start with `/c`, so the palette must offer both rather than
+    // silently completing to the first.
+    expect(filterCommands('/c').map(c => c.name)).toEqual(['/clear', '/context'])
+    expect(filterCommands('/co').map(c => c.name)).toEqual(['/context'])
+  })
+
+  it('matches /model under /m prefix', () => {
+    expect(filterCommands('/m').map(c => c.name)).toEqual(['/model'])
   })
 
   it('matches /quit under /Q prefix', () => {

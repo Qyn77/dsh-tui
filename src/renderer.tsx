@@ -6,9 +6,9 @@
  */
 
 import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
-import React, { useCallback, useEffect, useMemo, useState, type FC } from 'react'
+import React, { useCallback, useEffect, useState, type FC } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
@@ -36,6 +36,14 @@ export interface AppProps {
    */
   exit: (code: number) => void
   /**
+   * The live agent's mutable model selection, owned by `index.ts`. `/model`
+   * writes `current` here; `installModelSelection` snapshots it when the next
+   * step enters prompt assembly, so a switch takes effect on the following
+   * step rather than tearing the in-flight one. Omitted by tests that never
+   * switch models — `/model` then reports that switching is unavailable.
+   */
+  modelRef?: ModelSelectionRef
+  /**
    * Where the App publishes Ink's `useStdout().write` for the resize owner
    * in `index.ts` to borrow. That writer is the only way to make Ink emit a
    * frame it considers unchanged, and it is reachable from inside the tree
@@ -48,14 +56,20 @@ export interface AppProps {
  * The TUI root. Subscribes to the agent's session, dispatches user input
  * to the agent or to a slash command, and composes the three-pane layout.
  */
-export const App: FC<AppProps> = ({ ctx, agent, exit, repaint }) => {
+export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
   const { state, resetView, appendEntry } = useSessionEvents(ctx, agent)
-  const selection = useMemo(
+  // The selection has to be state, not a `useMemo` over `ctx`: `/model`
+  // mutates it mid-session and the StatusBar has to follow. A memo keyed on
+  // `ctx` reads once per mount and would leave the header naming the model
+  // the session started with, which is worse than not showing one at all.
+  const [selection, setSelection] = useState(
     () => service(ctx, 'agentDefaultModel')?.currentSelection(),
-    [ctx],
   )
+  const refreshSelection = useCallback(() => {
+    setSelection(service(ctx, 'agentDefaultModel')?.currentSelection())
+  }, [ctx])
   // The animated "thinking" indicator. One interval per status
   // transition; both the StatusBar (right-side) and the Prompt
   // (placeholder) read from the same frame index so the spinner
@@ -116,28 +130,68 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, repaint }) => {
     }
   })
 
+  /**
+   * Switch the live agent's model. Writes the mutable selection ref that
+   * `installModelSelection` reads at prompt assembly, then persists the choice
+   * as the default for future sessions.
+   *
+   * The ref write is what actually takes effect. `saveSelection` only reaches
+   * disk when a `settings` provider is mounted, and this bundle does not mount
+   * one — so the switch is scoped to the running session and the persistence
+   * call is a no-op here rather than a lie. See `docs/SPEC.md` §3.3.3.
+   */
+  const setModel = useCallback(
+    async (provider: string, model: string) => {
+      if (modelRef !== undefined) modelRef.current = { provider, model }
+      await service(ctx, 'agentDefaultModel')?.saveSelection({ provider, model })
+    },
+    [ctx, modelRef],
+  )
+
   const onSubmit = useCallback(
     (text: string) => {
       const trimmed = text.trim()
       if (trimmed === '') return
       if (trimmed.startsWith('/')) {
-        const result = dispatch(trimmed, { ctx, agent, resetView: clearView })
-        // Command output goes into the log, not to stderr. Inside the
-        // alternate screen a stderr write lands on the same rows Ink is
-        // driving, so it is erased by the next frame or wedged into one —
-        // which made `/help` and `/status` print nothing readable at all.
-        if (result.kind === 'handled' && result.message !== undefined) {
-          appendEntry({ kind: 'command', input: trimmed, text: result.message, failed: false })
-        } else if (result.kind === 'unknown') {
+        // `dispatch` is async (model listing and context resolution both need
+        // provider I/O). Ink ignores a handler's return value, so the promise
+        // is driven here and its result appended when it settles — the prompt
+        // stays responsive while a provider call is in flight.
+        void dispatch(trimmed, {
+          ctx,
+          agent,
+          resetView: clearView,
+          setModel,
+          refreshSelection,
+          state,
+        }).then((result) => {
+          // Command output goes into the log, not to stderr. Inside the
+          // alternate screen a stderr write lands on the same rows Ink is
+          // driving, so it is erased by the next frame or wedged into one —
+          // which made `/help` and `/status` print nothing readable at all.
+          if (result.kind === 'handled' && result.message !== undefined) {
+            appendEntry({ kind: 'command', input: trimmed, text: result.message, failed: false })
+          } else if (result.kind === 'unknown') {
+            appendEntry({
+              kind: 'command',
+              input: result.input,
+              text: 'unknown command — /help lists them',
+              failed: true,
+            })
+          }
+          // 'exit' is handled inside dispatch by calling appExit; nothing more
+          // to do here.
+        }, (error: unknown) => {
+          // A provider call can reject (unreachable endpoint, bad credential).
+          // The failure belongs in the log next to the command that caused it,
+          // for the same reason the successful output does.
           appendEntry({
             kind: 'command',
-            input: result.input,
-            text: 'unknown command — /help lists them',
+            input: trimmed,
+            text: error instanceof Error ? error.message : String(error),
             failed: true,
           })
-        }
-        // 'exit' is handled inside dispatch by calling appExit; nothing more
-        // to do here.
+        })
         return
       }
       agent.followup(
@@ -147,7 +201,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, repaint }) => {
         }),
       )
     },
-    [ctx, agent, clearView, appendEntry],
+    [ctx, agent, clearView, appendEntry, setModel, refreshSelection, state],
   )
 
   if (selection === undefined) {

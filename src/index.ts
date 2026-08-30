@@ -128,12 +128,15 @@ async function run(ctx: Context): Promise<void> {
   if (agents === undefined || defaultModel === undefined) return
 
   const selection = defaultModel.currentSelection()
+  // The mutable ref that `installModelSelection` reads at prompt assembly.
+  // Hoisted to `run()` scope so it can be passed to the App as a prop —
+  // `/model` writes it here, and the next step picks it up.
+  const ref: ModelSelectionRef = { current: selection, assembled: undefined }
   const { agent } = await agents.create({
     sessionId: SessionId(`tui-${randomUUID()}`),
     meta: { cwd: process.cwd() },
     agentOptions: { provider: selection.provider, model: selection.model },
     setup: (agentCtx) => {
-      const ref: ModelSelectionRef = { current: selection, assembled: undefined }
       installModelSelection(agentCtx, ref)
     },
   })
@@ -156,7 +159,7 @@ async function run(ctx: Context): Promise<void> {
     // force the settled frame onto the screen. See `resize.ts`.
     const repaint: RepaintRef = { current: undefined }
     const element = (): React.ReactElement =>
-      React.createElement(App, { ctx, agent, exit: exitHook, repaint })
+      React.createElement(App, { ctx, agent, exit: exitHook, repaint, modelRef: ref })
     const instance = inkRender(element(), {
       exitOnCtrlC: false,
       patchConsole: false,
