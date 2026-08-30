@@ -142,6 +142,73 @@ describe('slash command dispatch', () => {
     expect(result).toEqual({ kind: 'unknown', input: '/fly' })
   })
 
+  describe('plugin command registry fall-through', () => {
+    /**
+     * Stand in for `ctx.commands`. Only `execute` is exercised: the fall-through
+     * hands the whole line over and reads back a `CommandExecution`, so the
+     * registry's parsing and logging are its own business, not this surface's.
+     */
+    function withRegistry(execute: (line: string) => unknown): CommandContext {
+      const { cmd } = makeCommand()
+      cmd.ctx.provide('commands', {
+        execute: (_agent: unknown, line: string) => Promise.resolve(execute(line)),
+      } as never)
+      return cmd
+    }
+
+    it('routes a name the built-in table does not own to the registry', async () => {
+      const lines: string[] = []
+      const cmd = withRegistry((line) => {
+        lines.push(line)
+        return { commandId: 'c1', result: { kind: 'success', text: 'compacted 12 nodes' } }
+      })
+      const result = await dispatch('/compact', cmd)
+      // The whole line, leading slash included — `execute` parses it itself.
+      expect(lines).toEqual(['/compact'])
+      expect(result).toEqual({ kind: 'handled', message: 'compacted 12 nodes' })
+    })
+
+    it('passes the argument text through untouched', async () => {
+      const lines: string[] = []
+      const cmd = withRegistry((line) => {
+        lines.push(line)
+        return { commandId: 'c1', result: { kind: 'success' } }
+      })
+      await dispatch('/goal  ship the thing', cmd)
+      expect(lines).toEqual(['/goal  ship the thing'])
+    })
+
+    it('marks a registry error as a failed outcome rather than an unknown command', async () => {
+      // The distinction is what the view renders: a command that ran and failed
+      // gets its own message, an unrecognised one gets "unknown command".
+      const cmd = withRegistry(() => ({
+        commandId: 'c1',
+        result: { kind: 'error', text: 'nothing useful to compact' },
+      }))
+      const result = await dispatch('/compact', cmd)
+      expect(result).toEqual({ kind: 'handled', message: 'nothing useful to compact', failed: true })
+    })
+
+    it('stays unknown when the registry does not resolve the name either', async () => {
+      const cmd = withRegistry(() => undefined)
+      const result = await dispatch('/fly', cmd)
+      expect(result).toEqual({ kind: 'unknown', input: '/fly' })
+    })
+
+    it('keeps a built-in name out of the registry', async () => {
+      // `/clear` is the TUI's own view state; a registry that also defined it
+      // must not shadow the local handler.
+      const lines: string[] = []
+      const cmd = withRegistry((line) => {
+        lines.push(line)
+        return { commandId: 'c1', result: { kind: 'success', text: 'from the registry' } }
+      })
+      const result = await dispatch('/clear', cmd)
+      expect(lines).toEqual([])
+      expect(result).toEqual({ kind: 'handled' })
+    })
+  })
+
   it('falls back to process.exit when no appExit is provided', async () => {
     const ctx = makeStandWithoutExit()
     const reset = vi.fn()

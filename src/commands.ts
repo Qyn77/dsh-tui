@@ -6,6 +6,13 @@
  * model — they own their own UX. The returned status tells the prompt
  * what to do next.
  *
+ * `COMMANDS` is not the whole command surface. Plugins register their own
+ * human commands on `ctx.commands` — dsh-base mounts `/compact`, `/feedback`
+ * and `/goal` that way — so a name this table does not own falls through to
+ * that registry before it is called unknown. The table holds only the
+ * commands whose behaviour is the TUI's own (view state, process exit, the
+ * model selection this surface threads through a ref).
+ *
  * Commands that need async work (model listing, context resolution)
  * return a `Promise<CommandResult>` — the caller is responsible for
  * awaiting it. Synchronous commands still resolve immediately.
@@ -20,7 +27,12 @@ import { appExit, service } from './services.ts'
 
 /** What a command decided. */
 export type CommandResult =
-  | { kind: 'handled'; message?: string }
+  /**
+   * The command ran and owns its output. `failed` marks an outcome the command
+   * itself reports as an error (a registry command settling `kind: 'error'`),
+   * as distinct from `unknown`, which means no command ran at all.
+   */
+  | { kind: 'handled'; message?: string; failed?: boolean }
   | { kind: 'exit' }
   | { kind: 'unknown'; input: string }
 
@@ -201,8 +213,41 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
     }
 
     default:
-      return { kind: 'unknown', input: raw }
+      return await runRegistryCommand(raw, cmd)
   }
+}
+
+/**
+ * Try the plugin-owned command registry for a name {@link COMMANDS} does not
+ * hold. `ctx.commands.execute` parses the line itself and returns `undefined`
+ * when the name resolves to nothing, which is exactly this surface's `unknown`.
+ *
+ * The registry logs `command/run`/`command/done` around the handler, so a
+ * command that runs this way is already in the session log before its text
+ * reaches the view. Appending the returned text is presentation, not the
+ * record.
+ *
+ * The signal is a fresh controller nothing aborts yet. The TUI's Ctrl+C path
+ * interrupts the agent's turn, and a command is not a turn — giving it real
+ * cancellation means deciding what a half-cancelled command shows, which is a
+ * change with its own UX question. A controller is passed rather than a
+ * detached `new AbortController().signal` so that wiring is a one-line change
+ * here when it happens.
+ * @param raw - the raw input line, including the leading `/`.
+ * @param cmd - the dispatch context.
+ * @returns the registry's outcome, or `unknown` when no command matched.
+ */
+async function runRegistryCommand(raw: string, cmd: CommandContext): Promise<CommandResult> {
+  const registry = service(cmd.ctx, 'commands')
+  if (registry === undefined) return { kind: 'unknown', input: raw }
+  const controller = new AbortController()
+  const execution = await registry.execute(cmd.agent, raw.trim(), controller.signal)
+  if (execution === undefined) return { kind: 'unknown', input: raw }
+  const { result } = execution
+  if (result.kind === 'error') return { kind: 'handled', message: result.text, failed: true }
+  // A successful command may carry no text — `/compact` points at the
+  // `compaction/end` event instead, which the message list already renders.
+  return { kind: 'handled', message: result.text }
 }
 
 /** Re-export the SessionId constructor for callers that build new sessions. */

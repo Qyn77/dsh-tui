@@ -32,6 +32,13 @@
 
     # The interactive terminal driver. Reads its default model from
     # `agentDefaultModel` and creates one long-lived Agent for the session.
+    #
+    # `commands` is deliberately absent from this list. Cordis `inject` is
+    # all-required — its object form maps names to intercept config, not to an
+    # optional flag — so naming the registry here would keep the whole REPL
+    # from loading on a leaf that mounts no command plugin. The runner reads it
+    # through `ctx.get` at dispatch time instead and treats its absence as
+    # "only the built-in slash table exists".
     - id: tui-runner
       name: '@deepseek-ai/dsh-tui'
       inject: [agentDefaultModel, agents, sessions]

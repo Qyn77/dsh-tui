@@ -172,7 +172,12 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint }) => {
           // driving, so it is erased by the next frame or wedged into one —
           // which made `/help` and `/status` print nothing readable at all.
           if (result.kind === 'handled' && result.message !== undefined) {
-            appendEntry({ kind: 'command', input: trimmed, text: result.message, failed: false })
+            appendEntry({
+              kind: 'command',
+              input: trimmed,
+              text: result.message,
+              failed: result.failed === true,
+            })
           } else if (result.kind === 'unknown') {
             appendEntry({
               kind: 'command',
