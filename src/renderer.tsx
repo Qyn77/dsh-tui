@@ -24,6 +24,9 @@ import { useApprovalRequests } from './hooks/useApprovalRequests.ts'
 import { service } from './services.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
+import { catalog, type Lang } from './i18n.ts'
+import { LanguageProvider } from './hooks/useStrings.tsx'
+import { writeSettings } from './settings.ts'
 import type { RepaintRef } from './resize.ts'
 
 
@@ -61,13 +64,31 @@ export interface AppProps {
    * survives is the transcript itself.
    */
   notice?: string
+  /**
+   * The interface language this run starts in, read from `~/.dsh/tui.json` by
+   * `index.ts`. `/language` changes it from here and writes the file back.
+   *
+   * Resolved at the boundary rather than inside the App so that the App has no
+   * dependency on the developer's home directory: omitted by every test, which
+   * therefore asserts English frames on any machine, whatever the person running
+   * them last chose for themselves.
+   */
+  lang?: Lang
 }
 
 /**
  * The TUI root. Subscribes to the agent's session, dispatches user input
  * to the agent or to a slash command, and composes the three-pane layout.
  */
-export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice }) => {
+export const App: FC<AppProps> = ({
+  ctx,
+  agent,
+  exit,
+  modelRef,
+  repaint,
+  notice,
+  lang: initialLang = 'en',
+}) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
   const { state, resetView, appendEntry } = useSessionEvents(ctx, agent)
@@ -94,6 +115,24 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
   const refreshSelection = useCallback(() => {
     setSelection(service(ctx, 'agentDefaultModel')?.currentSelection())
   }, [ctx])
+  // The interface language, for the same reason the selection is state:
+  // `/language` changes it mid-session and every framed string has to follow.
+  const [lang, setLang] = useState<Lang>(initialLang)
+  const strings = catalog(lang)
+  /**
+   * Switch the interface language: repaint now, persist for the next launch.
+   *
+   * The order is deliberate. `setLang` is what the user watches happen, and it
+   * cannot fail; the file write can (a read-only home, a full disk), and its
+   * failure is reported by `writeSettings` returning `false` rather than by
+   * throwing. That `false` is deliberately dropped: refusing the switch the user
+   * just made because the *next* launch cannot remember it would trade a working
+   * session for a durability guarantee nobody asked for.
+   */
+  const setLanguage = useCallback((next: Lang) => {
+    setLang(next)
+    writeSettings({ language: next })
+  }, [])
   // The animated "thinking" indicator. One interval per status
   // transition; both the StatusBar (right-side) and the Prompt
   // (placeholder) read from the same frame index so the spinner
@@ -189,6 +228,8 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
           resetView: clearView,
           setModel,
           refreshSelection,
+          setLanguage,
+          lang,
           state,
         }).then((result) => {
           // Command output goes into the log, not to stderr. Inside the
@@ -206,7 +247,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
             appendEntry({
               kind: 'command',
               input: result.input,
-              text: 'unknown command — /help lists them',
+              text: strings.output.unknownCommand,
               failed: true,
             })
           }
@@ -232,14 +273,16 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
         }),
       )
     },
-    [ctx, agent, clearView, appendEntry, setModel, refreshSelection, state],
+    [ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang, strings, state],
   )
 
   if (selection === undefined) {
     return (
-      <Box marginRight={1}>
-        <Prompt active={false} onSubmit={() => {}} spinnerFrame={spinnerFrame} />
-      </Box>
+      <LanguageProvider lang={lang}>
+        <Box marginRight={1}>
+          <Prompt active={false} onSubmit={() => {}} spinnerFrame={spinnerFrame} />
+        </Box>
+      </LanguageProvider>
     )
   }
 
@@ -255,8 +298,9 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
   const frameHeight = state.entries.length > 0 ? Math.max(1, (stdout?.rows ?? 24) - 3) : undefined
 
   return (
-    <Box flexDirection="column" height={frameHeight} marginRight={1}>
-      {/*
+    <LanguageProvider lang={lang}>
+      <Box flexDirection="column" height={frameHeight} marginRight={1}>
+        {/*
         Keep one physical row free below Ink's live frame. When the root is
         exactly as tall as the terminal, Ink switches to its full-screen output
         path (`outputHeight >= rows`) and writes every resize frame directly,
@@ -265,7 +309,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
         the prompt remains anchored at the bottom while the one-row reserve
         keeps Ink on its incremental frame path.
       */}
-      {/*
+        {/*
         `marginRight={1}` keeps the terminal's last column empty, and it is
         load-bearing rather than styling. Ink stretches this column to the
         full terminal width, so every framed child — the prompt box, the
@@ -283,7 +327,7 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
         and absorbs a one-column lag between SIGWINCH and the write. See
         `tests/frame-erase.spec.ts`.
       */}
-      {/*
+        {/*
         The brand splash is generous (19 rows), and the live frame is only
         `rows - 3` tall, so it can only be on screen while there is nothing
         else to show. Once the first message lands the StatusBar takes over
@@ -306,29 +350,29 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
         renderer takes `width - 2` as a repeat count and throws
         `RangeError: Invalid count value: -2`. See `tests/boot-notice.spec.ts`.
       */}
-      {stdout?.isTTY ? (
-        state.entries.length === 0 && <Banner selection={selection} sessionId={agent.id} />
-      ) : (
-        <Static items={state.entries.length === 0 ? [0] : []} style={{ width: '100%' }}>
-          {() => <Banner key="banner" selection={selection} sessionId={agent.id} />}
-        </Static>
-      )}
-      {state.entries.length > 0 && (
-        <StatusBar
-          selection={selection}
-          sessionId={agent.id}
+        {stdout?.isTTY ? (
+          state.entries.length === 0 && <Banner selection={selection} sessionId={agent.id} />
+        ) : (
+          <Static items={state.entries.length === 0 ? [0] : []} style={{ width: '100%' }}>
+            {() => <Banner key="banner" selection={selection} sessionId={agent.id} />}
+          </Static>
+        )}
+        {state.entries.length > 0 && (
+          <StatusBar
+            selection={selection}
+            sessionId={agent.id}
+            state={state}
+            spinnerFrame={spinnerFrame}
+            elapsedSeconds={elapsedSeconds}
+          />
+        )}
+        <MessageList
           state={state}
-          spinnerFrame={spinnerFrame}
-          elapsedSeconds={elapsedSeconds}
+          offset={scroll.offset}
+          pinTop={scroll.pinTop}
+          onGeometry={scroll.reportGeometry}
         />
-      )}
-      <MessageList
-        state={state}
-        offset={scroll.offset}
-        pinTop={scroll.pinTop}
-        onGeometry={scroll.reportGeometry}
-      />
-      {/*
+        {/*
         The only cue that the view is not at the live tail. A terminal
         scrollbar would say this for free, but the alternate screen has
         neither one nor a scrollback, so the row has to be earned from the
@@ -342,28 +386,28 @@ export const App: FC<AppProps> = ({ ctx, agent, exit, modelRef, repaint, notice 
         paging and a viewport that does not reflow the instant you touch the
         wheel. Only the text is conditional.
       */}
-      <Box paddingX={1} height={1} flexShrink={0}>
-        {scroll.atTail ? null : (
-          <Text color="yellow" dimColor wrap="truncate">
-            ↓ {scroll.offset} more row{scroll.offset === 1 ? '' : 's'} below · End jumps to the
-            latest
-          </Text>
-        )}
-      </Box>
-      {/*
+        <Box paddingX={1} height={1} flexShrink={0}>
+          {scroll.atTail ? null : (
+            <Text color="yellow" dimColor wrap="truncate">
+              {strings.scroll.hint(scroll.offset)}
+            </Text>
+          )}
+        </Box>
+        {/*
         Above the prompt rather than in place of it. The prompt is inert while a
         turn runs (`active` is false), so the two never fight over a keystroke,
         and keeping the input row on screen means the question does not make the
         layout jump by a variable number of rows as it comes and goes.
       */}
-      <ApprovalPrompt pending={approvals.pending} onAnswer={approvals.answer} />
-      <Prompt
-        active={state.status === 'idle'}
-        onSubmit={onSubmit}
-        spinnerFrame={spinnerFrame}
-        onArrowClaimChange={setPromptClaimsArrows}
-        extraCommands={extraCommands}
-      />
-    </Box>
+        <ApprovalPrompt pending={approvals.pending} onAnswer={approvals.answer} />
+        <Prompt
+          active={state.status === 'idle'}
+          onSubmit={onSubmit}
+          spinnerFrame={spinnerFrame}
+          onArrowClaimChange={setPromptClaimsArrows}
+          extraCommands={extraCommands}
+        />
+      </Box>
+    </LanguageProvider>
   )
 }

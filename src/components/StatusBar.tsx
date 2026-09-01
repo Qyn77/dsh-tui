@@ -28,6 +28,8 @@ import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { UiState } from '../types.ts'
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
+import { useStrings } from '../hooks/useStrings.tsx'
+import { displayWidth } from '../width.ts'
 
 /** Props for {@link StatusBar}. */
 export interface StatusBarProps {
@@ -96,9 +98,15 @@ export function totalUsage(state: UiState): { input: number; output: number } {
  * Pad a label so the values in the right column line up at a fixed
  * column. Local helper, not exported — only the meta column needs
  * aligned labels.
+ *
+ * Measured in display columns, not characters: a translated label is CJK, and
+ * `会话:` is three characters occupying five columns. Padding it to
+ * `LABEL_WIDTH` *characters* would push the numbers six columns right of the
+ * ones below it, which is the whole failure this function exists to prevent.
  */
 function padLabel(label: string): string {
-  return label.length >= LABEL_WIDTH ? label : label + ' '.repeat(LABEL_WIDTH - label.length)
+  const width = displayWidth(label)
+  return width >= LABEL_WIDTH ? label : label + ' '.repeat(LABEL_WIDTH - width)
 }
 
 /**
@@ -126,6 +134,7 @@ export function fitModelName(provider: string, model: string, maxWidth: number):
 
 export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spinnerFrame, elapsedSeconds }) => {
   const { stdout } = useStdout()
+  const strings = useStrings()
   // Ink does not surface the column count when stdout is piped, so
   // fall back to 80 — narrower than that and the user is on a phone,
   // wider and our 2-column layout still has headroom.
@@ -139,8 +148,8 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
   // long turn does not re-render at 12 fps for an unchanged value.
   // Idle stays `⏵ idle` — the same shape, no extra columns.
   const statusText = isRunning
-    ? `${SPINNER_FRAMES[spinnerFrame]} working · ${elapsedSeconds}s`
-    : '⏵ idle'
+    ? `${SPINNER_FRAMES[spinnerFrame]} ${strings.status.working} · ${elapsedSeconds}s`
+    : strings.status.idle
   // The model line is on the brand column but has the full terminal
   // width to itself: 4 cols of outer padding, 1 col breathing
   // margin, and the budget must be at least 8 so the function has
@@ -161,15 +170,15 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
       </Box>
       <Box flexDirection="column">
         <Box>
-          <Text color="gray">{padLabel('session:')}</Text>
+          <Text color="gray">{padLabel(strings.status.session)}</Text>
           <Text>{shortId(sessionId)}</Text>
           <Text color="gray"> · </Text>
           <Text color={isRunning ? 'yellow' : 'gray'}>{statusText}</Text>
         </Box>
         <Box>
-          <Text color="gray">{padLabel('in:')}</Text>
+          <Text color="gray">{padLabel(strings.status.input)}</Text>
           <Text>{usage.input.toLocaleString()}</Text>
-          <Text color="gray">{'   out: '}</Text>
+          <Text color="gray">{`   ${strings.status.output} `}</Text>
           <Text>{usage.output.toLocaleString()}</Text>
         </Box>
       </Box>

@@ -34,6 +34,8 @@ import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
 import type { UiEntry, UiState } from '../types.ts'
 import { userMessageText } from '../types.ts'
 import { windowStart } from '../scroll.ts'
+import { useStrings } from '../hooks/useStrings.tsx'
+import type { Catalog } from '../i18n.ts'
 import {
   ASSISTANT_GLYPH,
   GUTTER_WIDTH,
@@ -60,12 +62,21 @@ export interface MessageListProps {
   onGeometry: (contentRows: number, viewportRows: number) => void
 }
 
-const COMPACTION_LABELS: Record<Extract<UiEntry, { kind: 'compaction' }>['stage'], string> = {
-  start: 'compacting…',
-  summary: 'compacting…',
-  prune: 'compacting…',
-  end: 'compaction complete',
+/**
+ * What one compaction stage says on screen.
+ *
+ * The three stages before the last collapse to one label deliberately: they are
+ * internal phases of the same operation, and narrating them separately would
+ * flicker three different sentences through one row while nothing the user can
+ * act on changes.
+ */
+function compactionLabel(
+  stage: Extract<UiEntry, { kind: 'compaction' }>['stage'],
+  strings: Catalog,
+): string {
+  return stage === 'end' ? strings.entries.compactionDone : strings.entries.compacting
 }
+
 
 /**
  * One entry, drawn as a fixed-width marker column beside a body column.
@@ -142,6 +153,7 @@ function ToolCall({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
 }
 
 function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant' }> }) {
+  const strings = useStrings()
   // While the turn is still streaming, show raw text — re-parsing
   // partial markdown on every chunk risks a half-open fence or an
   // italic delimiter that hasn't closed yet, both of which would
@@ -152,9 +164,9 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
   return (
     <Row glyph={ASSISTANT_GLYPH} color="magenta">
       <Text>
-        <Text color="magenta" bold>assistant</Text>
-        <Text color="gray"> · turn {entry.turn} step {entry.step}</Text>
-        {!entry.finalized && <Text color="yellow"> · streaming</Text>}
+        <Text color="magenta" bold>{strings.entries.assistant}</Text>
+        <Text color="gray">{strings.entries.turnStep(entry.turn, entry.step)}</Text>
+        {!entry.finalized && <Text color="yellow">{strings.entries.streaming}</Text>}
       </Text>
       {entry.finalized ? (
         <Markdown source={entry.text} />
@@ -195,29 +207,37 @@ function NoteLine({ entry }: { entry: Extract<UiEntry, { kind: 'note' }> }) {
 }
 
 function CompactionLine({ entry }: { entry: Extract<UiEntry, { kind: 'compaction' }> }) {
+  const strings = useStrings()
   return (
     <Row glyph={NOTE_GLYPH} color="cyan" dim>
-      <Text color="cyan" dimColor>{COMPACTION_LABELS[entry.stage]}</Text>
+      <Text color="cyan" dimColor>{compactionLabel(entry.stage, strings)}</Text>
     </Row>
   )
 }
 
 function PlanLine({ entry }: { entry: Extract<UiEntry, { kind: 'plan' }> }) {
+  const strings = useStrings()
   return (
     <Row glyph={NOTE_GLYPH} color={entry.enabled ? 'yellow' : 'gray'} dim>
       <Text color={entry.enabled ? 'yellow' : 'gray'}>
-        plan mode {entry.enabled ? 'on' : 'off'}
+        {strings.entries.planMode(entry.enabled)}
       </Text>
     </Row>
   )
 }
 
 function RuntimeContextLine({ entry }: { entry: Extract<UiEntry, { kind: 'runtime-context' }> }) {
+  const strings = useStrings()
   // Header carries the producer and form so the user can see which
   // plugin injected this context (e.g. agent-instructions shipping a
   // <system-reminder>). The preview is a short, dimmed sample of the
   // payload — full text would crowd the chat surface.
-  const header = `runtime context${entry.plugin ? ` · ${entry.plugin}` : ''}${entry.form ? ` (${entry.form})` : ''}`
+  //
+  // The producer's name and the form stay untranslated: both are identifiers
+  // the plugin chose, and renaming another package's `form` in our own UI
+  // would leave the user unable to match what they see against that package's
+  // documentation.
+  const header = `${strings.entries.runtimeContext}${entry.plugin ? ` · ${entry.plugin}` : ''}${entry.form ? ` (${entry.form})` : ''}`
   return (
     <Row glyph={NOTE_GLYPH} color="gray" dim>
       <Text color="gray" dimColor>{header}</Text>

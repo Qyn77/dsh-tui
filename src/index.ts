@@ -20,6 +20,7 @@ import { appExit, service, type AppExit } from './services.ts'
 import { App } from './renderer.tsx'
 import { installResizeOwner, type RepaintRef } from './resize.ts'
 import { planResume, requestFromEnv } from './resume.ts'
+import { readSettings } from './settings.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'tui-runner'
@@ -175,6 +176,10 @@ async function run(ctx: Context, config: Config): Promise<void> {
     // Filled in by the App's mount effect; the resize owner borrows it to
     // force the settled frame onto the screen. See `resize.ts`.
     const repaint: RepaintRef = { current: undefined }
+    // Read once, at the boundary. The App takes the language as a prop and owns
+    // it as state from there, so this is the only place the process touches
+    // `~/.dsh/tui.json` on the way in; `/language` writes it back out.
+    const { language } = readSettings()
     const element = (): React.ReactElement =>
       React.createElement(App, {
         ctx,
@@ -182,6 +187,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
         exit: exitHook,
         repaint,
         modelRef: ref,
+        lang: language,
         ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
       })
     const instance = inkRender(element(), {

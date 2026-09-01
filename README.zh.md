@@ -120,6 +120,7 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/help` | 打印可用的斜杠命令 |
 | `/clear` | 清空可见的聊天区（session log 不变） |
 | `/status` | 打印当前模型和 session id |
+| `/language` | 切换界面语言：`/language en` 或 `/language zh` |
 | `/exit`, `/quit` | 退出 REPL |
 | `Ctrl-C`（空闲时） | 等同 `/exit` |
 | `Ctrl-C`（turn 运行时） | 取消正在跑的 turn |
@@ -140,6 +141,18 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 和 `Ctrl-B`/`Ctrl-F` 永远滚动对话。
 
 要求：Node ≥ 22.19、pnpm ≥ 9、真正的终端（Ink 需要 TTY）、一个 DeepSeek API key。
+
+### 界面语言
+
+界面有中英两种。`/language zh` 切到中文，`/language en` 切回英文，只打 `/language`
+则报告当前用的是哪一种。`cn`、`中文`、`zh-CN` 都算 `zh`。
+
+选择会写进 `~/.dsh/tui.json`，下次启动依然生效，所以这是一次性的决定，不用每个
+session 重来一遍。除此之外没有别的东西读这个文件——API key 仍然只在 `~/.dsh/.env`。
+
+有两处不跟着变。banner 在你打这条命令时已经写进终端了（正是这一点让它在对话滚动时
+留在原位），所以它会在下一次 `/clear` 或下一次启动时换成新语言。另外，这切的是**界
+面**语言，不是模型的：助手用什么语言回你，仍然取决于你怎么问，和以前一样。
 
 ## 改起来
 
@@ -245,7 +258,9 @@ src/
 ├── renderer.tsx             Ink 根组件
 ├── state.ts                 纯 reducer：SessionEvent → UiState
 ├── types.ts                 UiEntry、UiState、isRenderable、declaration-merged 事件表
-├── commands.ts              /help /clear /status /exit /quit 派发
+├── commands.ts              /help /clear /status /language /exit /quit 派发
+├── i18n.ts                  纯双语文案表（英文 + 中文）
+├── settings.ts              读写 ~/.dsh/tui.json（语言选择）
 ├── invariant.ts             空的 package-invariant companion
 ├── scroll.ts                纯滚动算术 + 按键/鼠标解析
 ├── prompt-layout.ts         纯输入折行、光标、可视窗口、滚动条
@@ -255,7 +270,8 @@ src/
 ├── hooks/
 │   ├── useSessionEvents.ts  回放 log + 订阅 session/event
 │   ├── useMessageListScroll.ts  滚动偏移、按键绑定、实测几何
-│   └── useResizeRepaint.ts  非 TTY resize 回归测试辅助
+│   ├── useResizeRepaint.ts  非 TTY resize 回归测试辅助
+│   └── useStrings.tsx       当前语言，用 React context 传递
 └── components/
     ├── StatusBar.tsx        顶部：模型 · session · 状态 · token
     ├── MessageList.tsx      中部：字形栏对话视口

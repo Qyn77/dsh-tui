@@ -126,6 +126,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/help` | Print available slash commands |
 | `/clear` | Clear the visible chat (the session log is unchanged) |
 | `/status` | Print the current model and session id |
+| `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/exit`, `/quit` | Leave the REPL |
 | `Ctrl-C` (idle) | Same as `/exit` |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
@@ -147,6 +148,23 @@ with a scrollbar on the right — so a long message never pushes the
 conversation off the screen. While the box is taller than one row, `↑`/`↓`
 move the caret through it; `PageUp`/`PageDown` and `Ctrl-B`/`Ctrl-F` always
 scroll the conversation.
+
+### Language
+
+The interface speaks English or Chinese. `/language zh` switches it, `/language
+en` switches back, and `/language` on its own reports which one is in force.
+`cn`, `中文` and `zh-CN` all mean `zh`.
+
+The choice is saved to `~/.dsh/tui.json` and applies to the next launch too, so
+it is a one-time decision rather than a per-session one. Nothing else reads that
+file — your API key stays in `~/.dsh/.env`.
+
+Two things do not change with it. The banner has already been written to the
+terminal by the time you type the command (that is what makes it stay put while
+the conversation scrolls), so it returns in the new language on the next
+`/clear` or the next launch. And this is the *interface* language, not the
+model's: what the assistant replies in is up to what you ask it, exactly as
+before.
 
 ## Develop it
 
@@ -253,7 +271,9 @@ src/
 ├── renderer.tsx             Ink root component
 ├── state.ts                 Pure reducer: SessionEvent → UiState
 ├── types.ts                 UiEntry, UiState, isRenderable, declaration-merged event map
-├── commands.ts              /help /clear /status /exit /quit dispatch
+├── commands.ts              /help /clear /status /language /exit /quit dispatch
+├── i18n.ts                  Pure bilingual string catalog (English + Chinese)
+├── settings.ts              Read/write ~/.dsh/tui.json (the language choice)
 ├── invariant.ts             Empty package-invariant companion
 ├── scroll.ts                Pure scroll math + key/mouse parsing
 ├── prompt-layout.ts         Pure input fold, caret, window, scrollbar
@@ -263,7 +283,8 @@ src/
 ├── hooks/
 │   ├── useSessionEvents.ts  Replay log + subscribe to session/event
 │   ├── useMessageListScroll.ts  Scroll offset, key bindings, measured geometry
-│   └── useResizeRepaint.ts  Non-TTY resize regression harness
+│   ├── useResizeRepaint.ts  Non-TTY resize regression harness
+│   └── useStrings.tsx       The current language, as React context
 └── components/
     ├── StatusBar.tsx        Top: model · session · status · tokens
     ├── MessageList.tsx      Middle: glyph-gutter conversation viewport

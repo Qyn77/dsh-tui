@@ -21,6 +21,7 @@
 import React, { type ReactNode } from 'react'
 import { Box, Text } from 'ink'
 import { applyHangingIndent, parseMarkdown, type BlockNode, type InlineNode } from '../markdown.ts'
+import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for the {@link Markdown} component. */
 export interface MarkdownProps {
@@ -116,6 +117,7 @@ function CodeBlock({ lang, text, marginTop, marginBottom }: {
   marginTop: number
   marginBottom: number
 }): ReactNode {
+  const strings = useStrings()
   const label = lang === '' ? '' : lang
   return (
     <Box
@@ -128,7 +130,7 @@ function CodeBlock({ lang, text, marginTop, marginBottom }: {
     >
       {label !== '' && (
         <Box>
-          <Text color="gray">code · </Text>
+          <Text color="gray">{strings.markdown.codeFence}</Text>
           <Text color="cyan" bold>{label}</Text>
         </Box>
       )}

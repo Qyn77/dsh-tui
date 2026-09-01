@@ -25,6 +25,7 @@ import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { VERSION } from './environment.ts'
 import { displayWidth } from './width.ts'
+import { catalog } from './i18n.ts'
 
 /** DeepSeek's brand blue. Used for the whale's body and the DEEPSEEK wordmark. */
 export const BRAND_BLUE = '#4D6BFE'
@@ -225,23 +226,46 @@ export function displayCwd(cwd: string, home: string | undefined): string {
  * with a leading `…`. Paths and ids carry their identity in the tail,
  * which is why this truncates from the front — the opposite of the
  * message-list `truncate`.
+ *
+ * Measured in display columns rather than characters, because the tip line is
+ * translated and a CJK glyph is two columns wide. Counting characters would let
+ * a Chinese line up to twice its budget through, and every `<Text>` in the
+ * banner is `wrap="truncate"` precisely so that no row can exceed the box —
+ * a line that overflows anyway is the one failure this component's own comments
+ * call worse than a bad frame, because Ink erases by logical line count and a
+ * terminal-wrapped row is under-erased on every resize.
+ *
+ * The tail is still sliced by character. That can leave the result one column
+ * narrower than the budget when the cut lands where a wide glyph would have
+ * started; under-filling by a column is invisible, while overflowing by one is
+ * the bug above.
  */
 export function fitTail(line: string, width: number): string {
   if (width <= 0) return ''
-  if (line.length <= width) return line
+  if (displayWidth(line) <= width) return line
   if (width === 1) return '…'
-  return `…${line.slice(-(width - 1))}`
+  const budget = width - 1
+  // Code points, deliberately. This walks backwards accumulating display width,
+  // so it needs units `displayWidth` can measure one at a time — which UTF-16
+  // code units are not: splitting a surrogate pair yields two halves that are
+  // neither the original glyph nor measurable. A grapheme cluster would be
+  // better still for combining marks, but the lines here are paths, session ids
+  // and the one-line tip, none of which carry them.
+  // oxlint-disable-next-line typescript/no-misused-spread
+  const chars = [...line]
+  let taken = 0
+  let start = chars.length
+  while (start > 0) {
+    const next = displayWidth(chars[start - 1] ?? '')
+    if (taken + next > budget) break
+    taken += next
+    start -= 1
+  }
+  return `…${chars.slice(start).join('')}`
 }
 
 /** How many characters of the session id to show. */
 const SESSION_ID_CHARS = 12
-
-/**
- * The tip line. Kept short enough to fit {@link WORDMARK_WIDTH} at 80
- * columns, and only advertises commands that exist today — a tip
- * pointing at an unimplemented command is worse than no tip.
- */
-const TIP = 'Tip: /help · /status · Tab completes'
 
 /** The four meta facts, unfitted. Each column budgets its own width. */
 export interface MetaText {
@@ -264,12 +288,16 @@ export interface MetaText {
  * @param sessionId - the live session's id.
  * @param repo - the git label, or `undefined` outside a repository.
  * @param cwd - the working directory, already home-shortened.
+ * @param tip - the localized tip line. Defaults to English so a caller that
+ * only wants the three factual rows — the tests do — need not reach for a
+ * catalog to get them.
  */
 export function metaText(
   selection: ModelSelection,
   sessionId: SessionId,
   repo: string | undefined,
   cwd: string,
+  tip: string = catalog('en').banner.tip,
 ): MetaText {
   return {
     model: `${selection.provider}/${selection.model}`,
@@ -277,6 +305,6 @@ export function metaText(
     // The branch rides on the path: both answer "where am I working?"
     // and deserve one row, not two.
     location: repo === undefined ? cwd : `${cwd} (${repo})`,
-    tip: TIP,
+    tip,
   }
 }

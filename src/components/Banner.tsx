@@ -55,6 +55,7 @@ import {
   metaText,
 } from '../banner-art.ts'
 import { readRepoLabel } from '../environment.ts'
+import { useStrings } from '../hooks/useStrings.tsx'
 
 /**
  * The four meta facts stacked in one column, for the tiers that have
@@ -71,6 +72,7 @@ const MetaStack: FC<{ meta: MetaText; width: number }> = ({ meta, width }) => (
 
 export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
   const { stdout } = useStdout()
+  const strings = useStrings()
   // Read once, at the single paint this component gets: `useStdout` does
   // not re-render on resize, and as static output the banner would not
   // be redrawn even if it did. The width it was printed at is the width
@@ -84,6 +86,7 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
     sessionId,
     readRepoLabel(),
     displayCwd(process.cwd(), process.env['HOME']),
+    strings.banner.tip,
   )
 
   // Narrowest tier: no art at all, every fact kept. One line of brand

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands.ts'
+import { catalog } from '../src/i18n.ts'
 import type { UiState } from '../src/types.ts'
 
 interface Stand {
@@ -228,6 +229,75 @@ describe('slash command dispatch', () => {
     expect(reset).not.toHaveBeenCalled()
   })
 
+  describe('/language', () => {
+    it('shows usage and the current language when no argument is given', async () => {
+      const setLanguage = vi.fn()
+      const { cmd } = makeCommand({ setLanguage })
+      const result = await dispatch('/language', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('Usage: /language')
+        expect(result.message).toContain('Current: en')
+      }
+      // Reporting is not switching.
+      expect(setLanguage).not.toHaveBeenCalled()
+    })
+
+    it('switches the interface language and confirms in the new one', async () => {
+      const setLanguage = vi.fn()
+      const { cmd } = makeCommand({ setLanguage })
+      const result = await dispatch('/language zh', cmd)
+      expect(setLanguage).toHaveBeenCalledWith('zh')
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        // Written in Chinese on purpose: the confirmation is the first thing
+        // the user reads in the language they just asked for, so a mistyped
+        // code is visible immediately rather than being reported in a
+        // language they cannot check.
+        expect(result.message).toBe(catalog('zh').output.languageSwitched)
+        expect(result.failed).not.toBe(true)
+      }
+    })
+
+    it('accepts the aliases a bilingual user is likely to type', async () => {
+      for (const arg of ['ZH', 'cn', '中文', 'zh-CN']) {
+        const setLanguage = vi.fn()
+        const { cmd } = makeCommand({ setLanguage })
+        await dispatch(`/language ${arg}`, cmd)
+        expect(setLanguage).toHaveBeenCalledWith('zh')
+      }
+    })
+
+    it('reports an unknown language as a failure and changes nothing', async () => {
+      const setLanguage = vi.fn()
+      const { cmd } = makeCommand({ setLanguage })
+      const result = await dispatch('/language fr', cmd)
+      expect(setLanguage).not.toHaveBeenCalled()
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).toBe(true)
+        expect(result.message).toContain('fr')
+      }
+    })
+
+    it('writes its own output in the language in force when it was typed', async () => {
+      // A user already in Chinese asking for the usage line gets it in Chinese.
+      const { cmd } = makeCommand({ lang: 'zh' })
+      const result = await dispatch('/language', cmd)
+      if (result.kind === 'handled') {
+        expect(result.message).toBe(catalog('zh').output.languageUsage('zh'))
+      }
+    })
+
+    it('still reports the switch when no handler was wired', async () => {
+      // `setLanguage` is optional, so a context built without one — the shape
+      // most tests use — must not throw on a `/language` line.
+      const { cmd } = makeCommand()
+      const result = await dispatch('/language zh', cmd)
+      expect(result.kind).toBe('handled')
+    })
+  })
+
   describe('/model', () => {
     it('shows usage and current model when no argument is given', async () => {
       const { cmd } = makeCommand()
@@ -341,7 +411,9 @@ describe('slash command dispatch', () => {
 describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
-    expect(result).toEqual(['/clear', '/context', '/exit', '/help', '/model', '/quit', '/status'])
+    expect(result).toEqual([
+      '/clear', '/context', '/exit', '/help', '/language', '/model', '/quit', '/status',
+    ])
   })
 
   it('filters to commands whose names start with the buffer (case-insensitive)', () => {
@@ -392,7 +464,8 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/clear', '/compact', '/context', '/exit', '/goal', '/help', '/model', '/quit', '/status',
+        '/clear', '/compact', '/context', '/exit', '/goal', '/help', '/language', '/model',
+        '/quit', '/status',
       ])
     })
 

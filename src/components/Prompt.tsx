@@ -54,6 +54,7 @@ import {
   wrapBuffer,
 } from '../prompt-layout.ts'
 import { SlashPalette } from './SlashPalette.tsx'
+import { useLang, useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link Prompt}. */
 export interface PromptProps {
@@ -128,6 +129,8 @@ export const Prompt: FC<PromptProps> = ({
   extraCommands,
 }) => {
   const { stdout } = useStdout()
+  const lang = useLang()
+  const strings = useStrings()
   const [value, setValue] = useState('')
   const [cursorIndex, setCursorIndex] = useState(0)
   const [paletteIndex, setPaletteIndex] = useState(0)
@@ -144,7 +147,7 @@ export const Prompt: FC<PromptProps> = ({
   // Filter is a pure derivation from `value`; no effect needed. The
   // selection index is clamped on every keystroke so an out-of-range
   // cursor from rapid input never escapes.
-  const palette = isPaletteMode(value) ? filterCommands(value, extraCommands) : []
+  const palette = isPaletteMode(value) ? filterCommands(value, extraCommands, lang) : []
   const safePaletteIndex = clampPaletteIndex(paletteIndex, palette)
 
   // The fold, the caret and the window are all derived on every render —
@@ -388,7 +391,9 @@ export const Prompt: FC<PromptProps> = ({
   // uses, so the two indicators stay in lock-step. Both come from
   // the App's single `useRunningClock` interval; idle placeholder
   // is unchanged.
-  const placeholder = active ? 'Ask dsh anything…' : `${SPINNER_FRAMES[spinnerFrame]} working`
+  const placeholder = active
+    ? strings.prompt.placeholder
+    : `${SPINNER_FRAMES[spinnerFrame]} ${strings.prompt.working}`
   const cursor = active ? (
     <Text color="cyan" bold>
       ▌

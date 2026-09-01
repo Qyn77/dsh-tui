@@ -135,6 +135,22 @@ describe('fitTail', () => {
     expect(fitTail('abc', 0)).toBe('')
     expect(fitTail('abc', -3)).toBe('')
   })
+
+  it('budgets CJK text in display columns, not characters', () => {
+    // Once the tip line can be Chinese this is the difference between a line
+    // that fits the banner box and one twice as wide as its budget. A row wider
+    // than the frame gets wrapped by the terminal, and Ink erases by logical
+    // line count, so the extra physical row is left behind on every redraw.
+    const line = '提示：/help · /status · Tab 补全'
+    expect(displayWidth(line)).toBeGreaterThan(20)
+    for (const width of [1, 4, 7, 12, 20]) {
+      expect(displayWidth(fitTail(line, width))).toBeLessThanOrEqual(width)
+    }
+    // A double-width glyph that would straddle the boundary is dropped whole
+    // rather than half-printed, so one column may be left unused.
+    expect(fitTail('中文中文', 5)).toBe('…中文')
+    expect(fitTail('中文中文', 8)).toBe('中文中文')
+  })
 })
 
 describe('renderBlockWord', () => {

@@ -643,9 +643,15 @@ After publish, the dsh-tui bundle becomes available as `@deepseek-ai/dsh-tui@0.1
 - PRs require green CI (typecheck + test + build).
 - Don't commit generated files (`lib/`, `.tsbuildinfo`, `coverage/`). The `.gitignore` should already exclude them; if it doesn't, add it in the same PR.
 
-### 3.10 i18n (docs only)
+### 3.10 i18n
 
-- **CLI strings: English only.**
+The interface is bilingual; everything a contributor reads is English.
+
+- **On-screen strings: English and Chinese, from one catalog.** Every string this UI can put on screen lives in `src/i18n.ts`, once per language. English is the source of truth — `EN` is typed as `Catalog`, so a key added without an English string fails to compile, and `tests/i18n.spec.ts` fails when the Chinese side is missing one. Components read strings through `useStrings()`, never as literals.
+- **`/language` switches the chrome, not the conversation.** The command changes the language of the TUI's own text and nothing else. It does not instruct the model, does not touch the prompt, and does not appear in the session log as anything but a command entry. The choice persists in `~/.dsh/tui.json`.
+- **Four things stay untranslated, deliberately.** Brand art (the whale, the wordmark, the slogan) is a logo. Key names (`Tab`, `Esc`, `Enter`) are what is printed on the keyboard. Plugin command descriptions come from another package's registry and are shown as written. Identifiers a plugin chose — producer names, form names, model and provider ids — are names, not prose.
+- **One thing stays untranslated for now: `toolResultSummary`'s `(+N more)`.** `src/message-layout.ts` is measured by `src/scroll.ts` and rendered by `MessageList`, and the two must agree on the row count to the character. Making the summary language-dependent means threading the language into the scroll geometry as well; until that is done, a translation here would let the measured string and the drawn string disagree and break paging. Fix both together or neither.
+- **Column width, not character count.** A CJK glyph occupies two terminal columns. Any string that is padded, centred, or truncated must be measured with `displayWidth` from `src/width.ts`. Counting characters lets a row through at twice its budget, the terminal wraps it, and Ink — which erases by logical line count — under-erases it on every redraw. See `docs/lessons/resize-reflow.md`.
 - **README: bilingual.** English in `README.md`, Chinese in `README.zh.md`. Update both in the same PR.
 - **Spec, comments, commit messages, PR descriptions: English.** Even when the surrounding repo uses Chinese for communication.
 
@@ -663,6 +669,7 @@ Code and docs ship in lockstep. A change to `src/` without a matching doc update
 |---|---|
 | New `SessionEvent` type | `state.ts` case in `tests/state.spec.ts` + reducer contract section if it introduces a new rule |
 | New slash command | `commands.ts` + `tests/commands.spec.ts` + slash-command table in `README.md` and `README.zh.md` |
+| New on-screen string | `Catalog` in `src/i18n.ts` + **both** the `EN` and `ZH` entries (English alone does not compile; a missing translation fails `tests/i18n.spec.ts`) |
 | New platform behavior (env, build step, native dep) | `README.md` "Use it" / "Develop it" + Windows callout if relevant |
 | New color, glyph, border, layout rule | `docs/SPEC.md` Part 1 — Style |
 | New milestone or completed feature | `docs/SPEC.md` Part 2 — Roadmap (move from planned to shipped) |

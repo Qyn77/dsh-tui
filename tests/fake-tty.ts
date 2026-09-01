@@ -17,6 +17,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { Session } from '@deepseek-ai/dsh-session'
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { App } from '../src/renderer.tsx'
+import type { Lang } from '../src/i18n.ts'
 
 /** Built, never quoted: an invisible ESC byte in source is unreviewable. */
 export const ESC = String.fromCharCode(27)
@@ -139,13 +140,19 @@ export interface PaintOptions {
    * `<Static>` banner fallback the App keeps for a stdout that does not.
    */
   tty?: boolean
+  /**
+   * The interface language to mount in. Defaults to English — the same default
+   * the App applies when the prop is omitted, so every other test in this suite
+   * asserts English frames without knowing this option exists.
+   */
+  lang?: Lang
 }
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 
 /** Mount the real `App` against a fake TTY of the given size. */
 export async function paintApp(
-  { turns = 0, rows = 40, columns = 100, notice, tty = true }: PaintOptions = {},
+  { turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en' }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
   stdout.isTTY = tty
@@ -166,6 +173,7 @@ export async function paintApp(
       ctx,
       agent: agent as never,
       exit: () => {},
+      lang,
       ...notice === undefined ? {} : { notice },
     }),
     {

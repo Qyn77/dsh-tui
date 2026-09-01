@@ -21,6 +21,7 @@ import React, { type FC } from 'react'
 import { Box, Text, useInput } from 'ink'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import type { PendingApproval } from '../hooks/useApprovalRequests.ts'
+import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link ApprovalPrompt}. */
 export interface ApprovalPromptProps {
@@ -31,6 +32,7 @@ export interface ApprovalPromptProps {
 }
 
 export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer }) => {
+  const strings = useStrings()
   const current = pending[0]
 
   // Registered unconditionally with `isActive`, not behind an early return:
@@ -48,10 +50,10 @@ export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer }) =
   return (
     <Box borderStyle="round" borderColor="yellow" flexDirection="column" paddingX={1}>
       <Box>
-        <Text color="yellow" bold>Permission required </Text>
+        <Text color="yellow" bold>{`${strings.approval.title} `}</Text>
         <Text bold>{current.toolName}</Text>
         {waiting > 0 && (
-          <Text color="gray">{` (+${waiting} more waiting)`}</Text>
+          <Text color="gray">{strings.approval.more(waiting)}</Text>
         )}
       </Box>
       {current.reason !== undefined && (
@@ -61,7 +63,7 @@ export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer }) =
       )}
       <Box marginTop={1}>
         <Text color="gray" dimColor>
-          y allow once · n deny · Esc deny
+          {strings.approval.hint}
         </Text>
       </Box>
     </Box>

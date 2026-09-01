@@ -1,12 +1,17 @@
 /**
  * Slash command registry and dispatch for the TUI prompt. The same
- * `COMMANDS` table feeds the in-progress `/` palette (see
+ * {@link commands} table feeds the in-progress `/` palette (see
  * `SlashPalette.tsx`) and the help text, so the two never drift.
  * Commands are intercepted in the input handler and never reach the
  * model — they own their own UX. The returned status tells the prompt
  * what to do next.
  *
- * `COMMANDS` is not the whole command surface. Plugins register their own
+ * Everything this module writes to the screen is language-dependent, so both
+ * the table and the dispatcher take a `lang`. It defaults to `'en'` at every
+ * boundary: a caller that does not care about localisation — most tests — reads
+ * exactly what it read before this parameter existed.
+ *
+ * The built-in table is not the whole command surface. Plugins register their own
  * human commands on `ctx.commands` — dsh-base mounts `/compact`, `/feedback`
  * and `/goal` that way — so a name this table does not own falls through to
  * that registry before it is called unknown. The table holds only the
@@ -24,6 +29,12 @@ import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { UiState } from './types.ts'
 import { appExit, service } from './services.ts'
+import {
+  COMMAND_NAMES,
+  catalog,
+  parseLanguageArg,
+  type Lang,
+} from './i18n.ts'
 
 /** What a command decided. */
 export type CommandResult =
@@ -49,27 +60,30 @@ export interface CommandMeta {
 }
 
 /**
- * Slash command registry. Order is the default order in the palette
- * when the buffer is just `/`. Sorted alphabetically by name on
+ * Slash command registry, in the given language. Order is the default order in
+ * the palette when the buffer is just `/`. Sorted alphabetically by name on
  * filter for stability.
+ *
+ * Names live in {@link COMMAND_NAMES} and descriptions in the catalog, so a new
+ * command cannot ship half-described: the catalog's `commands` map is keyed by
+ * that same tuple, and a missing entry fails to compile.
+ * @param lang - the interface language to describe the commands in.
+ * @returns one row per built-in command, in canonical order.
  */
-export const COMMANDS: readonly CommandMeta[] = [
-  { name: '/clear', description: 'Clear the visible chat (keeps the session log intact)' },
-  { name: '/context', description: 'Show model, context window, and token usage' },
-  { name: '/exit', description: 'Leave the REPL' },
-  { name: '/help', description: 'Show the list of available commands' },
-  { name: '/model', description: 'Switch model: /model <name> or <provider>/<name>' },
-  { name: '/quit', description: 'Alias for /exit' },
-  { name: '/status', description: 'Print the current model and session id' },
-]
+export function commands(lang: Lang = 'en'): readonly CommandMeta[] {
+  const descriptions = catalog(lang).commands
+  return COMMAND_NAMES.map(name => ({ name, description: descriptions[name] }))
+}
 
 /**
  * Map the plugin registry's commands into palette rows.
  *
  * The registry is the authority on what a plugin command is called and what it
  * says about itself, so nothing is rewritten here beyond the leading `/` this
- * surface's rows carry and the registry's descriptors do not. An absent
- * registry is not an error — it means the built-in table is the whole surface.
+ * surface's rows carry and the registry's descriptors do not. That includes the
+ * language: plugin descriptions are another package's wording and are shown as
+ * written, whatever the interface language is. An absent registry is not an
+ * error — it means the built-in table is the whole surface.
  * @param ctx - the context to read the registry from.
  * @param agent - the receiving agent, whose scoped definitions shadow globals.
  * @returns one row per effective registry command, registry order preserved.
@@ -86,11 +100,13 @@ export function registryCommands(ctx: Context, agent: Agent): CommandMeta[] {
  * it before the registry is consulted; a palette that advertised a registry
  * definition of the same name would be describing behaviour that cannot run.
  * @param extra - registry rows, typically from {@link registryCommands}.
+ * @param lang - the interface language for the built-in descriptions.
  * @returns the merged table, built-ins first.
  */
-function allCommands(extra: readonly CommandMeta[]): CommandMeta[] {
-  const owned = new Set(COMMANDS.map(c => c.name.toLowerCase()))
-  return [...COMMANDS, ...extra.filter(c => !owned.has(c.name.toLowerCase()))]
+function allCommands(extra: readonly CommandMeta[], lang: Lang): CommandMeta[] {
+  const own = commands(lang)
+  const owned = new Set(own.map(c => c.name.toLowerCase()))
+  return [...own, ...extra.filter(c => !owned.has(c.name.toLowerCase()))]
 }
 
 /**
@@ -100,28 +116,37 @@ function allCommands(extra: readonly CommandMeta[]): CommandMeta[] {
  * is stable across keystrokes.
  * @param buffer - the current prompt buffer, e.g. `/he` or `/`.
  * @param extra - registry rows to offer alongside the built-in table.
+ * @param lang - the interface language for the built-in descriptions.
  */
-export function filterCommands(buffer: string, extra: readonly CommandMeta[] = []): CommandMeta[] {
+export function filterCommands(
+  buffer: string,
+  extra: readonly CommandMeta[] = [],
+  lang: Lang = 'en',
+): CommandMeta[] {
   const query = buffer.toLowerCase()
   if (!query.startsWith('/')) return []
-  return allCommands(extra)
+  return allCommands(extra, lang)
     .filter(c => c.name.toLowerCase().startsWith(query))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
  * Pretty-print the command list for `/help`. Two columns, padded so
- * the descriptions line up. Sourced from {@link COMMANDS} plus the plugin
+ * the descriptions line up. Sourced from {@link commands} plus the plugin
  * registry so the help text and the palette describe the same surface.
+ *
+ * Names are ASCII, so `padEnd` on character count is display-column padding
+ * here — unlike the descriptions, which are never padded.
  * @param extra - registry rows to list alongside the built-in table.
+ * @param lang - the interface language for the heading and descriptions.
  */
-function helpText(extra: readonly CommandMeta[]): string {
-  const merged = allCommands(extra)
+function helpText(extra: readonly CommandMeta[], lang: Lang = 'en'): string {
+  const merged = allCommands(extra, lang)
   const nameCol = Math.max(...merged.map(c => c.name.length))
   const rows = [...merged]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map(c => `  ${c.name.padEnd(nameCol)}  ${c.description}`)
-  return ['Available commands:', ...rows].join('\n')
+  return [catalog(lang).output.helpHeading, ...rows].join('\n')
 }
 
 /** Snapshot one command from the registry. */
@@ -138,6 +163,24 @@ export interface CommandContext {
   setModel: (provider: string, model: string) => Promise<void>
   /** Re-read the current selection from the service and push it to the UI. */
   refreshSelection: () => void
+  /**
+   * Switch the interface language: repaint now, persist for the next launch.
+   * Nothing about the conversation changes — this is the chrome's language, not
+   * the model's.
+   *
+   * Optional, like {@link lang}, so a caller that never types `/language` — most
+   * tests — builds a context without it. A `/language` line with no handler
+   * still reports the switch it could not make, rather than throwing.
+   */
+  setLanguage?: (lang: Lang) => void
+  /**
+   * The interface language in force when the command was entered, defaulting to
+   * `'en'`. Every message a command returns is written in it, including the one
+   * that changes it — with the deliberate exception of `/language`'s success
+   * line, which is written in the language just switched *to*, because that is
+   * the switch's own proof.
+   */
+  lang?: Lang
   /** Live UI state for commands that inspect token usage or entries. */
   state: UiState
 }
@@ -154,10 +197,15 @@ export interface CommandContext {
  * @returns what the caller should do next.
  */
 export async function dispatch(raw: string, cmd: CommandContext): Promise<CommandResult> {
+  const lang = cmd.lang ?? 'en'
+  const strings = catalog(lang).output
   const name = raw.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
   switch (name) {
     case '/help':
-      return { kind: 'handled', message: helpText(registryCommands(cmd.ctx, cmd.agent)) }
+      return {
+        kind: 'handled',
+        message: helpText(registryCommands(cmd.ctx, cmd.agent), lang),
+      }
 
     case '/clear':
       cmd.resetView()
@@ -169,22 +217,39 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
 
     case '/status': {
       const selection = service(cmd.ctx, 'agentDefaultModel')?.currentSelection()
-      const model = selection ? `${selection.provider}/${selection.model}` : 'unknown'
+      const model = selection ? `${selection.provider}/${selection.model}` : strings.unknown
       return {
         kind: 'handled',
-        message: `model: ${model}\nsession: ${cmd.agent.id}`,
+        message: strings.status(model, cmd.agent.id),
       }
+    }
+
+    case '/language': {
+      const args = raw.trim().split(/\s+/).slice(1)
+      if (args.length === 0) {
+        return { kind: 'handled', message: strings.languageUsage(lang) }
+      }
+      const requested = parseLanguageArg(args[0])
+      if (requested === undefined) {
+        return { kind: 'handled', message: strings.unknownLanguage(args[0]), failed: true }
+      }
+      cmd.setLanguage?.(requested)
+      // Written in the language just switched to: the confirmation is itself
+      // the first thing the user reads in the new language, so a reader who
+      // typed the wrong code sees that immediately rather than being told in
+      // a language they cannot check.
+      return { kind: 'handled', message: catalog(requested).output.languageSwitched }
     }
 
     case '/model': {
       const args = raw.trim().split(/\s+/).slice(1)
       const selection = service(cmd.ctx, 'agentDefaultModel')?.currentSelection()
       if (args.length === 0) {
-        const model = selection ? `${selection.provider}/${selection.model}` : 'unknown'
-        return { kind: 'handled', message: `Usage: /model <name>\nCurrent: ${model}\n\nUse /context to see context window and token usage.` }
+        const model = selection ? `${selection.provider}/${selection.model}` : strings.unknown
+        return { kind: 'handled', message: strings.modelUsage(model) }
       }
       if (!selection) {
-        return { kind: 'handled', message: 'No default model service available.' }
+        return { kind: 'handled', message: strings.noModelService }
       }
       // `noUncheckedIndexedAccess` is off, so this is already `string` — the
       // `args.length === 0` guard above is what makes that true in fact.
@@ -201,18 +266,19 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       }
       await cmd.setModel(provider, model)
       cmd.refreshSelection()
-      return { kind: 'handled', message: `Switched to ${provider}/${model}` }
+      return { kind: 'handled', message: strings.modelSwitched(provider, model) }
     }
 
     case '/context': {
       const selection = service(cmd.ctx, 'agentDefaultModel')?.currentSelection()
-      const model = selection ? `${selection.provider}/${selection.model}` : 'unknown'
+      const model = selection ? `${selection.provider}/${selection.model}` : strings.unknown
       // Read the latest advertised context window from the session's
       // request-context fold. This is the provider-advertised capacity,
       // not the model's actual limit — the adapter may have a different
       // ceiling at dispatch time.
       const contextWindow = cmd.agent.session.requestContext()?.contextWindow
-      const contextStr = contextWindow !== undefined ? contextWindow.toLocaleString() : 'unknown'
+      const contextStr
+        = contextWindow !== undefined ? contextWindow.toLocaleString() : strings.unknown
       // Sum billed input, cache hits, and output across all assistant entries.
       // The same logic as `totalUsage` in StatusBar, inlined here so
       // commands.ts does not depend on a React component module.
@@ -226,14 +292,17 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
           output += entry.usage.outputTokens
         }
       }
-      const inputStr = input.toLocaleString()
-      const outputStr = output.toLocaleString()
-      let msg = `model: ${model}\ncontext window: ${contextStr}\ninput (billed): ${inputStr}\noutput: ${outputStr}`
-      if (contextWindow !== undefined && contextWindow > 0 && input > 0) {
-        const pct = Math.round((input / contextWindow) * 100)
-        msg += `\nusage: ${pct}%`
+      const usable = contextWindow !== undefined && contextWindow > 0 && input > 0
+      return {
+        kind: 'handled',
+        message: strings.context({
+          model,
+          contextWindow: contextStr,
+          input: input.toLocaleString(),
+          output: output.toLocaleString(),
+          ...(usable ? { usagePercent: Math.round((input / contextWindow) * 100) } : {}),
+        }),
       }
-      return { kind: 'handled', message: msg }
     }
 
     case '/exit':
@@ -251,7 +320,7 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
 }
 
 /**
- * Try the plugin-owned command registry for a name {@link COMMANDS} does not
+ * Try the plugin-owned command registry for a name {@link commands} does not
  * hold. `ctx.commands.execute` parses the line itself and returns `undefined`
  * when the name resolves to nothing, which is exactly this surface's `unknown`.
  *

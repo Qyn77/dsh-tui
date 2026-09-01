@@ -18,6 +18,7 @@
 import React, { type FC } from 'react'
 import { Box, Text } from 'ink'
 import type { CommandMeta } from '../commands.ts'
+import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link SlashPalette}. */
 export interface SlashPaletteProps {
@@ -43,6 +44,7 @@ function nameColumnWidth(commands: readonly CommandMeta[]): number {
 }
 
 export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected }) => {
+  const strings = useStrings()
   if (commands.length === 0) return null
   const colWidth = nameColumnWidth(commands)
   return (
@@ -85,7 +87,7 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected }) => {
       })}
       <Box marginTop={1}>
         <Text color="gray" dimColor>
-          ↑↓ navigate · Tab complete · Enter run · Esc dismiss
+          {strings.palette.hint}
         </Text>
       </Box>
     </Box>
