@@ -378,3 +378,45 @@ describe('prompt and log both want the arrow keys', () => {
     expect(promptBox(screen).join('\n')).toContain('one row')
   })
 })
+
+describe('the caret remembers the column it is aiming for', () => {
+  /** Every row of the box, so a caret on any of them can be asserted on. */
+  function rows(screen: string): string {
+    return promptBox(screen).join('\n')
+  }
+
+  /** A long row, a short one, a long one. The caret starts at the end. */
+  const staircase = 'aaaaaaaa\nbb\ncccccccc'
+  const UP = `${ESC}[A`
+
+  it('walks back up through a short row to the column it left', async () => {
+    const painted = await paintApp()
+    await painted.send(staircase)
+    await painted.send(UP)
+    const middle = painted.screen()
+    await painted.send(UP)
+    const top = painted.screen()
+    painted.unmount()
+
+    // The short row can only offer its end...
+    expect(rows(middle)).toContain('bb▌')
+    // ...but the column survived it: column eight, not the two the short
+    // row would have handed on.
+    expect(rows(top)).toContain('aaaaaaaa▌')
+  })
+
+  it('forgets the column as soon as the caret moves for any other reason', async () => {
+    const painted = await paintApp()
+    await painted.send(staircase)
+    await painted.send(UP)
+    await painted.send(`${ESC}[D`)
+    await painted.send(UP)
+    const screen = painted.screen()
+    painted.unmount()
+
+    // ← put the caret between the two b's, and that is where the walk
+    // resumes from. Honouring the stale column here would move the caret
+    // somewhere the user never put it.
+    expect(rows(screen)).toContain('a▌aaaaaaa')
+  })
+})

@@ -49,6 +49,7 @@ import {
 import {
   MAX_PROMPT_ROWS,
   cursorAt,
+  moveVertically,
   scrollbarColumn,
   visibleStart,
   wrapBuffer,
@@ -137,6 +138,10 @@ export const Prompt: FC<PromptProps> = ({
   const [scrollTop, setScrollTop] = useState(0)
   const [textWidth, setTextWidth] = useState(0)
   const textRef = useRef<DOMElement | null>(null)
+  // The column a vertical walk is aiming for, tagged with the cursor it was
+  // taken from. A ref, not state: nothing is drawn from it, so writing it must
+  // not cost a render. See `moveCaretRow`.
+  const desired = useRef<{ cursor: number; column: number } | null>(null)
   // Submitted lines, newest last, and where in them the user currently is.
   // `null` means "on the live buffer"; `draft` is what that buffer held when
   // they started walking, so Ctrl-N can hand it back.
@@ -173,18 +178,24 @@ export const Prompt: FC<PromptProps> = ({
     onArrowClaimChange?.(claimsArrows)
   }, [claimsArrows, onArrowClaimChange])
 
-  /** Move the caret one row and keep the window on it. */
+  /**
+   * Move the caret one row, aiming for the column the walk started in.
+   *
+   * The remembered column is tagged with the cursor it was computed for and
+   * only honoured while the caret is still there, so every other handler
+   * invalidates it by doing nothing — no `setDesired(null)` sprinkled through
+   * twenty call sites, none of which can then be forgotten. The tag is sound
+   * because a caret's column is decided by the text *before* it: an edit that
+   * changes that text moves the index too.
+   */
   const moveCaretRow = (delta: number): void => {
-    const targetRow = caret.row + delta
-    const target = rows[targetRow]
-    if (target === undefined) return
-    // The character offset carries over, clamped to the target row. A
-    // remembered "desired column" would survive a walk across short rows,
-    // but it needs another piece of state to be correct and nobody has
-    // asked for it yet.
-    const nextCursor = target.start + Math.min(caret.offset, target.text.length)
-    setCursorIndex(nextCursor)
-    setScrollTop(visibleStart(rows.length, targetRow, MAX_PROMPT_ROWS, scrollTop))
+    const remembered = desired.current
+    const aim = remembered?.cursor === cursorIndex ? remembered.column : undefined
+    const move = moveVertically(rows, cursorIndex, delta, aim)
+    if (move === undefined) return
+    desired.current = { cursor: move.cursor, column: move.column }
+    setCursorIndex(move.cursor)
+    setScrollTop(visibleStart(rows.length, move.row, MAX_PROMPT_ROWS, scrollTop))
   }
 
   /**

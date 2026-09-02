@@ -123,6 +123,89 @@ export function cursorAt(rows: readonly PromptRow[], cursor: number): CaretPosit
 }
 
 /**
+ * Display columns between the start of `row` and `offset` characters into it.
+ *
+ * Columns, not characters, because that is what the user sees: the caret is
+ * drawn by splitting the row's text at `offset`, so two rows agree on where
+ * the caret "is" only if they agree in columns. A row of CJK is half as many
+ * characters as a row of ASCII at the same width.
+ */
+export function columnAt(row: PromptRow, offset: number): number {
+  return displayWidth(row.text.slice(0, Math.max(0, offset)))
+}
+
+/**
+ * The offset in `row` that sits at `column`, or the last one before it.
+ *
+ * Landing *before* the target rather than after is what keeps a walk down
+ * through a row of wide glyphs from drifting rightwards: a caret that rounded
+ * up would gain a column on every row whose glyphs do not divide evenly.
+ * @returns a character offset into `row.text`, clamped to its end.
+ */
+export function offsetAtColumn(row: PromptRow, column: number): number {
+  const target = Math.max(0, column)
+  let width = 0
+  let offset = 0
+  for (const char of row.text) {
+    const next = width + displayWidth(char)
+    if (next > target) break
+    width = next
+    offset += char.length
+  }
+  return offset
+}
+
+/** Where a vertical caret move landed, and the column it is still aiming for. */
+export interface VerticalMove {
+  /** New index into the buffer. */
+  cursor: number
+  /** The row it landed on. */
+  row: number
+  /** The column to keep aiming for on the next move in the same direction. */
+  column: number
+}
+
+/**
+ * Move the caret one row and report the column it is still aiming for.
+ *
+ * The `desired` column is the whole point. Without it, walking down through a
+ * short row clamps the caret to that row's end and the next move down starts
+ * from there — three rows later the caret has slid to the left margin and the
+ * user's original column is gone. Every terminal editor remembers it; this one
+ * did not, and the drift is most obvious in exactly the buffer people write in
+ * the prompt, where one short line sits between two long ones.
+ *
+ * Passing `desired` through unchanged (rather than recomputing it from the
+ * landed caret) is what makes the walk reversible: down through a short row and
+ * back up returns to the column it started in.
+ *
+ * @param rows - output of {@link wrapBuffer}.
+ * @param cursor - current index into the buffer.
+ * @param delta - rows to move; `-1` up, `+1` down.
+ * @param desired - a column carried over from a previous vertical move, or
+ * `undefined` to start a fresh walk from where the caret is now.
+ * @returns the move, or `undefined` when there is no such row — the caller
+ * leaves the caret alone rather than clamping it to the buffer's end, because a
+ * wall is easier to feel than a jump.
+ */
+export function moveVertically(
+  rows: readonly PromptRow[],
+  cursor: number,
+  delta: number,
+  desired?: number | undefined,
+): VerticalMove | undefined {
+  const caret = cursorAt(rows, cursor)
+  const current = rows[caret.row]
+  if (current === undefined) return undefined
+  const targetRow = caret.row + delta
+  const target = rows[targetRow]
+  if (target === undefined) return undefined
+  const column = desired ?? columnAt(current, caret.offset)
+  const offset = offsetAtColumn(target, column)
+  return { cursor: target.start + offset, row: targetRow, column }
+}
+
+/**
  * The first visible row, given where the caret is and where the window was.
  *
  * The window is sticky: it only moves when the caret would leave it. That is

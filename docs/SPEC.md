@@ -111,6 +111,17 @@ Each zone has a fixed role and stays in that role forever:
   text at that moment and re-fold every row under the caret. Same reasoning
   as the list's reserved hint row.
 
+  `↑`/`↓` inside a multi-row buffer aim at a remembered **display column**
+  rather than carrying the character offset over. Without the memory, walking
+  down through a short row clamps the caret to that row's end and the next move
+  starts from there, so a caret slides to the left margin over a few rows and
+  the way back up never returns to where it began. `moveVertically` takes the
+  column as an argument and hands it back unchanged, which is what makes the
+  walk reversible; the Prompt tags it with the cursor it was taken from, so any
+  other handler invalidates it by simply moving the caret. Columns, not
+  characters, because that is what the user sees a caret line up with — one row
+  of CJK is half as many characters as a row of ASCII at the same width.
+
 **The live frame reserves the terminal's last column.** `App`'s root box carries `marginRight={1}`, and that single column is the other half of rule 7 — the half that applies to everything Ink *does* redraw. Ink stretches the root to the full terminal width, so a framed child emits lines *exactly* as wide as the terminal, and a line that fills the last column leaves the terminal with a wrap decision that terminals do not answer the same way: park the cursor in the last column and let the following newline move down one row (the VT100 reading), or wrap at once so that newline lands a row further down. Under the second reading a 3-row prompt box occupies six physical rows while Ink erases `eraseLines(<logical line count>)` = four, so **every redraw leaks two rows** — which is what a window drag looked like in practice: a ladder of half-drawn prompt boxes, each one column narrower than the last, exactly like the banner ladder that came before it. One reserved column is unwrappable under either reading and also absorbs a one-column lag between `SIGWINCH` and the write, which is what a fast drag does to `stdout.columns`.
 
 **A settled resize repaints the screen.** Terminals may reflow rows already drawn while Ink still tracks logical rows, so cursor-relative erasure cannot be made reliable during a resize storm. The real TTY uses the alternate screen and one owner for resize (`src/resize.ts`): after 120ms of quiet it calls `instance.clear()`, clears the alternate screen, calls `instance.rerender()` exactly once — a rerender rather than a relayout, because `frameHeight` is computed from `stdout.rows` during render — and then repaints through Ink's `useStdout().write`, which re-emits the frame whether or not Ink considers it changed. `tests/resize-repaint.spec.ts` pins the blank-screen cases. The primary screen and shell scrollback are restored on exit. See [the resize lesson](lessons/resize-reflow.md).

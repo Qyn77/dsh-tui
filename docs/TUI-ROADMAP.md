@@ -159,9 +159,10 @@ Priority features:
 - ~~multiline editor preparation~~ — **done**: the box grows with the buffer to
   `MAX_PROMPT_ROWS` (10), then scrolls internally with a scrollbar; `Ctrl-J`
   inserts a newline and `↑`/`↓` walk the caret by row. `prompt-layout.ts` holds
-  the fold/caret/window arithmetic. What is left: a remembered desired column,
-  so that walking down through a short row and back up returns the caret to the
-  column it started in rather than to the short row's end.
+  the fold/caret/window arithmetic, including the remembered desired column:
+  walking down through a short row and back up returns the caret to the column
+  it started in rather than to the short row's end. The column is measured in
+  display columns, so the walk stays under the caret through CJK too.
 
 Definition of done:
 

@@ -11,7 +11,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_PROMPT_ROWS,
+  columnAt,
   cursorAt,
+  moveVertically,
+  offsetAtColumn,
   scrollbarColumn,
   visibleStart,
   wrapBuffer,
@@ -188,5 +191,79 @@ describe('MAX_PROMPT_ROWS', () => {
     // detail: ten rows plus the border is twelve, which still leaves a
     // usable conversation on a 24-row terminal.
     expect(MAX_PROMPT_ROWS).toBe(10)
+  })
+})
+
+describe('columnAt', () => {
+  it('counts columns, not characters', () => {
+    const [row] = wrapBuffer('你好ab', 80)
+    // Two wide glyphs are four columns before the caret, not two.
+    expect(columnAt(row, 2)).toBe(4)
+    expect(columnAt(row, 3)).toBe(5)
+  })
+
+  it('is zero at the start of a row and the full width at its end', () => {
+    const [row] = wrapBuffer('hello', 80)
+    expect(columnAt(row, 0)).toBe(0)
+    expect(columnAt(row, 5)).toBe(5)
+  })
+})
+
+describe('offsetAtColumn', () => {
+  it('inverts columnAt on plain text', () => {
+    const [row] = wrapBuffer('hello world', 80)
+    expect(offsetAtColumn(row, 6)).toBe(6)
+  })
+
+  it('lands before a wide glyph rather than inside it', () => {
+    const [row] = wrapBuffer('你好', 80)
+    // Column 3 is the middle of the second glyph. Rounding up would let a
+    // walk down a column of CJK drift one column right per row.
+    expect(offsetAtColumn(row, 3)).toBe(1)
+    expect(offsetAtColumn(row, 4)).toBe(2)
+  })
+
+  it('clamps to the end of a row too short to reach the column', () => {
+    const [row] = wrapBuffer('hi', 80)
+    expect(offsetAtColumn(row, 40)).toBe(2)
+  })
+})
+
+describe('moveVertically', () => {
+  // A short row between two long ones: the shape that makes the remembered
+  // column visible at all.
+  const buffer = 'hello world\nhi\nsecond long line'
+  const rows = wrapBuffer(buffer, 80)
+
+  it('carries the column down across a short row', () => {
+    const first = moveVertically(rows, 8, 1)
+    // Clamped to the short row for now — there is nowhere else to sit.
+    expect(first).toEqual({ cursor: 14, row: 1, column: 8 })
+    const second = moveVertically(rows, first!.cursor, 1, first!.column)
+    // …but the walk resumes at column 8, not at the short row's end.
+    expect(second).toEqual({ cursor: 23, row: 2, column: 8 })
+  })
+
+  it('drifts left without the remembered column, which is the bug', () => {
+    const first = moveVertically(rows, 8, 1)
+    const second = moveVertically(rows, first!.cursor, 1)
+    expect(second!.cursor).toBe(17)
+  })
+
+  it('returns to the column it started in when the walk reverses', () => {
+    const down = moveVertically(rows, 8, 1)
+    const back = moveVertically(rows, down!.cursor, -1, down!.column)
+    expect(back!.cursor).toBe(8)
+  })
+
+  it('is undefined above the first row and below the last', () => {
+    expect(moveVertically(rows, 3, -1)).toBeUndefined()
+    expect(moveVertically(rows, buffer.length, 1)).toBeUndefined()
+  })
+
+  it('aims at a column, so a walk through CJK stays under the caret', () => {
+    const wide = wrapBuffer('你好世界\nabcdefgh', 80)
+    // Two glyphs in is column four, which is four ASCII characters in.
+    expect(moveVertically(wide, 2, 1)).toEqual({ cursor: 5 + 4, row: 1, column: 4 })
   })
 })
