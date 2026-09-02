@@ -71,11 +71,17 @@ export interface ContextReport {
   model: string
   /** Advertised context window, grouped, or the catalog's own "unknown". */
   contextWindow: string
-  /** Billed input tokens, grouped. */
+  /** Billed input tokens, grouped. Cumulative across the whole session. */
   input: string
-  /** Output tokens, grouped. */
+  /** Output tokens, grouped. Cumulative across the whole session. */
   output: string
-  /** Percent of the window used, or `undefined` when it cannot be computed. */
+  /**
+   * Tokens the conversation currently occupies, grouped, or absent when no turn
+   * has reported usage. Distinct from {@link ContextReport.input}: this one can
+   * go down, and it is the only one the percentage is derived from.
+   */
+  inContext?: string
+  /** Percent of the window occupied, or `undefined` when it cannot be computed. */
   usagePercent?: number
 }
 
@@ -303,10 +309,13 @@ const EN: Catalog = {
       const lines = [
         `model: ${report.model}`,
         `context window: ${report.contextWindow}`,
-        `input (billed): ${report.input}`,
-        `output: ${report.output}`,
+        `billed input (session): ${report.input}`,
+        `output (session): ${report.output}`,
       ]
-      if (report.usagePercent !== undefined) lines.push(`usage: ${report.usagePercent}%`)
+      if (report.inContext !== undefined) {
+        const percent = report.usagePercent === undefined ? '' : ` (${report.usagePercent}%)`
+        lines.push(`in context now: ${report.inContext}${percent}`)
+      }
       return lines.join('\n')
     },
     modelUsage: current =>
@@ -399,10 +408,13 @@ const ZH: Catalog = {
       const lines = [
         `模型：${report.model}`,
         `上下文窗口：${report.contextWindow}`,
-        `输入（计费）：${report.input}`,
-        `输出：${report.output}`,
+        `计费输入（本次会话累计）：${report.input}`,
+        `输出（本次会话累计）：${report.output}`,
       ]
-      if (report.usagePercent !== undefined) lines.push(`已用：${report.usagePercent}%`)
+      if (report.inContext !== undefined) {
+        const percent = report.usagePercent === undefined ? '' : `（${report.usagePercent}%）`
+        lines.push(`当前上下文占用：${report.inContext}${percent}`)
+      }
       return lines.join('\n')
     },
     modelUsage: current =>

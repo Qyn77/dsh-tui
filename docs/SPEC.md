@@ -401,14 +401,14 @@ Shipped:
 - **Slash-command tab completion.** The `/` palette filters as you type and `Tab` completes the highlighted name, landing the cursor after a trailing space.
 - **Tool approval flow.** `y`/`n`/`Esc` on a card beside the Prompt, not a modal. It was never blocked on the dependency this spec claimed — see §3.2.1.
 - **`/model <name>`.** Switches the live agent and the saved default together.
-- **`/context`.** Window, cumulative tokens, and an occupancy percentage that is currently computed from the wrong numerator — see §3.3.2.
+- **`/context`.** Window, cumulative spend, and a live occupancy percentage read off the newest turn — see §3.3.2.
 - **History.** `↑` / `↓` (and `Ctrl-P` / `Ctrl-N`) walk the user's prior inputs in this session.
 - **Output previews.** Tool results and `!` shell output are capped at 8 lines with a translated `… +N lines` marker, replacing both the one-line summary and the uncapped shell paint — see §1.2.
 
 Still open:
 
 - **`@`-mention file picker.** `@<Tab>` opens a fuzzy file picker.
-- **`/usage`.** Per-turn token counts, which is also what would fix `/context`'s percentage.
+- **`/usage`.** Per-turn token counts, broken out turn by turn rather than the two aggregates `/context` shows.
 
 ### v0.4 — Polish
 
@@ -589,8 +589,10 @@ the cost surface.
 
 A **context-window percentage** is a different matter, and `/context` is built.
 It reports the model, the advertised window, cumulative billed input, cumulative
-output, and a `usage:` percentage when both numbers are usable. Two notes, one a
-resolution and one an open bug:
+output, and a live occupancy with its percentage. Two notes, both resolutions —
+and the second one is the more useful of the two, because the warning that
+caught it was written in this section *before* the command existed and then not
+heeded when it was built.
 
 - **The denominator did not need a promise after all.** This section predicted
   `ctx.llm.resolveModelInfo(provider, model, signal)` and therefore a
@@ -599,16 +601,30 @@ resolution and one an open bug:
   available synchronously. It is still optional, so an adapter that never
   advertised one leaves the field `unknown` rather than zero, and the percentage
   is omitted entirely rather than shown as `0%`.
-- **The numerator is still wrong, and this section is why we know.** The warning
-  below was written before the command and then not heeded when it was built:
-  `/context` sums billed input across *every* assistant entry, which is
-  cumulative spend, and divides that by the window. Occupancy is the **latest**
-  turn's prompt plus its output, because each request resends the conversation.
-  The figure therefore climbs past 100% after enough turns while the context is
-  half empty. The `input (billed):` and `output:` lines above it are honest —
-  they are labelled as totals. Only the `usage:` percentage is unsound. Fixing
-  it means taking the last assistant entry's usage instead of the running sum;
-  the labels then need to distinguish the two, since both are worth showing.
+- **The numerator was wrong for one release, and the reason is worth keeping.**
+  The first `/context` summed billed input across *every* assistant entry and
+  divided that by the window. That is cumulative spend, not occupancy: each
+  request resends the conversation, so the sum counts the same prefix once per
+  turn. The percentage climbed past 100% on a long session while the context was
+  half empty, and — the part that made it useless rather than merely wrong — it
+  could never fall after a `/compact`, which is the one moment a user consults
+  it. The two quantities are identical for exactly one turn, which is how a
+  test suite can pass over the mistake.
+
+  The fix is `contextOccupancy` in [`src/usage.ts`](./../src/usage.ts): read the
+  **latest** assistant entry's billed input plus its output, and nothing else.
+  That module now owns both readings side by side, with the distinction stated
+  at the top, because the bug's habitat was two copies of the same loop — one in
+  `StatusBar.tsx`, one inlined into `commands.ts` to avoid importing a React
+  module. `/context` labels them apart on screen too (`billed input (session):`
+  versus `in context now:`); a percentage with an ambiguous numerator is a
+  number a user cannot check.
+
+  It is deliberately approximate: it cannot see anything appended since the last
+  reply, and it trusts the provider's count rather than re-tokenizing. Both
+  errors under-report, which is the safe direction for a gauge whose job is to
+  warn. Before any turn has reported usage the line is omitted entirely — absent
+  is not the same as zero.
 
 ### 3.4 Testing
 

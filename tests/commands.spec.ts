@@ -369,14 +369,16 @@ describe('slash command dispatch', () => {
       if (result.kind === 'handled') {
         expect(result.message).toContain('test-provider/test-model')
         expect(result.message).toContain('context window: unknown')
-        expect(result.message).toContain('input (billed): 0')
-        expect(result.message).toContain('output: 0')
-        // No percentage line when input is zero
+        expect(result.message).toContain('billed input (session): 0')
+        expect(result.message).toContain('output (session): 0')
+        // No occupancy line at all before a turn has reported usage — a `0%`
+        // here would be a claim about a window nothing has measured.
+        expect(result.message).not.toContain('in context now')
         expect(result.message).not.toContain('%')
       }
     })
 
-    it('shows the context window and does not show a percentage with zero input', async () => {
+    it('shows the context window but no occupancy until a turn reports usage', async () => {
       const session = makeSession()
       session.append('request/context', {
         provider: 'test-provider',
@@ -390,9 +392,7 @@ describe('slash command dispatch', () => {
       expect(result.kind).toBe('handled')
       if (result.kind === 'handled') {
         expect(result.message).toContain('128,000')
-        // No percentage line when input is zero — the check is inside the
-        // `input > 0` guard.
-        expect(result.message).not.toContain('usage:')
+        expect(result.message).not.toContain('in context now')
       }
     })
 
@@ -411,8 +411,38 @@ describe('slash command dispatch', () => {
       expect(result.kind).toBe('handled')
       if (result.kind === 'handled') {
         // input = 100 + 900 + 50 + 200 = 1250
-        expect(result.message).toContain('input (billed): 1,250')
-        expect(result.message).toContain('output: 30')
+        expect(result.message).toContain('billed input (session): 1,250')
+        expect(result.message).toContain('output (session): 30')
+      }
+    })
+
+    it('takes the percentage from the newest turn, not from the running total', async () => {
+      // The reported bug. Cumulative billed input here is 132,000 — more than
+      // the whole window — while the conversation in front of the model is
+      // 12,600 tokens. The old report said `usage: 103%`.
+      const session = makeSession()
+      session.append('request/context', {
+        provider: 'test-provider',
+        model: 'test-model',
+        contextWindow: 128_000,
+      })
+      const state: UiState = {
+        entries: [
+          { kind: 'assistant', turn: 1, step: 1, text: 'a', finalized: true, usage: { inputTokens: 60_000, outputTokens: 200 } },
+          { kind: 'assistant', turn: 2, step: 1, text: 'b', finalized: true, usage: { inputTokens: 60_000, outputTokens: 200 } },
+          { kind: 'assistant', turn: 3, step: 1, text: 'c', finalized: true, usage: { inputTokens: 12_000, outputTokens: 600 } },
+        ],
+        status: 'idle',
+        currentTurn: 3,
+      }
+      const { cmd } = makeCommand({ state, agent: { id: 'tui-1' as never, session } as never })
+      const result = await dispatch('/context', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('billed input (session): 132,000')
+        // 12,600 / 128,000 = 9.84% → 10%.
+        expect(result.message).toContain('in context now: 12,600 (10%)')
+        expect(result.message).not.toContain('103%')
       }
     })
   })

@@ -127,7 +127,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/clear` | Clear the visible chat (the session log is unchanged) |
 | `/status` | Print the current model and session id |
 | `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it |
-| `/context` | Print the context window and this session's token usage |
+| `/context` | Print the context window, this session's token spend, and how full the context is now |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
@@ -364,7 +364,6 @@ The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump th
 ## Known limitations
 
 - **No `@`-mention file picker.** Slash commands complete with `Tab`; file paths do not.
-- **`/context`'s usage percentage is cumulative.** It divides every turn's billed input by the window, so it climbs past 100% on a long session even when the context is half empty. The token totals beside it are correct. See [docs/SPEC.md](docs/SPEC.md) §3.3.2.
 - **Resume is a boot-time choice.** `DSH_TUI_RESUME=last` (or an id) continues a stored session; there is no in-session `/resume`.
 - **Long tool output is previewed, not expandable.** The first 8 lines are shown with a `… +N lines` marker; there is no `show more` affordance, because reaching one would need a selection model the app deliberately does not have.
 - **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.

@@ -35,6 +35,7 @@ import {
   parseLanguageArg,
   type Lang,
 } from './i18n.ts'
+import { contextOccupancy, totalUsage } from './usage.ts'
 
 /** What a command decided. */
 export type CommandResult =
@@ -281,20 +282,15 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       const contextWindow = cmd.agent.session.requestContext()?.contextWindow
       const contextStr
         = contextWindow !== undefined ? contextWindow.toLocaleString() : strings.unknown
-      // Sum billed input, cache hits, and output across all assistant entries.
-      // The same logic as `totalUsage` in StatusBar, inlined here so
-      // commands.ts does not depend on a React component module.
-      let input = 0
-      let output = 0
-      for (const entry of cmd.state.entries) {
-        if (entry.kind === 'assistant' && entry.usage) {
-          input += entry.usage.inputTokens
-          input += entry.usage.cacheReadTokens ?? 0
-          input += entry.usage.cacheWriteTokens ?? 0
-          output += entry.usage.outputTokens
-        }
-      }
-      const usable = contextWindow !== undefined && contextWindow > 0 && input > 0
+      // Two different numbers, and telling them apart is the whole point of
+      // this report. `totalUsage` is cumulative spend across every turn;
+      // `contextOccupancy` reads the newest turn alone, which is the only one
+      // that answers "how full is the window". Dividing the cumulative sum by
+      // the window — which this did — climbs past 100% on a long session and
+      // can never come back down after a `/compact`.
+      const { input, output } = totalUsage(cmd.state)
+      const occupied = contextOccupancy(cmd.state)
+      const usable = contextWindow !== undefined && contextWindow > 0 && occupied !== undefined
       return {
         kind: 'handled',
         message: strings.context({
@@ -302,7 +298,8 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
           contextWindow: contextStr,
           input: input.toLocaleString(),
           output: output.toLocaleString(),
-          ...(usable ? { usagePercent: Math.round((input / contextWindow) * 100) } : {}),
+          ...(occupied === undefined ? {} : { inContext: occupied.toLocaleString() }),
+          ...(usable ? { usagePercent: Math.round((occupied / contextWindow) * 100) } : {}),
         }),
       }
     }

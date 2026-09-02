@@ -121,7 +121,7 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/clear` | 清空可见的聊天区（session log 不变） |
 | `/status` | 打印当前模型和 session id |
 | `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换 |
-| `/context` | 打印上下文窗口和本次 session 的 token 用量 |
+| `/context` | 打印上下文窗口、本次 session 的 token 开销，以及当前上下文占用了多少 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
 | `/exit`, `/quit` | 退出 REPL |
 | `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
@@ -340,7 +340,6 @@ npm publish --access public
 ## 已知限制
 
 - **没有 `@` 文件提及。** 斜杠命令可以用 `Tab` 补全，文件路径不行。
-- **`/context` 的用量百分比是累计值。** 它拿每一轮的计费输入之和去除以窗口大小，所以长会话里会冲过 100%，哪怕上下文其实只占了一半。旁边的 token 总数本身是对的。见 [docs/SPEC.md](docs/SPEC.md) §3.3.2。
 - **续接 session 只能在启动时决定。** `DSH_TUI_RESUME=last`（或者一个 id）可以接上已存的 session，但没有会话内的 `/resume`。
 - **长工具输出只给预览，展不开。** 会显示前 8 行，末尾加一条 `… 还有 N 行` 的标记；没有展开入口——要做展开就得引入这个应用刻意不要的选中模型。
 - **`ctx.appExit` 由 launcher 提供。** 在 `dsh` CLI 外面跑会大声报错，直到 host 提供 exit hook。
