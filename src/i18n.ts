@@ -39,6 +39,8 @@
  * @module @deepseek-ai/dsh-tui/i18n
  */
 
+import type { PluginPhase } from './plugins.ts'
+
 /** The languages this UI is written in. */
 export type Lang = 'en' | 'zh'
 
@@ -58,6 +60,7 @@ export const COMMAND_NAMES = [
   '/help',
   '/language',
   '/model',
+  '/plugins',
   '/quit',
   '/status',
 ] as const
@@ -220,6 +223,14 @@ export interface Catalog {
     status: (model: string, session: string) => string
     /** `/context`. */
     context: (report: ContextReport) => string
+    /** `/plugins`: heading above the table, given the number of rows. */
+    pluginsHeading: (count: number) => string
+    /** `/plugins` when the loader is mounted but has nothing to list. */
+    noPlugins: string
+    /** `/plugins` in an assembly with no loader — embedded hosts have none. */
+    noLoader: string
+    /** One word per lifecycle phase, for the table's right column. */
+    pluginPhases: Record<PluginPhase, string>
     /** `/model` with no argument. */
     modelUsage: (current: string) => string
     /** `/model` when no default-model service is mounted. */
@@ -303,6 +314,7 @@ const EN: Catalog = {
     '/help': 'Show the list of available commands',
     '/language': 'Switch the interface language: /language en or zh',
     '/model': 'Switch model: /model <name> or <provider>/<name>',
+    '/plugins': 'List the plugins this host has loaded, and how each one is doing',
     '/quit': 'Alias for /exit',
     '/status': 'Print the current model and session id',
   },
@@ -323,6 +335,18 @@ const EN: Catalog = {
         lines.push(`in context now: ${report.inContext}${percent}`)
       }
       return lines.join('\n')
+    },
+    pluginsHeading: count => `plugins (${count}):`,
+    noPlugins: 'The loader has no plugins to list.',
+    noLoader: 'No plugin loader in this assembly — nothing to list.',
+    pluginPhases: {
+      active: 'active',
+      loading: 'loading',
+      pending: 'pending',
+      unloading: 'unloading',
+      failed: 'failed',
+      absent: 'not started',
+      disabled: 'disabled',
     },
     modelUsage: current =>
       `Usage: /model <name>\nCurrent: ${current}\n\nUse /context to see context window and token usage.`,
@@ -404,6 +428,7 @@ const ZH: Catalog = {
     '/help': '显示可用命令列表',
     '/language': '切换界面语言：/language en 或 zh',
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
+    '/plugins': '列出本进程加载的插件，以及它们各自的状态',
     '/quit': '/exit 的别名',
     '/status': '打印当前模型和 session id',
   },
@@ -424,6 +449,18 @@ const ZH: Catalog = {
         lines.push(`当前上下文占用：${report.inContext}${percent}`)
       }
       return lines.join('\n')
+    },
+    pluginsHeading: count => `插件（${count}）：`,
+    noPlugins: '加载器里没有可列出的插件。',
+    noLoader: '当前装配没有插件加载器，无从列起。',
+    pluginPhases: {
+      active: '运行中',
+      loading: '加载中',
+      pending: '等待中',
+      unloading: '卸载中',
+      failed: '失败',
+      absent: '未启动',
+      disabled: '已禁用',
     },
     modelUsage: current =>
       `用法：/model <名称>\n当前：${current}\n\n用 /context 查看上下文窗口和 token 用量。`,

@@ -36,6 +36,7 @@ import {
   type Lang,
 } from './i18n.ts'
 import { contextOccupancy, totalUsage } from './usage.ts'
+import { describePlugins, formatPlugins } from './plugins.ts'
 
 /** What a command decided. */
 export type CommandResult =
@@ -224,6 +225,22 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       return {
         kind: 'handled',
         message: strings.status(model, cmd.agent.id),
+      }
+    }
+
+    // Read fresh, never cached: cordis keeps `Entry.fiber` and `Fiber.state`
+    // current through its own events, so any copy kept here could only go
+    // stale. `loader` is optional because an embedded assembly can construct
+    // the context by hand — that is a missing feature, not a failure, so it
+    // reports rather than throws.
+    case '/plugins': {
+      const loader = service(cmd.ctx, 'loader')
+      if (loader === undefined) return { kind: 'handled', message: strings.noLoader }
+      const rows = describePlugins(loader.entries())
+      if (rows.length === 0) return { kind: 'handled', message: strings.noPlugins }
+      return {
+        kind: 'handled',
+        message: `${strings.pluginsHeading(rows.length)}\n${formatPlugins(rows, strings.pluginPhases)}`,
       }
     }
 

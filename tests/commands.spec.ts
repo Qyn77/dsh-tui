@@ -239,6 +239,80 @@ describe('slash command dispatch', () => {
     expect(reset).not.toHaveBeenCalled()
   })
 
+  describe('/plugins', () => {
+    /** A loader stand-in: `entries()` is a generator method, as cordis's is. */
+    function withLoader(entries: readonly unknown[]): CommandContext {
+      const ctx = new Context()
+      ctx.provide('loader', { * entries() { yield* entries } } as never)
+      return {
+        ctx,
+        agent: { id: 'tui-1' as never, session: makeSession() } as never,
+        resetView: vi.fn(),
+        setModel: vi.fn().mockResolvedValue(undefined),
+        refreshSelection: vi.fn(),
+        state: emptyState(),
+      }
+    }
+
+    it('lists what the loader has, broken first', async () => {
+      const cmd = withLoader([
+        { id: 'a', disabled: false, options: { name: 'pkg-ok' }, fiber: { state: 2 } },
+        { id: 'b', disabled: false, options: { name: 'pkg-bad' }, fiber: { state: 3 } },
+      ])
+      const result = await dispatch('/plugins', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind !== 'handled') return
+      const lines = result.message?.split('\n') ?? []
+      expect(lines[0]).toBe('plugins (2):')
+      expect(lines[1]).toContain('pkg-bad')
+      expect(lines[1]).toContain('failed')
+      expect(lines[2]).toContain('pkg-ok')
+    })
+
+    it('reads the loader again on every call, so a state change shows', async () => {
+      // The loader is the authority; nothing here caches its answer. A plugin
+      // that fails after startup has to be visible without a restart.
+      const entries = [{ id: 'a', disabled: false, options: { name: 'pkg' }, fiber: { state: 2 } }]
+      const cmd = withLoader(entries)
+      const before = await dispatch('/plugins', cmd)
+      entries[0].fiber.state = 3
+      const after = await dispatch('/plugins', cmd)
+      if (before.kind !== 'handled' || after.kind !== 'handled') throw new Error('unreachable')
+      expect(before.message).toContain('active')
+      expect(after.message).toContain('failed')
+    })
+
+    it('says so when the loader has nothing rather than printing a bare heading', async () => {
+      const result = await dispatch('/plugins', withLoader([]))
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.noPlugins)
+    })
+
+    it('degrades when no loader is mounted, as an embedded assembly has none', async () => {
+      const cmd: CommandContext = {
+        ctx: new Context(),
+        agent: { id: 'tui-1' as never, session: makeSession() } as never,
+        resetView: vi.fn(),
+        setModel: vi.fn().mockResolvedValue(undefined),
+        refreshSelection: vi.fn(),
+        state: emptyState(),
+      }
+      const result = await dispatch('/plugins', cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.noLoader)
+    })
+
+    it('reports in the caller language', async () => {
+      const cmd = withLoader([
+        { id: 'a', disabled: false, options: { name: 'pkg' }, fiber: { state: 2 } },
+      ])
+      const result = await dispatch('/plugins', { ...cmd, lang: 'zh' })
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toContain('插件（1）：')
+      expect(result.message).toContain('运行中')
+    })
+  })
+
   describe('/language', () => {
     it('shows usage and the current language when no argument is given', async () => {
       const setLanguage = vi.fn()
@@ -452,7 +526,8 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/clear', '/context', '/exit', '/help', '/language', '/model', '/quit', '/status',
+      '/clear', '/context', '/exit', '/help', '/language', '/model', '/plugins', '/quit',
+      '/status',
     ])
   })
 
@@ -505,7 +580,7 @@ describe('filterCommands', () => {
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/clear', '/compact', '/context', '/exit', '/goal', '/help', '/language', '/model',
-        '/quit', '/status',
+        '/plugins', '/quit', '/status',
       ])
     })
 

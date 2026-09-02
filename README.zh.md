@@ -123,6 +123,7 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换 |
 | `/context` | 打印上下文窗口、本次 session 的 token 开销，以及当前上下文占用了多少 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
+| `/plugins` | 列出本进程加载的插件，以及各自的生命周期状态 |
 | `/exit`, `/quit` | 退出 REPL |
 | `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
 | `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
@@ -287,7 +288,7 @@ src/
 ├── renderer.tsx             Ink 根组件
 ├── state.ts                 纯 reducer：SessionEvent → UiState
 ├── types.ts                 UiEntry、UiState、isRenderable、declaration-merged 事件表
-├── commands.ts              /help /clear /status /language /exit /quit 派发
+├── commands.ts              /help /clear /status /language /plugins /exit /quit 派发
 ├── i18n.ts                  纯双语文案表（英文 + 中文）
 ├── shell.ts                 纯逻辑：`!` 解析、`cd` 规则、输出截断
 ├── shell-runner.ts          唯一的 spawn 处：执行一条 `!` 命令

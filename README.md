@@ -129,6 +129,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it |
 | `/context` | Print the context window, this session's token spend, and how full the context is now |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
+| `/plugins` | List the plugins this host loaded, with the lifecycle phase of each |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
@@ -313,7 +314,7 @@ src/
 ├── renderer.tsx             Ink root component
 ├── state.ts                 Pure reducer: SessionEvent → UiState
 ├── types.ts                 UiEntry, UiState, isRenderable, declaration-merged event map
-├── commands.ts              /help /clear /status /language /exit /quit dispatch
+├── commands.ts              /help /clear /status /language /plugins /exit /quit dispatch
 ├── i18n.ts                  Pure bilingual string catalog (English + Chinese)
 ├── shell.ts                 Pure `!` escape parsing, `cd` rules, output clamping
 ├── shell-runner.ts          The only spawner: runs one `!` command

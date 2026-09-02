@@ -214,6 +214,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/help` | Print the list of available slash commands. |
 | `/clear` | Clear the visible chat. The session log is unchanged. Prints nothing — see below. |
 | `/status` | Print the current model and session id. |
+| `/plugins` | List the plugins this host loaded, and how each one is doing. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (idle) | Same as `/exit`. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
@@ -224,7 +225,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: `/copy`, and an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: `/copy`, and an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -257,6 +258,20 @@ Three decisions are worth stating, because each has a tempting alternative.
 Ranking (`scorePath`) is a case-insensitive subsequence match with two bonuses: a character matched immediately after the previous one, and a character matched inside the basename. The basename is also scanned as a candidate in its own right and the better of the two attempts wins — without that, a leftmost-first scan spends `scr` on three directory initials and ranks `s/c/r.ts` above `src/scroll.ts`.
 
 The `/` palette wins when both could open: it is anchored to the first character of the buffer, which makes it the more deliberate of the two, and only one of them may own `↑`/`↓` at a time. Both draw through the same `SlashPalette` component — a file row simply has no description — because two bordered lists with the same selection idiom would drift apart on the first visual change made to either.
+
+#### 1.5.3 `/plugins`
+
+`/plugins` prints one row per entry the loader holds: a status glyph, the module specifier, and a translated word for its lifecycle phase. Broken entries sort first, healthy ones next, deliberately-disabled ones last — someone types `/plugins` far more often to ask "why isn't X working" than to ask "what is loaded", and the answer to the first question should not require reading to the bottom of a forty-row table.
+
+**It reads the loader on every invocation and caches nothing.** Cordis already keeps `Entry.fiber` and `Fiber.state` current through its own `internal/plugin` and `internal/status` events, so any table this package kept would be a second copy that can only be more wrong than the first. A plugin that dies an hour into a session shows as failed the next time the command is typed, with no subscription to maintain.
+
+Two hazards the implementation has to name:
+
+**`FiberState` is a `const enum` with no runtime representation.** It cannot be imported and read, so `plugins.ts` mirrors the numbers by hand. If cordis reorders that enum, the mirror is wrong and *nothing fails to compile* — the labels simply lie. The table carries that warning at its definition. A state outside the mirror reports as "not started" rather than guessing.
+
+**The loader is optional.** An embedded assembly can build the context by hand and never mount one; `/plugins` then says so, the same way `/context` degrades when no context window is known. A missing feature is not a crash.
+
+Enabling and disabling plugins from here is deliberately out of scope. `loader.update()` rewrites the user's `cordis.yml`, which is a different kind of act from printing a table and needs its own decision about confirmation and undo.
 
 ### 1.6 Keyboard bindings
 
@@ -447,6 +462,7 @@ Shipped:
 - **History.** `↑` / `↓` (and `Ctrl-P` / `Ctrl-N`) walk the user's prior inputs in this session.
 - **Output previews.** Tool results and `!` shell output are capped at 8 lines with a translated `… +N lines` marker, replacing both the one-line summary and the uncapped shell paint — see §1.2.
 - **`@`-mention file picker.** An `@` that opens a word lists matching files under the working directory; `Tab`/`Enter` inserts the path. Completion only — no file contents are attached. See §1.5.2.
+- **`/plugins`.** Read-only introspection of the loader: package name, lifecycle phase, broken entries first. See §1.5.3.
 
 Still open:
 - **`/usage`.** Per-turn token counts, broken out turn by turn rather than the two aggregates `/context` shows.
@@ -501,6 +517,7 @@ src/
 ├── prompt-editing.ts   # Pure prompt buffer edits — beside Prompt.tsx
 ├── prompt-layout.ts    # Pure prompt layout arithmetic
 ├── file-mentions.ts    # `@` mention parsing + path ranking, and the one walk
+├── plugins.ts          # Pure classification + table for `/plugins`
 ├── banner-art.ts       # Pure banner art + text — beside Banner.tsx
 ├── hooks/              # React-only — useInput, useEffect, useState
 └── components/         # React components — pure functions of state
