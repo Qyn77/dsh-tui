@@ -215,6 +215,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/clear` | Clear the visible chat. The session log is unchanged. Prints nothing — see below. |
 | `/status` | Print the current model and session id. |
 | `/plugins` | List the plugins this host loaded, and how each one is doing. `/plugins enable\|disable <name>` switches one. |
+| `/usage` | Break this session's token spend out turn by turn. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (idle) | Same as `/exit`. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
@@ -225,7 +226,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: `/copy`, and an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: `/copy`, and an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -286,6 +287,20 @@ Three rows refuse to be switched, each because writing the flag would destroy so
 - **A row that is off only because its group is off.** `Entry.disabled` folds in the ancestors, so a row can read as disabled while its own flag is unset. Setting that flag would change nothing visible. The message names the group as the thing to enable.
 
 A plugin already in the requested state is reported and not written — the config file's mtime should mean something.
+
+#### 1.5.4 `/usage`
+
+`/usage` prints one row per turn — billed input, output, and a `(n)` marker when the turn took several assistant steps — under a heading and above a total.
+
+**It is a separate command from `/context` on purpose.** `/context` answers "how full is the window": one number about now. `/usage` answers "where did the tokens go": a history. Merging them would put a table under a gauge and bury the gauge, which is the thing a user checks before deciding to `/compact`.
+
+**Rows are grouped by turn, not listed per step.** One question that takes six tool round-trips is billed six times; the reader asked about the question. The step count survives on the row because it is usually *why* a row is large.
+
+The columns sum to the same figures `/context` reports as cumulative spend, and `tests/usage.spec.ts` pins that agreement — they are two views of one fact, so a disagreement is a bug in one of them. What the table must not be read as is occupancy: each turn's input restates the whole prefix, which is the confusion `contextOccupancy` exists to prevent (§3.3.2).
+
+Past `MAX_USAGE_ROWS` turns the oldest are folded into a single `+N earlier` row **carrying their summed tokens**, rather than dropped. This is the output-preview policy from §1.2 — cap the height, say what was left out — with the extra requirement that the visible rows still add up to the printed total. A table whose own arithmetic does not check out teaches the reader to distrust it.
+
+Both number columns are right-aligned in display columns rather than characters, because the Chinese labels (`轮次`, `合计`) are two characters and four columns wide.
 
 ### 1.6 Keyboard bindings
 
@@ -478,8 +493,9 @@ Shipped:
 - **`@`-mention file picker.** An `@` that opens a word lists matching files under the working directory; `Tab`/`Enter` inserts the path. Completion only — no file contents are attached. See §1.5.2.
 - **`/plugins`.** Loader introspection — package name, lifecycle phase, broken entries first — plus `enable`/`disable`, which rewrite the loader config and refuse the three cases that would be unrecoverable. See §1.5.3.
 
-Still open:
-- **`/usage`.** Per-turn token counts, broken out turn by turn rather than the two aggregates `/context` shows.
+- **`/usage`.** Per-turn token counts, grouped by turn rather than by step, with a fold row instead of a truncated table. See §1.5.4.
+
+Still open: nothing — v0.3 is complete.
 
 ### v0.4 — Polish
 

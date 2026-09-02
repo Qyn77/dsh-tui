@@ -16,6 +16,7 @@
  */
 
 import type { UiState } from './types.ts'
+import { displayWidth as width } from './width.ts'
 
 /** Billed input and output, summed. */
 export interface UsageTotals {
@@ -90,4 +91,112 @@ export function contextOccupancy(state: UiState): number | undefined {
       + usage.outputTokens
   }
   return undefined
+}
+
+/** One turn's billed tokens, with every step inside it already summed. */
+export interface TurnUsage {
+  /** Turn number as the session numbered it. */
+  turn: number
+  /** Billed input, defined as in {@link totalUsage}. */
+  input: number
+  /** Output tokens. */
+  output: number
+  /** How many assistant steps reported usage inside this turn. */
+  steps: number
+}
+
+/**
+ * Break the spend out turn by turn, oldest first.
+ *
+ * Grouped by turn rather than listed per step because a turn is the unit the
+ * user typed: one question that took six tool round-trips is billed six times,
+ * and a reader scanning for "which question was expensive" wants that as one
+ * row. The step count stays on the row, since it is usually the *reason* a row
+ * is large.
+ *
+ * These rows sum to {@link totalUsage} and must not be read as occupancy — each
+ * turn's input restates the whole prefix, which is the mistake
+ * {@link contextOccupancy} exists to avoid. Spend is additive; a context window
+ * is not.
+ */
+export function usageByTurn(state: UiState): TurnUsage[] {
+  const byTurn = new Map<number, TurnUsage>()
+  for (const entry of state.entries) {
+    if (entry.kind !== 'assistant' || !entry.usage) continue
+    const row = byTurn.get(entry.turn) ?? { turn: entry.turn, input: 0, output: 0, steps: 0 }
+    row.input += entry.usage.inputTokens
+      + (entry.usage.cacheReadTokens ?? 0)
+      + (entry.usage.cacheWriteTokens ?? 0)
+    row.output += entry.usage.outputTokens
+    row.steps += 1
+    byTurn.set(entry.turn, row)
+  }
+  return [...byTurn.values()].sort((a, b) => a.turn - b.turn)
+}
+
+/**
+ * How many turns `/usage` prints before it starts folding.
+ *
+ * The same policy as the output previews in §1.2: cap the height, say what was
+ * left out, and never silently drop. A hundred-turn session would otherwise
+ * push everything else out of the scrollback in one command.
+ */
+export const MAX_USAGE_ROWS = 20
+
+/** The words {@link formatUsage} needs. Filled from the catalog. */
+export interface UsageLabels {
+  turn: string
+  input: string
+  output: string
+  total: string
+  /** Row standing in for the turns the cap folded away. */
+  earlier: (count: number) => string
+}
+
+/**
+ * Render the turns as a right-aligned table with a total row.
+ *
+ * The folded rows are summed into a row of their own rather than dropped, so
+ * the two number columns still add up to the total a reader can check against
+ * `/context`. A table whose visible rows do not sum to its own total teaches
+ * the reader to distrust it.
+ * @param turns - output of {@link usageByTurn}, oldest first.
+ */
+export function formatUsage(turns: readonly TurnUsage[], labels: UsageLabels): string {
+  const shown = turns.slice(-MAX_USAGE_ROWS)
+  const folded = turns.slice(0, turns.length - shown.length)
+  const rows: string[][] = []
+  if (folded.length > 0) {
+    rows.push([
+      labels.earlier(folded.length),
+      sum(folded, row => row.input).toLocaleString(),
+      sum(folded, row => row.output).toLocaleString(),
+    ])
+  }
+  for (const row of shown) {
+    rows.push([
+      `${row.turn}${row.steps > 1 ? ` (${row.steps})` : ''}`,
+      row.input.toLocaleString(),
+      row.output.toLocaleString(),
+    ])
+  }
+  const header = [labels.turn, labels.input, labels.output]
+  const total = [
+    labels.total,
+    sum(turns, row => row.input).toLocaleString(),
+    sum(turns, row => row.output).toLocaleString(),
+  ]
+  const all = [header, ...rows, total]
+  const widths = header.map((_, column) => Math.max(...all.map(row => width(row[column] ?? ''))))
+  return all.map(row => `  ${row.map((cell, column) => pad(cell, widths[column] ?? 0)).join('  ')}`)
+    .join('\n')
+}
+
+function sum(rows: readonly TurnUsage[], of: (row: TurnUsage) => number): number {
+  return rows.reduce((carry, row) => carry + of(row), 0)
+}
+
+/** Right-align in display columns, not characters: the labels can be CJK. */
+function pad(cell: string, column: number): string {
+  return ' '.repeat(Math.max(0, column - width(cell))) + cell
 }

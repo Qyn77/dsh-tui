@@ -542,6 +542,39 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/usage', () => {
+    it('says so before any turn has reported tokens', async () => {
+      const { cmd } = makeCommand()
+      const result = await dispatch('/usage', cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.noUsage)
+    })
+
+    it('prints one row per turn and a total', async () => {
+      const state: UiState = {
+        entries: [
+          {
+            kind: 'assistant', turn: 1, step: 0, text: 'a', finalized: true,
+            usage: { inputTokens: 100, outputTokens: 10 } as never,
+          },
+          {
+            kind: 'assistant', turn: 2, step: 0, text: 'b', finalized: true,
+            usage: { inputTokens: 200, outputTokens: 20 } as never,
+          },
+        ],
+        status: 'idle',
+        currentTurn: 2,
+      }
+      const { cmd } = makeCommand({ state })
+      const result = await dispatch('/usage', cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      const lines = result.message?.split('\n') ?? []
+      expect(lines[0]).toBe('token spend, 2 turns:')
+      expect(lines).toHaveLength(5)
+      expect(lines.at(-1)).toContain('300')
+    })
+  })
+
   describe('/context', () => {
     it('reports unknown context window before any request', async () => {
       const { cmd } = makeCommand()
@@ -634,7 +667,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/clear', '/context', '/exit', '/help', '/language', '/model', '/plugins', '/quit',
-      '/status',
+      '/status', '/usage',
     ])
   })
 
@@ -687,7 +720,7 @@ describe('filterCommands', () => {
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/clear', '/compact', '/context', '/exit', '/goal', '/help', '/language', '/model',
-        '/plugins', '/quit', '/status',
+        '/plugins', '/quit', '/status', '/usage',
       ])
     })
 

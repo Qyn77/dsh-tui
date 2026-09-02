@@ -128,6 +128,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/status` | Print the current model and session id |
 | `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it |
 | `/context` | Print the context window, this session's token spend, and how full the context is now |
+| `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
 | `/exit`, `/quit` | Leave the REPL |

@@ -40,6 +40,7 @@
  */
 
 import type { PluginPhase } from './plugins.ts'
+import type { UsageLabels } from './usage.ts'
 
 /** The languages this UI is written in. */
 export type Lang = 'en' | 'zh'
@@ -63,6 +64,7 @@ export const COMMAND_NAMES = [
   '/plugins',
   '/quit',
   '/status',
+  '/usage',
 ] as const
 
 /** One of the built-in command names. */
@@ -223,6 +225,12 @@ export interface Catalog {
     status: (model: string, session: string) => string
     /** `/context`. */
     context: (report: ContextReport) => string
+    /** Heading above the `/usage` table, given the number of turns. */
+    usageHeading: (turns: number) => string
+    /** Column and row labels for the `/usage` table. */
+    usageLabels: UsageLabels
+    /** `/usage` before any turn has reported tokens. */
+    noUsage: string
     /** `/plugins`: heading above the table, given the number of rows. */
     pluginsHeading: (count: number) => string
     /** `/plugins` when the loader is mounted but has nothing to list. */
@@ -335,6 +343,7 @@ const EN: Catalog = {
     '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
     '/quit': 'Alias for /exit',
     '/status': 'Print the current model and session id',
+    '/usage': 'Break this session\'s token spend out turn by turn',
   },
   output: {
     helpHeading: 'Available commands:',
@@ -354,6 +363,15 @@ const EN: Catalog = {
       }
       return lines.join('\n')
     },
+    usageHeading: turns => `token spend, ${turns} turn${turns === 1 ? '' : 's'}:`,
+    usageLabels: {
+      turn: 'turn',
+      input: 'input',
+      output: 'output',
+      total: 'total',
+      earlier: count => `+${count} earlier`,
+    },
+    noUsage: 'No turn has reported token usage yet.',
     pluginsHeading: count => `plugins (${count}):`,
     noPlugins: 'The loader has no plugins to list.',
     noLoader: 'No plugin loader in this assembly — nothing to list.',
@@ -463,6 +481,7 @@ const ZH: Catalog = {
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
     '/status': '打印当前模型和 session id',
+    '/usage': '按轮次拆开本次 session 的 token 开销',
   },
   output: {
     helpHeading: '可用命令：',
@@ -482,6 +501,15 @@ const ZH: Catalog = {
       }
       return lines.join('\n')
     },
+    usageHeading: turns => `token 开销，共 ${turns} 轮：`,
+    usageLabels: {
+      turn: '轮次',
+      input: '输入',
+      output: '输出',
+      total: '合计',
+      earlier: count => `更早 ${count} 轮`,
+    },
+    noUsage: '还没有任何一轮报告过 token 用量。',
     pluginsHeading: count => `插件（${count}）：`,
     noPlugins: '加载器里没有可列出的插件。',
     noLoader: '当前装配没有插件加载器，无从列起。',

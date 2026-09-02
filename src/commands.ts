@@ -36,7 +36,7 @@ import {
   type Catalog,
   type Lang,
 } from './i18n.ts'
-import { contextOccupancy, totalUsage } from './usage.ts'
+import { contextOccupancy, formatUsage, totalUsage, usageByTurn } from './usage.ts'
 import {
   describePlugins,
   formatPlugins,
@@ -368,6 +368,19 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       await cmd.setModel(provider, model)
       cmd.refreshSelection()
       return { kind: 'handled', message: strings.modelSwitched(provider, model) }
+    }
+
+    // Deliberately a separate command from `/context` rather than more lines
+    // inside it. `/context` answers "how full is the window" — one number about
+    // now; this answers "where did the tokens go" — a history. Merging them
+    // would put a table under a gauge and bury the gauge.
+    case '/usage': {
+      const turns = usageByTurn(cmd.state)
+      if (turns.length === 0) return { kind: 'handled', message: strings.noUsage }
+      return {
+        kind: 'handled',
+        message: `${strings.usageHeading(turns.length)}\n${formatUsage(turns, strings.usageLabels)}`,
+      }
     }
 
     case '/context': {
