@@ -214,7 +214,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/help` | Print the list of available slash commands. |
 | `/clear` | Clear the visible chat. The session log is unchanged. Prints nothing — see below. |
 | `/status` | Print the current model and session id. |
-| `/plugins` | List the plugins this host loaded, and how each one is doing. |
+| `/plugins` | List the plugins this host loaded, and how each one is doing. `/plugins enable\|disable <name>` switches one. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (idle) | Same as `/exit`. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
@@ -271,7 +271,21 @@ Two hazards the implementation has to name:
 
 **The loader is optional.** An embedded assembly can build the context by hand and never mount one; `/plugins` then says so, the same way `/context` degrades when no context window is known. A missing feature is not a crash.
 
-Enabling and disabling plugins from here is deliberately out of scope. `loader.update()` rewrites the user's `cordis.yml`, which is a different kind of act from printing a table and needs its own decision about confirmation and undo.
+##### Enabling and disabling
+
+`/plugins enable <name>` and `/plugins disable <name>` call `loader.update()`, which both starts or stops the plugin *and* rewrites the loader config on disk. That is a different kind of act from printing a table, and the design is mostly about the cases where it must not happen.
+
+Re-enabling writes `disabled: null`, which deletes the key, rather than `disabled: false`. A plugin switched off and back on leaves the config the shape it was found in.
+
+The target may be an exact config id, an exact module specifier, or a unique case-insensitive substring of one — `/plugins disable tool-fs` should not require typing the scope. Several substring hits are reported as a list rather than resolved by picking the shortest: this writes a config file, and choosing between `dsh-tool-fs` and `dsh-tool-fs-extra` on the user's behalf is exactly the guess that should be a question.
+
+Three rows refuse to be switched, each because writing the flag would destroy something or leave no way back:
+
+- **This package.** Disabling the UI from inside the UI tears down the screen mid-command, and there is then nothing left to type the re-enable into. It is matched by module specifier, because reading `ctx[Entry.key]` would mean a *value* import of the loader and this package imports it as a type only, so that an assembly without a loader still runs.
+- **A `!!js` expression.** The loader stores an expression as a node, not a boolean; overwriting it with `true` would silently throw away something the user wrote by hand.
+- **A row that is off only because its group is off.** `Entry.disabled` folds in the ancestors, so a row can read as disabled while its own flag is unset. Setting that flag would change nothing visible. The message names the group as the thing to enable.
+
+A plugin already in the requested state is reported and not written — the config file's mtime should mean something.
 
 ### 1.6 Keyboard bindings
 
@@ -462,7 +476,7 @@ Shipped:
 - **History.** `↑` / `↓` (and `Ctrl-P` / `Ctrl-N`) walk the user's prior inputs in this session.
 - **Output previews.** Tool results and `!` shell output are capped at 8 lines with a translated `… +N lines` marker, replacing both the one-line summary and the uncapped shell paint — see §1.2.
 - **`@`-mention file picker.** An `@` that opens a word lists matching files under the working directory; `Tab`/`Enter` inserts the path. Completion only — no file contents are attached. See §1.5.2.
-- **`/plugins`.** Read-only introspection of the loader: package name, lifecycle phase, broken entries first. See §1.5.3.
+- **`/plugins`.** Loader introspection — package name, lifecycle phase, broken entries first — plus `enable`/`disable`, which rewrite the loader config and refuse the three cases that would be unrecoverable. See §1.5.3.
 
 Still open:
 - **`/usage`.** Per-turn token counts, broken out turn by turn rather than the two aggregates `/context` shows.

@@ -33,10 +33,17 @@ import {
   COMMAND_NAMES,
   catalog,
   parseLanguageArg,
+  type Catalog,
   type Lang,
 } from './i18n.ts'
 import { contextOccupancy, totalUsage } from './usage.ts'
-import { describePlugins, formatPlugins } from './plugins.ts'
+import {
+  describePlugins,
+  formatPlugins,
+  parsePluginArgs,
+  resolvePlugin,
+  type PluginRow,
+} from './plugins.ts'
 
 /** What a command decided. */
 export type CommandResult =
@@ -153,6 +160,75 @@ function helpText(extra: readonly CommandMeta[], lang: Lang = 'en'): string {
   return [catalog(lang).output.helpHeading, ...rows, '', catalog(lang).shell.usage].join('\n')
 }
 
+/**
+ * The one loader capability `/plugins` writes through.
+ *
+ * Named structurally so this module states exactly what it does to the user's
+ * config — one field of one entry — rather than accepting the whole `EntryTree`
+ * and leaving the reader to check. `disabled: null` deletes the key instead of
+ * writing `false`, which keeps a re-enabled plugin's config the shape it had
+ * before anyone typed `/plugins disable`.
+ */
+interface PluginSwitch {
+  update: (id: string, options: { disabled?: boolean | null }) => Promise<void>
+}
+
+/**
+ * Apply an `enable`/`disable` to one row.
+ *
+ * Split out of `dispatch` because the interesting part is the refusals, and a
+ * `case` arm long enough to hide them is how a footgun ships. Everything here
+ * either declines with a reason or performs exactly one write.
+ */
+async function togglePlugin(
+  loader: PluginSwitch,
+  rows: readonly PluginRow[],
+  action: { enable: boolean; query: string },
+  strings: Catalog['output'],
+): Promise<CommandResult> {
+  const match = resolvePlugin(rows, action.query)
+  if (match.kind === 'none') {
+    return { kind: 'handled', message: strings.pluginNotFound(action.query), failed: true }
+  }
+  if (match.kind === 'ambiguous') {
+    return {
+      kind: 'handled',
+      message: strings.pluginAmbiguous(action.query, match.names),
+      failed: true,
+    }
+  }
+  const { row } = match
+  if (action.enable === (row.phase !== 'disabled')) {
+    return { kind: 'handled', message: strings.pluginUnchanged(row.name, action.enable) }
+  }
+  // A lock is a refusal, not a failure of the loader: each one is a case where
+  // writing the flag would either destroy something the user wrote or leave
+  // them with no way back. See `PluginLock`.
+  if (row.lock === 'self' && !action.enable) {
+    return { kind: 'handled', message: strings.pluginLockedSelf(row.name), failed: true }
+  }
+  if (row.lock === 'expression') {
+    return { kind: 'handled', message: strings.pluginLockedExpression(row.name), failed: true }
+  }
+  if (row.lock === 'inherited' && action.enable) {
+    return { kind: 'handled', message: strings.pluginLockedInherited(row.name), failed: true }
+  }
+  try {
+    // `update` starts or stops the plugin *and* rewrites the config file, so a
+    // throw here can mean either half failed. The message says which plugin
+    // and repeats the loader's own reason rather than inventing one.
+    await loader.update(row.id, { disabled: action.enable ? null : true })
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    return {
+      kind: 'handled',
+      message: strings.pluginToggleFailed(row.name, reason),
+      failed: true,
+    }
+  }
+  return { kind: 'handled', message: strings.pluginToggled(row.name, action.enable) }
+}
+
 /** Snapshot one command from the registry. */
 export interface CommandContext {
   ctx: Context
@@ -236,12 +312,17 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
     case '/plugins': {
       const loader = service(cmd.ctx, 'loader')
       if (loader === undefined) return { kind: 'handled', message: strings.noLoader }
+      const action = parsePluginArgs(raw.trim().split(/\s+/).slice(1))
+      if (action.kind === 'usage') return { kind: 'handled', message: strings.pluginUsage }
       const rows = describePlugins(loader.entries())
-      if (rows.length === 0) return { kind: 'handled', message: strings.noPlugins }
-      return {
-        kind: 'handled',
-        message: `${strings.pluginsHeading(rows.length)}\n${formatPlugins(rows, strings.pluginPhases)}`,
+      if (action.kind === 'list') {
+        if (rows.length === 0) return { kind: 'handled', message: strings.noPlugins }
+        return {
+          kind: 'handled',
+          message: `${strings.pluginsHeading(rows.length)}\n${formatPlugins(rows, strings.pluginPhases)}`,
+        }
       }
+      return await togglePlugin(loader, rows, action, strings)
     }
 
     case '/language': {

@@ -5,7 +5,7 @@
  * process effects.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands.ts'
@@ -240,10 +240,24 @@ describe('slash command dispatch', () => {
   })
 
   describe('/plugins', () => {
-    /** A loader stand-in: `entries()` is a generator method, as cordis's is. */
-    function withLoader(entries: readonly unknown[]): CommandContext {
+    const updates: { id: string; options: unknown }[] = []
+
+    /**
+     * A loader stand-in: `entries()` is a generator method, as cordis's is, and
+     * `update()` records instead of writing. The real one rewrites the user's
+     * config file, so the assertions here are about *whether* it is called at
+     * all as much as about the message.
+     */
+    function withLoader(entries: readonly unknown[], fail?: Error): CommandContext {
       const ctx = new Context()
-      ctx.provide('loader', { * entries() { yield* entries } } as never)
+      ctx.provide('loader', {
+        * entries() { yield* entries },
+        update: (id: string, options: unknown) => {
+          if (fail) return Promise.reject(fail)
+          updates.push({ id, options })
+          return Promise.resolve()
+        },
+      } as never)
       return {
         ctx,
         agent: { id: 'tui-1' as never, session: makeSession() } as never,
@@ -310,6 +324,99 @@ describe('slash command dispatch', () => {
       if (result.kind !== 'handled') throw new Error('unreachable')
       expect(result.message).toContain('插件（1）：')
       expect(result.message).toContain('运行中')
+    })
+
+    describe('enable and disable', () => {
+      const off = { id: 'off', disabled: true, options: { name: 'pkg-off', disabled: true } }
+      const on = { id: 'on', disabled: false, options: { name: 'pkg-on' }, fiber: { state: 2 } }
+
+      beforeEach(() => { updates.length = 0 })
+
+      it('disables a running plugin by deleting nothing and setting the flag', async () => {
+        const result = await dispatch('/plugins disable pkg-on', withLoader([on]))
+        if (result.kind !== 'handled') throw new Error('unreachable')
+        expect(updates).toEqual([{ id: 'on', options: { disabled: true } }])
+        expect(result.message).toContain('pkg-on')
+        expect(result.failed).toBeUndefined()
+      })
+
+      it('re-enables by deleting the flag rather than writing false', async () => {
+        // Writing `disabled: false` would leave a key in the user's config that
+        // was not there before they typed the command.
+        await dispatch('/plugins enable pkg-off', withLoader([off]))
+        expect(updates).toEqual([{ id: 'off', options: { disabled: null } }])
+      })
+
+      it('writes nothing when the plugin is already in that state', async () => {
+        const result = await dispatch('/plugins enable pkg-on', withLoader([on]))
+        if (result.kind !== 'handled') throw new Error('unreachable')
+        expect(updates).toEqual([])
+        expect(result.message).toBe(catalog('en').output.pluginUnchanged('pkg-on', true))
+      })
+
+      it('refuses to switch off the interface running the command', async () => {
+        const self = {
+          id: 'tui', disabled: false, options: { name: '@deepseek-ai/dsh-tui' }, fiber: { state: 2 },
+        }
+        const result = await dispatch('/plugins disable dsh-tui', withLoader([self]))
+        if (result.kind !== 'handled') throw new Error('unreachable')
+        expect(updates).toEqual([])
+        expect(result.failed).toBe(true)
+      })
+
+      it('refuses to overwrite a switch that is an expression', async () => {
+        const expr = {
+          id: 'x', disabled: false, options: { name: 'pkg-x', disabled: { __jsExpr: 'env.CI' } },
+          fiber: { state: 2 },
+        }
+        const result = await dispatch('/plugins disable pkg-x', withLoader([expr]))
+        if (result.kind !== 'handled') throw new Error('unreachable')
+        expect(updates).toEqual([])
+        expect(result.message).toBe(catalog('en').output.pluginLockedExpression('pkg-x'))
+      })
+
+      it('sends the user to the group when the group is what is off', async () => {
+        const inherited = { id: 'g', disabled: true, options: { name: 'pkg-g' } }
+        const result = await dispatch('/plugins enable pkg-g', withLoader([inherited]))
+        if (result.kind !== 'handled') throw new Error('unreachable')
+        expect(updates).toEqual([])
+        expect(result.message).toBe(catalog('en').output.pluginLockedInherited('pkg-g'))
+      })
+
+      it('reports an ambiguous target instead of picking one', async () => {
+        const twin = { id: 'on2', disabled: false, options: { name: 'pkg-on-extra' }, fiber: { state: 2 } }
+        // `pkg-o` is a prefix of both, and neither name matches it exactly.
+        const result = await dispatch('/plugins disable pkg-o', withLoader([on, twin]))
+        if (result.kind !== 'handled') throw new Error('unreachable')
+        expect(updates).toEqual([])
+        expect(result.failed).toBe(true)
+        expect(result.message).toContain('pkg-on-extra')
+      })
+
+      it('reports a target that names nothing', async () => {
+        const result = await dispatch('/plugins disable nope', withLoader([on]))
+        if (result.kind !== 'handled') throw new Error('unreachable')
+        expect(result.failed).toBe(true)
+        expect(result.message).toBe(catalog('en').output.pluginNotFound('nope'))
+      })
+
+      it('repeats the loader’s own reason when the switch throws', async () => {
+        // `update` both restarts the plugin and writes the file, so a throw can
+        // mean either half failed — inventing a reason would hide which.
+        const result = await dispatch(
+          '/plugins enable pkg-off',
+          withLoader([off], new Error('module not found')),
+        )
+        if (result.kind !== 'handled') throw new Error('unreachable')
+        expect(result.failed).toBe(true)
+        expect(result.message).toContain('module not found')
+      })
+
+      it('prints usage for a verb it does not know', async () => {
+        const result = await dispatch('/plugins toggle pkg-on', withLoader([on]))
+        if (result.kind !== 'handled') throw new Error('unreachable')
+        expect(result.message).toBe(catalog('en').output.pluginUsage)
+      })
     })
   })
 

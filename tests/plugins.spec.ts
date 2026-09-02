@@ -7,7 +7,14 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { describePlugins, formatPlugins, type LoaderEntry, type PluginPhase } from '../src/plugins.ts'
+import {
+  describePlugins,
+  formatPlugins,
+  parsePluginArgs,
+  resolvePlugin,
+  type LoaderEntry,
+  type PluginPhase,
+} from '../src/plugins.ts'
 
 /** The numbers cordis's non-runtime `FiberState` const enum uses. */
 const PENDING = 0
@@ -138,5 +145,107 @@ describe('formatPlugins', () => {
 
   it('renders nothing for no rows rather than a stray blank line', () => {
     expect(formatPlugins([], LABELS)).toBe('')
+  })
+})
+
+describe('describePlugins locks', () => {
+  it('leaves an ordinary row unlocked', () => {
+    expect(describePlugins([entry('pkg')])[0]?.lock).toBeUndefined()
+  })
+
+  it('locks this package, which is the UI running the command', () => {
+    const rows = describePlugins([entry('@deepseek-ai/dsh-tui')])
+    expect(rows[0]?.lock).toBe('self')
+  })
+
+  it('locks a row whose switch is an expression rather than a flag', () => {
+    // The loader stores `!!js` as a node, not a boolean. Writing `true` over it
+    // would silently throw away something the user wrote by hand.
+    const rows = describePlugins([
+      entry('pkg', { options: { name: 'pkg', disabled: { __jsExpr: 'env.CI' } } }),
+    ])
+    expect(rows[0]?.lock).toBe('expression')
+  })
+
+  it('locks a row that is off only because its group is off', () => {
+    // `entry.disabled` is effective; `options.disabled` is this row's own flag.
+    // When they disagree, the switch here decides nothing.
+    const rows = describePlugins([
+      entry('pkg', { disabled: true, fiber: undefined, options: { name: 'pkg' } }),
+    ])
+    expect(rows[0]?.lock).toBe('inherited')
+  })
+
+  it('does not call a row inherited when it disabled itself', () => {
+    const rows = describePlugins([
+      entry('pkg', { disabled: true, fiber: undefined, options: { name: 'pkg', disabled: true } }),
+    ])
+    expect(rows[0]?.lock).toBeUndefined()
+  })
+})
+
+describe('parsePluginArgs', () => {
+  it('reads no arguments as a listing', () => {
+    expect(parsePluginArgs([])).toEqual({ kind: 'list' })
+  })
+
+  it('reads enable and disable with one target', () => {
+    expect(parsePluginArgs(['enable', 'pkg'])).toEqual({ kind: 'toggle', enable: true, query: 'pkg' })
+    expect(parsePluginArgs(['disable', 'pkg'])).toEqual({ kind: 'toggle', enable: false, query: 'pkg' })
+  })
+
+  it('accepts the verb in any case', () => {
+    expect(parsePluginArgs(['DISABLE', 'pkg'])).toEqual({ kind: 'toggle', enable: false, query: 'pkg' })
+  })
+
+  it('asks for usage when the verb is unknown', () => {
+    expect(parsePluginArgs(['toggle', 'pkg'])).toEqual({ kind: 'usage' })
+  })
+
+  it('asks for usage when the target is missing or doubled', () => {
+    // Two targets almost always means an unquoted mistake, and this writes a
+    // config file — better to ask than to act on the first word.
+    expect(parsePluginArgs(['enable'])).toEqual({ kind: 'usage' })
+    expect(parsePluginArgs(['enable', 'a', 'b'])).toEqual({ kind: 'usage' })
+  })
+})
+
+describe('resolvePlugin', () => {
+  const rows = describePlugins([
+    entry('@deepseek-ai/dsh-tool-fs', { id: 'include:1' }),
+    entry('@deepseek-ai/dsh-tool-fs-extra', { id: 'include:2' }),
+    entry('@deepseek-ai/dsh-llm', { id: 'include:3' }),
+  ])
+
+  it('matches an exact name', () => {
+    const match = resolvePlugin(rows, '@deepseek-ai/dsh-llm')
+    expect(match.kind === 'found' && match.row.id).toBe('include:3')
+  })
+
+  it('matches an exact config id', () => {
+    const match = resolvePlugin(rows, 'include:1')
+    expect(match.kind === 'found' && match.row.name).toBe('@deepseek-ai/dsh-tool-fs')
+  })
+
+  it('matches a unique substring, so the scope can be left off', () => {
+    const match = resolvePlugin(rows, 'llm')
+    expect(match.kind === 'found' && match.row.name).toBe('@deepseek-ai/dsh-llm')
+  })
+
+  it('reports every candidate rather than guessing the shortest', () => {
+    // `tool-fs` is a prefix of `tool-fs-extra`. Picking one would write the
+    // wrong plugin's config on a coin flip.
+    const match = resolvePlugin(rows, 'tool-fs')
+    expect(match.kind).toBe('ambiguous')
+    expect(match.kind === 'ambiguous' && match.names).toHaveLength(2)
+  })
+
+  it('prefers an exact name over the substring it is a prefix of', () => {
+    const match = resolvePlugin(rows, '@deepseek-ai/dsh-tool-fs')
+    expect(match.kind === 'found' && match.row.id).toBe('include:1')
+  })
+
+  it('reports nothing when the target names nothing', () => {
+    expect(resolvePlugin(rows, 'nope').kind).toBe('none')
   })
 })

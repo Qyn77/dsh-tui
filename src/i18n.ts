@@ -231,6 +231,24 @@ export interface Catalog {
     noLoader: string
     /** One word per lifecycle phase, for the table's right column. */
     pluginPhases: Record<PluginPhase, string>
+    /** `/plugins` with words it could not read as a subcommand. */
+    pluginUsage: string
+    /** `/plugins enable|disable` naming nothing in the table. */
+    pluginNotFound: (query: string) => string
+    /** `/plugins enable|disable` naming several plugins at once. */
+    pluginAmbiguous: (query: string, names: readonly string[]) => string
+    /** The plugin is already in the state the user asked for. */
+    pluginUnchanged: (name: string, enable: boolean) => string
+    /** Written *after* the config file has been rewritten. */
+    pluginToggled: (name: string, enable: boolean) => string
+    /** The loader refused: the plugin failed to start, or to stop. */
+    pluginToggleFailed: (name: string, reason: string) => string
+    /** Refused: it is this UI, and disabling it would kill the screen. */
+    pluginLockedSelf: (name: string) => string
+    /** Refused: its switch is a `!!js` expression this must not overwrite. */
+    pluginLockedExpression: (name: string) => string
+    /** Refused: an ancestor group is off, so this switch decides nothing. */
+    pluginLockedInherited: (name: string) => string
     /** `/model` with no argument. */
     modelUsage: (current: string) => string
     /** `/model` when no default-model service is mounted. */
@@ -314,7 +332,7 @@ const EN: Catalog = {
     '/help': 'Show the list of available commands',
     '/language': 'Switch the interface language: /language en or zh',
     '/model': 'Switch model: /model <name> or <provider>/<name>',
-    '/plugins': 'List the plugins this host has loaded, and how each one is doing',
+    '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
     '/quit': 'Alias for /exit',
     '/status': 'Print the current model and session id',
   },
@@ -348,6 +366,20 @@ const EN: Catalog = {
       absent: 'not started',
       disabled: 'disabled',
     },
+    pluginUsage: 'Usage: /plugins\n       /plugins enable <name>\n       /plugins disable <name>\n\nEnabling or disabling rewrites the loader config file on disk.',
+    pluginNotFound: query => `no plugin matches '${query}' — /plugins lists them`,
+    pluginAmbiguous: (query, names) =>
+      `'${query}' matches ${names.length} plugins:\n${names.map(name => `  ${name}`).join('\n')}\n\nName one of them exactly.`,
+    pluginUnchanged: (name, enable) => `${name} is already ${enable ? 'enabled' : 'disabled'}.`,
+    pluginToggled: (name, enable) =>
+      `${enable ? 'Enabled' : 'Disabled'} ${name}, and saved that to the loader config.`,
+    pluginToggleFailed: (name, reason) => `could not switch ${name}: ${reason}`,
+    pluginLockedSelf: name =>
+      `${name} is this interface — switching it off from inside itself would leave nothing to switch it back on. Edit the loader config directly.`,
+    pluginLockedExpression: name =>
+      `${name} is switched by an expression in the loader config, not a plain flag. Overwriting it here would throw that expression away — edit the config directly.`,
+    pluginLockedInherited: name =>
+      `${name} is off because a group containing it is off. Enable that group instead.`,
     modelUsage: current =>
       `Usage: /model <name>\nCurrent: ${current}\n\nUse /context to see context window and token usage.`,
     noModelService: 'No default model service available.',
@@ -428,7 +460,7 @@ const ZH: Catalog = {
     '/help': '显示可用命令列表',
     '/language': '切换界面语言：/language en 或 zh',
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
-    '/plugins': '列出本进程加载的插件，以及它们各自的状态',
+    '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
     '/status': '打印当前模型和 session id',
   },
@@ -462,6 +494,19 @@ const ZH: Catalog = {
       absent: '未启动',
       disabled: '已禁用',
     },
+    pluginUsage: '用法：/plugins\n      /plugins enable <名字>\n      /plugins disable <名字>\n\n启用或禁用会改写磁盘上的 loader 配置文件。',
+    pluginNotFound: query => `没有插件匹配「${query}」—— /plugins 可以列出全部`,
+    pluginAmbiguous: (query, names) =>
+      `「${query}」匹配到 ${names.length} 个插件：\n${names.map(name => `  ${name}`).join('\n')}\n\n请写全其中一个。`,
+    pluginUnchanged: (name, enable) => `${name} 本来就是${enable ? '启用' : '禁用'}状态。`,
+    pluginToggled: (name, enable) => `已${enable ? '启用' : '禁用'} ${name}，并写入 loader 配置。`,
+    pluginToggleFailed: (name, reason) => `切换 ${name} 失败：${reason}`,
+    pluginLockedSelf: name =>
+      `${name} 就是当前这个界面——从它自己内部关掉它，就没有东西能再把它打开了。请直接改 loader 配置。`,
+    pluginLockedExpression: name =>
+      `${name} 的开关在 loader 配置里是一段表达式，不是普通布尔值。在这里覆盖会把那段表达式丢掉——请直接改配置。`,
+    pluginLockedInherited: name =>
+      `${name} 是因为它所在的分组被关掉了才没运行。请去启用那个分组。`,
     modelUsage: current =>
       `用法：/model <名称>\n当前：${current}\n\n用 /context 查看上下文窗口和 token 用量。`,
     noModelService: '没有可用的默认模型服务。',

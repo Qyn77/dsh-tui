@@ -123,7 +123,7 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换 |
 | `/context` | 打印上下文窗口、本次 session 的 token 开销，以及当前上下文占用了多少 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
-| `/plugins` | 列出本进程加载的插件，以及各自的生命周期状态 |
+| `/plugins` | 列出本进程加载的插件，以及各自的生命周期状态；`/plugins enable\|disable <名字>` 开关某一个，并写回 loader 配置 |
 | `/exit`, `/quit` | 退出 REPL |
 | `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
 | `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
