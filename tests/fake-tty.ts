@@ -121,6 +121,13 @@ export function seedSession(turns: number): Session {
 export interface Painted {
   /** The last frame Ink wrote, escapes removed. */
   screen: () => string
+  /**
+   * Every chunk written to stdout, joined, escapes **kept**. `screen()` is the
+   * right tool for asking what is on the terminal; this one is for asking what
+   * was sent to it — a redraw is an escape sequence followed by a frame, and
+   * both halves are invisible to a stripped last-frame read.
+   */
+  written: () => string
   /** Feed a chunk of stdin and let React settle. */
   send: (data: string) => Promise<void>
   /**
@@ -157,13 +164,28 @@ export interface PaintOptions {
    * a `!!` escape queued for the model.
    */
   inject?: (message: unknown) => void
+  /**
+   * Ink's `debug` render mode, on by default because it writes each frame as
+   * one plain chunk and that is what makes `screen()` readable.
+   *
+   * Pass `false` when the test is about *writing* rather than about content.
+   * Debug mode returns early in `onRender` before `lastOutput` is assigned
+   * (`ink/ink.js`), so `useStdout().write` — which re-emits `lastOutput` after
+   * its payload — emits nothing to re-emit. A redraw looks like a screen clear
+   * with no frame behind it, which is precisely the bug the caller is trying
+   * to prove absent. Without debug, frames arrive as `log-update` chunks:
+   * still greppable through `strip`, just noisier.
+   */
+  debug?: boolean
 }
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 
 /** Mount the real `App` against a fake TTY of the given size. */
 export async function paintApp(
-  { turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject }: PaintOptions = {},
+  {
+    turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
+  }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
   stdout.isTTY = tty
@@ -192,13 +214,14 @@ export async function paintApp(
       stdin: stdin,
       patchConsole: false,
       exitOnCtrlC: false,
-      debug: true,
+      debug,
     },
   )
   const settle = (ms = 30): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms) })
   await settle()
   return {
     screen: () => strip(stdout.frames.at(-1) ?? ''),
+    written: () => stdout.frames.join(''),
     settle,
     async send(data: string) {
       stdin.send(data)

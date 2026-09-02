@@ -138,6 +138,7 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `Ctrl-B` / `Ctrl-F` | 同上，不用按 `Fn` |
 | `Ctrl-U` / `Ctrl-D` | 滚动半屏 |
 | `Home` / `End` | 跳到最早一行 / 回到最新 |
+| `Ctrl-L` | 清屏重画（别的什么都不变）|
 | 鼠标滚轮 | 支持 alternate scroll 的终端里可滚动 |
 
 备用屏没有 scrollback，滚动完全由 TUI 自己实现。dsh 只请求终端「用方向键回答滚

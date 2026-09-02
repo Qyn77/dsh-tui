@@ -144,6 +144,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
 | `Ctrl-U` / `Ctrl-D` | Scroll half a viewport |
 | `Home` / `End` | Jump to the oldest row / back to the newest |
+| `Ctrl-L` | Clear the screen and redraw (nothing else changes) |
 | Mouse wheel | Scrolls, in terminals that support alternate scroll mode |
 
 The alternate screen has no scrollback, so scrolling is the TUI's own. dsh

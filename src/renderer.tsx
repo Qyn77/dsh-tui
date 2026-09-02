@@ -29,7 +29,7 @@ import { handleInterrupt } from './interrupt.ts'
 import { catalog, type Lang } from './i18n.ts'
 import { LanguageProvider } from './hooks/useStrings.tsx'
 import { writeSettings } from './settings.ts'
-import type { RepaintRef } from './resize.ts'
+import { CLEAR_SCREEN, type RepaintRef } from './resize.ts'
 
 
 
@@ -202,6 +202,22 @@ export const App: FC<AppProps> = ({
         abortShell: shell.abort,
       })
     }
+    // Ctrl-L — throw the screen away and lay the frame down again. Not a
+    // state change: the conversation, the scroll offset, and the prompt
+    // buffer are all untouched, because the thing being repaired is the
+    // terminal's pixels rather than anything the app believes.
+    //
+    // `write` is Ink's own writer, and using it rather than `stdout.write`
+    // is the whole trick. It clears log-update's frame, emits our escape,
+    // and then re-emits Ink's cached frame *unconditionally* — where an
+    // ordinary render would be dropped, since Ink skips any frame identical
+    // to the one it last wrote (`resize.ts`) and a redraw request is by
+    // definition asking for the identical frame. A raw `stdout.write` would
+    // clear the screen and leave it blank until the next keystroke.
+    //
+    // The Static banner scrolls away with everything else. That is the same
+    // bargain a settled resize already makes, and `/clear` prints a new one.
+    if (key.ctrl && input === 'l') write(CLEAR_SCREEN)
   })
 
   /**

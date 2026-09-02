@@ -264,7 +264,7 @@ its way to someone else.
 | `Ctrl-U` / `Ctrl-D` | MessageList | Scroll half a page |
 | `Home` / `End` | MessageList | Jump to the oldest row / back to the tail |
 | `Ctrl-C` | App | Cancel turn (when running) or exit (when idle) |
-| `Ctrl-L` | App | Clear screen, redraw (v0.4) |
+| `Ctrl-L` | App | Clear the screen and redraw the frame |
 
 Three rows are decided rather than inherited, and each costs something:
 
@@ -292,6 +292,18 @@ Three rows are decided rather than inherited, and each costs something:
   Empty lines and a repeat of the newest entry are not recorded, and edits to
   a recalled line are not remembered per entry: keep walking and they are
   gone, as in `bash`.
+
+**`Ctrl-L` goes through Ink's writer, not through `stdout`.** The binding is one
+line, and the obvious spelling of it is wrong: `stdout.write(CLEAR_SCREEN)`
+erases the screen and leaves it erased, because Ink drops any frame identical to
+the one it last wrote and a redraw request asks for exactly that frame — the
+terminal stays blank until the next keystroke. `useStdout().write` clears
+log-update's bookkeeping, emits the payload, and re-emits the cached frame
+*unconditionally*, which is the same mechanism §`resize.ts` relies on for a
+settled drag. `Ctrl-L` changes no state at all — not the buffer, not the scroll
+offset — because what it repairs is the terminal's pixels rather than anything
+the app believes. The `Static` banner scrolls away with the rest, which is the
+bargain a resize already makes; `/clear` prints a new one.
 
 There is also one binding that is *absent* rather than assigned. **Forward
 delete (the `Delete` key) is not implemented**, because Ink 5 cannot express
@@ -417,7 +429,6 @@ Still open:
 - **Streaming markdown.** Re-parse the assistant text on every `assistant/chunk` event and render partial markdown live, instead of waiting for the `assistant/message` finalization. v0.2 ships the simpler "render on finalize" path; v0.4 is the incremental follow-up.
 - **Truncation.** The 8-line cap shipped in v0.3; what remains is the `▾ show more` affordance, and it is not free — expanding one entry needs a focus/selection model this app does not have. Read §6 of the roadmap before starting it.
 - **Clipboard.** OSC 52 integration for `/copy` and `/paste`.
-- **`Ctrl-L` redraw.** Force a full re-render on demand.
 
 ### v1.0 — Production
 
