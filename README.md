@@ -126,11 +126,19 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/help` | Print available slash commands |
 | `/clear` | Clear the visible chat (the session log is unchanged) |
 | `/status` | Print the current model and session id |
+| `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it |
+| `/context` | Print the context window and this session's token usage |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/exit`, `/quit` | Leave the REPL |
+| `Tab` | Complete the highlighted slash command in the `/` palette |
+| `y` / `n` / `Esc` | Answer a tool approval request |
 | `Ctrl-C` (idle) | Same as `/exit` |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
 | `Ctrl-J` | Insert a newline in the input (so does `\` then `Enter`) |
+| `Ctrl-P` / `Ctrl-N` | Walk back and forward through this session's inputs |
+| `Ctrl-A` / `Ctrl-E` | Jump the caret to the start / end of the input |
+| `Alt-B` / `Alt-F` | Move the caret one word left / right |
+| `Ctrl-W` / `Ctrl-K` | Delete the word before the caret / to the end of the input |
 | `↑` / `↓` | Scroll the conversation one row — or move the caret, once the input is more than one row tall |
 | `PageUp` / `PageDown` | Scroll one viewport (two rows of overlap) |
 | `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
@@ -355,10 +363,10 @@ The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump th
 
 ## Known limitations
 
-- **Single-line prompt.** Multi-line input uses a `\` + Enter continuation marker. A real multiline editor is deferred.
-- **No session resume.** Every boot creates a fresh `SessionId` (`tui-<uuid>`).
-- **No tab completion or `@`-mention file picker.**
-- **`/compact` is not wired up.** The TUI has no manual compaction entry point; `dsh-base` decides autonomously.
+- **No `@`-mention file picker.** Slash commands complete with `Tab`; file paths do not.
+- **`/context`'s usage percentage is cumulative.** It divides every turn's billed input by the window, so it climbs past 100% on a long session even when the context is half empty. The token totals beside it are correct. See [docs/SPEC.md](docs/SPEC.md) §3.3.2.
+- **Resume is a boot-time choice.** `DSH_TUI_RESUME=last` (or an id) continues a stored session; there is no in-session `/resume`.
+- **Long tool output is summarized to one line.** No `show more` affordance yet.
 - **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.
 
 ## License

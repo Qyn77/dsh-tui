@@ -120,11 +120,19 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/help` | 打印可用的斜杠命令 |
 | `/clear` | 清空可见的聊天区（session log 不变） |
 | `/status` | 打印当前模型和 session id |
+| `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换 |
+| `/context` | 打印上下文窗口和本次 session 的 token 用量 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
 | `/exit`, `/quit` | 退出 REPL |
+| `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
+| `y` / `n` / `Esc` | 回答工具审批请求 |
 | `Ctrl-C`（空闲时） | 等同 `/exit` |
 | `Ctrl-C`（turn 运行时） | 取消正在跑的 turn |
 | `Ctrl-J` | 在输入框里换行（`\` 加 `Enter` 也可以）|
+| `Ctrl-P` / `Ctrl-N` | 在本次 session 输入过的内容之间前后翻 |
+| `Ctrl-A` / `Ctrl-E` | 光标跳到输入的开头 / 结尾 |
+| `Alt-B` / `Alt-F` | 光标左移 / 右移一个词 |
+| `Ctrl-W` / `Ctrl-K` | 删掉光标前的一个词 / 删到输入结尾 |
 | `↑` / `↓` | 滚动一行；输入框超过一行时改为移动光标 |
 | `PageUp` / `PageDown` | 按屏滚动（保留两行重叠） |
 | `Ctrl-B` / `Ctrl-F` | 同上，不用按 `Fn` |
@@ -331,10 +339,10 @@ npm publish --access public
 
 ## 已知限制
 
-- **单行 prompt。** 多行输入靠 `\` + Enter 续行标记。真正的多行编辑器待办。
-- **不能续接 session。** 每次启动都新建 `SessionId`（`tui-<uuid>`）。
-- **没有 Tab 补全和 `@` 文件提及。**
-- **`/compact` 没接通。** TUI 没有手动 compaction 入口；`dsh-base` 自己决定时机。
+- **没有 `@` 文件提及。** 斜杠命令可以用 `Tab` 补全，文件路径不行。
+- **`/context` 的用量百分比是累计值。** 它拿每一轮的计费输入之和去除以窗口大小，所以长会话里会冲过 100%，哪怕上下文其实只占了一半。旁边的 token 总数本身是对的。见 [docs/SPEC.md](docs/SPEC.md) §3.3.2。
+- **续接 session 只能在启动时决定。** `DSH_TUI_RESUME=last`（或者一个 id）可以接上已存的 session，但没有会话内的 `/resume`。
+- **长工具输出只摘要成一行。** 还没有展开查看的入口。
 - **`ctx.appExit` 由 launcher 提供。** 在 `dsh` CLI 外面跑会大声报错，直到 host 提供 exit hook。
 
 ## License

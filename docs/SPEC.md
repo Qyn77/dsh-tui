@@ -209,7 +209,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Future slash commands (v0.2+): `/compact`, `/resume <id>`, `/model <id>`, `/copy`. Everything that affects REPL behavior is a slash command. Two of those are blocked on structure rather than effort — see §3.3.1 before picking one up. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: `/copy`, and an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -376,28 +376,34 @@ The package is at **v0.1.0-rc.7**. Each milestone below lists what users see whe
 - 20 unit tests covering state and commands
 
 Known gaps (deferred, not bugs):
-- Single-line prompt with `\` + Enter continuation
-- No session resume — every launch creates a new `tui-<uuid>` session
 - No tab completion or `@`-mention
 - `/compact` is rendered but not user-invoked
 
-### v0.2 — Continuity
+### v0.2 — Continuity (shipped)
 
-- **Multiline editor.** Bracketed-paste detection; `\n` literal stays for v0.1 backwards-compat.
-- **Session resume.** On launch, scan for prior `tui-*` session logs and offer `/resume <id>` with the most recent as a default.
-- **`/compact` wired.** Invoke `dsh-base`'s compaction action; show the `compacting…` line in the StatusBar instead of in the message list.
-- **Spinner during turns.** Replace the static `⏳ working` glyph with the animated `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` cycle.
-- **Error rendering.** Network / model / tool errors get a uniform `Error: …` block in `red`; retryable ones show a hint.
-- **Markdown rendering.** Assistant turns render a curated subset of GitHub-flavored markdown — see §1.9. Streaming chunks stay as raw text and the block re-renders as markdown on the `assistant/message` finalization event.
+- **Multiline editor.** The box grows with the buffer to `MAX_PROMPT_ROWS` (10), then scrolls inside itself with a scrollbar. `Ctrl-J` inserts a newline; the `\` + Enter continuation stays for v0.1 backwards-compat.
+- **Session resume.** `DSH_TUI_RESUME=last` continues the newest stored session, or an id continues that one. Discovery is `SessionPersistence` — see §3.3.1.
+- **`/compact` wired.** Not by this package: it falls through to `ctx.commands`, where dsh-base mounts it.
+- **Spinner during turns.** `useRunningClock` drives one interval per status transition; the StatusBar and the Prompt placeholder read the same frame index so the glyph is in lock-step.
+- **Error rendering.** Network / model / tool errors get a uniform block in `red`.
+- **Markdown rendering.** Assistant turns render a curated subset of GitHub-flavored markdown — see §1.9. Streaming chunks stay raw and the block re-renders on the `assistant/message` finalization event.
 
-### v0.3 — Discoverability
+Shipped here but not planned here: the bilingual catalog and `/language` (§3.10), and the `!` shell escape (Part 4).
 
-- **Slash-command tab completion.** `Tab` after `/` fills in matching command names.
+### v0.3 — Discoverability (partly shipped)
+
+Shipped:
+
+- **Slash-command tab completion.** The `/` palette filters as you type and `Tab` completes the highlighted name, landing the cursor after a trailing space.
+- **Tool approval flow.** `y`/`n`/`Esc` on a card beside the Prompt, not a modal. It was never blocked on the dependency this spec claimed — see §3.2.1.
+- **`/model <name>`.** Switches the live agent and the saved default together.
+- **`/context`.** Window, cumulative tokens, and an occupancy percentage that is currently computed from the wrong numerator — see §3.3.2.
+- **History.** `↑` / `↓` (and `Ctrl-P` / `Ctrl-N`) walk the user's prior inputs in this session.
+
+Still open:
+
 - **`@`-mention file picker.** `@<Tab>` opens a fuzzy file picker.
-- **Tool approval flow.** When a tool call requires consent, render a `y/n/all` prompt inside the Prompt zone, not as a modal. Blocked on a dependency, not on design — see §3.2.1.
-- **`/model <id>`.** Switch the agent's model mid-session.
-- **`/usage`.** Per-turn token counts and context-window occupancy. Deliberately not "dollar cost": see §3.3.2 for why no price can be computed here, and for the one trap in the occupancy figure.
-- **History.** `↑` / `↓` navigates the user's prior inputs in this session.
+- **`/usage`.** Per-turn token counts, which is also what would fix `/context`'s percentage.
 
 ### v0.4 — Polish
 
@@ -483,11 +489,19 @@ The reducer is the unit-test surface for the model layer. Every new `SessionEven
 
 #### 3.2.1 What the reducer cannot project yet
 
-**Approval prompts have no UI, and cannot have one from here.** `dsh-session` rc.7 lists `approval/asked`, `approval/decided` and `approval/policy` in its generated persistence catalog — the set of event types this build will read back from a log — but they are **not** members of the typed `SessionEventMap`. The plugin that merges those variants in is not a peer dependency of this package, so `SessionEvent` here is a union that says those events cannot occur. A `case 'approval/asked'` in the reducer would not compile without a cast, and the cast would be asserting the shape of a payload no installed type declares.
+**Approval prompts are answered, but not by the reducer.** `dsh-session` rc.7 lists `approval/asked`, `approval/decided` and `approval/policy` in its generated persistence catalog — the set of event types this build will read back from a log — but they are **not** members of the typed `SessionEventMap`. The plugin that merges those variants in is not a peer dependency of this package, so `SessionEvent` here is a union that says those events cannot occur. A `case 'approval/asked'` in the reducer would not compile without a cast, and the cast would be asserting the shape of a payload no installed type declares. That much is still true, and it is why there is no approval `UiEntry`.
 
-So the approval flow is blocked on a dependency, not on effort. Building it means taking the approval plugin as a peer first, at which point the events become narrowable and this note should be replaced by a real projection: an entry kind that renders the pending question, and a key binding that answers it.
+This section used to conclude from that the approval flow was blocked. **The conclusion was wrong, and the way it was wrong is worth keeping.** The question a user has to answer never travels through the session log in the first place: `dsh-tools` calls `ctx.approval.request()`, and `ApprovalService` dispatches `approval/request` as a **waterfall** on the Cordis context. Reading the log is how you learn an approval *happened*; answering one is a live request/response with no reducer in it. Looking for the feature in the event union found the one place it provably was not.
 
-What *is* typed and is now projected: `TurnEndReasonMap.blocked`, which `dsh-agent` documents as a pre-step rejection — the turn was refused before it reached the model and the messages it had claimed were discarded with it. That is the one approval-shaped fact reachable today, and it renders as a note saying the turn never ran rather than as the raw word `blocked`.
+So `hooks/useApprovalRequests.ts` registers this terminal as the answerer for its own agent and holds the listener's promise open until a keystroke settles it, and `components/ApprovalPrompt.tsx` draws the oldest pending question with `y`/`n`/`Esc`. It sits beside the Prompt rather than inside the log, so nothing about it is `UiState`. Three facts make that safe, and each is load-bearing:
+
+- **The default is a silent denial, not a missing feature.** `ApprovalService` fails closed: with no registered answerer it returns `'unavailable'`, which `dsh-tools` maps to a denial. dsh-base's `read-only` and `workspace-write` presets both set `approval: ask`, so a TUI without this hook denied every tool call that needed a human, and showed no question while doing it.
+- **The listener claims only its own agent's questions**, declining the rest with `next()`, so a bundle running several agents never has one terminal answering for another's.
+- **Every path settles the promise.** The user answering, `req.signal` aborting (the asker withdrew), and the hook unmounting all resolve it — the last as `'unavailable'`, which is exactly what the service would have produced without the hook. A promise held forever would wedge the turn.
+
+There is no "always allow": `'allowed-once'` is the only grant the vocabulary defines, so there is no third key to bind.
+
+What *is* typed and is projected by the reducer: `TurnEndReasonMap.blocked`, which `dsh-agent` documents as a pre-step rejection — the turn was refused before it reached the model and the messages it had claimed were discarded with it. That is the one approval-shaped fact reachable today, and it renders as a note saying the turn never ran rather than as the raw word `blocked`.
 
 **A `turn/end` reason this build does not name still prints.** `TurnEndReasonMap` is merge-extensible, so the reducer's reason switch keeps a `default` arm that prints the bare `kind`. That arm is not dead code and is not a `TODO`: it is what a forward-compatible union looks like on the read side, and `state.spec.ts` covers it with a deliberately fabricated variant.
 
@@ -506,46 +520,53 @@ What *is* typed and is now projected: `TurnEndReasonMap.blocked`, which `dsh-age
   3. An entry in `README.md` and `README.zh.md` slash-command table
   4. A frame assertion in `tests/command-output.spec.ts` if it prints anything — that its text reaches the screen, which unit tests over `dispatch` cannot see
 
-#### 3.3.1 What the dispatcher cannot express yet
+#### 3.3.1 How the dispatcher grew an argument, a model, and a resume
 
-Two commands named as future work in §1.5 are blocked on structure, not on
-effort. Both were investigated and deliberately not built; the reasons are
-recorded here so the next attempt starts from the blocker instead of
-rediscovering it.
+This section used to record why `/model` and `/resume` could not be built. Both
+are built. The blockers were real and each was removed deliberately, so the
+resolutions are kept here — the shape of the fix is the part worth reusing.
 
-`/model` needs three separate changes, none of which is about the command:
+**`dispatch` is now async and reads arguments.** The signature is
+`(raw: string, cmd: CommandContext) => Promise<CommandResult>`, and the line is
+split on whitespace rather than reduced to its first token. Synchronous commands
+still resolve immediately. The caller in `renderer.tsx` drives the promise with
+`void dispatch(...).then(...)` and appends the entry when it settles, so the
+prompt stays live while a provider call is in flight — Ink ignores a handler's
+return value, which is why the promise cannot simply be awaited at the call site.
 
-- **`dispatch` is synchronous.** The model catalog is not: the only way to
-  enumerate what a provider advertises is `ctx.llm.listModels(provider)`, which
-  returns a promise. So even a read-only `/model` that just lists the choices
-  cannot be written as a `CommandResult` today. Making dispatch async ripples
-  into the Prompt's submit path and every command test.
-- **Saving the default does not switch the live agent.** `agentDefaultModel`
-  has `saveSelection()`, but what actually routes the running agent is the
-  `ModelSelectionRef` handed to `installModelSelection(agentCtx, ref)` in
-  `index.ts`. That ref lives in `run()`'s closure, created *before* Ink mounts,
-  and nothing above the App can reach it. Persisting without mutating it would
-  leave the current session on the old model — the worst of the two outcomes,
-  because the status bar would agree with the setting and disagree with reality.
-- **The status bar would not notice.** `renderer.tsx` reads `currentSelection()`
-  through `useMemo(…, [ctx])`, so it is read once per mount and never again.
+**`/model <provider>/<name>` switches the live agent and the default.** The two
+are different facts and both have to be written, in this order:
 
-`/resume` is blocked one layer lower, on where the events would come from:
+- `modelRef.current = { provider, model }` mutates the `ModelSelectionRef` handed
+  to `installModelSelection(agentCtx, ref)` in `index.ts`. That ref is what
+  actually routes the next request. It reaches the App as a prop, which is the
+  whole fix: the ref used to live only in `run()`'s closure.
+- `agentDefaultModel.saveSelection()` persists the choice through dsh-base's
+  `settings` provider, which is what the *next* launch starts with.
 
-- `ctx.sessions.list()` returns **live** sessions only. In a freshly launched
-  TUI that is our own session and nothing else, so it cannot enumerate history.
-- No persistence or storage package is a dependency of this one. The harness has
-  a `session-query` plugin, but whether `ctx.sessionQuery` exists at all depends
-  on what the launcher mounted, so this package cannot assume it.
-- Restoring is otherwise ready: `agents.create` accepts `seed?: readonly
-  SessionEvent[]`, and the runtime already distinguishes a seeded create
-  (`startup`) from a persisted load (`resume`). `useSessionEvents` also follows
-  its agent onto a different session id, which is pinned by a test. What is
-  missing is only discovery — and an agent-swap path, since `index.ts` builds
-  the agent before `inkRender` and passes it to the App as a prop.
+Writing only the second was the trap named here before: the status bar would
+have agreed with the setting and disagreed with the running session. A bare
+`/model` prints the current selection instead of switching.
 
-One smaller gap sits underneath both: `dispatch` reads only the first token of
-the line, so no command can take an argument yet.
+**The status bar follows, because the selection is state.** `renderer.tsx` holds
+it in `useState` and `/model` calls `refreshSelection()` after the switch. The
+old `useMemo(…, [ctx])` read once per mount and would have left the header naming
+the model the session opened with.
+
+**`/resume` is discovery, and discovery is `SessionPersistence`.** `resume.ts`
+lists stored session headers through that service and picks a target;
+`AgentRegistry.resume({ resumeSessionId })` does the rest, including durably
+closing an interrupted final turn. `DSH_TUI_RESUME=last` continues the newest
+stored session and any other value is taken as an id. The three failure paths —
+no persistence plugin mounted, an empty store, an id that is not there — are all
+user-visible choices rather than errors: each starts a fresh session and states
+why, as a note in the transcript. That notice cannot be a write to stderr,
+because the alternate screen erases anything printed before Ink's first frame.
+
+The remaining gap is the one this section did not predict: resuming happens at
+boot, so there is no in-session `/resume <id>` slash command. `index.ts` builds
+the agent before `inkRender` and hands it to the App as a prop, so switching
+sessions mid-run still needs an agent-swap path.
 
 #### 3.3.2 `/cost` cannot be built, and `/context` can
 
@@ -561,21 +582,28 @@ worse than showing nothing. If pricing ever becomes a provider-owned fact the
 adapter reports, revisit; until then the token counts in the status bar *are*
 the cost surface.
 
-A **context-window percentage** is a different matter and is buildable, with one
-trap worth writing down before someone reaches for it:
+A **context-window percentage** is a different matter, and `/context` is built.
+It reports the model, the advertised window, cumulative billed input, cumulative
+output, and a `usage:` percentage when both numbers are usable. Two notes, one a
+resolution and one an open bug:
 
-- The denominator exists: `ctx.llm.resolveModelInfo(provider, model, signal)`
-  resolves `context?.contextWindow`. It is a promise, and it is optional — an
-  adapter that does not know the capacity omits it, so the UI needs an
-  unknown state, not a zero.
-- **The numerator is not the number already on screen.** `totalUsage` sums
-  billed input across every turn, which is cumulative spend. Occupancy is the
-  *latest* turn's prompt plus its output, because each request resends the
-  conversation. Dividing the running total by the window would sail past 100%
-  after a few turns while the context was half empty.
-- Being async, it belongs in a `useEffect` in `renderer.tsx` — not in the
-  reducer, which is pure (§3.2), and not in `dispatch`, which is sync (§3.3.1).
-  This is the one item in this section that is not blocked on structure.
+- **The denominator did not need a promise after all.** This section predicted
+  `ctx.llm.resolveModelInfo(provider, model, signal)` and therefore a
+  `useEffect`. What ships reads `agent.session.requestContext()?.contextWindow`
+  — the capacity the last request actually carried, folded into the session and
+  available synchronously. It is still optional, so an adapter that never
+  advertised one leaves the field `unknown` rather than zero, and the percentage
+  is omitted entirely rather than shown as `0%`.
+- **The numerator is still wrong, and this section is why we know.** The warning
+  below was written before the command and then not heeded when it was built:
+  `/context` sums billed input across *every* assistant entry, which is
+  cumulative spend, and divides that by the window. Occupancy is the **latest**
+  turn's prompt plus its output, because each request resends the conversation.
+  The figure therefore climbs past 100% after enough turns while the context is
+  half empty. The `input (billed):` and `output:` lines above it are honest —
+  they are labelled as totals. Only the `usage:` percentage is unsound. Fixing
+  it means taking the last assistant entry's usage instead of the running sum;
+  the labels then need to distinguish the two, since both are worth showing.
 
 ### 3.4 Testing
 

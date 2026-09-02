@@ -151,13 +151,17 @@ Priority features:
 - Home/End support, Delete handling
 - better prompt editing ergonomics
 - stronger scroll handling under narrow terminals
-- history navigation in the prompt
+- history navigation in the prompt — **done**: `Ctrl-P`/`Ctrl-N`, and `↑`/`↓`
+  while the buffer is one row tall
+- word motions and line kills — **done**: `Alt-B`/`Alt-F` move by word,
+  `Ctrl-W` deletes the word before the caret, `Ctrl-A`/`Ctrl-E`/`Ctrl-K` cover
+  the line ends
 - ~~multiline editor preparation~~ — **done**: the box grows with the buffer to
   `MAX_PROMPT_ROWS` (10), then scrolls internally with a scrollbar; `Ctrl-J`
   inserts a newline and `↑`/`↓` walk the caret by row. `prompt-layout.ts` holds
-  the fold/caret/window arithmetic, which is what history navigation will build
-  on. What is left: a remembered desired column across short rows, and word
-  motions.
+  the fold/caret/window arithmetic. What is left: a remembered desired column,
+  so that walking down through a short row and back up returns the caret to the
+  column it started in rather than to the short row's end.
 
 Definition of done:
 
