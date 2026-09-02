@@ -199,15 +199,32 @@ function ToolCall({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
   )
 }
 
+/**
+ * An assistant turn, rendered as markdown from the first delta onward.
+ *
+ * This used to hold the streaming text as raw text and swap to markdown at
+ * finalization, on the theory that a half-open fence or an unclosed `*` would
+ * churn the layout. That theory was testable and it is false: `marked` lexes a
+ * partial document into the same shape it will settle on. An unclosed
+ * ```` ``` ```` fence produces the *identical* AST to the closed one, so the
+ * code frame is drawn from the opener and nothing moves when the closer lands;
+ * an unterminated `**bo` stays literal text and becomes bold in place, without
+ * changing its row count. What the old path guaranteed instead was a reflow of
+ * the entire answer at exactly the moment the user started reading it.
+ *
+ * Rows do still appear mid-stream — a blank separator each time a block ends,
+ * two more when a fence opens. They appear at the bottom of a `column-reverse`
+ * viewport that pins the newest row to the bottom edge, so growth at the tail
+ * is what the layout is built out of. `scroll.ts` charges this entry the same
+ * estimate either way, and that estimate only decides how much history stands
+ * mounted above the fold.
+ *
+ * The empty case needs its own row: `parseMarkdown('')` is an empty document,
+ * which is zero rows, and a turn that has announced itself but has no text yet
+ * would collapse to just its header for the width of one delta.
+ */
 function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant' }> }) {
   const strings = useStrings()
-  // While the turn is still streaming, show raw text — re-parsing
-  // partial markdown on every chunk risks a half-open fence or an
-  // italic delimiter that hasn't closed yet, both of which would
-  // churn the layout. Once the turn finalizes we re-render the full
-  // block as markdown. The transition fires on the assistant/message
-  // event, not on a timer, so it doesn't trigger the scroll-snap
-  // regression that lives in `docs/lessons/prompt-scroll-snaps.md`.
   return (
     <Row glyph={ASSISTANT_GLYPH} color="magenta">
       <Text>
@@ -215,11 +232,7 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
         <Text color="gray">{strings.entries.turnStep(entry.turn, entry.step)}</Text>
         {!entry.finalized && <Text color="yellow">{strings.entries.streaming}</Text>}
       </Text>
-      {entry.finalized ? (
-        <Markdown source={entry.text} />
-      ) : (
-        <Text>{entry.text || ' '}</Text>
-      )}
+      {entry.text === '' ? <Text> </Text> : <Markdown source={entry.text} />}
     </Row>
   )
 }
@@ -372,32 +385,42 @@ function ShellLine({ entry }: { entry: Extract<UiEntry, { kind: 'shell' }> }) {
   )
 }
 
-function Entry({ entry }: { entry: UiEntry }) {  switch (entry.kind) {
-  case 'user':
-    return <UserBlock entry={entry} />
-  case 'assistant':
-    return <AssistantBlock entry={entry} />
-  case 'tool':
-    return <ToolCall entry={entry} />
-  case 'note':
-    return <NoteLine entry={entry} />
-  case 'compaction':
-    return <CompactionLine entry={entry} />
-  case 'plan':
-    return <PlanLine entry={entry} />
-  case 'runtime-context':
-    return <RuntimeContextLine entry={entry} />
-  case 'command':
-    return <CommandLine entry={entry} />
-  case 'shell':
-    return <ShellLine entry={entry} />
-  default: {
-    // Exhaustiveness: a new UiEntry variant will fail to compile here.
-    const _exhaustive: never = entry
-    return <Text>{String(_exhaustive)}</Text>
+/**
+ * Dispatch one entry to its renderer.
+ *
+ * Memoized on the entry object, which the reducer treats as immutable: a delta
+ * rebuilds only the entry it lands in and leaves every other identity alone. So
+ * a chunk arriving during a long answer reconciles one subtree instead of the
+ * whole mounted window — worth doing now that each of those subtrees is a
+ * markdown document rather than a single `Text`.
+ */
+const Entry = React.memo(function Entry({ entry }: { entry: UiEntry }) {
+  switch (entry.kind) {
+    case 'user':
+      return <UserBlock entry={entry} />
+    case 'assistant':
+      return <AssistantBlock entry={entry} />
+    case 'tool':
+      return <ToolCall entry={entry} />
+    case 'note':
+      return <NoteLine entry={entry} />
+    case 'compaction':
+      return <CompactionLine entry={entry} />
+    case 'plan':
+      return <PlanLine entry={entry} />
+    case 'runtime-context':
+      return <RuntimeContextLine entry={entry} />
+    case 'command':
+      return <CommandLine entry={entry} />
+    case 'shell':
+      return <ShellLine entry={entry} />
+    default: {
+      // Exhaustiveness: a new UiEntry variant will fail to compile here.
+      const _exhaustive: never = entry
+      return <Text>{String(_exhaustive)}</Text>
+    }
   }
-}
-}
+})
 
 export const MessageList: FC<MessageListProps> = ({ state, offset, pinTop, onGeometry }) => {
   const { stdout } = useStdout()

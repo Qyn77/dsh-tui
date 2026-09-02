@@ -178,8 +178,8 @@ function entryBodyRows(entry: UiEntry, width: number): number {
     case 'user':
       return textRows(userMessageText(entry.message) || ' ', width)
     case 'assistant':
-      // Finalized turns re-render as markdown, which adds a blank row
-      // between blocks; the raw text is the floor, which is the safe side.
+      // Every turn renders as markdown, streaming or finalized, which adds a
+      // blank row between blocks; the raw text is the floor, the safe side.
       return 1 + textRows(entry.text || ' ', width)
     case 'tool': {
       // The call line, then the outcome. The outcome's height is *exact*

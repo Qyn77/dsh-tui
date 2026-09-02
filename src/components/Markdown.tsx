@@ -18,7 +18,7 @@
  * @module @deepseek-ai/dsh-tui/components/Markdown
  */
 
-import React, { type ReactNode } from 'react'
+import React, { useMemo, type ReactNode } from 'react'
 import { Box, Text } from 'ink'
 import { applyHangingIndent, parseMarkdown, type BlockNode, type InlineNode } from '../markdown.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
@@ -30,13 +30,19 @@ export interface MarkdownProps {
 }
 
 /**
- * Render a markdown string as Ink nodes. The block AST is recomputed
- * on every render — markdown text is small and `marked.lexer` is fast
- * (a few microseconds per kilobyte), so the cost is in the noise
- * against Ink's own diff.
+ * Render a markdown string as Ink nodes.
+ *
+ * The AST is memoized on the source. Every mounted entry re-renders on every
+ * `assistant/chunk` event, so without this an unchanged turn from ten minutes
+ * ago is re-lexed a few thousand times over the course of the next answer —
+ * and once streaming turns render as markdown too (§1.9), the growing text is
+ * re-lexed from the top on every delta besides. A single parse is cheap (0.4ms
+ * for a 20KB document, measured); a mounted window's worth of them per delta
+ * is not, and neither is free when the whole point of the frame is to keep up
+ * with a token stream.
  */
 export function Markdown({ source }: MarkdownProps): ReactNode {
-  const blocks = parseMarkdown(source)
+  const blocks = useMemo(() => parseMarkdown(source), [source])
   return (
     <Box flexDirection="column">
       {blocks.map((block, idx) => (

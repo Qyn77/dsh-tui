@@ -131,6 +131,18 @@ export interface Painted {
   /** Feed a chunk of stdin and let React settle. */
   send: (data: string) => Promise<void>
   /**
+   * Feed one `assistant/chunk` delta the way the model does, then settle.
+   *
+   * Streaming is the one thing the App does that no keystroke can provoke, and
+   * `paintApp`'s agent double never produces a turn on its own. Appending to
+   * the real `Session` and emitting `session/event` is exactly the path the
+   * session plugin takes, so what lands on the frame is what a live answer
+   * would land there.
+   */
+  stream: (text: string, at?: { turn?: number; step?: number }) => Promise<void>
+  /** Seal the streamed turn, the way `assistant/message` does. */
+  finalize: (text: string, at?: { turn?: number; step?: number }) => Promise<void>
+  /**
    * Let React settle again without sending anything. `!` commands finish on
    * their own schedule — a real subprocess outlives the default settle — so a
    * frame assertion about one has to be able to wait for it.
@@ -218,6 +230,13 @@ export async function paintApp(
     },
   )
   const settle = (ms = 30): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms) })
+  /** Publish the event just appended, the way the session plugin would. */
+  const emitLast = async (): Promise<void> => {
+    const event = session.events.at(-1)
+    if (event === undefined) throw new Error('nothing was appended')
+    ctx.emit('session/event', session, event)
+    await settle()
+  }
   await settle()
   return {
     screen: () => strip(stdout.frames.at(-1) ?? ''),
@@ -226,6 +245,23 @@ export async function paintApp(
     async send(data: string) {
       stdin.send(data)
       await settle()
+    },
+    async stream(text: string, { turn = 1, step = 1 } = {}) {
+      session.append('assistant/chunk', {
+        turn, step, chunk: { type: 'text-delta', text },
+      } as never)
+      await emitLast()
+    },
+    async finalize(text: string, { turn = 1, step = 1 } = {}) {
+      session.append('assistant/message', {
+        turn,
+        step,
+        message: createAssistantMessage({
+          content: [{ type: 'text', text }],
+          source: { provider: 'p', model: 'm' },
+        }),
+      }, { surfaceOp: 'append' })
+      await emitLast()
     },
     unmount: () => { instance.unmount() },
   }

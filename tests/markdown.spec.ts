@@ -294,3 +294,90 @@ describe('applyHangingIndent', () => {
     expect(applyHangingIndent('\nfoo')).toBe('\n  foo')
   })
 })
+
+/**
+ * Streaming renders every prefix of an answer, not just the finished text.
+ *
+ * The old streaming rule held the raw text until finalization because a partial
+ * document was assumed to parse into something unstable. These pin the opposite:
+ * the intermediate parses are boring, and the one construct that could have
+ * moved the layout under the reader — a code fence — is already in its final
+ * shape the moment its opener arrives.
+ */
+describe('partial input (streaming)', () => {
+  /** Every prefix of `text`, from one character to the whole thing. */
+  function prefixes(text: string): string[] {
+    return Array.from({ length: text.length }, (_, index) => text.slice(0, index + 1))
+  }
+
+  const answer = [
+    '## Result',
+    '',
+    'The **fix** is in `parse`, see [docs](https://example.com):',
+    '',
+    '```ts',
+    'const x = 1',
+    '```',
+    '',
+    '- one',
+    '- two',
+    '',
+    '> a quote',
+  ].join('\n')
+
+  it('parses every prefix of a whole answer without throwing', () => {
+    for (const prefix of prefixes(answer)) {
+      expect(() => parseMarkdown(prefix)).not.toThrow()
+    }
+  })
+
+  it('never drops the visible tail of what has arrived', () => {
+    // The last word typed has to be on screen. A parser that swallowed a
+    // partial construct while waiting for its closer would strand the reader
+    // watching a stream that had stopped moving.
+    //
+    // The document here carries no link, because a link is the one construct
+    // whose visible text is dropped on purpose: §1.9 renders the URL instead
+    // of the label, so `[docs](…)` really does lose the word `docs` the moment
+    // its closing paren lands. That is a rendering decision, not a streaming
+    // one, and folding it into this property would only blunt the property.
+    const linkless = answer.replace('[docs](https://example.com)', 'the docs')
+    for (const prefix of prefixes(linkless)) {
+      const tail = prefix.match(/[A-Za-z0-9]+/g)?.at(-1)
+      if (tail === undefined) continue
+      expect(JSON.stringify(parseMarkdown(prefix))).toContain(tail)
+    }
+  })
+
+  it('renders an unclosed fence as the same code block the closer produces', () => {
+    // This is what makes live markdown safe to draw: the frame is not redrawn
+    // when the fence closes, because there was nothing left to change.
+    const open = parseMarkdown('text\n\n```ts\nconst x = 1')
+    const closed = parseMarkdown('text\n\n```ts\nconst x = 1\n```')
+    expect(open).toEqual(closed)
+    expect(open[1]).toEqual({ kind: 'code-block', lang: 'ts', text: 'const x = 1' })
+  })
+
+  it('keeps an unterminated emphasis marker as literal text', () => {
+    // `**bo` is text and `**bold**` is a bold node: the transition happens
+    // inside one paragraph and costs no rows.
+    expect(parseMarkdown('a **bo')).toEqual([
+      { kind: 'paragraph', children: [{ kind: 'text', text: 'a **bo' }] },
+    ])
+  })
+
+  it('grows a list in place rather than re-forming it', () => {
+    expect(parseMarkdown('- one\n- tw')).toEqual([
+      { kind: 'list', ordered: false, items: [
+        [{ kind: 'text', text: 'one' }],
+        [{ kind: 'text', text: 'tw' }],
+      ] },
+    ])
+  })
+
+  it('treats a bare `#` as an empty heading rather than failing', () => {
+    // One frame of an empty heading row before its text arrives. Worth naming:
+    // it is the only construct that draws before it has anything to say.
+    expect(parseMarkdown('#')).toEqual([{ kind: 'heading', level: 1, children: [] }])
+  })
+})

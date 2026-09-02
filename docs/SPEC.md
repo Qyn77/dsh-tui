@@ -426,7 +426,7 @@ so a half-written multi-row message can never lock the log shut.
 
 ### 1.9 Markdown rendering
 
-Finalized assistant turns render a curated subset of GitHub-flavored markdown. The parser lives in [src/markdown.ts](../src/markdown.ts) (pure, no React, no Ink) and the Ink renderer in [src/components/Markdown.tsx](../src/components/Markdown.tsx). Only the assistant block is markdown-aware; user messages, tool calls, and notes remain plain text.
+Assistant turns render a curated subset of GitHub-flavored markdown, from the first streamed delta onward. The parser lives in [src/markdown.ts](../src/markdown.ts) (pure, no React, no Ink) and the Ink renderer in [src/components/Markdown.tsx](../src/components/Markdown.tsx). Only the assistant block is markdown-aware; user messages, tool calls, and notes remain plain text.
 
 | Construct | Terminal style |
 |---|---|
@@ -446,9 +446,15 @@ Raw HTML (`<script>`, etc.) is stripped before the AST is built — see §3.1. U
 
 **Spacing and indent normalization.** Paragraphs render with one line of vertical breathing room above and below, so model-written song lyrics and dialog don't look smushed against surrounding blocks. That row is suppressed at the document's own outer edges — a markdown document does not pad its container, because Ink does not collapse margins and the conversation has already decided how much space sits between one entry and the next. The parser pre-strips every leading space and tab at the start of each newline-continued line — the strip runs at the parse boundary (pre-`marked.lexer`) so the model's habit of hand-indenting continuation lines by 10+ spaces does not promote blank-line-separated blocks to a `╭─╮` code frame under CommonMark's 4-space rule. The renderer then applies a uniform **2-space hanging indent** to every soft line break in a text node — a `\n` not followed by another `\n` — so lyrics and dialog continuations read as a hanging indent rather than flush-left (the pre-strip's output) or right-shifted (the model's own 10+-space input). Blank lines (`\n\n`) are preserved end-to-end. Spaces at the very start of the text, and spaces between inline elements (`**bold**` and the next word), are preserved. The indent constant lives in [`src/markdown.ts`](./../src/markdown.ts) as `HANGING_INDENT`; the transform is `applyHangingIndent`.
 
-**Streaming rule.** While a turn is still receiving `assistant/chunk` events, the assistant block stays as raw text. The block re-renders as markdown on the `assistant/message` finalization event. This avoids re-parsing partial input on every keystroke of the model — a half-open code fence or a closing `*` that hasn't arrived yet would otherwise churn the layout, in tension with the lesson in [docs/lessons/prompt-scroll-snaps.md](./lessons/prompt-scroll-snaps.md).
+**Streaming rule.** The block is parsed and drawn as markdown on every `assistant/chunk` event, not held as raw text until `assistant/message`.
 
-**Out of scope (today).** Tables, images, strikethrough, syntax highlighting, and the "render markdown live while streaming" follow-up are tracked in v0.4.
+Through v0.3 it was held: the assumption was that a half-open fence or an unclosed `*` would churn the layout. The assumption was testable and it is false, and `tests/markdown.spec.ts` now pins the three cases that matter. An unclosed ```` ``` ```` fence lexes to the *identical* AST as the closed one, so the code frame is drawn from the opener and nothing moves when the closer lands. An unterminated `**bo` stays literal text and becomes bold in place, at the same row count. A list grows an item at a time rather than re-forming. What holding the text actually guaranteed was the one reflow the rule was written to prevent — the whole answer re-laid-out at the moment the reader reached it. `tests/streaming-markdown.spec.ts` asserts the frame is unchanged across finalization, header row aside.
+
+Two things do move mid-stream, and both are fine: a blank separator row appears each time a block closes, and a bare `#` draws an empty heading row until its text arrives. They appear at the tail of a `column-reverse` viewport whose newest row is pinned to the bottom edge, which is what the layout is built out of. This is not the timer-driven churn of [docs/lessons/prompt-scroll-snaps.md](./lessons/prompt-scroll-snaps.md): the re-render is caused by a delta arriving, and a delta already re-rendered the block before this change.
+
+**Parse cost.** `Markdown` memoizes the AST on its source, and `MessageList`'s per-entry dispatch is `React.memo`'d on the entry object. Both matter here rather than in general: every mounted entry re-renders on every delta, so without them a finished turn from earlier in the session is re-lexed a few thousand times over the course of the next answer. A single parse is ~0.4ms for a 20KB document; a mounted window of them per delta is not affordable when the frame's job is to keep up with a token stream.
+
+**Out of scope (today).** Tables, images, strikethrough, and syntax highlighting are tracked in v0.4.
 
 ---
 
@@ -476,7 +482,7 @@ Known gaps (deferred, not bugs):
 - **`/compact` wired.** Not by this package: it falls through to `ctx.commands`, where dsh-base mounts it.
 - **Spinner during turns.** `useRunningClock` drives one interval per status transition; the StatusBar and the Prompt placeholder read the same frame index so the glyph is in lock-step.
 - **Error rendering.** Network / model / tool errors get a uniform block in `red`.
-- **Markdown rendering.** Assistant turns render a curated subset of GitHub-flavored markdown — see §1.9. Streaming chunks stay raw and the block re-renders on the `assistant/message` finalization event.
+- **Markdown rendering.** Assistant turns render a curated subset of GitHub-flavored markdown — see §1.9. v0.2 shipped the "render on finalize" path; v0.4 draws it live from the first delta.
 
 Shipped here but not planned here: the bilingual catalog and `/language` (§3.10), and the `!` shell escape (Part 4).
 
@@ -500,7 +506,7 @@ Still open: nothing — v0.3 is complete.
 
 - **Syntax highlighting** in assistant code blocks (Shiki, no `node-pty`).
 - **Auto theme.** Detect light/dark terminal background and switch palette.
-- **Streaming markdown.** Re-parse the assistant text on every `assistant/chunk` event and render partial markdown live, instead of waiting for the `assistant/message` finalization. v0.2 ships the simpler "render on finalize" path; v0.4 is the incremental follow-up.
+- **Streaming markdown.** *Shipped.* The assistant text is re-parsed on every `assistant/chunk` event and drawn as partial markdown, instead of waiting for `assistant/message` — see §1.9 for why the partial-parse churn the original plan feared does not happen.
 - **Truncation.** The 8-line cap shipped in v0.3; what remains is the `▾ show more` affordance, and it is not free — expanding one entry needs a focus/selection model this app does not have. Read §6 of the roadmap before starting it.
 - **Clipboard.** OSC 52 integration for `/copy` and `/paste`.
 
@@ -720,7 +726,7 @@ heeded when it was built.
 |---|---|
 | `state.ts` | 100% (every event type, every branch) |
 | `commands.ts` | 100% (every command, every invalid input shape) |
-| `markdown.ts` | Every block-level construct (heading, paragraph, code, list, blockquote, hr) + at least one inline construct + the failure-mode fallback (unclosed fence, stray delimiter) |
+| `markdown.ts` | Every block-level construct (heading, paragraph, code, list, blockquote, hr) + at least one inline construct + the failure-mode fallback (unclosed fence, stray delimiter) + every prefix of a whole answer, since streaming renders all of them (§1.9) |
 | `hooks/*` | Whatever the hook actually owns. A hook that only wires a pure module to React is covered by that module's spec plus a frame test; a hook that owns state or a timer gets a mounted probe (`tests/running-clock.spec.ts`, `tests/session-events.spec.ts` are the two patterns) |
 | `components/*` | Frame-level, through the fake TTY. See below — there are no snapshots and no `renderHook` in this package |
 | `resize.ts` | A settled drag always ends with a frame on screen — including the drags that produce a byte-identical frame (height-only, and back to the starting width) |
