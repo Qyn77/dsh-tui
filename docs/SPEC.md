@@ -492,7 +492,6 @@ Shipped:
 - **Output previews.** Tool results and `!` shell output are capped at 8 lines with a translated `… +N lines` marker, replacing both the one-line summary and the uncapped shell paint — see §1.2.
 - **`@`-mention file picker.** An `@` that opens a word lists matching files under the working directory; `Tab`/`Enter` inserts the path. Completion only — no file contents are attached. See §1.5.2.
 - **`/plugins`.** Loader introspection — package name, lifecycle phase, broken entries first — plus `enable`/`disable`, which rewrite the loader config and refuse the three cases that would be unrecoverable. See §1.5.3.
-
 - **`/usage`.** Per-turn token counts, grouped by turn rather than by step, with a fold row instead of a truncated table. See §1.5.4.
 
 Still open: nothing — v0.3 is complete.
