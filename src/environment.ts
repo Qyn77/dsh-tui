@@ -72,11 +72,18 @@ export function formatRepoLabel(branch: string | undefined, dirty: boolean): str
   return dirty ? `${branch}*` : branch
 }
 
-/** Memoized result of {@link readRepoLabel}; `null` means "probed, not a repo". */
-let repoLabelCache: string | null | undefined
+/**
+ * Memoized results of {@link readRepoLabel}, keyed by directory; `null` means
+ * "probed, not a repo".
+ *
+ * Keyed rather than a single value because `!cd` moves the process. A
+ * process-wide memo would answer with the branch of a directory the user left,
+ * and the answer looks entirely plausible — which is the worst kind of wrong.
+ */
+const repoLabelCache = new Map<string, string | null>()
 
 /**
- * Probe the working directory for a git branch, once per process.
+ * Probe a directory for a git branch, once per directory per process.
  * Returns `undefined` when the directory is not a repository, git is
  * not installed, or the probe times out — the banner simply omits the
  * label in that case.
@@ -85,10 +92,12 @@ let repoLabelCache: string | null | undefined
  * because the banner re-renders on every keystroke and a subprocess
  * per keystroke would be indefensible.
  */
-export function readRepoLabel(): string | undefined {
-  if (repoLabelCache !== undefined) return repoLabelCache ?? undefined
+export function readRepoLabel(cwd: string = process.cwd()): string | undefined {
+  const cached = repoLabelCache.get(cwd)
+  if (cached !== undefined) return cached ?? undefined
   try {
     const output = execFileSync('git', ['status', '--porcelain=v2', '--branch'], {
+      cwd,
       encoding: 'utf8',
       timeout: GIT_TIMEOUT_MS,
       // git writes "not a git repository" to stderr; we do not want
@@ -96,12 +105,12 @@ export function readRepoLabel(): string | undefined {
       stdio: ['ignore', 'pipe', 'ignore'],
     })
     const label = formatRepoLabel(parseGitBranch(output), parseGitDirty(output))
-    repoLabelCache = label ?? null
+    repoLabelCache.set(cwd, label ?? null)
     return label
   } catch {
     // Not a repo, git missing, or timed out. All three mean the same
     // thing to the banner: there is no branch to show.
-    repoLabelCache = null
+    repoLabelCache.set(cwd, null)
     return undefined
   }
 }

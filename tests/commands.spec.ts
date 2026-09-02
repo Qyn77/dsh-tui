@@ -73,6 +73,16 @@ function makeStandWithoutExit(): Context {
 describe('slash command dispatch', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
+  it('tells the reader about the `!` escape, which is not a command', async () => {
+    // `!` cannot be in the registry, and a user looking for "how do I run a
+    // shell command" looks in `/help` and nowhere else.
+    const { cmd } = makeCommand()
+    const result = await dispatch('/help', cmd)
+    expect(result.kind).toBe('handled')
+    if (result.kind !== 'handled') return
+    expect(result.message).toContain(catalog('en').shell.usage)
+  })
+
   it('returns handled with the help text for /help', async () => {
     const { cmd } = makeCommand()
     const result = await dispatch('/help', cmd)

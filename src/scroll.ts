@@ -13,7 +13,7 @@
 
 import type { UiEntry } from './types.ts'
 import { userMessageText } from './types.ts'
-import { GUTTER_WIDTH, toolCallSummary, toolResultSummary } from './message-layout.ts'
+import { GUTTER_WIDTH, shellStatusRows, toolCallSummary, toolResultSummary } from './message-layout.ts'
 
 /**
  * Escape, built rather than quoted. Every control character in this
@@ -188,6 +188,15 @@ function entryBodyRows(entry: UiEntry, width: number): number {
       // The echoed command line, then its output. `/help` is the tall one
       // and it is exactly as tall as its own newlines say.
       return 1 + (entry.text === '' ? 0 : textRows(entry.text, width))
+    case 'shell':
+      // The echoed `!` line, then the captured output, then at most one status
+      // row. The status row is only drawn when there is something to say, and
+      // `shellStatusRows` is the single source of that truth for both this
+      // measurement and the renderer — they have to agree exactly or paging
+      // stops being invertible.
+      return 1
+        + (entry.output === '' ? 0 : textRows(entry.output, width))
+        + shellStatusRows(entry)
     case 'note':
     case 'compaction':
     case 'plan':

@@ -155,6 +155,34 @@ export interface Catalog {
      */
     hint: (rows: number) => string
   }
+  /**
+   * Chrome around a `!` shell escape. The command's own output is never in
+   * here — those are the program's bytes, and translating them would be
+   * inventing output it did not produce.
+   */
+  shell: {
+    /** Shown for a bare `!` with no command after it. */
+    usage: string
+    /** Shown when a `!` command is still running and another is submitted. */
+    busy: string
+    /** Non-zero exit. Zero is silent: a command that worked says so by working. */
+    exit: (code: number) => string
+    /** The child died from a signal instead of exiting. */
+    signalled: (signal: string) => string
+    /** The timeout, not the command, ended it. */
+    timedOut: (seconds: number) => string
+    /** Output hit the byte cap and the rest was dropped. */
+    truncated: string
+    /** Marks a row whose command and output were queued for the model. */
+    injected: string
+    /**
+     * `cd ~` with no `$HOME`, or `cd -` as the session's first `cd`. A `cd` that
+     * fails for any other reason reports the error Node gives us, the same way
+     * any other command's stderr is reported: unlocalized, because it is not
+     * ours to word.
+     */
+    cdUnresolved: string
+  }
   /** The startup splash. */
   banner: {
     /** The one-line "how to drive it" tip under the wordmark. */
@@ -230,6 +258,16 @@ const EN: Catalog = {
   },
   scroll: {
     hint: rows => `↓ ${rows} more row${rows === 1 ? '' : 's'} below · End jumps to the latest`,
+  },
+  shell: {
+    usage: 'Usage: !<command> to run it · !!<command> to also show the model',
+    busy: 'A command is still running. Ctrl-C stops it.',
+    exit: code => `exit ${code}`,
+    signalled: signal => `killed by ${signal}`,
+    timedOut: seconds => `timed out after ${seconds}s`,
+    truncated: 'output truncated',
+    injected: 'sent to the model',
+    cdUnresolved: 'cd: nowhere to go',
   },
   banner: {
     // Kept short enough to fit the wordmark column at 80 columns, and only
@@ -318,6 +356,16 @@ const ZH: Catalog = {
   },
   scroll: {
     hint: rows => `↓ 下方还有 ${rows} 行 · End 回到最新`,
+  },
+  shell: {
+    usage: '用法：!<命令> 直接执行 · !!<命令> 同时给模型看',
+    busy: '还有命令在跑，Ctrl-C 可以停掉。',
+    exit: code => `退出码 ${code}`,
+    signalled: signal => `被 ${signal} 终止`,
+    timedOut: seconds => `超过 ${seconds} 秒，已终止`,
+    truncated: '输出已截断',
+    injected: '已发给模型',
+    cdUnresolved: 'cd：没有可去的目录',
   },
   banner: {
     tip: '提示：/help · /status · Tab 补全',

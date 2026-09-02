@@ -31,6 +31,26 @@ function makeDeps(overrides?: Partial<InterruptDeps['agent']>): {
 }
 
 describe('handleInterrupt', () => {
+  it('kills a running `!` command instead of exiting or cancelling', () => {
+    const { deps, cancel, closeUi, exit } = makeDeps({ status: 'idle' })
+    const abortShell = vi.fn()
+    handleInterrupt({ ...deps, shellRunning: true, abortShell })
+    expect(abortShell).toHaveBeenCalledOnce()
+    expect(cancel).not.toHaveBeenCalled()
+    expect(closeUi).not.toHaveBeenCalled()
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('does not exit on a stray shell abort hook when nothing is running', () => {
+    // The hook is always wired; only the flag decides the branch. Reading the
+    // hook's presence instead would make Ctrl-C stop exiting entirely.
+    const { deps, exit } = makeDeps({ status: 'idle' })
+    const abortShell = vi.fn()
+    handleInterrupt({ ...deps, shellRunning: false, abortShell })
+    expect(abortShell).not.toHaveBeenCalled()
+    expect(exit).toHaveBeenCalledWith(0)
+  })
+
   it('cancels the in-flight turn when the agent is running and does not exit', () => {
     const { deps, cancel, closeUi, exit } = makeDeps({ status: 'running' })
     handleInterrupt(deps)

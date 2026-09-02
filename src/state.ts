@@ -7,6 +7,7 @@
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import type { ToolStatus, UiEntry, UiState } from './types.ts'
+import { SHELL_SOURCE_PLUGIN } from './shell.ts'
 
 /** Initial state. */
 export function initialState(): UiState {
@@ -211,6 +212,11 @@ function onUserMessage(state: UiState, event: EventOf<'user/message'>): UiState 
   // surface mislabeling it as a "you" message.
   const plugin = msg.source.kind === 'plugin' ? msg.source.plugin : undefined
   const form = msg.source.kind === 'plugin' ? msg.source.form : undefined
+  // Our own injections are already on screen. A `!!` escape draws its shell row
+  // the moment the command finishes; the injection is claimed at the next
+  // pre-step, and projecting it too would show the same command and the same
+  // output twice, minutes apart, as if the runtime had contributed something new.
+  if (plugin === SHELL_SOURCE_PLUGIN) return state
   return {
     ...state,
     entries: append(state, {

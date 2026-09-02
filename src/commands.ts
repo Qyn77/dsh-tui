@@ -146,7 +146,9 @@ function helpText(extra: readonly CommandMeta[], lang: Lang = 'en'): string {
   const rows = [...merged]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map(c => `  ${c.name.padEnd(nameCol)}  ${c.description}`)
-  return [catalog(lang).output.helpHeading, ...rows].join('\n')
+  // The `!` escape is not a slash command and cannot be in the registry, but
+  // `/help` is where a user goes to find out what the prompt accepts.
+  return [catalog(lang).output.helpHeading, ...rows, '', catalog(lang).shell.usage].join('\n')
 }
 
 /** Snapshot one command from the registry. */

@@ -153,6 +153,42 @@ describe('estimateEntryRows', () => {
     expect(estimateEntryRows(userEntry('a\nb\nc'), 80)).toBe(4)
   })
 
+  it('charges a shell entry for its command, output and one status row', () => {
+    const base = {
+      kind: 'shell' as const,
+      command: 'ls',
+      output: 'a\nb',
+      exitCode: 0,
+      timedOut: false,
+      truncated: false,
+      injected: false,
+    }
+    // Separator + `!ls` + two output rows, and nothing more: a command that
+    // exited 0 with intact output has no status to report.
+    expect(estimateEntryRows(base, 80)).toBe(4)
+    // One status row, never more, however many things it has to say.
+    expect(estimateEntryRows({ ...base, exitCode: 1 }, 80)).toBe(5)
+    expect(estimateEntryRows({ ...base, exitCode: 1, truncated: true, injected: true }, 80)).toBe(5)
+  })
+
+  it('keeps a shell status row at one row however narrow the terminal', () => {
+    // The renderer truncates it rather than wrapping precisely so this count
+    // cannot depend on the width or on which catalog is loaded. If wrapping is
+    // ever reintroduced there, paging stops being invertible.
+    const entry = {
+      kind: 'shell' as const,
+      command: 'x',
+      output: '',
+      exitCode: 137,
+      signal: 'SIGKILL',
+      timedOut: true,
+      truncated: true,
+      injected: true,
+    }
+    expect(estimateEntryRows(entry, 80)).toBe(3)
+    expect(estimateEntryRows(entry, 12)).toBe(3)
+  })
+
   it('charges a pending tool call for its invocation line alone', () => {
     const rows = estimateEntryRows(
       {

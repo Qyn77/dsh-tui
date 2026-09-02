@@ -41,11 +41,14 @@ import {
   GUTTER_WIDTH,
   NOTE_GLYPH,
   RESULT_GLYPH,
+  SHELL_GLYPH,
   USER_GLYPH,
+  shellStatusKinds,
   toolCallSummary,
   toolResultSummary,
   toolStatusGlyph,
 } from '../message-layout.ts'
+import { SHELL_TIMEOUT_MS } from '../shell.ts'
 import { Markdown } from './Markdown.tsx'
 
 /** Props for {@link MessageList}. */
@@ -269,30 +272,76 @@ function CommandLine({ entry }: { entry: Extract<UiEntry, { kind: 'command' }> }
   )
 }
 
-function Entry({ entry }: { entry: UiEntry }) {
-  switch (entry.kind) {
-    case 'user':
-      return <UserBlock entry={entry} />
-    case 'assistant':
-      return <AssistantBlock entry={entry} />
-    case 'tool':
-      return <ToolCall entry={entry} />
-    case 'note':
-      return <NoteLine entry={entry} />
-    case 'compaction':
-      return <CompactionLine entry={entry} />
-    case 'plan':
-      return <PlanLine entry={entry} />
-    case 'runtime-context':
-      return <RuntimeContextLine entry={entry} />
-    case 'command':
-      return <CommandLine entry={entry} />
-    default: {
-      // Exhaustiveness: a new UiEntry variant will fail to compile here.
-      const _exhaustive: never = entry
-      return <Text>{String(_exhaustive)}</Text>
+/**
+ * A `!` shell escape: the echoed command, the program's own output, and at most
+ * one status row.
+ *
+ * The status row is `wrap="truncate"`, deliberately. It is the only row here
+ * whose text depends on the language, and `scroll.ts` has to know how tall this
+ * entry is without knowing which catalog is loaded. Truncating pins it at one
+ * row in every language and at every width, which is what keeps the measured
+ * height and the drawn height equal — the agreement paging depends on.
+ */
+function ShellLine({ entry }: { entry: Extract<UiEntry, { kind: 'shell' }> }) {
+  const strings = useStrings()
+  const failed = entry.timedOut || entry.signal !== undefined || (entry.exitCode ?? 1) !== 0
+  const color = failed ? 'red' : 'cyan'
+  const status = shellStatusKinds(entry).map((kind) => {
+    switch (kind) {
+      case 'timedOut':
+        return strings.shell.timedOut(Math.round(SHELL_TIMEOUT_MS / 1000))
+      case 'signalled':
+        return strings.shell.signalled(entry.signal ?? '')
+      case 'exit':
+        return strings.shell.exit(entry.exitCode ?? 0)
+      case 'truncated':
+        return strings.shell.truncated
+      case 'injected':
+        return strings.shell.injected
+      default: {
+        const _exhaustive: never = kind
+        return String(_exhaustive)
+      }
     }
+  })
+  return (
+    <Row glyph={SHELL_GLYPH} color={color}>
+      <Text color={color}>{entry.command}</Text>
+      {entry.output !== '' && <Text>{entry.output}</Text>}
+      {status.length > 0 && (
+        <Text color={failed ? 'red' : 'gray'} dimColor={!failed} wrap="truncate">
+          {status.join(' · ')}
+        </Text>
+      )}
+    </Row>
+  )
+}
+
+function Entry({ entry }: { entry: UiEntry }) {  switch (entry.kind) {
+  case 'user':
+    return <UserBlock entry={entry} />
+  case 'assistant':
+    return <AssistantBlock entry={entry} />
+  case 'tool':
+    return <ToolCall entry={entry} />
+  case 'note':
+    return <NoteLine entry={entry} />
+  case 'compaction':
+    return <CompactionLine entry={entry} />
+  case 'plan':
+    return <PlanLine entry={entry} />
+  case 'runtime-context':
+    return <RuntimeContextLine entry={entry} />
+  case 'command':
+    return <CommandLine entry={entry} />
+  case 'shell':
+    return <ShellLine entry={entry} />
+  default: {
+    // Exhaustiveness: a new UiEntry variant will fail to compile here.
+    const _exhaustive: never = entry
+    return <Text>{String(_exhaustive)}</Text>
   }
+}
 }
 
 export const MessageList: FC<MessageListProps> = ({ state, offset, pinTop, onGeometry }) => {

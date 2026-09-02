@@ -123,6 +123,12 @@ export interface Painted {
   screen: () => string
   /** Feed a chunk of stdin and let React settle. */
   send: (data: string) => Promise<void>
+  /**
+   * Let React settle again without sending anything. `!` commands finish on
+   * their own schedule — a real subprocess outlives the default settle — so a
+   * frame assertion about one has to be able to wait for it.
+   */
+  settle: (ms?: number) => Promise<void>
   unmount: () => void
 }
 
@@ -146,13 +152,18 @@ export interface PaintOptions {
    * asserts English frames without knowing this option exists.
    */
   lang?: Lang
+  /**
+   * Stand-in for `agent.inject`. Defaults to a no-op; pass a spy to assert what
+   * a `!!` escape queued for the model.
+   */
+  inject?: (message: unknown) => void
 }
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 
 /** Mount the real `App` against a fake TTY of the given size. */
 export async function paintApp(
-  { turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en' }: PaintOptions = {},
+  { turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
   stdout.isTTY = tty
@@ -164,7 +175,7 @@ export async function paintApp(
     id: session.id,
     session,
     status: 'idle',
-    cancel: () => {}, followup: () => {}, steer: () => {}, inject: () => {},
+    cancel: () => {}, followup: () => {}, steer: () => {}, inject: inject ?? (() => {}),
     whenIdle: () => Promise.resolve(),
     on: () => () => {},
   }
@@ -184,10 +195,11 @@ export async function paintApp(
       debug: true,
     },
   )
-  const settle = (): Promise<void> => new Promise((resolve) => { setTimeout(resolve, 30) })
+  const settle = (ms = 30): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms) })
   await settle()
   return {
     screen: () => strip(stdout.frames.at(-1) ?? ''),
+    settle,
     async send(data: string) {
       stdin.send(data)
       await settle()

@@ -21,6 +21,8 @@ import { useMessageListScroll } from './hooks/useMessageListScroll.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { useRegistryCommands } from './hooks/useRegistryCommands.ts'
 import { useApprovalRequests } from './hooks/useApprovalRequests.ts'
+import { useShell } from './hooks/useShell.ts'
+import { parseShellInput } from './shell.ts'
 import { service } from './services.ts'
 import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
@@ -119,6 +121,9 @@ export const App: FC<AppProps> = ({
   // `/language` changes it mid-session and every framed string has to follow.
   const [lang, setLang] = useState<Lang>(initialLang)
   const strings = catalog(lang)
+  // `!` escapes. Declared here because both the interrupt handler and the
+  // submit handler need it, and it is the owner of the working directory.
+  const shell = useShell({ agent, appendEntry, strings })
   /**
    * Switch the interface language: repaint now, persist for the next launch.
    *
@@ -189,7 +194,13 @@ export const App: FC<AppProps> = ({
   // running) so the user can cancel a long turn.
   useInput((input, key) => {
     if (key.ctrl && input === 'c') {
-      handleInterrupt({ agent, closeUi, exit })
+      handleInterrupt({
+        agent,
+        closeUi,
+        exit,
+        shellRunning: shell.running,
+        abortShell: shell.abort,
+      })
     }
   })
 
@@ -217,6 +228,19 @@ export const App: FC<AppProps> = ({
     (text: string) => {
       const trimmed = text.trim()
       if (trimmed === '') return
+      const escape = parseShellInput(trimmed)
+      if (escape !== undefined) {
+        // Both refusals are one-line notes rather than shell rows: nothing ran,
+        // so there is no command and no output to show.
+        if (escape.command === '') {
+          appendEntry({ kind: 'note', text: strings.shell.usage, tone: 'warn' })
+        } else if (shell.running) {
+          appendEntry({ kind: 'note', text: strings.shell.busy, tone: 'warn' })
+        } else {
+          shell.run(escape)
+        }
+        return
+      }
       if (trimmed.startsWith('/')) {
         // `dispatch` is async (model listing and context resolution both need
         // provider I/O). Ink ignores a handler's return value, so the promise
@@ -273,7 +297,7 @@ export const App: FC<AppProps> = ({
         }),
       )
     },
-    [ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang, strings, state],
+    [ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang, strings, state, shell],
   )
 
   if (selection === undefined) {
@@ -401,7 +425,7 @@ export const App: FC<AppProps> = ({
       */}
         <ApprovalPrompt pending={approvals.pending} onAnswer={approvals.answer} />
         <Prompt
-          active={state.status === 'idle'}
+          active={state.status === 'idle' && !shell.running}
           onSubmit={onSubmit}
           spinnerFrame={spinnerFrame}
           onArrowClaimChange={setPromptClaimsArrows}

@@ -669,6 +669,7 @@ Code and docs ship in lockstep. A change to `src/` without a matching doc update
 |---|---|
 | New `SessionEvent` type | `state.ts` case in `tests/state.spec.ts` + reducer contract section if it introduces a new rule |
 | New slash command | `commands.ts` + `tests/commands.spec.ts` + slash-command table in `README.md` and `README.zh.md` |
+| New `UiEntry` kind | `scroll.ts` `estimateEntryRows` + `MessageList.tsx` case + a row-count case in `tests/scroll.spec.ts` + Part 1 if it has a glyph or color |
 | New on-screen string | `Catalog` in `src/i18n.ts` + **both** the `EN` and `ZH` entries (English alone does not compile; a missing translation fails `tests/i18n.spec.ts`) |
 | New platform behavior (env, build step, native dep) | `README.md` "Use it" / "Develop it" + Windows callout if relevant |
 | New color, glyph, border, layout rule | `docs/SPEC.md` Part 1 — Style |
@@ -692,3 +693,105 @@ This file is the source of truth for the project's design contract.
 3. Land them in the same commit (small changes) or split into two commits (large changes, so one can be reverted without the other).
 
 **To add a roadmap item:** add it to the earliest milestone it could plausibly fit in. Don't pre-commit to a release date — milestones slide; intent is what matters. Aspirational items live in their own section, not the dated milestones.
+
+---
+
+## Part 4 · The `!` shell escape
+
+### 4.1 Syntax
+
+A prompt line whose first non-space character is `!` is a shell escape, not a
+message. `!!` is tested before `!`, because the shorter sigil is a prefix of the
+longer one — checked the other way round, `!!ls` would run the command `!ls`.
+
+| Input | Runs | Model sees |
+|---|---|---|
+| `!<command>` | yes | no |
+| `!!<command>` | yes | command + output |
+| `!cd <path>` | no subprocess — the TUI moves itself | always, either sigil |
+| `!` alone | no | no — the row is the usage note |
+
+The escape is refused, with a one-line note and no subprocess, when the command
+is empty or another `!` command is still in flight. A note rather than a shell
+row: nothing ran, so there is no command and no output to show.
+
+### 4.2 The working directory
+
+The **process** working directory is authoritative. `!cd` calls `process.chdir`,
+so later `!` commands and the model's own file tools resolve relative paths
+against the same directory. `process.chdir` is called in exactly one place,
+[`hooks/useShell.ts`](./../src/hooks/useShell.ts) — the same single-door
+discipline `process.exit` gets.
+
+This is safe because the prompt is only `active` while
+`state.status === 'idle'`, so a `cd` cannot land between a running turn's tool
+calls and the relative paths they have already resolved.
+
+Two things record where the session *started* and correctly do not follow a
+`cd`: the banner (it is inside `<Static>` — written to the terminal once) and the
+session header's frozen `meta.cwd`. `readRepoLabel`'s memo, by contrast, **is**
+keyed by directory: a process-wide memo would answer with the branch of a
+directory the user has left, and that answer looks entirely plausible.
+
+A successful `cd` is injected into the session whether it was written `!` or
+`!!`. This is the one case where the view-only default would do damage rather
+than withhold a convenience — every relative path the model uses afterwards
+means something else, and it has no other way to find out.
+
+Only a line that is *entirely* a `cd` invocation is intercepted: `cd`, `cd ~`,
+`cd -`, `cd <path>`, and one quoted operand. `cd src && ls` goes to the shell
+whole, where its directory change dies with the child exactly as in a shell
+script. The alternative is this parser holding an opinion about `&&`, `;`, `|`
+and subshells in order to guess which half to keep.
+
+### 4.3 The child process
+
+- `stdio` is `['ignore', 'pipe', 'pipe']`. Never `inherit`: Ink owns the screen
+  and raw-mode stdin, and a child sharing them would read the user's keystrokes
+  out from under the prompt. Never a live stdin: a command waiting for input
+  would wait forever against a terminal that will never give it any. `'ignore'`
+  turns that hang into an immediate end-of-file.
+- stdout and stderr are concatenated **in arrival order** into one stream, which
+  is what a real terminal shows. Separating them would move a build's errors away
+  from the lines that explain them.
+- Shell: `$SHELL` or `/bin/sh` with `-c`; on Windows `%ComSpec%` or `cmd.exe`
+  with `/d /s /c`.
+- Timeout `SHELL_TIMEOUT_MS` (120s): `SIGTERM`, then `SIGKILL` after a grace
+  period. Ctrl-C aborts the same way, and outranks both the turn-cancel and the
+  exit branches of the interrupt dispatch — a `!` command can only be submitted
+  while the agent is idle, so the two are never both running.
+- Output cap `SHELL_MAX_BYTES` (128 KiB), measured in UTF-8 bytes because that
+  is what the pipe delivers, and cut back to a whole code point so the result is
+  never a lone surrogate half. The **head** is kept: a command that produces too
+  much is almost always one whose interesting part is at the top. Hitting the cap
+  does **not** kill the child — that would report an exit status the command
+  never produced.
+
+### 4.4 Approval, deliberately absent
+
+`!` commands do not go through `ApprovalService`. That seam exists to gate what
+the *model* does; a human who typed `!rm` already has a terminal, and asking them
+to approve their own keystroke is ceremony, not safety.
+
+### 4.5 The row
+
+One `shell` `UiEntry`: the echoed command, the program's own output, and at most
+one status row. Outcome lives in fields (`exitCode`, `signal`, `timedOut`,
+`truncated`, `injected`) rather than baked into `output`, so the suffixes stay
+translatable and the state layer stays free of presentation. `output` is the
+program's bytes and is **never** translated.
+
+A command that exited `0` with intact output gets no status row at all — it
+reports success by having worked.
+
+The status row is drawn `wrap="truncate"`, so it is exactly one row in every
+language and at every width. That is what lets `scroll.ts` know a shell entry's
+height without knowing which catalog is loaded; see §3.10 and AGENTS.md rule 12.
+
+### 4.6 Out of scope
+
+Interactive and full-screen commands (`vim`, `top`, `less`). Supporting them
+means unmounting Ink, handing the terminal over with `stdio: 'inherit'`, and
+remounting — including re-emitting a `<Static>` banner that by construction
+writes once. Also out: shell history, path completion after `!`, and piping a
+command's output into the next prompt.

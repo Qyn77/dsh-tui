@@ -78,6 +78,30 @@ export type UiEntry =
    * print nothing a user could read.
    */
   | { kind: 'command'; input: string; text: string; failed: boolean }
+  /**
+   * A `!` shell escape and what it printed. Like `command`, this is appended
+   * locally rather than projected from an event — a `!` command runs outside the
+   * session entirely.
+   *
+   * The outcome is kept in fields rather than baked into `output` so the
+   * "exit 1" / "timed out" / "truncated" suffixes stay translatable and stay out
+   * of the state layer. `output` is the program's own bytes and is never
+   * localized.
+   */
+  | {
+    kind: 'shell'
+    /** The line as typed, without the sigil. */
+    command: string
+    /** Interleaved stdout and stderr, already clamped. */
+    output: string
+    /** `null` when the child died from a signal, or could not start at all. */
+    exitCode: number | null
+    signal?: string
+    timedOut: boolean
+    truncated: boolean
+    /** `true` when the command and its output were queued for the model (`!!`). */
+    injected: boolean
+  }
 
 /**
  * State shape held by the TUI.

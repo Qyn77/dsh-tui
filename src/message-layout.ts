@@ -13,7 +13,7 @@
  */
 
 import type { ContentBlock, ToolResultMessage } from '@deepseek-ai/dsh-llm'
-import type { ToolStatus } from './types.ts'
+import type { ToolStatus, UiEntry } from './types.ts'
 
 /**
  * Glyph column width, in cells — the glyph plus one space.
@@ -178,4 +178,44 @@ export function toolStatusGlyph(status: ToolStatus): string {
     case 'cancelled':
       return '⊘'
   }
+}
+
+/** The `!` sigil drawn in front of a shell escape's echoed command. */
+export const SHELL_GLYPH = '!'
+
+/**
+ * A shell entry's outcome, as the pieces a status row is built from. Returns an
+ * empty array when there is nothing to say — a command that exited `0` with all
+ * of its output intact reports success by having worked.
+ *
+ * The pieces are returned rather than joined so the renderer can localize each
+ * one; what matters here is that **the count of status rows does not depend on
+ * the language**. That is why {@link shellStatusRows} can be honest about a
+ * shell entry's height without `scroll.ts` ever knowing which catalog is in
+ * force — the trap that `(+N more)` fell into (see `docs/SPEC.md` §3.10).
+ */
+export function shellStatusKinds(entry: Extract<UiEntry, { kind: 'shell' }>): ShellStatusKind[] {
+  const kinds: ShellStatusKind[] = []
+  if (entry.timedOut) kinds.push('timedOut')
+  if (entry.signal !== undefined) kinds.push('signalled')
+  else if (entry.exitCode !== null && entry.exitCode !== 0) kinds.push('exit')
+  if (entry.truncated) kinds.push('truncated')
+  if (entry.injected) kinds.push('injected')
+  return kinds
+}
+
+/** Discriminators for the parts of a shell entry's status row. */
+export type ShellStatusKind = 'timedOut' | 'signalled' | 'exit' | 'truncated' | 'injected'
+
+/**
+ * Rows a shell entry's status occupies: one, or none.
+ *
+ * Never more than one, because the renderer draws that row truncated rather
+ * than wrapped. The row can contain a path (`cwd: …`), and a path is exactly
+ * the kind of string that wraps at a narrow width — so wrapping it would make
+ * this count depend on the terminal width *and* on the language, and a row
+ * count that disagrees with what is drawn is what breaks paging.
+ */
+export function shellStatusRows(entry: Extract<UiEntry, { kind: 'shell' }>): 0 | 1 {
+  return shellStatusKinds(entry).length > 0 ? 1 : 0
 }

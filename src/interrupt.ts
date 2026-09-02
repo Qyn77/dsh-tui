@@ -10,6 +10,10 @@
  * [docs/SPEC.md](../docs/SPEC.md) Part 1.6 and the README's slash-
  * command table:
  *
+ *   - A `!` shell command is running → kill it. This outranks the turn
+ *     branch: a shell command can only be submitted while the agent is idle,
+ *     so the two are never both running, and a child process the user cannot
+ *     reach any other way must be reachable by the key that stops things.
  *   - A turn is running → cancel it (model-level cancel, agent continues).
  *   - The REPL is idle → leave through the same `appExit` hook that
  *     `/exit` uses.
@@ -23,6 +27,10 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 
 /** Inputs to {@link handleInterrupt}. Everything is injectable for tests. */
 export interface InterruptDeps {
+  /** `true` while a `!` shell command is in flight. */
+  shellRunning?: boolean
+  /** Kill the shell command in flight. */
+  abortShell?: () => void
   /** Live agent — used to detect running status and cancel the turn. */
   agent: Agent
   /** Unmount Ink and restore the terminal before the host starts disposal. */
@@ -38,6 +46,10 @@ export interface InterruptDeps {
  * (the process is already on its way out).
  */
 export function handleInterrupt(deps: InterruptDeps): void {
+  if (deps.shellRunning === true) {
+    deps.abortShell?.()
+    return
+  }
   if (deps.agent.status === 'running') {
     deps.agent.cancel({ kind: 'user' })
     return

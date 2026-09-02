@@ -142,6 +142,25 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 
 要求：Node ≥ 22.19、pnpm ≥ 9、真正的终端（Ink 需要 TTY）、一个 DeepSeek API key。
 
+### 执行系统命令
+
+行首加 `!`，这一行就作为系统命令执行，输出显示在对话里：
+
+```
+!git status
+!npm test
+```
+
+`!!` 做同样的事，并且把命令和输出一起给模型看，这样接下来提问就能直接引用刚看到的内容。只用 `!` 的话，这些只留在你和终端之间。
+
+`!cd` 会真的切换工作目录，而且切了就一直生效——后面的 `!` 命令和模型自己的文件工具，解析相对路径时用的都是它。`cd`、`cd ~`、`cd -`、`cd <路径>` 都支持。目录变化总会告诉模型，即使你写的是 `!` 而不是 `!!`，因为它悄悄改变了之后每一个相对路径的含义。
+
+`!cd src && ls` 这种复合行会整行交给 shell，所以它的目录切换随那条命令一起结束——和在任何 shell 脚本里一样。要真的切换，就单独写一行 `!cd src`。
+
+命令跑太久可以用 Ctrl-C 停掉，超过两分钟会自动终止。输出上限 128 KiB，超出的部分会在行尾标明。
+
+需要占满整个终端的命令——`vim`、`top`、`less`——不支持。REPL 运行期间屏幕和键盘都归它，交互式命令碰不到任何一个。它们拿到的是「立即 EOF」而不是卡住。这类命令请在你自己的终端里跑。
+
 ### 界面语言
 
 界面有中英两种。`/language zh` 切到中文，`/language en` 切回英文，只打 `/language`
@@ -260,6 +279,8 @@ src/
 ├── types.ts                 UiEntry、UiState、isRenderable、declaration-merged 事件表
 ├── commands.ts              /help /clear /status /language /exit /quit 派发
 ├── i18n.ts                  纯双语文案表（英文 + 中文）
+├── shell.ts                 纯逻辑：`!` 解析、`cd` 规则、输出截断
+├── shell-runner.ts          唯一的 spawn 处：执行一条 `!` 命令
 ├── settings.ts              读写 ~/.dsh/tui.json（语言选择）
 ├── invariant.ts             空的 package-invariant companion
 ├── scroll.ts                纯滚动算术 + 按键/鼠标解析
@@ -271,6 +292,7 @@ src/
 │   ├── useSessionEvents.ts  回放 log + 订阅 session/event
 │   ├── useMessageListScroll.ts  滚动偏移、按键绑定、实测几何
 │   ├── useResizeRepaint.ts  非 TTY resize 回归测试辅助
+│   ├── useShell.ts          执行 `!`；全包唯一调用 process.chdir 的地方
 │   └── useStrings.tsx       当前语言，用 React context 传递
 └── components/
     ├── StatusBar.tsx        顶部：模型 · session · 状态 · token

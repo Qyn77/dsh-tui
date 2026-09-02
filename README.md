@@ -149,6 +149,38 @@ conversation off the screen. While the box is taller than one row, `↑`/`↓`
 move the caret through it; `PageUp`/`PageDown` and `Ctrl-B`/`Ctrl-F` always
 scroll the conversation.
 
+### Run a shell command
+
+`!` in front of a line runs it as a system command and shows the output in the
+conversation:
+
+```
+!git status
+!npm test
+```
+
+`!!` does the same and also shows the command and its output to the model, so the
+next thing you ask can refer to what you just saw. Plain `!` keeps it between you
+and the terminal.
+
+`!cd` moves the working directory, and it stays moved — later `!` commands and
+the model's own file tools both resolve relative paths against it. `cd`, `cd ~`,
+`cd -` and `cd <path>` all work. A change of directory is always shown to the
+model even when written as `!` rather than `!!`, because it silently redefines
+what every relative path afterwards means.
+
+A compound line like `!cd src && ls` is passed to the shell whole, so its
+directory change dies with that command — the same as in any shell script. Use
+`!cd src` on its own line to move.
+
+Ctrl-C stops a command that is taking too long, and one gives up on its own after
+two minutes. Output is capped at 128 KiB; past that the row says so.
+
+Commands that want the whole terminal — `vim`, `top`, `less` — are not supported.
+The REPL owns the screen and the keyboard while it is running, so an interactive
+command has no way to reach either. It gets no input (an immediate end-of-file)
+rather than hanging. Run those in your own terminal.
+
 ### Language
 
 The interface speaks English or Chinese. `/language zh` switches it, `/language
@@ -273,6 +305,8 @@ src/
 ├── types.ts                 UiEntry, UiState, isRenderable, declaration-merged event map
 ├── commands.ts              /help /clear /status /language /exit /quit dispatch
 ├── i18n.ts                  Pure bilingual string catalog (English + Chinese)
+├── shell.ts                 Pure `!` escape parsing, `cd` rules, output clamping
+├── shell-runner.ts          The only spawner: runs one `!` command
 ├── settings.ts              Read/write ~/.dsh/tui.json (the language choice)
 ├── invariant.ts             Empty package-invariant companion
 ├── scroll.ts                Pure scroll math + key/mouse parsing
@@ -284,6 +318,7 @@ src/
 │   ├── useSessionEvents.ts  Replay log + subscribe to session/event
 │   ├── useMessageListScroll.ts  Scroll offset, key bindings, measured geometry
 │   ├── useResizeRepaint.ts  Non-TTY resize regression harness
+│   ├── useShell.ts          Runs `!` escapes; the only caller of process.chdir
 │   └── useStrings.tsx       The current language, as React context
 └── components/
     ├── StatusBar.tsx        Top: model · session · status · tokens
