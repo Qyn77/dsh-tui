@@ -13,6 +13,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { CallId, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { PREVIEW_MAX_LINES } from '../src/message-layout.ts'
 import {
   clampOffset,
   estimateEntryRows,
@@ -228,6 +229,67 @@ describe('estimateEntryRows', () => {
       80,
     )
     expect(ok).toBe(3)
+  })
+
+  it('charges a multi-line result for its preview plus the withheld marker', () => {
+    const long = Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n')
+    const rows = estimateEntryRows(
+      {
+        kind: 'tool',
+        callId: CallId('call-1'),
+        name: 'bash',
+        args: '{"command":"ls"}',
+        turn: 1,
+        step: 1,
+        status: 'ok',
+        result: createToolResultMessage({
+          callId: CallId('call-1'),
+          content: [{ type: 'text', text: long }],
+          isError: false,
+        }),
+      },
+      80,
+    )
+    // Separator, invocation, eight preview rows, one `… +12 lines`.
+    expect(rows).toBe(2 + PREVIEW_MAX_LINES + 1)
+  })
+
+  it('keeps a long result the same height at any width, because every preview row truncates', () => {
+    // The whole reason the preview is a line slice rather than wrapped text:
+    // the count must not move when the terminal narrows, or paging stops
+    // being invertible. The marker is language-dependent, the height is not.
+    const entry = {
+      kind: 'tool' as const,
+      callId: CallId('call-1'),
+      name: 'bash',
+      args: '{"command":"ls"}',
+      turn: 1,
+      step: 1,
+      status: 'ok' as const,
+      result: createToolResultMessage({
+        callId: CallId('call-1'),
+        content: [{ type: 'text', text: 'a'.repeat(400) }],
+        isError: false,
+      }),
+    }
+    expect(estimateEntryRows(entry, 80)).toBe(3)
+    expect(estimateEntryRows(entry, 12)).toBe(3)
+  })
+
+  it('caps a long shell output instead of charging every line of it', () => {
+    const entry = {
+      kind: 'shell' as const,
+      command: 'seq 40',
+      output: Array.from({ length: 40 }, (_, i) => String(i)).join('\n'),
+      exitCode: 0,
+      timedOut: false,
+      truncated: false,
+      injected: false,
+    }
+    // Separator, the command line, the capped preview, the marker. No status
+    // row: a clean exit that was neither truncated nor injected says nothing.
+    expect(estimateEntryRows(entry, 80)).toBe(2 + PREVIEW_MAX_LINES + 1)
+    expect(estimateEntryRows(entry, 12)).toBe(2 + PREVIEW_MAX_LINES + 1)
   })
 })
 

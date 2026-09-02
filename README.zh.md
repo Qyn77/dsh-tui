@@ -342,7 +342,7 @@ npm publish --access public
 - **没有 `@` 文件提及。** 斜杠命令可以用 `Tab` 补全，文件路径不行。
 - **`/context` 的用量百分比是累计值。** 它拿每一轮的计费输入之和去除以窗口大小，所以长会话里会冲过 100%，哪怕上下文其实只占了一半。旁边的 token 总数本身是对的。见 [docs/SPEC.md](docs/SPEC.md) §3.3.2。
 - **续接 session 只能在启动时决定。** `DSH_TUI_RESUME=last`（或者一个 id）可以接上已存的 session，但没有会话内的 `/resume`。
-- **长工具输出只摘要成一行。** 还没有展开查看的入口。
+- **长工具输出只给预览，展不开。** 会显示前 8 行，末尾加一条 `… 还有 N 行` 的标记；没有展开入口——要做展开就得引入这个应用刻意不要的选中模型。
 - **`ctx.appExit` 由 launcher 提供。** 在 `dsh` CLI 外面跑会大声报错，直到 host 提供 exit hook。
 
 ## License

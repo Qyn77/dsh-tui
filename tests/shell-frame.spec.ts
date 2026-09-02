@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os'
 import { realpathSync } from 'node:fs'
 import { paintApp } from './fake-tty.ts'
 import { catalog } from '../src/i18n.ts'
+import { PREVIEW_MAX_LINES } from '../src/message-layout.ts'
 
 const origin = process.cwd()
 afterEach(() => { process.chdir(origin) })
@@ -105,6 +106,27 @@ describe('! shell escape', () => {
     painted.unmount()
 
     expect(screen).toContain(catalog('en').shell.usage)
+  })
+
+  it('previews a long output and says how many lines it withheld', async () => {
+    // A command that prints more than the screen can hold used to be painted
+    // in full, which pushed the prompt — and everything above it — off the
+    // top. The cap is what keeps a `!cat` of a large file survivable.
+    const painted = await paintApp()
+    await run(
+      painted,
+      '!node -e "for(let i=1;i<=30;i+=1)process.stdout.write(\'row-\'+i+String.fromCharCode(10))"',
+      'row-1',
+    )
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('row-1')
+    expect(screen).toContain(`row-${PREVIEW_MAX_LINES}`)
+    // The line just past the cap is withheld, and the frame says so in words
+    // rather than simply dropping it.
+    expect(screen).not.toContain(`row-${PREVIEW_MAX_LINES + 1}`)
+    expect(screen).toContain(catalog('en').entries.hiddenLines(30 - PREVIEW_MAX_LINES))
   })
 
   it('translates the status row but never the command output', async () => {

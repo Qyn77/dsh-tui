@@ -35,8 +35,69 @@ export const NOTE_GLYPH = '⤷'
 
 /** Longest tool argument summary shown inline, in characters. */
 const ARGS_MAX = 60
-/** Longest single-line result summary shown under a call. */
-const RESULT_MAX = 200
+
+/**
+ * Lines of a long output drawn before the rest is counted away.
+ *
+ * Eight is chosen against the transcript, not against the output: a tool result
+ * is one entry among many, and a preview tall enough to answer "did it work,
+ * and roughly how" is worth more than one tall enough to answer "what exactly
+ * did it say". The full text is never the terminal's job — it went to the
+ * model, which is what asked for it.
+ */
+export const PREVIEW_MAX_LINES = 8
+
+/**
+ * A long output reduced to the rows a transcript can spare.
+ *
+ * Deliberately **not** a string. The count of withheld lines has to be spoken
+ * in the user's language, and `scroll.ts` measures this entry without knowing
+ * which catalog is loaded — so the number travels as a number and the renderer
+ * says it in words. This is the same split `shellStatusKinds` uses, and for the
+ * same reason: a language-dependent string that the measurement has to predict
+ * is how the old `(+N more)` locked itself into English (§3.10).
+ */
+export interface OutputPreview {
+  /** The lines to draw. Each occupies exactly one row — see {@link previewRows}. */
+  readonly lines: readonly string[]
+  /** How many lines were withheld. `0` when the whole output is shown. */
+  readonly hidden: number
+}
+
+/**
+ * Rows a preview occupies: one per shown line, plus one for the marker.
+ *
+ * Exact rather than approximate, and exact in a way that does not depend on the
+ * terminal's width or the interface language — which is only true because the
+ * renderer draws every one of these rows `wrap="truncate"`. Change that and
+ * this function starts lying, which breaks paging rather than the preview.
+ */
+export function previewRows(preview: OutputPreview): number {
+  return preview.lines.length + (preview.hidden > 0 ? 1 : 0)
+}
+
+/**
+ * Cut a block of text down to a previewable number of lines.
+ *
+ * Blank lines are dropped before the cut, not after: a result padded with empty
+ * rows would otherwise spend its whole budget on nothing and report the content
+ * as hidden. Interior indentation is kept — it is most of what makes code and
+ * diff output readable — and only trailing whitespace is trimmed, since a line
+ * is drawn truncated and trailing blanks would push the visible text out of the
+ * frame for no reason.
+ * @param text - the raw output.
+ * @param maxLines - rows the preview may occupy before withholding the rest.
+ * @returns the lines to draw and the count withheld.
+ */
+export function outputPreview(text: string, maxLines: number = PREVIEW_MAX_LINES): OutputPreview {
+  const limit = Math.max(1, maxLines)
+  const lines = text
+    .split('\n')
+    .map(line => line.replace(/\s+$/, ''))
+    .filter(line => line !== '')
+  if (lines.length <= limit) return { lines, hidden: 0 }
+  return { lines: lines.slice(0, limit), hidden: lines.length - limit }
+}
 
 /**
  * Argument keys worth showing as a tool call's subject, best first.
@@ -130,22 +191,26 @@ function toolCallSubject(args: string): string {
 }
 
 /**
- * Reduce a tool result to one line.
+ * Reduce a tool result to the rows a transcript can spare.
  *
  * A `ToolResultMessage` carries exactly one `tool-result` block, and the text
  * the user wants is inside *that* block's content — not in the message's own
  * content array. Reading only the outer level finds nothing, ever, which is
  * how tool results came to render as an empty row.
+ *
+ * This used to return a single line, which meant a `Read` of a 200-line file
+ * showed its first line and withheld the other 199 with no way to see them. It
+ * still withholds them — the terminal is not where a file gets read — but it
+ * now shows enough to recognize what came back.
  * @param message - the result message the tool returned.
- * @returns a single-line summary, or `''` when there is no text to show.
+ * @param maxLines - rows the preview may occupy.
+ * @returns the lines to draw and the count withheld; both empty when the result carries no text.
  */
-export function toolResultSummary(message: ToolResultMessage): string {
-  const lines = resultText(message.content).split('\n').filter(line => line.trim() !== '')
-  if (lines.length === 0) return ''
-  const first = truncate(oneLine(lines[0]), RESULT_MAX)
-  // A multi-line result shows its first line plus how much was withheld, so a
-  // long payload is visibly abridged rather than looking like the whole thing.
-  return lines.length > 1 ? `${first} (+${lines.length - 1} more)` : first
+export function toolResultPreview(
+  message: ToolResultMessage,
+  maxLines: number = PREVIEW_MAX_LINES,
+): OutputPreview {
+  return outputPreview(resultText(message.content), maxLines)
 }
 
 /**

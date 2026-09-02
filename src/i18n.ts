@@ -120,6 +120,14 @@ export interface Catalog {
     planMode: (enabled: boolean) => string
     /** Header of an injected runtime-context row, before producer and form. */
     runtimeContext: string
+    /**
+     * Marker under a preview, naming how many lines it withheld.
+     *
+     * Always drawn `wrap="truncate"`, so this string may be any length in any
+     * language without changing the entry's height — which is what lets it be
+     * translated at all. See `docs/SPEC.md` §3.10.
+     */
+    hiddenLines: (count: number) => string
     /** Shown for every compaction stage before the last. */
     compacting: string
     /** Shown when compaction finishes. */
@@ -243,6 +251,7 @@ const EN: Catalog = {
     streaming: ' · streaming',
     planMode: enabled => `plan mode ${enabled ? 'on' : 'off'}`,
     runtimeContext: 'runtime context',
+    hiddenLines: count => `… +${count} ${count === 1 ? 'line' : 'lines'}`,
     compacting: 'compacting…',
     compactionDone: 'compaction complete',
   },
@@ -341,6 +350,7 @@ const ZH: Catalog = {
     streaming: ' · 输出中',
     planMode: enabled => `计划模式${enabled ? '已开启' : '已关闭'}`,
     runtimeContext: '运行时上下文',
+    hiddenLines: count => `… 还有 ${count} 行`,
     compacting: '压缩中…',
     compactionDone: '压缩完成',
   },

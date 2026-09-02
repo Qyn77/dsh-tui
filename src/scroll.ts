@@ -13,7 +13,15 @@
 
 import type { UiEntry } from './types.ts'
 import { userMessageText } from './types.ts'
-import { GUTTER_WIDTH, shellStatusRows, toolCallSummary, toolResultSummary } from './message-layout.ts'
+import {
+  GUTTER_WIDTH,
+  outputPreview,
+  previewRows,
+  shellStatusRows,
+  toolCallSummary,
+  toolResultPreview,
+} from './message-layout.ts'
+
 
 /**
  * Escape, built rather than quoted. Every control character in this
@@ -174,12 +182,13 @@ function entryBodyRows(entry: UiEntry, width: number): number {
       // between blocks; the raw text is the floor, which is the safe side.
       return 1 + textRows(entry.text || ' ', width)
     case 'tool': {
-      // The call line, plus one line of outcome when there is one. Both
-      // summaries are collapsed to a single line before they are drawn, so
-      // they only cost more than a row by wrapping.
+      // The call line, then the outcome. The outcome's height is *exact*
+      // rather than estimated: an error is one truncated row, and a result is
+      // a preview whose every row is truncated too, so neither depends on the
+      // width or on the catalog in force. Only the call summary can wrap.
       let rows = textRows(toolCallSummary(entry.name, entry.args), width)
       if (entry.error !== undefined) rows += 1
-      else if (entry.result) rows += textRows(toolResultSummary(entry.result), width)
+      else if (entry.result) rows += previewRows(toolResultPreview(entry.result))
       return rows
     }
     case 'runtime-context':
@@ -189,13 +198,14 @@ function entryBodyRows(entry: UiEntry, width: number): number {
       // and it is exactly as tall as its own newlines say.
       return 1 + (entry.text === '' ? 0 : textRows(entry.text, width))
     case 'shell':
-      // The echoed `!` line, then the captured output, then at most one status
-      // row. The status row is only drawn when there is something to say, and
-      // `shellStatusRows` is the single source of that truth for both this
-      // measurement and the renderer — they have to agree exactly or paging
-      // stops being invertible.
+      // The echoed `!` line, then a preview of the captured output, then at
+      // most one status row. The output is no longer charged by wrapping: it
+      // is drawn as a preview of truncated rows, so its height is the row
+      // count itself. `shellStatusRows` remains the single source of truth for
+      // the status row, for this measurement and for the renderer alike — they
+      // have to agree exactly or paging stops being invertible.
       return 1
-        + (entry.output === '' ? 0 : textRows(entry.output, width))
+        + previewRows(outputPreview(entry.output))
         + shellStatusRows(entry)
     case 'note':
     case 'compaction':

@@ -45,8 +45,10 @@ import {
   USER_GLYPH,
   shellStatusKinds,
   toolCallSummary,
-  toolResultSummary,
+  toolResultPreview,
   toolStatusGlyph,
+  outputPreview,
+  type OutputPreview,
 } from '../message-layout.ts'
 import { SHELL_TIMEOUT_MS } from '../shell.ts'
 import { Markdown } from './Markdown.tsx'
@@ -118,12 +120,49 @@ function Row({
 }
 
 /**
+ * A preview's rows: the lines, then the marker naming what was withheld.
+ *
+ * **Every row here is `wrap="truncate"`, and that is load-bearing.** `scroll.ts`
+ * charges this block `previewRows` — one row per line plus one for the marker —
+ * and that count is only true while no row can wrap into a second. It buys two
+ * things at once: the marker may be translated (its width stops mattering), and
+ * a single 400-character line of tool output costs one row instead of eating
+ * the whole preview budget.
+ */
+function Preview({ preview, color, dim = false }: {
+  preview: OutputPreview
+  color?: string
+  dim?: boolean
+}) {
+  const strings = useStrings()
+  return (
+    <>
+      {preview.lines.map((line, index) => (
+        // The index is the key because the lines are a positional slice of one
+        // immutable payload: nothing reorders, and duplicate lines are common
+        // in tool output, so the text itself would not be unique.
+        <Text key={index} color={color} dimColor={dim} wrap="truncate">{line}</Text>
+      ))}
+      {preview.hidden > 0 && (
+        <Text color="gray" dimColor wrap="truncate">
+          {strings.entries.hiddenLines(preview.hidden)}
+        </Text>
+      )}
+    </>
+  )
+}
+
+/**
  * A tool call: the invocation on one row, its outcome hanging below.
  *
  * The round-bordered card this replaced cost four rows of frame before any
  * content and pushed the conversation's own indentation two columns right. A
  * transcript is mostly tool calls, so their per-entry overhead sets how much
  * real conversation fits on screen.
+ *
+ * The outcome gets its own gutter under the call, so a result that runs to
+ * several lines keeps a hanging indent instead of sliding back under the
+ * marker — the same shape {@link Row} gives the entry as a whole.
  */
 function ToolCall({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
   // `cancelled` is gray rather than red: the call did not fail, it never
@@ -135,7 +174,7 @@ function ToolCall({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
       : entry.status === 'cancelled'
         ? 'gray'
         : 'yellow'
-  const result = entry.result ? toolResultSummary(entry.result) : ''
+  const preview = entry.result ? toolResultPreview(entry.result) : undefined
   return (
     <Row glyph={ASSISTANT_GLYPH} color={color}>
       <Text>
@@ -143,13 +182,18 @@ function ToolCall({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
         <Text color={color}> {toolStatusGlyph(entry.status)}</Text>
       </Text>
       {entry.error !== undefined ? (
-        <Text color="red">
+        <Text color="red" wrap="truncate">
           {RESULT_GLYPH} {entry.error.name}: {entry.error.code}
         </Text>
-      ) : result !== '' ? (
-        <Text dimColor>
-          {RESULT_GLYPH} {result}
-        </Text>
+      ) : preview !== undefined && preview.lines.length > 0 ? (
+        <Box>
+          <Box width={GUTTER_WIDTH} flexShrink={0}>
+            <Text dimColor>{RESULT_GLYPH}</Text>
+          </Box>
+          <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+            <Preview preview={preview} dim />
+          </Box>
+        </Box>
       ) : null}
     </Row>
   )
@@ -276,6 +320,16 @@ function CommandLine({ entry }: { entry: Extract<UiEntry, { kind: 'command' }> }
  * A `!` shell escape: the echoed command, the program's own output, and at most
  * one status row.
  *
+ * The output is previewed rather than printed whole. A shell escape is the one
+ * entry whose payload the user chose the size of, and `!cat` on a large file
+ * used to render every line of it — pushing the conversation off the screen
+ * with content the model never saw. The cap is the view's; `entry.output` still
+ * holds what the runner captured, and `!!` still sends all of it.
+ *
+ * Two truncations can therefore appear on one entry and they mean different
+ * things: the `truncated` status row says the *runner* hit its byte cap, while
+ * the preview's marker says this *view* is not drawing every captured line.
+ *
  * The status row is `wrap="truncate"`, deliberately. It is the only row here
  * whose text depends on the language, and `scroll.ts` has to know how tall this
  * entry is without knowing which catalog is loaded. Truncating pins it at one
@@ -286,6 +340,7 @@ function ShellLine({ entry }: { entry: Extract<UiEntry, { kind: 'shell' }> }) {
   const strings = useStrings()
   const failed = entry.timedOut || entry.signal !== undefined || (entry.exitCode ?? 1) !== 0
   const color = failed ? 'red' : 'cyan'
+  const preview = outputPreview(entry.output)
   const status = shellStatusKinds(entry).map((kind) => {
     switch (kind) {
       case 'timedOut':
@@ -307,7 +362,7 @@ function ShellLine({ entry }: { entry: Extract<UiEntry, { kind: 'shell' }> }) {
   return (
     <Row glyph={SHELL_GLYPH} color={color}>
       <Text color={color}>{entry.command}</Text>
-      {entry.output !== '' && <Text>{entry.output}</Text>}
+      <Preview preview={preview} />
       {status.length > 0 && (
         <Text color={failed ? 'red' : 'gray'} dimColor={!failed} wrap="truncate">
           {status.join(' · ')}

@@ -14,8 +14,11 @@ import { CallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import {
   GUTTER_WIDTH,
+  PREVIEW_MAX_LINES,
+  outputPreview,
+  previewRows,
   toolCallSummary,
-  toolResultSummary,
+  toolResultPreview,
   toolStatusGlyph,
   truncate,
 } from '../src/message-layout.ts'
@@ -93,29 +96,81 @@ function toolResult(...blocks: ContentBlock[]) {
 
 const text = (value: string): ContentBlock => ({ type: 'text', text: value })
 
-describe('toolResultSummary', () => {
+describe('toolResultPreview', () => {
   it('reaches the text inside the tool-result block', () => {
-    expect(toolResultSummary(toolResult(text('226 passed')))).toBe('226 passed')
+    expect(toolResultPreview(toolResult(text('226 passed'))))
+      .toEqual({ lines: ['226 passed'], hidden: 0 })
   })
 
-  it('abridges a multi-line result with the count it withheld', () => {
-    expect(toolResultSummary(toolResult(text('a.ts\nb.ts\nc.ts'))))
-      .toBe('a.ts (+2 more)')
+  it('shows a multi-line result instead of only its first line', () => {
+    // The whole point of the change: three files came back, and the transcript
+    // says so. This used to read `a.ts (+2 more)`.
+    expect(toolResultPreview(toolResult(text('a.ts\nb.ts\nc.ts'))))
+      .toEqual({ lines: ['a.ts', 'b.ts', 'c.ts'], hidden: 0 })
+  })
+
+  it('withholds what does not fit and counts it', () => {
+    const lines = Array.from({ length: PREVIEW_MAX_LINES + 5 }, (_, i) => `line ${i}`)
+    const preview = toolResultPreview(toolResult(text(lines.join('\n'))))
+    expect(preview.lines).toHaveLength(PREVIEW_MAX_LINES)
+    expect(preview.lines[0]).toBe('line 0')
+    expect(preview.hidden).toBe(5)
   })
 
   it('does not count blank lines as withheld content', () => {
     // A trailing newline is nearly universal in command output; charging it as
-    // `(+1 more)` would claim there is something else to see.
-    expect(toolResultSummary(toolResult(text('done\n')))).toBe('done')
+    // a hidden line would claim there is something else to see.
+    expect(toolResultPreview(toolResult(text('done\n'))))
+      .toEqual({ lines: ['done'], hidden: 0 })
   })
 
   it('drops blocks a terminal cannot render', () => {
-    // An image block's bytes live behind an attachment ref the summary never
+    // An image block's bytes live behind an attachment ref the preview never
     // touches, so an empty stand-in is enough to prove it is skipped.
     const image = { type: 'image', attachment: {} } as ContentBlock
-    expect(toolResultSummary(toolResult(image, text('ok')))).toBe('ok')
-    expect(toolResultSummary(toolResult(image))).toBe('')
-    expect(toolResultSummary(toolResult())).toBe('')
+    expect(toolResultPreview(toolResult(image, text('ok'))).lines).toEqual(['ok'])
+    expect(toolResultPreview(toolResult(image)).lines).toEqual([])
+    expect(toolResultPreview(toolResult()).lines).toEqual([])
+  })
+})
+
+describe('outputPreview', () => {
+  it('keeps indentation, because code output is mostly indentation', () => {
+    expect(outputPreview('function f() {\n  return 1\n}').lines)
+      .toEqual(['function f() {', '  return 1', '}'])
+  })
+
+  it('trims trailing whitespace, which a truncated row would spend width on', () => {
+    expect(outputPreview('ok   \tmore  ').lines).toEqual(['ok   \tmore'])
+  })
+
+  it('treats a whitespace-only line as blank', () => {
+    expect(outputPreview('a\n   \nb').lines).toEqual(['a', 'b'])
+  })
+
+  it('never returns zero rows for a non-empty limit', () => {
+    // `Math.max(1, …)` guards the caller who passes 0; a preview of nothing
+    // with a `hidden` count would be a row of pure marker.
+    expect(outputPreview('a\nb\nc', 0)).toEqual({ lines: ['a'], hidden: 2 })
+  })
+
+  it('says nothing at all about an empty output', () => {
+    expect(outputPreview('')).toEqual({ lines: [], hidden: 0 })
+  })
+})
+
+describe('previewRows', () => {
+  it('charges one row per line and one for the marker', () => {
+    expect(previewRows({ lines: ['a', 'b'], hidden: 0 })).toBe(2)
+    expect(previewRows({ lines: ['a', 'b'], hidden: 7 })).toBe(3)
+    expect(previewRows({ lines: [], hidden: 0 })).toBe(0)
+  })
+
+  it('does not depend on the width of the lines', () => {
+    // The renderer draws every preview row `wrap="truncate"`. If that ever
+    // changes, this expectation is the one that should fail first.
+    const wide = { lines: ['x'.repeat(500)], hidden: 0 }
+    expect(previewRows(wide)).toBe(1)
   })
 })
 
