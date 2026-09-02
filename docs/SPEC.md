@@ -242,6 +242,22 @@ The palette disappears as soon as the buffer contains a space (the user is typin
 
 Both the palette and `/help` read from a single `COMMANDS` registry in `src/commands.ts`; adding a new command is a one-line change there plus one case in `dispatch`.
 
+#### 1.5.2 `@` file picker
+
+An `@` that opens a word turns the token under the caret into a mention, and the same floating box lists the files under the working directory that fuzzy-match what follows it. `Tab` or `Enter` inserts the highlighted path in place of the token, with a trailing space; `↑`/`↓` move the selection; `Esc` closes the list and *keeps the buffer*, because the buffer is a sentence being written rather than a command mistyped.
+
+Three decisions are worth stating, because each has a tempting alternative.
+
+**A mention is completion, not attachment.** Inserting `@src/prompt-layout.ts` puts that text in the message and nothing else: no file contents are read, inlined, or attached. What to feed a model is prompt assembly, which belongs to the harness — a text box that silently expanded one token into eight thousand tokens of file would be making that decision on the harness's behalf, invisibly, and would blow a context window with no way for the user to see it coming. The model has file tools; the picker's job is to hand it a path that resolves on the first try.
+
+**The `@` has to open a word.** `qiao@example.com`, `react@18`, `@types/node` in prose — a picker that fired on every `@` would appear, steal `↑`/`↓`, and change what `Enter` means, in the middle of an ordinary sentence. Requiring whitespace (or the start of the buffer) before the `@` costs nothing a real mention wants.
+
+**The directory is walked once per mention session, not per keystroke.** The obvious shape — scan on each new query — makes a repo-sized walk race itself between `@s` and `@sr`, and the answers can arrive out of order. `useFileMentions` walks once, caches by working directory (so `!cd` invalidates it, per §1.9), and filters in memory afterwards, which also means every keystroke after the first is synchronous. The walk is breadth-first and capped at `MAX_SCANNED_FILES`, so what a cap throws away is the deepest files — the least likely to be meant. While the first walk is in flight the box says so rather than staying invisible, which would read as "the key did nothing".
+
+Ranking (`scorePath`) is a case-insensitive subsequence match with two bonuses: a character matched immediately after the previous one, and a character matched inside the basename. The basename is also scanned as a candidate in its own right and the better of the two attempts wins — without that, a leftmost-first scan spends `scr` on three directory initials and ranks `s/c/r.ts` above `src/scroll.ts`.
+
+The `/` palette wins when both could open: it is anchored to the first character of the buffer, which makes it the more deliberate of the two, and only one of them may own `↑`/`↓` at a time. Both draw through the same `SlashPalette` component — a file row simply has no description — because two bordered lists with the same selection idiom would drift apart on the first visual change made to either.
+
 ### 1.6 Keyboard bindings
 
 Ink hands every keystroke to *every* mounted `useInput` handler and offers no
@@ -268,6 +284,9 @@ its way to someone else.
 | `Tab` | Slash palette | Complete the highlighted command |
 | `Esc` | Slash palette | Dismiss palette and clear buffer |
 | `↑` / `↓` | Slash palette | Move palette selection |
+| `Tab` / `Enter` | `@` file picker | Insert the highlighted path |
+| `Esc` | `@` file picker | Dismiss the list, keep the buffer |
+| `↑` / `↓` | `@` file picker | Move picker selection |
 | `↑` / `↓` | Prompt (multi-row buffer) | Move the caret one row |
 | `↑` / `↓` | MessageList (otherwise) | Scroll one row |
 | `PageUp` / `PageDown` | MessageList | Scroll a page |
@@ -427,10 +446,9 @@ Shipped:
 - **`/context`.** Window, cumulative spend, and a live occupancy percentage read off the newest turn — see §3.3.2.
 - **History.** `↑` / `↓` (and `Ctrl-P` / `Ctrl-N`) walk the user's prior inputs in this session.
 - **Output previews.** Tool results and `!` shell output are capped at 8 lines with a translated `… +N lines` marker, replacing both the one-line summary and the uncapped shell paint — see §1.2.
+- **`@`-mention file picker.** An `@` that opens a word lists matching files under the working directory; `Tab`/`Enter` inserts the path. Completion only — no file contents are attached. See §1.5.2.
 
 Still open:
-
-- **`@`-mention file picker.** `@<Tab>` opens a fuzzy file picker.
 - **`/usage`.** Per-turn token counts, broken out turn by turn rather than the two aggregates `/context` shows.
 
 ### v0.4 — Polish
@@ -482,6 +500,7 @@ src/
 ├── message-layout.ts   # Pure message-list layout arithmetic
 ├── prompt-editing.ts   # Pure prompt buffer edits — beside Prompt.tsx
 ├── prompt-layout.ts    # Pure prompt layout arithmetic
+├── file-mentions.ts    # `@` mention parsing + path ranking, and the one walk
 ├── banner-art.ts       # Pure banner art + text — beside Banner.tsx
 ├── hooks/              # React-only — useInput, useEffect, useState
 └── components/         # React components — pure functions of state
@@ -495,6 +514,7 @@ The bottom third of that list is one pattern repeated: **a component whose logic
 - `commands.ts` may import from `types.ts`, `services.ts`, and any type-only package export.
 - `markdown.ts` may import from external parsers (`marked`) and `types.ts`. It must not import React, Ink, or any component.
 - The pure layout/art/editing modules (`width.ts`, `scroll.ts`, `message-layout.ts`, `prompt-editing.ts`, `prompt-layout.ts`, `banner-art.ts`) may import each other, `types.ts`, and `environment.ts`. They must not import React, Ink, or any component — that is the whole point of extracting them.
+- `file-mentions.ts` is pure except for `listFiles`, which reads the filesystem. It lives beside the pure modules because everything a test needs to pin — what counts as a mention, how paths rank, what the buffer looks like afterwards — is pure; the one I/O function is kept in the same file so the reader can see the whole feature rather than chase a second module for one `readdir`.
 - `hooks/` may import from `state.ts` (as a function call), `markdown.ts` (as a function call), the pure modules, `types.ts`, and React.
 - `components/` may import from `hooks/`, `markdown.ts` (for the `Markdown` component and AST types), the pure modules, `types.ts`, and React. They do **not** import `state.ts` directly — they receive derived props from the renderer.
 - `renderer.tsx` is the only file that wires the reducer to the hooks.

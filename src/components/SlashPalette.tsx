@@ -1,8 +1,13 @@
 /**
- * The in-progress `/` command palette. Floats above the Prompt when
- * the buffer is a prefix matching one or more registered commands
- * (see `filterCommands` in `commands.ts`). The currently highlighted
- * row is what Enter / Tab will complete to. Visual rules:
+ * The floating palette above the Prompt: the `/` command list, and — with
+ * `description` omitted and its own `hint` — the `@` file picker. One
+ * component for both, because two bordered lists with the same selection
+ * idiom would drift apart on the first visual change made to either.
+ *
+ * It opens when the buffer is a prefix matching one or more registered
+ * commands (see `filterCommands` in `commands.ts`), or when the caret is in a
+ * mention (`mentionAt` in `file-mentions.ts`). The currently highlighted row
+ * is what Enter / Tab will complete to. Visual rules:
  *   - `round` border, `cyan` to match the active prompt.
  *   - The selected row gets an inverted color block (`cyan` background,
  *     `black` foreground) so it stands out at a glance — this is how
@@ -26,6 +31,8 @@ export interface SlashPaletteProps {
   commands: readonly CommandMeta[]
   /** Index into `commands` of the highlighted row. */
   selected: number
+  /** Key legend for the last row. Defaults to the `/` palette's. */
+  hint?: string
 }
 
 /** Padded width of the name column. Two spaces of gutter, then name, then gutter. */
@@ -43,7 +50,7 @@ function nameColumnWidth(commands: readonly CommandMeta[]): number {
   return max + NAME_GUTTER
 }
 
-export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected }) => {
+export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint }) => {
   const strings = useStrings()
   if (commands.length === 0) return null
   const colWidth = nameColumnWidth(commands)
@@ -59,15 +66,17 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected }) => {
         // Pad the name with trailing spaces so the descriptions line
         // up at a fixed column. The trailing `·` is the visual
         // separator Claude Code uses.
-        const paddedName = cmd.name.padEnd(colWidth)
+        // A row with no description is not padded either: the column exists
+        // to line descriptions up, and a file picker has none to line up.
+        const described = cmd.description !== ''
+        const paddedName = described ? cmd.name.padEnd(colWidth) : cmd.name
         if (isSelected) {
           return (
             <Box key={cmd.name}>
               <Text backgroundColor="cyan" color="black" bold>
                 {' '}
                 {paddedName}
-                {' · '}
-                {cmd.description}
+                {described ? ` · ${cmd.description}` : ''}
                 {' '}
               </Text>
             </Box>
@@ -78,16 +87,18 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected }) => {
             <Text color="cyan" bold>
               {cmd.name}
             </Text>
-            <Text color="gray">
-              {' · '}
-              {cmd.description}
-            </Text>
+            {described && (
+              <Text color="gray">
+                {' · '}
+                {cmd.description}
+              </Text>
+            )}
           </Box>
         )
       })}
       <Box marginTop={1}>
         <Text color="gray" dimColor>
-          {strings.palette.hint}
+          {hint ?? strings.palette.hint}
         </Text>
       </Box>
     </Box>

@@ -131,6 +131,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
+| `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
 | `y` / `n` / `Esc` | Answer a tool approval request |
 | `Ctrl-C` (idle) | Same as `/exit` |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
@@ -364,7 +365,7 @@ The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump th
 
 ## Known limitations
 
-- **No `@`-mention file picker.** Slash commands complete with `Tab`; file paths do not.
+- **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
 - **Resume is a boot-time choice.** `DSH_TUI_RESUME=last` (or an id) continues a stored session; there is no in-session `/resume`.
 - **Long tool output is previewed, not expandable.** The first 8 lines are shown with a `… +N lines` marker; there is no `show more` affordance, because reaching one would need a selection model the app deliberately does not have.
 - **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.

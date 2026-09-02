@@ -125,6 +125,7 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
 | `/exit`, `/quit` | 退出 REPL |
 | `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
+| `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
 | `y` / `n` / `Esc` | 回答工具审批请求 |
 | `Ctrl-C`（空闲时） | 等同 `/exit` |
 | `Ctrl-C`（turn 运行时） | 取消正在跑的 turn |
@@ -340,7 +341,7 @@ npm publish --access public
 
 ## 已知限制
 
-- **没有 `@` 文件提及。** 斜杠命令可以用 `Tab` 补全，文件路径不行。
+- **`@` 只补全路径，不会把文件塞进消息。** 输入 `@src/pro` 再按 `Tab`，写进消息的是 `@src/prompt-layout.ts` 这段文字，文件内容不会被读取或内联。往 prompt 里放什么是 harness 的决定，不该由一个输入框替它做——何况模型自己就有文件工具，拿到路径就能打开。
 - **续接 session 只能在启动时决定。** `DSH_TUI_RESUME=last`（或者一个 id）可以接上已存的 session，但没有会话内的 `/resume`。
 - **长工具输出只给预览，展不开。** 会显示前 8 行，末尾加一条 `… 还有 N 行` 的标记；没有展开入口——要做展开就得引入这个应用刻意不要的选中模型。
 - **`ctx.appExit` 由 launcher 提供。** 在 `dsh` CLI 外面跑会大声报错，直到 host 提供 exit hook。

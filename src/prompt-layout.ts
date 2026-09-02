@@ -192,7 +192,7 @@ export function moveVertically(
   rows: readonly PromptRow[],
   cursor: number,
   delta: number,
-  desired?: number | undefined,
+  desired?: number,
 ): VerticalMove | undefined {
   const caret = cursorAt(rows, cursor)
   const current = rows[caret.row]

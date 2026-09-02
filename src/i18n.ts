@@ -104,6 +104,10 @@ export interface Catalog {
   palette: {
     /** The dim key legend on the palette's last row. */
     hint: string
+    /** The same legend for the `@` file picker, which has nothing to run. */
+    fileHint: string
+    /** Shown instead of rows while the first directory scan is in flight. */
+    scanning: string
   }
   /** The permission card that replaces the prompt while a tool waits. */
   approval: {
@@ -245,6 +249,8 @@ const EN: Catalog = {
   },
   palette: {
     hint: '↑↓ navigate · Tab complete · Enter run · Esc dismiss',
+    fileHint: '↑↓ navigate · Tab or Enter insert path · Esc dismiss',
+    scanning: 'scanning files…',
   },
   approval: {
     title: 'Permission required',
@@ -347,6 +353,8 @@ const ZH: Catalog = {
   },
   palette: {
     hint: '↑↓ 选择 · Tab 补全 · Enter 执行 · Esc 关闭',
+    fileHint: '↑↓ 选择 · Tab 或 Enter 插入路径 · Esc 关闭',
+    scanning: '正在扫描文件…',
   },
   approval: {
     title: '需要授权',

@@ -420,3 +420,66 @@ describe('the caret remembers the column it is aiming for', () => {
     expect(rows(screen)).toContain('a▌aaaaaaa')
   })
 })
+
+describe('the @ file picker', () => {
+  it('opens on a mention and offers the file being typed', async () => {
+    const painted = await paintApp()
+    await painted.send('read @src/prompt-lay')
+    // The directory walk is real I/O; give it a moment to come back.
+    await painted.settle(200)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('src/prompt-layout.ts')
+    expect(screen).toContain('Tab or Enter insert path')
+  })
+
+  it('inserts the highlighted path on Tab, closing the picker', async () => {
+    const painted = await paintApp()
+    await painted.send('read @src/prompt-lay')
+    await painted.settle(200)
+    await painted.send('\t')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(promptBox(screen).join('\n')).toContain('read @src/prompt-layout.ts ▌')
+    // The trailing space closed the token, so the list is gone.
+    expect(screen).not.toContain('Tab or Enter insert path')
+  })
+
+  it('stays shut for an @ that does not open a word', async () => {
+    // The picker must not appear — and must not take ↑/↓ — while someone is
+    // writing an email address into a question.
+    const painted = await paintApp()
+    await painted.send('mail qiao@example')
+    await painted.settle(200)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).not.toContain('Tab or Enter insert path')
+  })
+
+  it('dismisses on Esc without eating the words around it', async () => {
+    const painted = await paintApp()
+    await painted.send('read @src/prompt-lay')
+    await painted.settle(200)
+    await painted.send(ESC)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).not.toContain('Tab or Enter insert path')
+    expect(promptBox(screen).join('\n')).toContain('read @src/prompt-lay▌')
+  })
+
+  it('sends the line on Enter once the picker has been dismissed', async () => {
+    const painted = await paintApp()
+    await painted.send('read @src/prompt-lay')
+    await painted.settle(200)
+    await painted.send(ESC)
+    await painted.send('\r')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(promptBox(screen).join('\n')).not.toContain('read @src')
+  })
+})

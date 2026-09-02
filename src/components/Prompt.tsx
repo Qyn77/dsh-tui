@@ -54,6 +54,8 @@ import {
   visibleStart,
   wrapBuffer,
 } from '../prompt-layout.ts'
+import { applyMention, mentionAt } from '../file-mentions.ts'
+import { useFileMentions } from '../hooks/useFileMentions.ts'
 import { SlashPalette } from './SlashPalette.tsx'
 import { useLang, useStrings } from '../hooks/useStrings.tsx'
 
@@ -148,12 +150,29 @@ export const Prompt: FC<PromptProps> = ({
   const [history, setHistory] = useState<readonly string[]>([])
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState('')
+  // The `@` of a picker the user has dismissed with Esc. Kept by position so
+  // it stays dismissed while they finish typing that token and comes back on
+  // the next one, which is what Esc means everywhere else in this prompt.
+  const [dismissed, setDismissed] = useState<number | null>(null)
 
   // Filter is a pure derivation from `value`; no effect needed. The
   // selection index is clamped on every keystroke so an out-of-range
   // cursor from rapid input never escapes.
   const palette = isPaletteMode(value) ? filterCommands(value, extraCommands, lang) : []
   const safePaletteIndex = clampPaletteIndex(paletteIndex, palette)
+
+  // The `@` picker. Suppressed while the `/` palette is open so the two can
+  // never both claim ↑/↓ or Tab — `/` wins because it is anchored to the first
+  // character and a mention is not, which makes it the more deliberate of the
+  // two. The picker's index rides on `paletteIndex` for the same reason only
+  // one of them is ever open.
+  const mention = palette.length === 0 ? mentionAt(value, cursorIndex) : undefined
+  const files = useFileMentions(mention?.query)
+  const fileRows = files.paths.map(path => ({ name: path, description: '' }))
+  const safeFileIndex = clampPaletteIndex(paletteIndex, fileRows)
+  const picking = mention !== undefined
+    && mention.start !== dismissed
+    && (fileRows.length > 0 || files.scanning)
 
   // The fold, the caret and the window are all derived on every render —
   // never stored. `scrollTop` is the one piece of memory, and it is only
@@ -173,10 +192,27 @@ export const Prompt: FC<PromptProps> = ({
   })
 
   // ↑/↓ are shared with the log; tell the App which of us owns them.
-  const claimsArrows = active && (palette.length > 0 || rows.length > 1)
+  const claimsArrows = active && (palette.length > 0 || picking || rows.length > 1)
   useEffect(() => {
     onArrowClaimChange?.(claimsArrows)
   }, [claimsArrows, onArrowClaimChange])
+
+  /**
+   * Write the highlighted file into the buffer in place of the mention.
+   * @returns whether there was anything to insert — `false` while the scan is
+   * still running, so Tab and Enter keep their ordinary meanings until the
+   * picker actually has something to offer.
+   */
+  const completeMention = (): boolean => {
+    if (mention === undefined) return false
+    const chosen = fileRows[safeFileIndex]
+    if (chosen === undefined) return false
+    const next = applyMention(value, mention, chosen.name)
+    setValue(next.text)
+    setCursorIndex(next.cursor)
+    setPaletteIndex(0)
+    return true
+  }
 
   /**
    * Move the caret one row, aiming for the column the walk started in.
@@ -285,6 +321,11 @@ export const Prompt: FC<PromptProps> = ({
           setCursorIndex(0)
           setPaletteIndex(0)
           setScrollTop(0)
+        } else if (picking && mention !== undefined) {
+          // The buffer is a sentence the user is writing, not a command they
+          // mistyped: dismiss the list, keep the words.
+          setDismissed(mention.start)
+          setPaletteIndex(0)
         }
         return
       }
@@ -311,6 +352,12 @@ export const Prompt: FC<PromptProps> = ({
         }
         return
       }
+      // Tab in a mention inserts the highlighted path. Same keystroke, same
+      // meaning: finish what I have started typing.
+      if (key.tab && picking) {
+        completeMention()
+        return
+      }
       // ↑/↓ — the palette first, then row movement inside a buffer that
       // occupies more than one row. On a single row they are the log's
       // (see `claimsArrows`), so bail and let the scroll hook have them.
@@ -319,12 +366,20 @@ export const Prompt: FC<PromptProps> = ({
           setPaletteIndex(i => clampPaletteIndex(i - 1, palette))
           return
         }
+        if (picking) {
+          setPaletteIndex(i => clampPaletteIndex(i - 1, fileRows))
+          return
+        }
         if (rows.length > 1) moveCaretRow(-1)
         return
       }
       if (key.downArrow) {
         if (palette.length > 0) {
           setPaletteIndex(i => clampPaletteIndex(i + 1, palette))
+          return
+        }
+        if (picking) {
+          setPaletteIndex(i => clampPaletteIndex(i + 1, fileRows))
           return
         }
         if (rows.length > 1) moveCaretRow(1)
@@ -362,10 +417,16 @@ export const Prompt: FC<PromptProps> = ({
           }
           return
         }
+        // Enter in an open picker inserts the path rather than sending the
+        // line, matching the `/` palette above: the visible list is what the
+        // key acts on. Sending takes a second Enter, by which time the picker
+        // is closed.
+        if (picking && completeMention()) return
         const submitted = value
         setValue('')
         setCursorIndex(0)
         setScrollTop(0)
+        setDismissed(null)
         rememberSubmission(submitted)
         onSubmit(submitted)
         return
@@ -416,6 +477,17 @@ export const Prompt: FC<PromptProps> = ({
       {palette.length > 0 ? (
         <Box marginBottom={1}>
           <SlashPalette commands={palette} selected={safePaletteIndex} />
+        </Box>
+      ) : null}
+      {picking ? (
+        <Box marginBottom={1}>
+          <SlashPalette
+            commands={fileRows.length > 0
+              ? fileRows
+              : [{ name: strings.palette.scanning, description: '' }]}
+            selected={fileRows.length > 0 ? safeFileIndex : -1}
+            hint={strings.palette.fileHint}
+          />
         </Box>
       ) : null}
       <Box borderStyle="round" borderColor={active ? 'cyan' : 'gray'} paddingX={1}>
