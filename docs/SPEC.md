@@ -432,7 +432,7 @@ Assistant turns render a curated subset of GitHub-flavored markdown, from the fi
 |---|---|
 | `#`–`###` heading | `bold`, color step: `cyan` / `magenta` / `gray` |
 | `####`–`######` heading | `bold gray` |
-| ` ``` fenced ``` ` | `round` border, `gray dim` body, language label in `cyan bold` |
+| ` ``` fenced ``` ` | `round` border, language label in `cyan bold`, body syntax-highlighted (`gray dim` until the grammar loads) |
 | `` `inline` `` | `cyan dim` |
 | `**bold**` | `bold` |
 | `*italic*` | `italic` |
@@ -454,7 +454,17 @@ Two things do move mid-stream, and both are fine: a blank separator row appears 
 
 **Parse cost.** `Markdown` memoizes the AST on its source, and `MessageList`'s per-entry dispatch is `React.memo`'d on the entry object. Both matter here rather than in general: every mounted entry re-renders on every delta, so without them a finished turn from earlier in the session is re-lexed a few thousand times over the course of the next answer. A single parse is ~0.4ms for a 20KB document; a mounted window of them per delta is not affordable when the frame's job is to keep up with a token stream.
 
-**Out of scope (today).** Tables, images, strikethrough, and syntax highlighting are tracked in v0.4.
+**Syntax highlighting.** Fenced blocks are tokenized by [Shiki](https://shiki.style) through [src/highlight.ts](../src/highlight.ts) (pure, plus the one async loader) and [src/hooks/useCodeHighlight.ts](../src/hooks/useCodeHighlight.ts). The renderer draws **one `<Text>` row per source line** rather than one `<Text>` holding the newlines, because a highlighted line is several differently-colored spans and they need something to nest in. The row count is identical either way, which is the load-bearing property: a block renders plain until its grammar arrives and colored after, and that switch must not move rows under the reader. `tests/highlight-frame.spec.ts` pins it by comparing two live apps — a `text` fence and a `ts` fence — rather than two frames of one app, which would make the assertion depend on Shiki's load timing.
+
+*Plain fallback.* A block with no language, or one Shiki cannot resolve, renders exactly as it did in v0.3 — `gray dim`, no colors, no error. Languages that mean "not code" (`text`, `txt`, `plaintext`, `console`, `output`, `log`) are short-circuited before the loader: they would load successfully and cost a grammar load plus a tokenize pass to produce the rendering we already have. There is deliberately no alias table in this repo; Shiki already resolves the short forms models write, and a second table here would be a copy that goes stale against the one that decides.
+
+*Async load-in.* Shiki is `import`ed on first use, not at boot: the import alone is ~33ms and `createHighlighter` another ~29ms, which is startup budget spent on a session that may never show a code block. The hook holds `undefined` until the grammar resolves — for "no language named", "no such grammar", and "still loading" alike, because the renderer cannot act on the distinction — and the block repaints colored when it lands. Grammars and the highlighter are cached module-wide, so this is once per language per process.
+
+*Incremental cache.* Tokenizing is charged **per line, not per block**. One line is ~0.11ms; a 200-line block is ~14.8ms, and re-tokenizing that block on every delta of the turn writing it is ~30% of a core spent redoing settled work. `createLineCache` keeps each line's tokens and the grammar state that produced it, compares the incoming lines against the ones it holds, and re-tokenizes only from the first difference. This is sound rather than approximate: Shiki's `codeToTokens` returns a resumable `grammarState` and accepts one, and threading it line by line reproduces a whole-block highlight **byte for byte** — verified across a block comment and a multi-line template literal, the two constructs where a line's colors depend on lines above it. `tests/highlight.spec.ts` pins that equality directly, because it is the assumption the cache rests on and the failure mode if it broke would be quietly wrong colors rather than a crash. The reuse test is line equality from the top rather than a prefix hash, so an edit in the middle of a block is correct rather than stale.
+
+*One theme.* `THEME` is a single constant (`github-dark`). That is a real limitation, not an oversight: a theme's colors are chosen against a known background, and this app does not know its own yet. The v0.4 auto-theme item is what turns this constant into a pair.
+
+**Out of scope (today).** Tables, images, and strikethrough are tracked in v0.4.
 
 ---
 
@@ -504,7 +514,7 @@ Still open: nothing — v0.3 is complete.
 
 ### v0.4 — Polish
 
-- **Syntax highlighting** in assistant code blocks (Shiki, no `node-pty`).
+- **Syntax highlighting.** *Shipped.* Assistant code blocks are tokenized by Shiki, loaded on first use and cached per line so a streaming block is not re-tokenized from the top on every delta — see §1.9. One dark theme for now; the auto-theme item below is what makes it a pair.
 - **Auto theme.** Detect light/dark terminal background and switch palette.
 - **Streaming markdown.** *Shipped.* The assistant text is re-parsed on every `assistant/chunk` event and drawn as partial markdown, instead of waiting for `assistant/message` — see §1.9 for why the partial-parse churn the original plan feared does not happen.
 - **Truncation.** The 8-line cap shipped in v0.3; what remains is the `▾ show more` affordance, and it is not free — expanding one entry needs a focus/selection model this app does not have. Read §6 of the roadmap before starting it.
@@ -542,6 +552,7 @@ src/
 ├── commands.ts         # Pure dispatch — string → CommandResult
 ├── invariant.ts        # Type companion for dsh-invariants (no runtime)
 ├── markdown.ts         # Pure markdown → UI AST (no React, no Ink)
+├── highlight.ts        # Pure token shaping + line cache, and the one Shiki load
 ├── resize.ts           # Real-TTY resize owner — debounce, clear, rerender, repaint
 ├── services.ts         # Typed optional-service reads off the Cordis context
 ├── environment.ts      # Process facts — version, cwd, git label
@@ -567,6 +578,7 @@ The bottom third of that list is one pattern repeated: **a component whose logic
 - `markdown.ts` may import from external parsers (`marked`) and `types.ts`. It must not import React, Ink, or any component.
 - The pure layout/art/editing modules (`width.ts`, `scroll.ts`, `message-layout.ts`, `prompt-editing.ts`, `prompt-layout.ts`, `banner-art.ts`) may import each other, `types.ts`, and `environment.ts`. They must not import React, Ink, or any component — that is the whole point of extracting them.
 - `file-mentions.ts` is pure except for `listFiles`, which reads the filesystem. It lives beside the pure modules because everything a test needs to pin — what counts as a mention, how paths rank, what the buffer looks like afterwards — is pure; the one I/O function is kept in the same file so the reader can see the whole feature rather than chase a second module for one `readdir`.
+- `highlight.ts` follows `file-mentions.ts`: pure except for `loadTokenizer`, which dynamically imports Shiki and loads a grammar. Everything a test needs to pin — how a Shiki token becomes an Ink one, which languages are treated as plain, and exactly which lines the cache re-tokenizes — is pure, and the one async function is kept in the same file so the reader sees the whole feature. It may import from `shiki` (dynamically, inside `loadTokenizer`) and must not import React, Ink, or any component.
 - `hooks/` may import from `state.ts` (as a function call), `markdown.ts` (as a function call), the pure modules, `types.ts`, and React.
 - `components/` may import from `hooks/`, `markdown.ts` (for the `Markdown` component and AST types), the pure modules, `types.ts`, and React. They do **not** import `state.ts` directly — they receive derived props from the renderer.
 - `renderer.tsx` is the only file that wires the reducer to the hooks.
@@ -727,6 +739,7 @@ heeded when it was built.
 | `state.ts` | 100% (every event type, every branch) |
 | `commands.ts` | 100% (every command, every invalid input shape) |
 | `markdown.ts` | Every block-level construct (heading, paragraph, code, list, blockquote, hr) + at least one inline construct + the failure-mode fallback (unclosed fence, stray delimiter) + every prefix of a whole answer, since streaming renders all of them (§1.9) |
+| `highlight.ts` | Token shaping including `fontStyle: -1` (a naive bit test on -1 sets every flag at once) + which languages count as plain + the cache's re-tokenize count on prepend/edit/append, against a fake tokenizer + the real-Shiki equality: line-by-line with threaded state must equal a whole-block highlight byte for byte |
 | `hooks/*` | Whatever the hook actually owns. A hook that only wires a pure module to React is covered by that module's spec plus a frame test; a hook that owns state or a timer gets a mounted probe (`tests/running-clock.spec.ts`, `tests/session-events.spec.ts` are the two patterns) |
 | `components/*` | Frame-level, through the fake TTY. See below — there are no snapshots and no `renderHook` in this package |
 | `resize.ts` | A settled drag always ends with a frame on screen — including the drags that produce a byte-identical frame (height-only, and back to the starting width) |
@@ -803,6 +816,7 @@ The interface is bilingual; everything a contributor reads is English.
 - Prefer the existing `dsh-*` peer tree. Don't reach for a new npm package when a peer already covers the need.
 - Native modules need `pnpm approve-builds`. The current approval list: `node-pty`, `koffi`, `protobufjs`, `@deepseek-ai/dsh-subprocess-local`. Adding a new native module requires documenting it in the README.
 - React/Ink ecosystem is open (`ink`, `ink-text-input`, etc.) but new UI deps should be justified in the PR description.
+- `shiki` is a runtime dependency, imported dynamically rather than at boot (§1.9). It is a large package for what it does, and it is here because the alternative for TextMate-grammar-accurate highlighting is shipping and maintaining our own grammars. It is pure JavaScript — no native module, no `node-pty` — so it adds nothing to the approval list above, and a session that never renders a code block never pays for it.
 
 ### 3.12 Docs track code (in the same PR)
 

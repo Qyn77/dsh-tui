@@ -21,6 +21,7 @@
 import React, { useMemo, type ReactNode } from 'react'
 import { Box, Text } from 'ink'
 import { applyHangingIndent, parseMarkdown, type BlockNode, type InlineNode } from '../markdown.ts'
+import { useCodeHighlight } from '../hooks/useCodeHighlight.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for the {@link Markdown} component. */
@@ -117,6 +118,19 @@ function HeadingBlock({ level, children, marginTop, marginBottom }: {
   )
 }
 
+/**
+ * A fenced code block: a language label, then the code.
+ *
+ * The code is drawn one `<Text>` row per source line rather than one `<Text>`
+ * holding the newlines, because a highlighted line is several differently-colored
+ * spans and they have to nest inside something. The row count is the same either
+ * way, which matters: the block renders plain until its grammar loads and colored
+ * afterwards, and the switch must not move the rows under the reader.
+ *
+ * An empty line renders as a single space. A zero-width `<Text>` is not
+ * guaranteed a row of its own, and a blank line inside code is content — it is
+ * how the model separates functions.
+ */
 function CodeBlock({ lang, text, marginTop, marginBottom }: {
   lang: string
   text: string
@@ -125,6 +139,7 @@ function CodeBlock({ lang, text, marginTop, marginBottom }: {
 }): ReactNode {
   const strings = useStrings()
   const label = lang === '' ? '' : lang
+  const highlighted = useCodeHighlight(lang, text)
   return (
     <Box
       flexDirection="column"
@@ -141,9 +156,27 @@ function CodeBlock({ lang, text, marginTop, marginBottom }: {
         </Box>
       )}
       {label !== '' && <Text>{' '}</Text>}
-      <Text color="gray" dimColor>
-        {text}
-      </Text>
+      {highlighted === undefined
+        ? text.split('\n').map((line, index) => (
+          // The index is the key because these are a positional slice of one
+          // string: nothing reorders, and blank lines are not unique.
+          <Text key={index} color="gray" dimColor>{line === '' ? ' ' : line}</Text>
+        ))
+        : highlighted.map((line, index) => (
+          <Text key={index}>
+            {line.length === 0 ? ' ' : line.map((token, span) => (
+              <Text
+                key={span}
+                color={token.color}
+                bold={token.bold}
+                italic={token.italic}
+                underline={token.underline}
+              >
+                {token.text}
+              </Text>
+            ))}
+          </Text>
+        ))}
     </Box>
   )
 }
