@@ -166,6 +166,7 @@ The palette is theme-aware. Both light and dark terminals are first-class; `NO_C
 | DeepSeek blue, light | `#9BADFF` | `HARNESS` wordmark; the whale's belly row. |
 | App brand | `cyan` bold | `>` in the prompt; slash palette border and command names. |
 | Model name | `green` | `provider/model` in the StatusBar. |
+| Model name — banner | default fg, bold | `provider/model` on the banner. Deliberately uncolored: this is the line the banner most needs legible, and every *named* color is a palette entry the terminal resolves against its own background. `white` is the one that fails worst — on a light-background terminal it lands near the background and the line all but vanishes. The default foreground is the only color guaranteed to contrast, because contrast is the job the terminal picked it for. Same reasoning as **Command output** below. |
 | User marker | `blue` | `>` in the gutter of a user line. |
 | Assistant marker + label | `magenta` bold | `⏺` in the gutter; `assistant` in the metadata header. |
 | Tool name | bold | The `Name(subject)` line. |

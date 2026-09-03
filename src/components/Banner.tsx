@@ -63,7 +63,9 @@ import { useStrings } from '../hooks/useStrings.tsx'
  */
 const MetaStack: FC<{ meta: MetaText; width: number }> = ({ meta, width }) => (
   <Box flexDirection="column" width={width}>
-    <Text color="white" bold wrap="truncate">{fitTail(meta.model, width)}</Text>
+    {/* `bold` with no color, not `white`: see the note on the wordmark's copy
+        of this line. */}
+    <Text bold wrap="truncate">{fitTail(meta.model, width)}</Text>
     <Text color="gray" wrap="truncate">{fitTail(meta.session, width)}</Text>
     <Text color="gray" wrap="truncate">{fitTail(meta.location, width)}</Text>
     <Text color={BRAND_BLUE_LIGHT} wrap="truncate">{fitTail(meta.tip, width)}</Text>
@@ -185,7 +187,15 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
         {/* The "what and how" half: which model answers, and how to
             drive it. */}
         <Box marginTop={1} flexDirection="column">
-          <Text color="white" bold wrap="truncate">{fitTail(meta.model, WORDMARK_WIDTH)}</Text>
+          {/* Bold and *uncolored*, rather than `white`. The model name is the
+              one line in this banner that has to be the most legible thing on
+              screen, and `white` is a palette entry — on a light-background
+              terminal it resolves to something near the background and the
+              line all but disappears. The default foreground is the only color
+              guaranteed to contrast, because it is the one the terminal picked
+              for exactly that job. This costs nothing on a dark background,
+              where `white` was already what the default resolved to. */}
+          <Text bold wrap="truncate">{fitTail(meta.model, WORDMARK_WIDTH)}</Text>
           <Text color={BRAND_BLUE_LIGHT} wrap="truncate">{fitTail(meta.tip, WORDMARK_WIDTH)}</Text>
         </Box>
       </Box>
