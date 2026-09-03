@@ -41,6 +41,7 @@
 
 import type { PluginPhase } from './plugins.ts'
 import type { UsageLabels } from './usage.ts'
+import { THEME_PREFS, type Appearance, type ThemePref } from './theme.ts'
 
 /** The languages this UI is written in. */
 export type Lang = 'en' | 'zh'
@@ -64,6 +65,7 @@ export const COMMAND_NAMES = [
   '/plugins',
   '/quit',
   '/status',
+  '/theme',
   '/usage',
 ] as const
 
@@ -269,6 +271,12 @@ export interface Catalog {
     languageSwitched: string
     /** `/language` with an argument that named no known language. */
     unknownLanguage: (raw: string) => string
+    /** `/theme` with no argument. */
+    themeUsage: (current: ThemePref, detected: Appearance) => string
+    /** `/theme` after a successful switch. */
+    themeSwitched: (pref: ThemePref, appearance: Appearance) => string
+    /** `/theme` with an argument that named no preference. */
+    unknownTheme: (raw: string) => string
   }
 }
 
@@ -343,6 +351,7 @@ const EN: Catalog = {
     '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
     '/quit': 'Alias for /exit',
     '/status': 'Print the current model and session id',
+    '/theme': 'Choose the background the colors assume: /theme auto, dark, or light',
     '/usage': 'Break this session\'s token spend out turn by turn',
   },
   output: {
@@ -406,6 +415,13 @@ const EN: Catalog = {
       `Usage: /language <${LANGUAGES.join('|')}>\nCurrent: ${current}\n\nThe choice is saved and applies to the next launch too.`,
     languageSwitched: 'Interface language switched to English.',
     unknownLanguage: raw => `unknown language '${raw}' — pick one of ${LANGUAGES.join(', ')}`,
+    themeUsage: (current, detected) =>
+      `Usage: /theme <${THEME_PREFS.join('|')}>\nCurrent: ${current}${current === 'auto' ? ` (detected ${detected})` : ''}\n\nOnly the code-block colors and the lighter brand tint change. Everything else is a named terminal color, which your terminal already resolves against its own background.`,
+    themeSwitched: (pref, appearance) =>
+      pref === 'auto'
+        ? `Following the terminal's background, which reads as ${appearance}.`
+        : `Colors now assume a ${pref} background.`,
+    unknownTheme: raw => `unknown theme '${raw}' — pick one of ${THEME_PREFS.join(', ')}`,
   },
 }
 
@@ -481,6 +497,7 @@ const ZH: Catalog = {
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
     '/status': '打印当前模型和 session id',
+    '/theme': '选择配色假定的背景：/theme auto、dark 或 light',
     '/usage': '按轮次拆开本次 session 的 token 开销',
   },
   output: {
@@ -543,6 +560,13 @@ const ZH: Catalog = {
       `用法：/language <${LANGUAGES.join('|')}>\n当前：${current}\n\n选择会被保存，下次启动同样生效。`,
     languageSwitched: '界面语言已切换为中文。',
     unknownLanguage: raw => `未知语言「${raw}」—— 请选择 ${LANGUAGES.join('、')}`,
+    themeUsage: (current, detected) =>
+      `用法：/theme <${THEME_PREFS.join('|')}>\n当前：${current}${current === 'auto' ? `（探测到 ${detected}）` : ''}\n\n只有代码块配色和那一档浅色品牌蓝会变。其余都是终端命名色，你的终端本来就会按自己的背景去解释它们。`,
+    themeSwitched: (pref, appearance) =>
+      pref === 'auto'
+        ? `已跟随终端背景，探测结果是 ${appearance}。`
+        : `配色已改为假定 ${pref} 背景。`,
+    unknownTheme: raw => `未知主题「${raw}」—— 请选择 ${THEME_PREFS.join('、')}`,
   },
 }
 

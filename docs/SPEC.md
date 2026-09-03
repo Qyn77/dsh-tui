@@ -158,12 +158,12 @@ The glyphs, the gutter width, the one-line summaries, and the preview arithmetic
 
 ### 1.3 Color palette
 
-The palette is theme-aware. Both light and dark terminals are first-class; `NO_COLOR` disables color entirely.
+The palette is theme-aware, and almost entirely by *not* being theme-aware. Nearly every color below is a **named ANSI color** — `gray`, `cyan`, `yellow`, `magenta` — and a named color is resolved by the terminal from the palette its user configured against their own background. Those adapt already, and better than this app could: remapping them would override the choice the user made. So the theme (§1.9) touches only the colors that name an absolute value and therefore cannot adapt on their own: the syntax-highlighting theme, and the *lighter* brand blue. `NO_COLOR` disables color entirely.
 
 | Role | Color | Where |
 |---|---|---|
-| DeepSeek brand blue | `#4D6BFE` | Banner whale + `DEEPSEEK` wordmark; Banner/StatusBar border; tip keys; StatusBar `dsh`. |
-| DeepSeek blue, light | `#9BADFF` | `HARNESS` wordmark; the whale's belly row. |
+| DeepSeek brand blue | `#4D6BFE` | Banner whale + `DEEPSEEK` wordmark; Banner/StatusBar border; tip keys; StatusBar `dsh`. One value, not a pair: it measures 4.83:1 on black and 4.35:1 on white, so it is legible on either. |
+| DeepSeek blue, light | `#9BADFF` dark / `#3B4FA8` light | `HARNESS` wordmark; the whale's belly row; the banner's tip line. The one *pair* in this table. `#9BADFF` measures 2.14:1 on white — it fails there, which is the bug the theme exists to fix; the light variant is the same hue walked down until it clears 4.5:1. |
 | App brand | `cyan` bold | `>` in the prompt; slash palette border and command names. |
 | Model name | `green` | `provider/model` in the StatusBar. |
 | Model name — banner | default fg, bold | `provider/model` on the banner. Deliberately uncolored: this is the line the banner most needs legible, and every *named* color is a palette entry the terminal resolves against its own background. `white` is the one that fails worst — on a light-background terminal it lands near the background and the line all but vanishes. The default foreground is the only color guaranteed to contrast, because contrast is the job the terminal picked it for. Same reasoning as **Command output** below. |
@@ -217,6 +217,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/status` | Print the current model and session id. |
 | `/plugins` | List the plugins this host loaded, and how each one is doing. `/plugins enable\|disable <name>` switches one. |
 | `/usage` | Break this session's token spend out turn by turn. |
+| `/theme` | Choose the background the colors assume: `/theme auto\|dark\|light`. Bare `/theme` reports the current setting and, under `auto`, what the terminal answered. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (idle) | Same as `/exit`. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
@@ -227,7 +228,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: `/copy`, and an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: `/copy`, and an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -463,9 +464,25 @@ Two things do move mid-stream, and both are fine: a blank separator row appears 
 
 *Incremental cache.* Tokenizing is charged **per line, not per block**. One line is ~0.11ms; a 200-line block is ~14.8ms, and re-tokenizing that block on every delta of the turn writing it is ~30% of a core spent redoing settled work. `createLineCache` keeps each line's tokens and the grammar state that produced it, compares the incoming lines against the ones it holds, and re-tokenizes only from the first difference. This is sound rather than approximate: Shiki's `codeToTokens` returns a resumable `grammarState` and accepts one, and threading it line by line reproduces a whole-block highlight **byte for byte** — verified across a block comment and a multi-line template literal, the two constructs where a line's colors depend on lines above it. `tests/highlight.spec.ts` pins that equality directly, because it is the assumption the cache rests on and the failure mode if it broke would be quietly wrong colors rather than a crash. The reuse test is line equality from the top rather than a prefix hash, so an edit in the middle of a block is correct rather than stale.
 
-*One theme.* `THEME` is a single constant (`github-dark`). That is a real limitation, not an oversight: a theme's colors are chosen against a known background, and this app does not know its own yet. The v0.4 auto-theme item is what turns this constant into a pair.
+*Two themes.* The Shiki theme is `github-dark` or `github-light`, chosen by the appearance the app resolved (§1.10). It is the reason the theme feature exists: a highlighting theme names truecolor hex values, so unlike the named ANSI colors in §1.3 it cannot adapt on its own, and `github-dark`'s comment gray on a white terminal is unreadable. The theme is part of the tokenizer cache's *identity* (`${theme}:${lang}`) rather than a render-time argument, because `createLineCache` caches tokens and tokens carry colors. The grammar state threaded through those caches is unaffected — it is grammar state, not theme state — so switching themes mid-session invalidates the colors without invalidating the resumability the cache rests on. A switch takes the same async path as a first load, and deliberately keeps drawing the old theme's colors until the new tokenizer arrives instead of dropping back to plain first: both readings cost the same number of rows, and only one of them flashes.
 
 **Out of scope (today).** Tables, images, and strikethrough are tracked in v0.4.
+
+### 1.10 Light and dark terminals
+
+The app resolves one **appearance** — `dark` or `light` — at boot, and the whole of what it changes is the two things §1.3 identifies as unable to adapt on their own: the Shiki theme and the lighter brand tint. There is no palette swap. Everything else is a named ANSI color that the terminal already resolves against its own background.
+
+**Resolution order.** An explicit `theme` setting (`dark` or `light`) wins outright. Under `auto` — the default — the terminal is asked, by writing the **OSC 11** query `ESC ] 11 ; ? BEL` and reading its reply; failing that, `COLORFGBG` is consulted; failing that, `dark`. The order is "what the user said, then what the terminal said, then a guess", and the fallbacks are silent: a terminal that ignores OSC 11 is the common case, not an error.
+
+**The measurement, not an average.** A reply is parsed into three normalized channels (`rgb:RRRR/GGGG/BBBB` at any hex width, and the `#RRGGBB` form some terminals send instead), then reduced to WCAG relative luminance — `0.2126 R + 0.7152 G + 0.0722 B` over sRGB-linearized channels — and compared against `0.5`. Averaging the channels instead would be wrong in a way that shows up on real terminals: yellow and mid-gray share a channel average of 2/3, but their luminances are 0.93 and 0.40, so an average calls a yellow-tinted light background dark. `parseOsc11` and `appearanceFor` are pure and directly tested, which is most of this feature's surface.
+
+**The query runs before Ink mounts, and that is not stylistic.** Reading the reply needs a `data` listener on stdin, which switches it to flowing mode and drains chunks out from under Ink's read loop — the same hazard §3.9 documents for scroll input. After mount, stdin belongs to Ink and a late reply would be *typed into the prompt* as garbage. So [src/index.ts](../src/index.ts) fires the query right after the TTY preconditions and awaits it just before `render()`, with the plugin-loader await, the resume plan, and agent creation in between: the terminal's round trip overlaps work that was happening anyway and costs the boot nothing measurable. Raw mode is required (an unset terminal line-buffers the reply until Enter) and is restored afterward, as is the paused state. The `PROBE_TIMEOUT_MS` (100ms) deadline is the whole safety story — a terminal that never answers costs at most that, and only when the setting is `auto`.
+
+**What the app holds is the appearance, not the palette.** `ThemeProvider`'s context value is `'dark' | 'light'`; `usePalette()` derives the palette from it. A context holding the palette object would hand every consumer a new identity on every root render, since `palette()` returns a fresh object. The default is `'dark'`, which is what lets a component rendered outside a provider keep drawing exactly what it drew before this existed.
+
+**`/theme` is the escape hatch**, on the same terms as `/language`: it writes the setting, so the choice survives restart, and under `auto` it reports back what the terminal actually answered — because "auto" alone does not tell the user whether the answer they are about to see is the one they wanted, and the reason to type `/theme` is that it might not be.
+
+Whether the light tint is *comfortable* on a real white terminal, and whether a given emulator answers OSC 11 at all, are real-TTY judgements in the sense of §7 — the automated tests pin the arithmetic, the fallbacks, and that both appearances paint byte-identical rows, but chalk reports color level 0 under vitest so no test here can assert a color escape.
 
 ---
 
@@ -515,8 +532,8 @@ Still open: nothing — v0.3 is complete.
 
 ### v0.4 — Polish
 
-- **Syntax highlighting.** *Shipped.* Assistant code blocks are tokenized by Shiki, loaded on first use and cached per line so a streaming block is not re-tokenized from the top on every delta — see §1.9. One dark theme for now; the auto-theme item below is what makes it a pair.
-- **Auto theme.** Detect light/dark terminal background and switch palette.
+- **Syntax highlighting.** *Shipped.* Assistant code blocks are tokenized by Shiki, loaded on first use and cached per line so a streaming block is not re-tokenized from the top on every delta — see §1.9. Two themes, chosen by the auto-theme item below.
+- **Auto theme.** *Shipped.* The terminal is asked its background color over OSC 11 at boot and the app picks a light or dark appearance from the reply's luminance; `/theme auto|dark|light` overrides it and persists. What changes is narrow on purpose — the code-block theme and the lighter brand tint, the only two colors that name an absolute value. See §1.10.
 - **Streaming markdown.** *Shipped.* The assistant text is re-parsed on every `assistant/chunk` event and drawn as partial markdown, instead of waiting for `assistant/message` — see §1.9 for why the partial-parse churn the original plan feared does not happen.
 - **Truncation.** The 8-line cap shipped in v0.3; what remains is the `▾ show more` affordance, and it is not free — expanding one entry needs a focus/selection model this app does not have. Read §6 of the roadmap before starting it.
 - **Clipboard.** OSC 52 integration for `/copy` and `/paste`.
@@ -566,6 +583,7 @@ src/
 ├── file-mentions.ts    # `@` mention parsing + path ranking, and the one walk
 ├── plugins.ts          # Pure classification + table for `/plugins`
 ├── banner-art.ts       # Pure banner art + text — beside Banner.tsx
+├── theme.ts            # Pure appearance arithmetic, and the one terminal probe
 ├── hooks/              # React-only — useInput, useEffect, useState
 └── components/         # React components — pure functions of state
 ```
@@ -580,6 +598,7 @@ The bottom third of that list is one pattern repeated: **a component whose logic
 - The pure layout/art/editing modules (`width.ts`, `scroll.ts`, `message-layout.ts`, `prompt-editing.ts`, `prompt-layout.ts`, `banner-art.ts`) may import each other, `types.ts`, and `environment.ts`. They must not import React, Ink, or any component — that is the whole point of extracting them.
 - `file-mentions.ts` is pure except for `listFiles`, which reads the filesystem. It lives beside the pure modules because everything a test needs to pin — what counts as a mention, how paths rank, what the buffer looks like afterwards — is pure; the one I/O function is kept in the same file so the reader can see the whole feature rather than chase a second module for one `readdir`.
 - `highlight.ts` follows `file-mentions.ts`: pure except for `loadTokenizer`, which dynamically imports Shiki and loads a grammar. Everything a test needs to pin — how a Shiki token becomes an Ink one, which languages are treated as plain, and exactly which lines the cache re-tokenizes — is pure, and the one async function is kept in the same file so the reader sees the whole feature. It may import from `shiki` (dynamically, inside `loadTokenizer`) and must not import React, Ink, or any component.
+- `theme.ts` follows the same shape: pure except for `probeAppearance`, which writes to a stdout and listens on a stdin. It **imports nothing at all**, and that is deliberate rather than incidental — the brand tint *pair* lives here rather than in `banner-art.ts` because a `theme.ts` that reached back for it would close a cycle (`i18n.ts → theme.ts → banner-art.ts → i18n.ts`, since `banner-art.ts` reads the string catalog and `i18n.ts` needs `THEME_PREFS`). The rule that decides which module owns a color: `banner-art.ts` keeps the values that have *one* value, `theme.ts` owns the ones that are a pair, because owning a pair means choosing between them.
 - `hooks/` may import from `state.ts` (as a function call), `markdown.ts` (as a function call), the pure modules, `types.ts`, and React.
 - `components/` may import from `hooks/`, `markdown.ts` (for the `Markdown` component and AST types), the pure modules, `types.ts`, and React. They do **not** import `state.ts` directly — they receive derived props from the renderer.
 - `renderer.tsx` is the only file that wires the reducer to the hooks.
@@ -741,6 +760,7 @@ heeded when it was built.
 | `commands.ts` | 100% (every command, every invalid input shape) |
 | `markdown.ts` | Every block-level construct (heading, paragraph, code, list, blockquote, hr) + at least one inline construct + the failure-mode fallback (unclosed fence, stray delimiter) + every prefix of a whole answer, since streaming renders all of them (§1.9) |
 | `highlight.ts` | Token shaping including `fontStyle: -1` (a naive bit test on -1 sets every flag at once) + which languages count as plain + the cache's re-tokenize count on prepend/edit/append, against a fake tokenizer + the real-Shiki equality: line-by-line with threaded state must equal a whole-block highlight byte for byte |
+| `theme.ts` | The OSC 11 reply parser across the shapes terminals actually send (`rgb:` at every hex width, `#RRGGBB`, BEL- and ST-terminated, garbage) + the luminance threshold, including a case an averaging implementation gets wrong + `COLORFGBG` fallback + `probeAppearance` against a fake stdin: the reply path, the silent-terminal deadline, raw mode restored either way |
 | `hooks/*` | Whatever the hook actually owns. A hook that only wires a pure module to React is covered by that module's spec plus a frame test; a hook that owns state or a timer gets a mounted probe (`tests/running-clock.spec.ts`, `tests/session-events.spec.ts` are the two patterns) |
 | `components/*` | Frame-level, through the fake TTY. See below — there are no snapshots and no `renderHook` in this package |
 | `resize.ts` | A settled drag always ends with a frame on screen — including the drags that produce a byte-identical frame (height-only, and back to the starting width) |

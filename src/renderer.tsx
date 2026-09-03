@@ -6,7 +6,7 @@
  */
 
 import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
-import React, { useCallback, useEffect, useRef, useState, type FC } from 'react'
+import React, { useCallback, useEffect, useRef, useState, type FC, type ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -28,6 +28,8 @@ import { dispatch } from './commands.ts'
 import { handleInterrupt } from './interrupt.ts'
 import { catalog, type Lang } from './i18n.ts'
 import { LanguageProvider } from './hooks/useStrings.tsx'
+import { ThemeProvider } from './hooks/useTheme.tsx'
+import type { Appearance, ThemePref } from './theme.ts'
 import { writeSettings } from './settings.ts'
 import { CLEAR_SCREEN, type RepaintRef } from './resize.ts'
 
@@ -76,12 +78,42 @@ export interface AppProps {
    * them last chose for themselves.
    */
   lang?: Lang
+  /**
+   * What the user last asked of `/theme`, read from `~/.dsh/tui.json` by
+   * `index.ts`. Defaults to `'auto'`.
+   */
+  themePref?: ThemePref
+  /**
+   * Which way the terminal's background reads, as measured by `index.ts` before
+   * Ink mounted — the query has to happen while nobody else owns stdin, so it
+   * cannot happen in here. Defaults to `'dark'`, which is what shipped before
+   * any of this existed and is therefore what every test that omits it asserts.
+   */
+  appearance?: Appearance
 }
 
 /**
  * The TUI root. Subscribes to the agent's session, dispatches user input
  * to the agent or to a slash command, and composes the three-pane layout.
  */
+/**
+ * The two contexts every framed component reads: the interface language and the
+ * terminal's appearance.
+ *
+ * One component rather than two nested providers at each of the App's two
+ * return sites. There are two because the App returns early before a model
+ * selection resolves, and both returns need the same wrappers — so keeping them
+ * paired here means a third context later is one edit, not three.
+ */
+const AppProviders: FC<{ lang: Lang; appearance: Appearance; children: ReactNode }> = (
+  { lang, appearance, children },
+) => (
+  <LanguageProvider lang={lang}>
+    <ThemeProvider appearance={appearance}>{children}</ThemeProvider>
+  </LanguageProvider>
+)
+
+
 export const App: FC<AppProps> = ({
   ctx,
   agent,
@@ -90,6 +122,8 @@ export const App: FC<AppProps> = ({
   repaint,
   notice,
   lang: initialLang = 'en',
+  themePref: initialThemePref = 'auto',
+  appearance: detected = 'dark',
 }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
@@ -137,6 +171,17 @@ export const App: FC<AppProps> = ({
   const setLanguage = useCallback((next: Lang) => {
     setLang(next)
     writeSettings({ language: next })
+  }, [])
+  // What the user asked for, and what that resolves to. Two values rather than
+  // one because `/theme` has to be able to say "auto, which reads as light" —
+  // the preference and the appearance are different facts, and under `auto`
+  // only the second one is visible on screen.
+  const [themePref, setThemePref] = useState<ThemePref>(initialThemePref)
+  const appearance: Appearance = themePref === 'auto' ? detected : themePref
+  /** Switch the assumed background, on the same terms as {@link setLanguage}. */
+  const setTheme = useCallback((next: ThemePref) => {
+    setThemePref(next)
+    writeSettings({ theme: next })
   }, [])
   // The animated "thinking" indicator. One interval per status
   // transition; both the StatusBar (right-side) and the Prompt
@@ -270,6 +315,9 @@ export const App: FC<AppProps> = ({
           refreshSelection,
           setLanguage,
           lang,
+          setTheme,
+          themePref,
+          appearance,
           state,
         }).then((result) => {
           // Command output goes into the log, not to stderr. Inside the
@@ -313,16 +361,19 @@ export const App: FC<AppProps> = ({
         }),
       )
     },
-    [ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang, strings, state, shell],
+    [
+      ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
+      setTheme, themePref, appearance, strings, state, shell,
+    ],
   )
 
   if (selection === undefined) {
     return (
-      <LanguageProvider lang={lang}>
+      <AppProviders lang={lang} appearance={appearance}>
         <Box marginRight={1}>
           <Prompt active={false} onSubmit={() => {}} spinnerFrame={spinnerFrame} />
         </Box>
-      </LanguageProvider>
+      </AppProviders>
     )
   }
 
@@ -338,7 +389,7 @@ export const App: FC<AppProps> = ({
   const frameHeight = state.entries.length > 0 ? Math.max(1, (stdout?.rows ?? 24) - 3) : undefined
 
   return (
-    <LanguageProvider lang={lang}>
+    <AppProviders lang={lang} appearance={appearance}>
       <Box flexDirection="column" height={frameHeight} marginRight={1}>
         {/*
         Keep one physical row free below Ink's live frame. When the root is
@@ -448,6 +499,6 @@ export const App: FC<AppProps> = ({
           extraCommands={extraCommands}
         />
       </Box>
-    </LanguageProvider>
+    </AppProviders>
   )
 }

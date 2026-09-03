@@ -21,6 +21,7 @@ import { App } from './renderer.tsx'
 import { installResizeOwner, type RepaintRef } from './resize.ts'
 import { planResume, requestFromEnv } from './resume.ts'
 import { readSettings } from './settings.ts'
+import { probeAppearance } from './theme.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'tui-runner'
@@ -129,6 +130,17 @@ async function run(ctx: Context, config: Config): Promise<void> {
       'needs an interactive terminal — stdout is not a TTY. Piping the UI to a file or another process is not a supported mode.',
     )
   }
+  // Asked here and read just before `render()`, with the loader await, the
+  // resume plan, and agent creation in between — so the terminal's round trip
+  // overlaps work that was happening anyway and costs the boot nothing. It has
+  // to happen *before* Ink mounts, because after that stdin is Ink's and a
+  // reply would be typed into the prompt; see `probeAppearance`.
+  const detecting = probeAppearance({
+    stdin: process.stdin,
+    stdout: process.stdout,
+    colorFgBg: process.env['COLORFGBG'],
+  })
+
   // Loader siblings mount concurrently. Await the complete application before
   // creating an Agent so its scoped tools and adapters are not half-composed.
   await service(ctx, 'loader')?.await()
@@ -179,7 +191,12 @@ async function run(ctx: Context, config: Config): Promise<void> {
     // Read once, at the boundary. The App takes the language as a prop and owns
     // it as state from there, so this is the only place the process touches
     // `~/.dsh/tui.json` on the way in; `/language` writes it back out.
-    const { language } = readSettings()
+    const { language, theme } = readSettings()
+    // `auto` is the only setting that needs the probe's answer; an explicit
+    // `dark` or `light` has already decided, so it does not wait even the
+    // deadline. The App still receives the measurement — under `auto` it is
+    // what `/theme` reports back.
+    const detected = theme === 'auto' ? await detecting : undefined
     const element = (): React.ReactElement =>
       React.createElement(App, {
         ctx,
@@ -188,6 +205,8 @@ async function run(ctx: Context, config: Config): Promise<void> {
         repaint,
         modelRef: ref,
         lang: language,
+        themePref: theme,
+        ...detected === undefined ? {} : { appearance: detected },
         ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
       })
     const instance = inkRender(element(), {

@@ -28,11 +28,14 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { isLang, type Lang } from './i18n.ts'
+import { isThemePref, type ThemePref } from './theme.ts'
 
 /** Preferences this package reads and writes. */
 export interface Settings {
   /** Interface language for the TUI's own strings. */
   language: Lang
+  /** Which background the colors are chosen for, or `auto` to ask the terminal. */
+  theme: ThemePref
 }
 
 /**
@@ -43,8 +46,16 @@ export interface Settings {
  * language someone wants their developer tooling in, and sniffing them would
  * make the first frame depend on ambient environment rather than on a choice
  * the user made. `/language zh` is one command, and it persists.
+ *
+ * The theme default goes the other way — `auto`, which does consult the
+ * environment — and the distinction is what is being consulted. `LANG` is an
+ * *inference*: someone's shell locale is evidence about what language they read,
+ * and weak evidence. A background color is a *measurement*: the terminal is
+ * asked what color it is drawing on, and its answer is not a proxy for the
+ * question, it is the question. Guessing the second is what makes code blocks
+ * readable; guessing the first would only make the chrome wrong in a new way.
  */
-export const DEFAULT_SETTINGS: Readonly<Settings> = { language: 'en' }
+export const DEFAULT_SETTINGS: Readonly<Settings> = { language: 'en', theme: 'auto' }
 
 /** Directory the dsh family keeps user-level state in. */
 export const SETTINGS_DIR = '.dsh'
@@ -106,8 +117,10 @@ export function parseSettings(raw: string | undefined): Settings {
   const parsed = parseRawSettings(raw)
   if (parsed === undefined) return { ...DEFAULT_SETTINGS }
   const language = parsed['language']
+  const theme = parsed['theme']
   return {
     language: isLang(language) ? language : DEFAULT_SETTINGS.language,
+    theme: isThemePref(theme) ? theme : DEFAULT_SETTINGS.theme,
   }
 }
 

@@ -14,13 +14,16 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  THEME,
   codeToken,
   createLineCache,
   highlightLang,
   loadTokenizer,
   type LineTokenizer,
 } from '../src/highlight.ts'
+import { palette } from '../src/theme.ts'
+
+/** The dark appearance's Shiki theme — what these tests tokenize under. */
+const THEME = palette('dark').shikiTheme
 
 /**
  * A tokenizer that reports what it was given, so the cache can be observed.
@@ -168,7 +171,7 @@ const TRICKY = [
 
 describe('loadTokenizer (real Shiki)', () => {
   it('reproduces a whole-block highlight, line by line', async () => {
-    const tokenize = await loadTokenizer('ts')
+    const tokenize = await loadTokenizer('ts', THEME)
     expect(tokenize).toBeDefined()
     if (tokenize === undefined) return
     const incremental = createLineCache(tokenize).lines(TRICKY)
@@ -182,7 +185,7 @@ describe('loadTokenizer (real Shiki)', () => {
   })
 
   it('still reproduces it when the block arrives one delta at a time', async () => {
-    const tokenize = await loadTokenizer('ts')
+    const tokenize = await loadTokenizer('ts', THEME)
     if (tokenize === undefined) throw new Error('ts grammar did not load')
     const cache = createLineCache(tokenize)
     // Deltas do not respect line boundaries, so step by a character count that
@@ -198,7 +201,7 @@ describe('loadTokenizer (real Shiki)', () => {
   })
 
   it('colors a keyword, so the grammar is really in force', async () => {
-    const tokenize = await loadTokenizer('ts')
+    const tokenize = await loadTokenizer('ts', THEME)
     if (tokenize === undefined) throw new Error('ts grammar did not load')
     const [line] = createLineCache(tokenize).lines('const x = 1')
     expect(line?.[0]).toMatchObject({ text: 'const' })
@@ -206,8 +209,8 @@ describe('loadTokenizer (real Shiki)', () => {
   })
 
   it('returns undefined for a word that is not a language', async () => {
-    expect(await loadTokenizer('definitely-not-a-language')).toBeUndefined()
+    expect(await loadTokenizer('definitely-not-a-language', THEME)).toBeUndefined()
     // Cached, so a fence full of nonsense costs one rejected load per session.
-    expect(await loadTokenizer('definitely-not-a-language')).toBeUndefined()
+    expect(await loadTokenizer('definitely-not-a-language', THEME)).toBeUndefined()
   })
 })

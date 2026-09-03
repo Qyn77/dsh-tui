@@ -18,6 +18,7 @@ import { Session } from '@deepseek-ai/dsh-session'
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { App } from '../src/renderer.tsx'
 import type { Lang } from '../src/i18n.ts'
+import type { Appearance, ThemePref } from '../src/theme.ts'
 
 /** Built, never quoted: an invisible ESC byte in source is unreviewable. */
 export const ESC = String.fromCharCode(27)
@@ -172,6 +173,13 @@ export interface PaintOptions {
    */
   lang?: Lang
   /**
+   * Which way the terminal's background reads. Defaults to `dark`, matching the
+   * App's own default, so every existing frame test paints what it always did.
+   */
+  appearance?: Appearance
+  /** What `/theme` should report as the current setting. Defaults to `auto`. */
+  themePref?: ThemePref
+  /**
    * Stand-in for `agent.inject`. Defaults to a no-op; pass a spy to assert what
    * a `!!` escape queued for the model.
    */
@@ -197,6 +205,7 @@ const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
+    appearance = 'dark', themePref = 'auto',
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
@@ -219,6 +228,8 @@ export async function paintApp(
       agent: agent as never,
       exit: () => {},
       lang,
+      appearance,
+      themePref,
       ...notice === undefined ? {} : { notice },
     }),
     {

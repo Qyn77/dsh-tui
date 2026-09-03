@@ -159,22 +159,16 @@ export function createLineCache(tokenize: LineTokenizer): LineCache {
 }
 
 /**
- * The Shiki theme the palette comes from.
- *
- * One theme, and it assumes a dark terminal. That is a real limitation rather
- * than an oversight: a theme's colors are chosen against a known background,
- * and this app does not know its own yet. The v0.4 auto-theme item is what
- * makes this a pair; until then it is one constant so that change has one
- * place to happen.
+ * What `loadTokenizer` resolved to for a (theme, language) pair, including
+ * "no grammar". Keyed by both because tokens carry colors: the same grammar
+ * under two themes is two different tokenizers.
  */
-export const THEME = 'github-dark'
-
-/** What `loadTokenizer` resolved to for a language, including "no grammar". */
 const tokenizers = new Map<string, LineTokenizer | undefined>()
 
 /** The highlighter itself, created at most once, on first use. */
 let highlighter: Promise<{
   loadLanguage: (lang: string) => Promise<void>
+  loadTheme: (theme: string) => Promise<void>
   codeToTokens: (code: string, options: Record<string, unknown>) => {
     tokens: { content: string; color?: string | undefined; fontStyle?: number | undefined }[][]
     grammarState?: unknown
@@ -182,39 +176,56 @@ let highlighter: Promise<{
 }> | undefined
 
 /**
- * A tokenizer for `lang`, or `undefined` if Shiki has no grammar for it.
+ * A tokenizer for `lang` under `theme`, or `undefined` if Shiki has no grammar
+ * for it.
  *
  * Both halves are lazy and both are cached, including the failures — a fence
  * word that is not a language must cost one rejected load for the whole
  * session, not one per render. Shiki is reached through a dynamic `import` so
  * that none of its 33ms of module evaluation and 29ms of highlighter setup
  * lands on the TUI's boot path: a session that never sees a code block never
- * pays for one.
+ * pays for one. Themes are loaded the same way, one at a time, so a session
+ * that never runs `/theme` loads exactly one.
+ *
+ * The theme is part of the identity rather than a render-time argument because
+ * the {@link createLineCache} above it caches *tokens*, and tokens are colored.
+ * A theme switch therefore has to produce a new tokenizer, which is what
+ * invalidates the caches keyed on it. The grammar state threaded through those
+ * caches is unaffected — it is grammar state, not theme state — so the
+ * resumability equality the cache rests on holds across a switch.
+ * @param lang - a Shiki language id.
+ * @param theme - a Shiki theme id, from `palette()` in `theme.ts`.
  */
-export async function loadTokenizer(lang: string): Promise<LineTokenizer | undefined> {
-  const cached = tokenizers.get(lang)
-  if (cached !== undefined || tokenizers.has(lang)) return cached
+export async function loadTokenizer(
+  lang: string,
+  theme: string,
+): Promise<LineTokenizer | undefined> {
+  const key = `${theme}:${lang}`
+  const cached = tokenizers.get(key)
+  if (cached !== undefined || tokenizers.has(key)) return cached
   try {
     highlighter ??= (async () => {
       const { createHighlighter } = await import('shiki')
-      return await createHighlighter({ themes: [THEME], langs: [] }) as never
+      return await createHighlighter({ themes: [], langs: [] }) as never
     })()
     const shiki = await highlighter
+    await shiki.loadTheme(theme)
     await shiki.loadLanguage(lang)
     const tokenizer: LineTokenizer = (line, state) => {
       const result = shiki.codeToTokens(line, {
         lang,
-        theme: THEME,
+        theme,
         ...state === undefined ? {} : { grammarState: state },
       })
       return { line: (result.tokens[0] ?? []).map(codeToken), state: result.grammarState }
     }
-    tokenizers.set(lang, tokenizer)
+    tokenizers.set(key, tokenizer)
     return tokenizer
   } catch {
-    // An unknown language, or a Shiki that failed to load at all. Neither is
-    // worth surfacing: the block renders exactly as it did before this feature.
-    tokenizers.set(lang, undefined)
+    // An unknown language, an unknown theme, or a Shiki that failed to load at
+    // all. None is worth surfacing: the block renders exactly as it did before
+    // this feature.
+    tokenizers.set(key, undefined)
     return undefined
   }
 }

@@ -130,6 +130,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/context` | Print the context window, this session's token spend, and how full the context is now |
 | `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
+| `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
@@ -209,6 +210,25 @@ the conversation scrolls), so it returns in the new language on the next
 `/clear` or the next launch. And this is the *interface* language, not the
 model's: what the assistant replies in is up to what you ask it, exactly as
 before.
+
+### Light and dark terminals
+
+At boot the app asks your terminal what color it is drawing on (an OSC 11 query)
+and picks a light or dark appearance from the answer. `/theme dark` or `/theme
+light` overrides that permanently, `/theme auto` goes back to asking, and
+`/theme` on its own reports the current setting and what the terminal said. The
+choice is saved to `~/.dsh/tui.json` alongside the language.
+
+What changes is deliberately narrow: the colors inside code blocks, and the
+lighter of the two brand blues. Everything else is a *named* terminal color —
+`gray`, `cyan`, `yellow` — which your terminal already resolves against its own
+background, using the palette you configured. Recoloring those would override
+your own choice, so it doesn't. Only the two colors that name an absolute value
+need a light and a dark version, and those are the two that get one.
+
+Terminals that don't answer the query are the common case, not an error: the
+query is given 100ms, then `COLORFGBG` is consulted, then it settles on dark.
+Nothing is printed either way.
 
 ## Develop it
 

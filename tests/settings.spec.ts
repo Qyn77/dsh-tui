@@ -48,7 +48,24 @@ afterEach(() => {
 
 describe('parseSettings', () => {
   it('reads a stored language', () => {
-    expect(parseSettings('{"language":"zh"}')).toEqual({ language: 'zh' })
+    expect(parseSettings('{"language":"zh"}')).toEqual({ language: 'zh', theme: 'auto' })
+  })
+
+  it('reads a stored theme preference', () => {
+    expect(parseSettings('{"theme":"light"}').theme).toBe('light')
+    expect(parseSettings('{"theme":"auto"}').theme).toBe('auto')
+  })
+
+  it('treats an unrecognized theme as absent', () => {
+    // Same rule as an unrecognized language: it is what lets an older build
+    // read a file a newer one wrote, rather than refusing to start.
+    expect(parseSettings('{"theme":"solarized"}').theme).toBe(DEFAULT_SETTINGS.theme)
+    expect(parseSettings('{"theme":4}').theme).toBe(DEFAULT_SETTINGS.theme)
+  })
+
+  it('reads the two keys independently', () => {
+    expect(parseSettings('{"language":"zh"}').theme).toBe('auto')
+    expect(parseSettings('{"theme":"dark"}').language).toBe('en')
   })
 
   it('defaults when there is no file', () => {
@@ -78,7 +95,8 @@ describe('parseSettings', () => {
   })
 
   it('ignores keys it does not know', () => {
-    expect(parseSettings('{"language":"zh","future":{"a":1}}')).toEqual({ language: 'zh' })
+    expect(parseSettings('{"language":"zh","future":{"a":1}}'))
+      .toEqual({ language: 'zh', theme: 'auto' })
   })
 })
 
@@ -115,7 +133,7 @@ describe('readSettings', () => {
   it('reads what writeSettings wrote', () => {
     const home = fakeHome()
     expect(writeSettings({ language: 'zh' }, home)).toBe(true)
-    expect(readSettings(home)).toEqual({ language: 'zh' })
+    expect(readSettings(home)).toEqual({ language: 'zh', theme: 'auto' })
   })
 
   it('defaults when the path is a directory rather than a file', () => {

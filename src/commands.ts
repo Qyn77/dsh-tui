@@ -37,6 +37,7 @@ import {
   type Lang,
 } from './i18n.ts'
 import { contextOccupancy, formatUsage, totalUsage, usageByTurn } from './usage.ts'
+import { isThemePref, type Appearance, type ThemePref } from './theme.ts'
 import {
   describePlugins,
   formatPlugins,
@@ -261,6 +262,22 @@ export interface CommandContext {
    * the switch's own proof.
    */
   lang?: Lang
+  /**
+   * Switch which background the colors assume: repaint now, persist for the
+   * next launch. Optional for the same reason as {@link setLanguage}.
+   */
+  setTheme?: (pref: ThemePref) => void
+  /**
+   * What the user last asked for, defaulting to `'auto'`. Only `/theme` reads
+   * it, to say what the current setting is.
+   */
+  themePref?: ThemePref
+  /**
+   * Which way the background actually reads — the probe's answer under `auto`,
+   * or the explicit choice otherwise. Defaults to `'dark'`, which is both the
+   * app's own default and what a context built without it should report.
+   */
+  appearance?: Appearance
   /** Live UI state for commands that inspect token usage or entries. */
   state: UiState
 }
@@ -340,6 +357,31 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       // typed the wrong code sees that immediately rather than being told in
       // a language they cannot check.
       return { kind: 'handled', message: catalog(requested).output.languageSwitched }
+    }
+
+    case '/theme': {
+      const args = raw.trim().split(/\s+/).slice(1)
+      const pref = cmd.themePref ?? 'auto'
+      const appearance = cmd.appearance ?? 'dark'
+      if (args.length === 0) {
+        return { kind: 'handled', message: strings.themeUsage(pref, appearance) }
+      }
+      const requested = args[0]
+      if (!isThemePref(requested)) {
+        return {
+          kind: 'handled',
+          message: strings.unknownTheme(requested),
+          failed: true,
+        }
+      }
+      cmd.setTheme?.(requested)
+      // `auto` reports what the terminal said, because "auto" alone does not
+      // tell the user whether the answer they are about to see is the one they
+      // wanted — and the whole reason to type `/theme` is that it might not be.
+      return {
+        kind: 'handled',
+        message: strings.themeSwitched(requested, requested === 'auto' ? appearance : requested),
+      }
     }
 
     case '/model': {

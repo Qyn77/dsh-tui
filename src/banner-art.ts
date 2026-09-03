@@ -30,8 +30,17 @@ import { catalog } from './i18n.ts'
 /** DeepSeek's brand blue. Used for the whale's body and the DEEPSEEK wordmark. */
 export const BRAND_BLUE = '#4D6BFE'
 
-/** A lighter tint of the brand blue, for HARNESS and the whale's belly. */
-export const BRAND_BLUE_LIGHT = '#9BADFF'
+/**
+ * The *lighter* brand tint — `HARNESS` and the whale's belly — is not here.
+ *
+ * It has two values, one per terminal appearance, so it lives beside the thing
+ * that chooses between them: `palette()` in `theme.ts`. This module keeps
+ * {@link BRAND_BLUE} because that one has a single value — it is readable on
+ * both backgrounds (4.35:1 on white, 4.83:1 on black) and so is not a pair.
+ * Splitting them this way also keeps `theme.ts` importing nothing at all, which
+ * matters: `banner-art.ts` reads the string catalog, and a `theme.ts` that
+ * reached back here would close a cycle through `i18n.ts`.
+ */
 
 /**
  * The whale as a pixel grid. `#` is body, `B` is belly (drawn in the

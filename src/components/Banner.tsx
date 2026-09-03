@@ -37,7 +37,6 @@ import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import {
   BRAND_BLUE,
-  BRAND_BLUE_LIGHT,
   COLUMN_GAP,
   DEEPSEEK_ROWS,
   FRAME_PADDING,
@@ -56,25 +55,30 @@ import {
 } from '../banner-art.ts'
 import { readRepoLabel } from '../environment.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
+import { usePalette } from '../hooks/useTheme.tsx'
 
 /**
  * The four meta facts stacked in one column, for the tiers that have
  * only one column to stack them in.
  */
-const MetaStack: FC<{ meta: MetaText; width: number }> = ({ meta, width }) => (
-  <Box flexDirection="column" width={width}>
-    {/* `bold` with no color, not `white`: see the note on the wordmark's copy
-        of this line. */}
-    <Text bold wrap="truncate">{fitTail(meta.model, width)}</Text>
-    <Text color="gray" wrap="truncate">{fitTail(meta.session, width)}</Text>
-    <Text color="gray" wrap="truncate">{fitTail(meta.location, width)}</Text>
-    <Text color={BRAND_BLUE_LIGHT} wrap="truncate">{fitTail(meta.tip, width)}</Text>
-  </Box>
-)
+const MetaStack: FC<{ meta: MetaText; width: number }> = ({ meta, width }) => {
+  const { brandTint } = usePalette()
+  return (
+    <Box flexDirection="column" width={width}>
+      {/* `bold` with no color, not `white`: see the note on the wordmark's copy
+          of this line. */}
+      <Text bold wrap="truncate">{fitTail(meta.model, width)}</Text>
+      <Text color="gray" wrap="truncate">{fitTail(meta.session, width)}</Text>
+      <Text color="gray" wrap="truncate">{fitTail(meta.location, width)}</Text>
+      <Text color={brandTint} wrap="truncate">{fitTail(meta.tip, width)}</Text>
+    </Box>
+  )
+}
 
 export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
   const { stdout } = useStdout()
   const strings = useStrings()
+  const { brandTint } = usePalette()
   // Read once, at the single paint this component gets: `useStdout` does
   // not re-render on resize, and as static output the banner would not
   // be redrawn even if it did. The width it was printed at is the width
@@ -114,7 +118,7 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
           <Text key={`ds-${i}`} color={BRAND_BLUE} wrap="truncate">{row}</Text>
         ))}
         {HARNESS_ROWS.map((row, i) => (
-          <Text key={`hn-${i}`} color={BRAND_BLUE_LIGHT} wrap="truncate">{row}</Text>
+          <Text key={`hn-${i}`} color={brandTint} wrap="truncate">{row}</Text>
         ))}
         <Text color={BRAND_BLUE} bold wrap="truncate">{centerText(SLOGAN, WORDMARK_WIDTH)}</Text>
         <Box marginTop={1}>
@@ -152,7 +156,7 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
         */}
         <Text> </Text>
         {WHALE_ROWS.map((row, i) => (
-          <Text key={`whale-${i}`} color={row.belly ? BRAND_BLUE_LIGHT : BRAND_BLUE} wrap="truncate">
+          <Text key={`whale-${i}`} color={row.belly ? brandTint : BRAND_BLUE} wrap="truncate">
             {row.text}
           </Text>
         ))}
@@ -182,7 +186,7 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
           <Text key={`ds-${i}`} color={BRAND_BLUE} wrap="truncate">{row}</Text>
         ))}
         {HARNESS_ROWS.map((row, i) => (
-          <Text key={`hn-${i}`} color={BRAND_BLUE_LIGHT} wrap="truncate">{row}</Text>
+          <Text key={`hn-${i}`} color={brandTint} wrap="truncate">{row}</Text>
         ))}
         {/* The "what and how" half: which model answers, and how to
             drive it. */}
@@ -196,7 +200,7 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
               for exactly that job. This costs nothing on a dark background,
               where `white` was already what the default resolved to. */}
           <Text bold wrap="truncate">{fitTail(meta.model, WORDMARK_WIDTH)}</Text>
-          <Text color={BRAND_BLUE_LIGHT} wrap="truncate">{fitTail(meta.tip, WORDMARK_WIDTH)}</Text>
+          <Text color={brandTint} wrap="truncate">{fitTail(meta.tip, WORDMARK_WIDTH)}</Text>
         </Box>
       </Box>
     </Box>

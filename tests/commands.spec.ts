@@ -489,6 +489,74 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/theme', () => {
+    it('shows usage, the setting, and what the setting resolved to', async () => {
+      const setTheme = vi.fn()
+      const { cmd } = makeCommand({ setTheme, themePref: 'auto', appearance: 'light' })
+      const result = await dispatch('/theme', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('Usage: /theme')
+        // Both halves: "auto" alone does not tell the user which way it went,
+        // and which way it went is the only reason to run the command.
+        expect(result.message).toContain('Current: auto')
+        expect(result.message).toContain('light')
+      }
+      expect(setTheme).not.toHaveBeenCalled()
+    })
+
+    it('does not report a detected appearance when the setting is explicit', async () => {
+      const { cmd } = makeCommand({ themePref: 'dark', appearance: 'dark' })
+      const result = await dispatch('/theme', cmd)
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('Current: dark')
+        expect(result.message).not.toContain('detected')
+      }
+    })
+
+    it('switches to an explicit appearance', async () => {
+      const setTheme = vi.fn()
+      const { cmd } = makeCommand({ setTheme })
+      const result = await dispatch('/theme light', cmd)
+      expect(setTheme).toHaveBeenCalledWith('light')
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') expect(result.failed).not.toBe(true)
+    })
+
+    it('switches back to auto and says what auto found', async () => {
+      const setTheme = vi.fn()
+      const { cmd } = makeCommand({ setTheme, themePref: 'light', appearance: 'dark' })
+      const result = await dispatch('/theme auto', cmd)
+      expect(setTheme).toHaveBeenCalledWith('auto')
+      if (result.kind === 'handled') {
+        // The measurement, not the word "auto": the user is switching *to* a
+        // guess and the useful part of the answer is what the guess was.
+        expect(result.message).toContain('dark')
+      }
+    })
+
+    it('rejects anything else without switching', async () => {
+      const setTheme = vi.fn()
+      const { cmd } = makeCommand({ setTheme })
+      const result = await dispatch('/theme solarized', cmd)
+      expect(setTheme).not.toHaveBeenCalled()
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).toBe(true)
+        expect(result.message).toContain('solarized')
+      }
+    })
+
+    it('reports without a handler rather than throwing', async () => {
+      // `setTheme` is optional so most tests can omit it; a `/theme` line that
+      // lands in one of those contexts must still answer.
+      const { cmd } = makeCommand({})
+      const result = await dispatch('/theme dark', cmd)
+      expect(result.kind).toBe('handled')
+    })
+  })
+
+
   describe('/model', () => {
     it('shows usage and current model when no argument is given', async () => {
       const { cmd } = makeCommand()
@@ -667,7 +735,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/clear', '/context', '/exit', '/help', '/language', '/model', '/plugins', '/quit',
-      '/status', '/usage',
+      '/status', '/theme', '/usage',
     ])
   })
 
@@ -720,7 +788,7 @@ describe('filterCommands', () => {
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/clear', '/compact', '/context', '/exit', '/goal', '/help', '/language', '/model',
-        '/plugins', '/quit', '/status', '/usage',
+        '/plugins', '/quit', '/status', '/theme', '/usage',
       ])
     })
 
