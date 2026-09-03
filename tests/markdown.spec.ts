@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { applyHangingIndent, looksLikeMarkdown, parseMarkdown, stripLeadingIndent, type BlockNode, type InlineNode } from '../src/markdown.ts'
+import { applyHangingIndent, looksLikeMarkdown, parseMarkdown, stripIndentOutsideFences, stripLeadingIndent, type BlockNode, type InlineNode } from '../src/markdown.ts'
 
 /** Flatten an inline AST into one string for shape assertions. */
 function inlineToText(nodes: readonly InlineNode[]): string {
@@ -379,5 +379,88 @@ describe('partial input (streaming)', () => {
     // One frame of an empty heading row before its text arrives. Worth naming:
     // it is the only construct that draws before it has anything to say.
     expect(parseMarkdown('#')).toEqual([{ kind: 'heading', level: 1, children: [] }])
+  })
+})
+
+/**
+ * The parse-boundary strip, which must leave a fence's contents alone.
+ *
+ * Before this existed, every code block in the TUI came out flush left. In
+ * Python that is not a cosmetic loss — the block the user copies out does not
+ * run — and it made syntax highlighting actively misleading, since coloring
+ * structure the indentation no longer shows is worse than showing neither.
+ */
+describe('stripIndentOutsideFences', () => {
+  it('preserves indentation inside a fenced block', () => {
+    const md = '```py\ndef f():\n    if x:\n        return 1\n```'
+    expect(stripIndentOutsideFences(md)).toBe(md)
+  })
+
+  it('still strips indentation outside the fence', () => {
+    expect(stripIndentOutsideFences('a\n    b\n```\n    c\n```\n    d'))
+      .toBe('a\nb\n```\n    c\n```\nd')
+  })
+
+  it('leaves the first line alone, matching the text-node strip', () => {
+    expect(stripIndentOutsideFences('    a\n    b')).toBe('    a\nb')
+  })
+
+  it('agrees with stripLeadingIndent on a document with no fences', () => {
+    // The two functions have to be the same function outside a fence, or the
+    // defense-in-depth strip in `pushText` would start disagreeing with the
+    // parse boundary about what a paragraph looks like.
+    for (const text of ['a\n   b', 'a\n\nb', 'a\n \t b\n\n   c', '', 'x', '\n  y']) {
+      expect(stripIndentOutsideFences(text)).toBe(stripLeadingIndent(text))
+    }
+  })
+
+  it('protects an unclosed fence all the way to the end', () => {
+    // This is the streaming case: the block is indented and its closer has not
+    // arrived. Stripping while waiting would flatten the code and then unflatten
+    // it when the fence closed — a reflow in the one place §1.9 promises none.
+    expect(stripIndentOutsideFences('```py\ndef f():\n    return 1'))
+      .toBe('```py\ndef f():\n    return 1')
+  })
+
+  it('does not let a shorter inner fence close a longer one', () => {
+    const md = '````md\n```\n    still inside\n```\n````\n    outside'
+    expect(stripIndentOutsideFences(md))
+      .toBe('````md\n```\n    still inside\n```\n````\noutside')
+  })
+
+  it('does not let a tilde fence close a backtick fence', () => {
+    expect(stripIndentOutsideFences('```\n~~~\n    kept\n```'))
+      .toBe('```\n~~~\n    kept\n```')
+  })
+
+  it('handles tilde fences', () => {
+    expect(stripIndentOutsideFences('~~~py\n    kept\n~~~\n    stripped'))
+      .toBe('~~~py\n    kept\n~~~\nstripped')
+  })
+
+  it('still flattens a 4-space indented block, which is not a fence', () => {
+    // Deliberate: an indent is a guess that the model meant code, and the guess
+    // is wrong for the hand-indented lyrics this strip exists for.
+    expect(stripIndentOutsideFences('text\n\n    looks like code'))
+      .toBe('text\n\nlooks like code')
+  })
+})
+
+describe('parseMarkdown code blocks', () => {
+  it('keeps the indentation a code block needs to be code', () => {
+    expect(parseMarkdown('```py\ndef f():\n    if x:\n        return 1\n```')).toEqual([
+      { kind: 'code-block', lang: 'py', text: 'def f():\n    if x:\n        return 1' },
+    ])
+  })
+
+  it('keeps it while the fence is still open', () => {
+    expect(parseMarkdown('```py\ndef f():\n    return 1')).toEqual([
+      { kind: 'code-block', lang: 'py', text: 'def f():\n    return 1' },
+    ])
+  })
+
+  it('keeps a blank line inside a block', () => {
+    const [block] = parseMarkdown('```ts\nconst a = 1\n\nconst b = 2\n```')
+    expect(block).toEqual({ kind: 'code-block', lang: 'ts', text: 'const a = 1\n\nconst b = 2' })
   })
 })

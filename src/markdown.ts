@@ -76,9 +76,58 @@ export function applyHangingIndent(text: string): string {
  * paragraph break is preserved. Spaces at the very start of the
  * text, and spaces between inline elements (`**bold** word`), are
  * left alone — those are load-bearing separators.
+ *
+ * This is the *text node* strip. At the parse boundary the strip has to skip
+ * fenced code, which is what {@link stripIndentOutsideFences} is for.
  */
 export function stripLeadingIndent(text: string): string {
   return text.replace(/\n[ \t]+/g, '\n')
+}
+
+/** A line that opens or closes a fenced code block, per CommonMark. */
+const FENCE = /^ {0,3}(`{3,}|~{3,})/
+
+/**
+ * The same strip as {@link stripLeadingIndent}, applied only outside fenced
+ * code blocks.
+ *
+ * Running the plain strip over a whole document flattens code. `def f():` and
+ * its body come out at the same column, which in Python is not a cosmetic
+ * difference — the block the user copies out of the terminal does not run, and
+ * every nested `if`, every method in a class, and every JSON literal reads as
+ * if it were top-level. The strip exists for a model's hand-indented lyrics,
+ * and a lyric is never inside a fence.
+ *
+ * Fences are tracked rather than matched in one pass because a closing fence
+ * has to match its opener — at least as many of the same character — so a
+ * ```` ``` ```` sitting inside a ```` ```` ```` block does not end it. The
+ * opener's own line is still stripped, which costs nothing: marked reads the
+ * fence, not its indentation.
+ *
+ * Indented (4-space) code blocks are deliberately *not* protected. Those are
+ * what the strip was written to defeat in the first place: a model indenting a
+ * verse by four spaces meant a verse, not a code frame. A fence is an explicit
+ * claim that the contents are code; an indent is a guess.
+ */
+export function stripIndentOutsideFences(text: string): string {
+  let open: string | undefined
+  return text
+    .split('\n')
+    .map((line, index) => {
+      const fence = FENCE.exec(line)?.[1]
+      if (open === undefined) {
+        if (fence !== undefined) open = fence
+        // The first line has no `\n` in front of it, so the text-node strip
+        // never touched it either. Keeping that exact is what lets the two
+        // functions agree on a document with no fences in it.
+        return index === 0 ? line : line.replace(/^[ \t]+/, '')
+      }
+      if (fence !== undefined && fence[0] === open[0] && fence.length >= open.length) {
+        open = undefined
+      }
+      return line
+    })
+    .join('\n')
 }
 
 /** Push a cleaned text node into an inline stream. No-op on empty input. */
@@ -276,19 +325,22 @@ function extractRaw(tok: MarkedToken): string {
  * never goes blank.
  *
  * Before lexing, we strip 1+ leading spaces and tabs from every
- * newline-continuation line of the input. The post-parse text-node
- * strip alone cannot catch every case the model emits: when the
- * model writes blank-line-separated indented lines, CommonMark's
- * 4-space code-block rule promotes them to a fenced text frame and
- * the strip never sees them. Pre-stripping at the parse boundary
- * keeps the rule colocated with the lex call and turns
- * lyrics-style indents into normal paragraphs. The text-node
- * `pushText` still runs the same strip as a defense in depth.
+ * newline-continuation line of the input **outside a fenced code
+ * block**. The post-parse text-node strip alone cannot catch every
+ * case the model emits: when the model writes blank-line-separated
+ * indented lines, CommonMark's 4-space code-block rule promotes them
+ * to a fenced text frame and the strip never sees them. Pre-stripping
+ * at the parse boundary keeps the rule colocated with the lex call
+ * and turns lyrics-style indents into normal paragraphs. The
+ * text-node `pushText` still runs the same strip as a defense in
+ * depth. What the pre-strip must not touch is a fence's contents,
+ * where the indentation is the code — see
+ * {@link stripIndentOutsideFences}.
  */
 export function parseMarkdown(text: string): BlockNode[] {
   const trimmed = text
   if (trimmed === '') return []
-  const cleaned = stripLeadingIndent(trimmed)
+  const cleaned = stripIndentOutsideFences(trimmed)
   let tokens: Token[]
   try {
     tokens = marked.lexer(cleaned)
