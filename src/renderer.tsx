@@ -183,6 +183,20 @@ export const App: FC<AppProps> = ({
     setThemePref(next)
     writeSettings({ theme: next })
   }, [])
+  /**
+   * Write a control sequence to the terminal, for `/copy`.
+   *
+   * `write` rather than `stdout.write`, for the Ctrl-L reason a few handlers
+   * down: Ink's writer clears log-update's frame, emits the bytes, and re-emits
+   * the cached frame unconditionally. An OSC 52 sequence is invisible and moves
+   * no cursor, so a raw write would *usually* be harmless — but a terminal that
+   * does not recognise the sequence prints its tail as text, and this is the
+   * variant where that debris is erased on the spot rather than sitting on
+   * screen until the next frame happens to differ.
+   */
+  const emit = useCallback((sequence: string) => {
+    write(sequence)
+  }, [write])
   // The animated "thinking" indicator. One interval per status
   // transition; both the StatusBar (right-side) and the Prompt
   // (placeholder) read from the same frame index so the spinner
@@ -318,6 +332,7 @@ export const App: FC<AppProps> = ({
           setTheme,
           themePref,
           appearance,
+          emit,
           state,
         }).then((result) => {
           // Command output goes into the log, not to stderr. Inside the
@@ -363,7 +378,7 @@ export const App: FC<AppProps> = ({
     },
     [
       ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
-      setTheme, themePref, appearance, strings, state, shell,
+      setTheme, themePref, appearance, emit, strings, state, shell,
     ],
   )
 

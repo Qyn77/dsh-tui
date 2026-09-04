@@ -58,6 +58,7 @@ export const LANGUAGES: readonly Lang[] = ['en', 'zh']
 export const COMMAND_NAMES = [
   '/clear',
   '/context',
+  '/copy',
   '/exit',
   '/help',
   '/language',
@@ -277,6 +278,15 @@ export interface Catalog {
     themeSwitched: (pref: ThemePref, appearance: Appearance) => string
     /** `/theme` with an argument that named no preference. */
     unknownTheme: (raw: string) => string
+    /** `/copy` with no argument, or one it did not recognise. */
+    copyUsage: string
+    /**
+     * `/copy` after the sequence was written. Says what was *sent*, never that
+     * it arrived: OSC 52 is not acknowledged, so the app cannot know.
+     */
+    copySent: (target: 'reply' | 'code', bytes: number, truncatedAt?: number) => string
+    /** `/copy` when the conversation holds no reply, or no code block. */
+    copyNothing: (target: 'reply' | 'code') => string
   }
 }
 
@@ -344,6 +354,7 @@ const EN: Catalog = {
   commands: {
     '/clear': 'Clear the visible chat (keeps the session log intact)',
     '/context': 'Show model, context window, and token usage',
+    '/copy': 'Copy the newest reply to the clipboard; /copy code takes the newest code block',
     '/exit': 'Leave the REPL',
     '/help': 'Show the list of available commands',
     '/language': 'Switch the interface language: /language en or zh',
@@ -422,6 +433,17 @@ const EN: Catalog = {
         ? `Following the terminal's background, which reads as ${appearance}.`
         : `Colors now assume a ${pref} background.`,
     unknownTheme: raw => `unknown theme '${raw}' — pick one of ${THEME_PREFS.join(', ')}`,
+    copyUsage: 'Usage: /copy (the newest reply) or /copy code (the newest code block)',
+    copySent: (target, bytes, truncatedAt) =>
+      `Sent the newest ${target === 'code' ? 'code block' : 'reply'} to the clipboard`
+      + ` (${bytes} bytes${truncatedAt === undefined ? '' : `, truncated at ${truncatedAt}`}).`
+      + '\nOSC 52 is never acknowledged, so this says what was sent, not what arrived.'
+      + ' If nothing pastes, your terminal has it disabled — under tmux it also needs'
+      + ' `set-clipboard on`.',
+    copyNothing: target =>
+      target === 'code'
+        ? 'no code block in this conversation yet'
+        : 'no reply to copy yet',
   },
 }
 
@@ -490,6 +512,7 @@ const ZH: Catalog = {
   commands: {
     '/clear': '清空可见的聊天区（session log 不变）',
     '/context': '显示模型、上下文窗口和 token 用量',
+    '/copy': '把最新一条回复复制到剪贴板；/copy code 取最新的代码块',
     '/exit': '退出 REPL',
     '/help': '显示可用命令列表',
     '/language': '切换界面语言：/language en 或 zh',
@@ -567,6 +590,14 @@ const ZH: Catalog = {
         ? `已跟随终端背景，探测结果是 ${appearance}。`
         : `配色已改为假定 ${pref} 背景。`,
     unknownTheme: raw => `未知主题「${raw}」—— 请选择 ${THEME_PREFS.join('、')}`,
+    copyUsage: '用法：/copy（最新一条回复）或 /copy code（最新的代码块）',
+    copySent: (target, bytes, truncatedAt) =>
+      `已把最新的${target === 'code' ? '代码块' : '回复'}发往剪贴板`
+      + `（${bytes} 字节${truncatedAt === undefined ? '' : `，在 ${truncatedAt} 字节处截断`}）。`
+      + '\nOSC 52 没有回执，所以这里说的是「发出去了」，不是「到了」。'
+      + '如果粘不出来，是你的终端没开这个功能——在 tmux 下还需要 `set-clipboard on`。',
+    copyNothing: target =>
+      target === 'code' ? '这段对话里还没有代码块' : '还没有可复制的回复',
   },
 }
 

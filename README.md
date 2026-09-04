@@ -131,6 +131,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
+| `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
@@ -229,6 +230,25 @@ need a light and a dark version, and those are the two that get one.
 Terminals that don't answer the query are the common case, not an error: the
 query is given 100ms, then `COLORFGBG` is consulted, then it settles on dark.
 Nothing is printed either way.
+
+### Clipboard
+
+`/copy` puts the newest reply on your system clipboard, and `/copy code` puts the
+newest fenced code block there instead. It works over SSH, which is the reason it
+exists: the text is handed to your *local* terminal as an escape sequence
+(OSC 52), so it reaches the clipboard of the machine you are sitting at rather
+than the one the session is running on.
+
+There is one honest caveat and the command states it every time: **the terminal
+never answers.** OSC 52 is a write with no reply, so if your terminal has it
+disabled, the sequence is discarded in silence and nothing here can tell. The
+confirmation therefore says what was *sent*, not what arrived. If nothing pastes,
+that is where to look — and under tmux you also need `set-clipboard on` in your
+config. GNU `screen` is not supported.
+
+Large replies are cut at 48 KB, and the command says when it cut. There is no
+`/paste`: your terminal's own paste already reaches the prompt, and reading the
+clipboard back would need the keyboard while the REPL is using it.
 
 ## Develop it
 

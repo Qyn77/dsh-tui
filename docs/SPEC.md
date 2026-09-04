@@ -218,6 +218,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/plugins` | List the plugins this host loaded, and how each one is doing. `/plugins enable\|disable <name>` switches one. |
 | `/usage` | Break this session's token spend out turn by turn. |
 | `/theme` | Choose the background the colors assume: `/theme auto\|dark\|light`. Bare `/theme` reports the current setting and, under `auto`, what the terminal answered. |
+| `/copy` | Send the newest reply to the system clipboard over OSC 52. `/copy code` sends the newest fenced block instead. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (idle) | Same as `/exit`. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
@@ -228,7 +229,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: `/copy`, and an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -303,6 +304,24 @@ The columns sum to the same figures `/context` reports as cumulative spend, and 
 Past `MAX_USAGE_ROWS` turns the oldest are folded into a single `+N earlier` row **carrying their summed tokens**, rather than dropped. This is the output-preview policy from §1.2 — cap the height, say what was left out — with the extra requirement that the visible rows still add up to the printed total. A table whose own arithmetic does not check out teaches the reader to distrust it.
 
 Both number columns are right-aligned in display columns rather than characters, because the Chinese labels (`轮次`, `合计`) are two characters and four columns wide.
+
+#### 1.5.5 `/copy`
+
+`/copy` writes `ESC ] 52 ; c ; <base64> BEL` to the terminal, which is how a program inside a terminal reaches the *system* clipboard — including across SSH, which is the case that makes it worth having at all. `c` is the clipboard selection rather than `p`, the primary: the point is the paste the user is about to do in another application.
+
+**Two forms, and no third.** Bare `/copy` takes the newest assistant reply; `/copy code` takes the newest fenced block anywhere in the conversation, because "copy that snippet" usually arrives a few turns after the snippet. Anything else prints the usage line rather than guessing — `/copy codee` silently copying the whole reply instead would be discovered on paste, which is the worst place to discover it. There is no `/copy <n>`: naming an older entry needs the focus/selection model §1.2 and roadmap §6 both decline.
+
+What it copies is the reply's **markdown source**, not the terminal's rendering of it. Someone pasting into an editor or an issue wants what the model wrote. `/copy code` reuses `parseMarkdown` rather than re-matching fences, so the block it sends is byte-for-byte the one §1.9 drew.
+
+**The write is never acknowledged, and every message says so.** OSC 52 has no reply. A terminal that does not implement it, or a tmux without `set-clipboard on`, discards the sequence in silence, and the app cannot tell that from success. So the confirmation states what was *sent* — the target and its byte count — and names the one thing the user can check if nothing pastes. Reporting "copied" would be a claim the app has no basis for.
+
+**Under tmux the sequence is wrapped in DCS passthrough with every inner `ESC` doubled.** That doubling is the whole difference between working and doing nothing: tmux's passthrough ends at the first `ESC \`, so an undoubled escape terminates the DCS early. Detection is `TMUX`, not `TERM` — `TERM=screen-256color` is what tmux itself usually reports. GNU `screen` is deliberately **not** handled: its passthrough needs the payload split into 512-byte chunks, and a half-right implementation would fail on exactly the large copies the chunking exists for, while looking supported.
+
+**The payload is capped at `OSC52_MAX_BYTES` (48 KiB, 64 KiB of base64) and the truncation is reported.** No specification states a limit and implementations differ; a sequence a terminal considers too long is dropped without a word. An uncapped `/copy` would therefore report success and copy nothing on exactly the large replies where it matters. This is the same cap-and-say-so policy as the output preview (§1.2), with the cut measured in UTF-8 bytes and pulled back to a whole code point.
+
+**The bytes go through Ink's writer, not `process.stdout`.** An OSC 52 sequence is invisible and moves no cursor, so a raw write would usually be harmless — but a terminal that does not recognise it prints the tail as text, and Ink's writer re-emits the cached frame immediately afterwards, so that debris is erased on the spot. Same mechanism as Ctrl-L (§1.6).
+
+**There is no `/paste`, and that is a constraint rather than a gap.** Reading the clipboard needs the query form and a read of the reply, which needs a `data` listener on stdin — mid-session, while Ink owns the read loop. `probeAppearance` (§1.10) gets away with that only because it runs before Ink mounts; there is no equivalent window once a session is up, and a reply arriving after mount is typed into the prompt as garbage. It is also the less valuable half: every terminal already pastes with its own binding, and bracketed paste already reaches the prompt.
 
 ### 1.6 Keyboard bindings
 
@@ -536,7 +555,7 @@ Still open: nothing — v0.3 is complete.
 - **Auto theme.** *Shipped.* The terminal is asked its background color over OSC 11 at boot and the app picks a light or dark appearance from the reply's luminance; `/theme auto|dark|light` overrides it and persists. What changes is narrow on purpose — the code-block theme and the lighter brand tint, the only two colors that name an absolute value. See §1.10.
 - **Streaming markdown.** *Shipped.* The assistant text is re-parsed on every `assistant/chunk` event and drawn as partial markdown, instead of waiting for `assistant/message` — see §1.9 for why the partial-parse churn the original plan feared does not happen.
 - **Truncation.** The 8-line cap shipped in v0.3; what remains is the `▾ show more` affordance, and it is not free — expanding one entry needs a focus/selection model this app does not have. Read §6 of the roadmap before starting it.
-- **Clipboard.** OSC 52 integration for `/copy` and `/paste`.
+- **Clipboard.** *Shipped as `/copy`.* The newest reply, or the newest fenced block, goes to the system clipboard over OSC 52 — across SSH included. `/paste` is **not** coming: reading the clipboard needs a stdin listener mid-session, which is Ink's, and every terminal already pastes on its own. See §1.5.5.
 
 ### v1.0 — Production
 
@@ -584,6 +603,7 @@ src/
 ├── plugins.ts          # Pure classification + table for `/plugins`
 ├── banner-art.ts       # Pure banner art + text — beside Banner.tsx
 ├── theme.ts            # Pure appearance arithmetic, and the one terminal probe
+├── clipboard.ts        # Pure OSC 52 sequence + what `/copy` selects
 ├── hooks/              # React-only — useInput, useEffect, useState
 └── components/         # React components — pure functions of state
 ```
@@ -599,6 +619,7 @@ The bottom third of that list is one pattern repeated: **a component whose logic
 - `file-mentions.ts` is pure except for `listFiles`, which reads the filesystem. It lives beside the pure modules because everything a test needs to pin — what counts as a mention, how paths rank, what the buffer looks like afterwards — is pure; the one I/O function is kept in the same file so the reader can see the whole feature rather than chase a second module for one `readdir`.
 - `highlight.ts` follows `file-mentions.ts`: pure except for `loadTokenizer`, which dynamically imports Shiki and loads a grammar. Everything a test needs to pin — how a Shiki token becomes an Ink one, which languages are treated as plain, and exactly which lines the cache re-tokenizes — is pure, and the one async function is kept in the same file so the reader sees the whole feature. It may import from `shiki` (dynamically, inside `loadTokenizer`) and must not import React, Ink, or any component.
 - `theme.ts` follows the same shape: pure except for `probeAppearance`, which writes to a stdout and listens on a stdin. It **imports nothing at all**, and that is deliberate rather than incidental — the brand tint *pair* lives here rather than in `banner-art.ts` because a `theme.ts` that reached back for it would close a cycle (`i18n.ts → theme.ts → banner-art.ts → i18n.ts`, since `banner-art.ts` reads the string catalog and `i18n.ts` needs `THEME_PREFS`). The rule that decides which module owns a color: `banner-art.ts` keeps the values that have *one* value, `theme.ts` owns the ones that are a pair, because owning a pair means choosing between them.
+- `clipboard.ts` is pure outright — no I/O at all, because copying is one-way and there is no reply to read. It may import `markdown.ts` (so `/copy code` agrees with what was drawn), `types.ts`, and `clampOutput` from `shell.ts`. That last one is a cross-feature import on purpose: it is a byte-safe truncation with the split-code-point case already solved, and a second copy would duplicate that fix. It must not import React, Ink, or any component.
 - `hooks/` may import from `state.ts` (as a function call), `markdown.ts` (as a function call), the pure modules, `types.ts`, and React.
 - `components/` may import from `hooks/`, `markdown.ts` (for the `Markdown` component and AST types), the pure modules, `types.ts`, and React. They do **not** import `state.ts` directly — they receive derived props from the renderer.
 - `renderer.tsx` is the only file that wires the reducer to the hooks.
@@ -760,6 +781,7 @@ heeded when it was built.
 | `commands.ts` | 100% (every command, every invalid input shape) |
 | `markdown.ts` | Every block-level construct (heading, paragraph, code, list, blockquote, hr) + at least one inline construct + the failure-mode fallback (unclosed fence, stray delimiter) + every prefix of a whole answer, since streaming renders all of them (§1.9) |
 | `highlight.ts` | Token shaping including `fontStyle: -1` (a naive bit test on -1 sets every flag at once) + which languages count as plain + the cache's re-tokenize count on prepend/edit/append, against a fake tokenizer + the real-Shiki equality: line-by-line with threaded state must equal a whole-block highlight byte for byte |
+| `clipboard.ts` | The exact sequence against literal base64 (not against another `Buffer` call) + UTF-8 including a surrogate pair + the tmux wrap's escape doubling and its undoubled terminator + `TMUX` detection, and that `TERM` is not consulted + what `pickCopyText` reaches past + the clamp's byte boundary. Plus a frame test: the bytes must actually reach the stream, which no unit test over the builder can see |
 | `theme.ts` | The OSC 11 reply parser across the shapes terminals actually send (`rgb:` at every hex width, `#RRGGBB`, BEL- and ST-terminated, garbage) + the luminance threshold, including a case an averaging implementation gets wrong + `COLORFGBG` fallback + `probeAppearance` against a fake stdin: the reply path, the silent-terminal deadline, raw mode restored either way |
 | `hooks/*` | Whatever the hook actually owns. A hook that only wires a pure module to React is covered by that module's spec plus a frame test; a hook that owns state or a timer gets a mounted probe (`tests/running-clock.spec.ts`, `tests/session-events.spec.ts` are the two patterns) |
 | `components/*` | Frame-level, through the fake TTY. See below — there are no snapshots and no `renderHook` in this package |

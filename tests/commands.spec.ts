@@ -11,6 +11,7 @@ import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands.ts'
 import { catalog } from '../src/i18n.ts'
 import type { UiState } from '../src/types.ts'
+import { OSC52_MAX_BYTES, osc52 } from '../src/clipboard.ts'
 
 interface Stand {
   ctx: Context
@@ -557,6 +558,95 @@ describe('slash command dispatch', () => {
   })
 
 
+  describe('/copy', () => {
+    /** A state whose newest assistant entry is `text`. */
+    function withReply(text: string): UiState {
+      return {
+        entries: [{ kind: 'assistant', turn: 1, step: 1, text, finalized: true }],
+        status: 'idle',
+        currentTurn: 1,
+      }
+    }
+
+    it('emits the newest reply and reports what it sent', async () => {
+      const emit = vi.fn()
+      const { cmd } = makeCommand({ emit, state: withReply('the answer') })
+      const result = await dispatch('/copy', cmd)
+      expect(emit).toHaveBeenCalledWith(osc52('the answer'))
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).not.toBe(true)
+        // The unit is bytes, and it is the byte count of what was actually sent.
+        expect(result.message).toContain('10 bytes')
+      }
+    })
+
+    it('emits the newest code block for `code`', async () => {
+      const emit = vi.fn()
+      const { cmd } = makeCommand({ emit, state: withReply('try:\n\n```sh\nls -la\n```') })
+      await dispatch('/copy code', cmd)
+      expect(emit).toHaveBeenCalledWith(osc52('ls -la'))
+    })
+
+    it('refuses an empty conversation without emitting', async () => {
+      const emit = vi.fn()
+      const { cmd } = makeCommand({ emit })
+      const result = await dispatch('/copy', cmd)
+      expect(emit).not.toHaveBeenCalled()
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') expect(result.failed).toBe(true)
+    })
+
+    it('refuses `code` when the conversation holds no fence', async () => {
+      const emit = vi.fn()
+      const { cmd } = makeCommand({ emit, state: withReply('no code here') })
+      const result = await dispatch('/copy code', cmd)
+      expect(emit).not.toHaveBeenCalled()
+      if (result.kind === 'handled') expect(result.failed).toBe(true)
+    })
+
+    it('prints usage for an unrecognised argument rather than guessing', async () => {
+      // Copying the whole reply for `/copy codee` would be discovered on paste,
+      // which is the worst place to discover it.
+      const emit = vi.fn()
+      const { cmd } = makeCommand({ emit, state: withReply('```ts\nx\n```') })
+      const result = await dispatch('/copy codee', cmd)
+      expect(emit).not.toHaveBeenCalled()
+      if (result.kind === 'handled') {
+        expect(result.failed).toBe(true)
+        expect(result.message).toContain('/copy code')
+      }
+    })
+
+    it('prints usage for a second argument', async () => {
+      const emit = vi.fn()
+      const { cmd } = makeCommand({ emit, state: withReply('```ts\nx\n```') })
+      const result = await dispatch('/copy code please', cmd)
+      expect(emit).not.toHaveBeenCalled()
+      if (result.kind === 'handled') expect(result.failed).toBe(true)
+    })
+
+    it('clamps an oversized reply and says so', async () => {
+      const emit = vi.fn()
+      const { cmd } = makeCommand({ emit, state: withReply('x'.repeat(OSC52_MAX_BYTES + 100)) })
+      const result = await dispatch('/copy', cmd)
+      expect(emit).toHaveBeenCalledWith(osc52('x'.repeat(OSC52_MAX_BYTES)))
+      if (result.kind === 'handled') {
+        // Reported, not silent: a half-copied file is indistinguishable from a
+        // whole one until the user pastes it.
+        expect(result.message).toContain('truncated')
+      }
+    })
+
+    it('reports without a handler rather than throwing', async () => {
+      // `emit` is optional, like `setTheme`. A `/copy` in a context without one
+      // still answers instead of crashing the turn.
+      const { cmd } = makeCommand({ state: withReply('the answer') })
+      const result = await dispatch('/copy', cmd)
+      expect(result.kind).toBe('handled')
+    })
+  })
+
   describe('/model', () => {
     it('shows usage and current model when no argument is given', async () => {
       const { cmd } = makeCommand()
@@ -734,8 +824,8 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/clear', '/context', '/exit', '/help', '/language', '/model', '/plugins', '/quit',
-      '/status', '/theme', '/usage',
+      '/clear', '/context', '/copy', '/exit', '/help', '/language', '/model', '/plugins',
+      '/quit', '/status', '/theme', '/usage',
     ])
   })
 
@@ -747,8 +837,8 @@ describe('filterCommands', () => {
   it('distinguishes /clear from /context under a shared prefix', () => {
     // Both start with `/c`, so the palette must offer both rather than
     // silently completing to the first.
-    expect(filterCommands('/c').map(c => c.name)).toEqual(['/clear', '/context'])
-    expect(filterCommands('/co').map(c => c.name)).toEqual(['/context'])
+    expect(filterCommands('/c').map(c => c.name)).toEqual(['/clear', '/context', '/copy'])
+    expect(filterCommands('/co').map(c => c.name)).toEqual(['/context', '/copy'])
   })
 
   it('matches /model under /m prefix', () => {
@@ -787,7 +877,7 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/clear', '/compact', '/context', '/exit', '/goal', '/help', '/language', '/model',
+        '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/language', '/model',
         '/plugins', '/quit', '/status', '/theme', '/usage',
       ])
     })
@@ -795,7 +885,8 @@ describe('filterCommands', () => {
     it('sorts registry rows in with the built-ins rather than after them', () => {
       // `/compact` shares `/c` with two built-ins and must land between them,
       // not in a separate block — the palette is one list to arrow through.
-      expect(filterCommands('/c', extra).map(c => c.name)).toEqual(['/clear', '/compact', '/context'])
+      expect(filterCommands('/c', extra).map(c => c.name))
+        .toEqual(['/clear', '/compact', '/context', '/copy'])
     })
 
     it('lets a built-in win a name collision', () => {

@@ -39,6 +39,15 @@ import {
 import { contextOccupancy, formatUsage, totalUsage, usageByTurn } from './usage.ts'
 import { isThemePref, type Appearance, type ThemePref } from './theme.ts'
 import {
+  OSC52_MAX_BYTES,
+  byteLength,
+  clampForClipboard,
+  multiplexerFromEnv,
+  osc52,
+  pickCopyText,
+  type CopyTarget,
+} from './clipboard.ts'
+import {
   describePlugins,
   formatPlugins,
   parsePluginArgs,
@@ -278,6 +287,19 @@ export interface CommandContext {
    * app's own default and what a context built without it should report.
    */
   appearance?: Appearance
+  /**
+   * Write a control sequence straight to the terminal.
+   *
+   * Named for what it does rather than for `/copy`, because that is the whole of
+   * its contract: this module decides *what* to send and builds the bytes, and
+   * the App only supplies a writer. Optional like {@link setTheme} — a context
+   * without one still reports what it could not send.
+   *
+   * It must be Ink's own writer, not `process.stdout.write`. See the App's
+   * wiring for why: Ink re-emits its cached frame afterwards, so a terminal that
+   * renders an unrecognised OSC as visible garbage has it erased immediately.
+   */
+  emit?: (sequence: string) => void
   /** Live UI state for commands that inspect token usage or entries. */
   state: UiState
 }
@@ -381,6 +403,32 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       return {
         kind: 'handled',
         message: strings.themeSwitched(requested, requested === 'auto' ? appearance : requested),
+      }
+    }
+
+    case '/copy': {
+      const args = raw.trim().split(/\s+/).slice(1)
+      // Exactly two forms, and an unrecognised argument is the usage line rather
+      // than a guess. `/copy code` is one keystroke from `/copy codee`, and
+      // silently copying the whole reply instead would be discovered on paste.
+      const target: CopyTarget | undefined =
+        args.length === 0 ? 'reply' : args[0] === 'code' && args.length === 1 ? 'code' : undefined
+      if (target === undefined) {
+        return { kind: 'handled', message: strings.copyUsage, failed: true }
+      }
+      const found = pickCopyText(cmd.state.entries, target)
+      if (found === undefined) {
+        return { kind: 'handled', message: strings.copyNothing(target), failed: true }
+      }
+      const clamped = clampForClipboard(found.text)
+      cmd.emit?.(osc52(clamped.text, { multiplexer: multiplexerFromEnv() }))
+      return {
+        kind: 'handled',
+        message: strings.copySent(
+          target,
+          byteLength(clamped.text),
+          clamped.truncated ? OSC52_MAX_BYTES : undefined,
+        ),
       }
     }
 
