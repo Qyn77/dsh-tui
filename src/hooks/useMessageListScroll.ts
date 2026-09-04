@@ -87,16 +87,29 @@ export interface MessageListScrollOptions {
    * it — so ownership has to be decided by whoever renders both, and passed
    * in here. Defaults to true.
    *
-   * Only the arrows are negotiable: `PageUp`/`PageDown` and `Ctrl-B/F/U/D`
-   * always scroll the log, so the keyboard never loses its way through
-   * history no matter what the prompt is doing.
+   * Only the arrows and `Ctrl-U` are negotiable: `PageUp`/`PageDown` and
+   * `Ctrl-B`/`Ctrl-F`/`Ctrl-D` always scroll the log, so the keyboard never
+   * loses its way through history no matter what the prompt is doing.
    */
   arrowsScroll?: boolean
+  /**
+   * Whether `Ctrl-U` scrolls the log half a page. The Prompt claims it while
+   * its buffer holds anything, because that is what `Ctrl-U` means in
+   * readline — kill to the start of the line — and a user reaching for it to
+   * clear a half-typed line instead watched the log jump half a page while
+   * the line stayed put. An empty buffer hands the key back, so the binding
+   * never disappears. Defaults to true.
+   *
+   * `Ctrl-D` is deliberately *not* negotiable in the same way: readline's
+   * meaning for it is end-of-input, which this prompt has no use for, so
+   * there is nothing to hand it back to.
+   */
+  ctrlUScrolls?: boolean
 }
 
 /** Own the conversation viewport's scroll position and its bindings. */
 export function useMessageListScroll(
-  { arrowsScroll = true }: MessageListScrollOptions = {},
+  { arrowsScroll = true, ctrlUScrolls = true }: MessageListScrollOptions = {},
 ): MessageListScroll {
   // `internal_eventEmitter` is Ink's own name for its stdin event bus; the
   // underscore is part of its public-but-unstable API, not a local style choice.
@@ -171,6 +184,7 @@ export function useMessageListScroll(
           scrollBy(-pageDelta(viewportRows))
           return
         case 'u':
+          if (!ctrlUScrolls) return
           scrollBy(halfPageDelta(viewportRows))
           return
         case 'd':

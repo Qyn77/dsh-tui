@@ -447,6 +447,120 @@ describe('prompt and log both want the arrow keys', () => {
   })
 })
 
+/**
+ * `Ctrl-U` and `Ctrl-C`, both of which change owner depending on whether
+ * there is text in the box.
+ *
+ * Neither was a missing feature; both were keys that did something unrelated
+ * to what the user reached for. `Ctrl-U` is readline's kill-to-start, and
+ * pressing it to clear a half-typed line scrolled the log half a page while
+ * the line sat there untouched. `Ctrl-C` closed the session outright, so
+ * abandoning a sentence and abandoning the conversation were one keystroke.
+ *
+ * These have to be frame tests: the dispatch either side of the negotiation
+ * passes in isolation, and only the composed app shows which one acted.
+ */
+describe('prompt and log both want Ctrl-U', () => {
+  /** The buffer row, caret glyph included. */
+  function buffer(screen: string): string {
+    return promptBox(screen)[1] ?? ''
+  }
+
+  it('deletes to the start of a non-empty buffer and leaves the log alone', async () => {
+    const painted = await paintApp({ turns: 10 })
+    await painted.send('abcd')
+    await painted.send(`${ESC}[D`)
+    await painted.send(`${ESC}[D`)
+    await painted.send('\x15')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // Killed to the start, not the whole buffer: the tail after the caret
+    // survives, which is what distinguishes this from a plain clear.
+    expect(buffer(screen)).toContain('▌cd')
+    expect(buffer(screen)).not.toContain('ab')
+    // And the log did not move.
+    expect(screen).not.toMatch(/more rows? below/)
+  })
+
+  it('hands the key back to the log once the buffer is empty', async () => {
+    // The negotiation has to be reversible, or the binding disappears for
+    // anyone who has ever typed a character.
+    const painted = await paintApp({ turns: 10 })
+    await painted.send('\x15')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toMatch(/more rows? below/)
+  })
+
+  it('gives the key back after the buffer is emptied again', async () => {
+    const painted = await paintApp({ turns: 10 })
+    await painted.send('xy')
+    await painted.send('\x15')
+    // Buffer is empty again — this second press belongs to the log.
+    await painted.send('\x15')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toMatch(/more rows? below/)
+  })
+})
+
+describe('Ctrl-C asks before it closes the session', () => {
+  /** The buffer row, caret glyph included. */
+  function buffer(screen: string): string {
+    return promptBox(screen)[1] ?? ''
+  }
+
+  it('clears a half-written line instead of arming the exit', async () => {
+    const painted = await paintApp()
+    await painted.send('half a thought')
+    await painted.send('\x03')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(buffer(screen)).not.toContain('half a thought')
+    // Nothing was armed: the press was spent on the line.
+    expect(screen).not.toContain('again to exit')
+  })
+
+  it('arms the exit on a bare press and says so', async () => {
+    const painted = await paintApp()
+    await painted.send('\x03')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('again to exit')
+  })
+
+  it('disarms on any other key', async () => {
+    // The rule is "the second press must be the next press". A notice that
+    // lingered would make a much later Ctrl-C exit without warning.
+    const painted = await paintApp()
+    await painted.send('\x03')
+    await painted.send('z')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).not.toContain('again to exit')
+    expect(buffer(screen)).toContain('z')
+  })
+
+  it('takes the notice down again when the line is cleared', async () => {
+    // Ctrl-C with text clears the line and disarms; the press after that is
+    // a fresh first press, not the second half of an older one.
+    const painted = await paintApp()
+    await painted.send('\x03')
+    await painted.send('typed')
+    await painted.send('\x03')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).not.toContain('again to exit')
+  })
+})
+
 describe('the caret remembers the column it is aiming for', () => {
   /** Every row of the box, so a caret on any of them can be asserted on. */
   function rows(screen: string): string {

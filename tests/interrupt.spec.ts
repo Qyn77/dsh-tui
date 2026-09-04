@@ -11,7 +11,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { handleInterrupt, type InterruptDeps } from '../src/interrupt.ts'
+import { handleCancel, handleInterrupt, type InterruptDeps } from '../src/interrupt.ts'
 
 function makeDeps(overrides?: Partial<InterruptDeps['agent']>): {
   deps: InterruptDeps
@@ -91,5 +91,98 @@ describe('handleInterrupt', () => {
     expect(closeUi).toHaveBeenCalledOnce()
     expect(exit).toHaveBeenCalledWith(0)
     expect(cancel).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The two branches that stand between a keystroke and a closed session.
+ *
+ * Both are about the same failure: Ctrl-C used to exit on the first press
+ * with no regard for what was on screen, so abandoning a half-typed line
+ * and abandoning the session were the same keystroke.
+ */
+describe('handleInterrupt · guards before the exit', () => {
+  it('stands down when the prompt holds a half-written line', () => {
+    // The prompt clears its own buffer on this keystroke. The App's only job
+    // is to not exit out from under it.
+    const { deps, closeUi, exit } = makeDeps({ status: 'idle' })
+    handleInterrupt({ ...deps, promptFilled: true, armExit: vi.fn() })
+    expect(closeUi).not.toHaveBeenCalled()
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('arms the exit on the first bare press instead of leaving', () => {
+    const { deps, closeUi, exit } = makeDeps({ status: 'idle' })
+    const armExit = vi.fn()
+    handleInterrupt({ ...deps, armExit })
+    expect(armExit).toHaveBeenCalledOnce()
+    expect(closeUi).not.toHaveBeenCalled()
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('leaves on the second press, once armed', () => {
+    const { deps, closeUi, exit } = makeDeps({ status: 'idle' })
+    const armExit = vi.fn()
+    handleInterrupt({ ...deps, exitArmed: true, armExit })
+    expect(armExit).not.toHaveBeenCalled()
+    expect(closeUi).toHaveBeenCalledOnce()
+    expect(exit).toHaveBeenCalledWith(0)
+  })
+
+  it('exits on the first press when no arming hook is wired', () => {
+    // `armExit` is optional so a host that wants the old one-press exit — and
+    // every existing test above — keeps it. Losing that would turn the guard
+    // into a behaviour change nobody opted into.
+    const { deps, exit } = makeDeps({ status: 'idle' })
+    handleInterrupt(deps)
+    expect(exit).toHaveBeenCalledWith(0)
+  })
+
+  it('cancels a running turn without arming anything', () => {
+    // Arming here would mean a Ctrl-C that cancelled a turn also left the
+    // next stray Ctrl-C one press away from closing the session.
+    const { deps, cancel, exit } = makeDeps({ status: 'running' })
+    const armExit = vi.fn()
+    handleInterrupt({ ...deps, armExit })
+    expect(cancel).toHaveBeenCalledWith({ kind: 'user' })
+    expect(armExit).not.toHaveBeenCalled()
+    expect(exit).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * `Esc`. The whole point of it being a separate entry point is the branch it
+ * does *not* have, so that is what most of these assert.
+ */
+describe('handleCancel', () => {
+  it('kills a running `!` command', () => {
+    const { deps, cancel } = makeDeps({ status: 'idle' })
+    const abortShell = vi.fn()
+    expect(handleCancel({ ...deps, shellRunning: true, abortShell })).toBe(true)
+    expect(abortShell).toHaveBeenCalledOnce()
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it('cancels an in-flight turn', () => {
+    const { deps, cancel } = makeDeps({ status: 'running' })
+    expect(handleCancel(deps)).toBe(true)
+    expect(cancel).toHaveBeenCalledWith({ kind: 'user' })
+  })
+
+  it('never exits, even with nothing to stop', () => {
+    // The guarantee Esc exists to make. A user pressing it expecting "stop
+    // that" must not be able to lose the conversation.
+    const { deps, closeUi, exit } = makeDeps({ status: 'idle' })
+    expect(handleCancel(deps)).toBe(false)
+    expect(closeUi).not.toHaveBeenCalled()
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('ignores the prompt buffer entirely', () => {
+    // Esc with text in the box is the prompt's business (dismissing a
+    // palette); this layer must not read it as a reason to act.
+    const { deps, exit } = makeDeps({ status: 'idle' })
+    expect(handleCancel({ ...deps, promptFilled: true })).toBe(false)
+    expect(exit).not.toHaveBeenCalled()
   })
 })

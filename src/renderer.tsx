@@ -25,7 +25,7 @@ import { useShell } from './hooks/useShell.ts'
 import { parseShellInput } from './shell.ts'
 import { service } from './services.ts'
 import { dispatch } from './commands.ts'
-import { handleInterrupt } from './interrupt.ts'
+import { handleCancel, handleInterrupt } from './interrupt.ts'
 import { catalog, type Lang } from './i18n.ts'
 import { LanguageProvider } from './hooks/useStrings.tsx'
 import { ThemeProvider } from './hooks/useTheme.tsx'
@@ -240,12 +240,23 @@ export const App: FC<AppProps> = ({
   // hook stands down for exactly those two keys. PageUp/PageDown and
   // Ctrl-B/F/U/D never move, so the whole log always stays reachable.
   const [promptClaimsArrows, setPromptClaimsArrows] = useState(false)
+  // Whether the prompt holds a half-written line. Ctrl-U and Ctrl-C both
+  // belong to it while this is set — see `Prompt.onFilledChange`.
+  const [promptFilled, setPromptFilled] = useState(false)
+  // Ctrl-C on an empty line at idle asks once before closing the session.
+  // The flag disarms on any other keystroke rather than on a timer: a timer
+  // would make the outcome of a keypress depend on how long ago the last one
+  // was, which is the property that makes accidental exits accidental.
+  const [exitArmed, setExitArmed] = useState(false)
 
   // Scroll position for the conversation viewport, in rows above the newest
   // row. It lives here rather than inside the MessageList because the
   // "scrolled into history" hint is a sibling of the list, and because the
   // key bindings belong at the root next to the Ctrl-C handler.
-  const scroll = useMessageListScroll({ arrowsScroll: !promptClaimsArrows })
+  const scroll = useMessageListScroll({
+    arrowsScroll: !promptClaimsArrows,
+    ctrlUScrolls: !promptFilled,
+  })
 
 
   // Ink's frame eraser is cursor-relative, so a terminal that rewraps the
@@ -271,7 +282,39 @@ export const App: FC<AppProps> = ({
         exit,
         shellRunning: shell.running,
         abortShell: shell.abort,
+        promptFilled,
+        exitArmed,
+        armExit: () => { setExitArmed(true) },
       })
+      return
+    }
+    // Any other key means the user is still working, so a previously armed
+    // exit is stale. Disarming here rather than on a timer keeps the rule
+    // legible: the second press must be the *next* press.
+    if (exitArmed) setExitArmed(false)
+    // Esc stops the work and never closes the session. It is deliberately
+    // not routed through `handleInterrupt`: reaching that function's exit
+    // branch from Esc is the exact accident this binding exists to avoid.
+    //
+    // Approval questions outrank it. A tool asks for permission *during* a
+    // turn, so `ApprovalPrompt` — which binds Esc to "deny" — is active at
+    // exactly the moment the agent is running. Without this guard one press
+    // would deny the tool and cancel the whole turn, which is two layers
+    // acting on one keystroke and the thing SPEC §1.6 forbids. Denying is
+    // also the narrower reading: the user rejected a command, not the work.
+    //
+    // The prompt's own Esc bindings need no such guard: it is inert while a
+    // turn runs, so its palette and file picker cannot be open.
+    if (key.escape) {
+      if (approvals.pending.length > 0) return
+      handleCancel({
+        agent,
+        closeUi,
+        exit,
+        shellRunning: shell.running,
+        abortShell: shell.abort,
+      })
+      return
     }
     // Ctrl-L — throw the screen away and lay the frame down again. Not a
     // state change: the conversation, the scroll offset, and the prompt
@@ -510,11 +553,19 @@ export const App: FC<AppProps> = ({
         wheel. Only the text is conditional.
       */}
         <Box paddingX={1} height={1} flexShrink={0}>
-          {scroll.atTail ? null : (
-            <Text color="yellow" dimColor wrap="truncate">
-              {strings.scroll.hint(scroll.offset)}
-            </Text>
-          )}
+          {exitArmed
+            ? (
+              <Text color="yellow" wrap="truncate">
+                {strings.interrupt.confirmExit}
+              </Text>
+            )
+            : scroll.atTail
+              ? null
+              : (
+                <Text color="yellow" dimColor wrap="truncate">
+                  {strings.scroll.hint(scroll.offset)}
+                </Text>
+              )}
         </Box>
         {/*
         Above the prompt rather than in place of it. The prompt is inert while a
@@ -528,6 +579,7 @@ export const App: FC<AppProps> = ({
           onSubmit={onSubmit}
           spinnerFrame={spinnerFrame}
           onArrowClaimChange={setPromptClaimsArrows}
+          onFilledChange={setPromptFilled}
           extraCommands={extraCommands}
         />
       </Box>

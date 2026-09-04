@@ -40,6 +40,7 @@ import { isMouseReport } from '../scroll.ts'
 import { readPaste } from '../paste.ts'
 import {
   deleteToEnd,
+  deleteToStart,
   deleteWordBefore,
   insertTextAtCursor,
   pushHistory,
@@ -75,6 +76,15 @@ export interface PromptProps {
    * the keys.
    */
   onArrowClaimChange?: (claimed: boolean) => void
+  /**
+   * Report whether the buffer currently holds anything. Two keys outside this
+   * component change meaning based on the answer — `Ctrl-U` deletes to the
+   * start of a non-empty buffer instead of scrolling the log, and `Ctrl-C`
+   * clears it instead of exiting — and both of those consumers can only see
+   * the buffer through this. Optional, like the arrow claim: a prompt
+   * rendered without it never takes either key.
+   */
+  onFilledChange?: (filled: boolean) => void
   /**
    * Commands the plugin registry offers, alongside the built-in table. The
    * prompt has no context to read the registry from, so the App resolves it
@@ -130,6 +140,7 @@ export const Prompt: FC<PromptProps> = ({
   onSubmit,
   spinnerFrame,
   onArrowClaimChange,
+  onFilledChange,
   extraCommands,
 }) => {
   const { stdout } = useStdout()
@@ -201,6 +212,15 @@ export const Prompt: FC<PromptProps> = ({
   useEffect(() => {
     onArrowClaimChange?.(claimsArrows)
   }, [claimsArrows, onArrowClaimChange])
+
+  // Ctrl-U and Ctrl-C both mean something different when there is text to
+  // lose. `active` is part of it: while a turn runs the prompt takes no keys
+  // at all, so a buffer left over from before must not keep Ctrl-C from
+  // reaching the App.
+  const filled = active && value !== ''
+  useEffect(() => {
+    onFilledChange?.(filled)
+  }, [filled, onFilledChange])
 
   /**
    * Write the highlighted file into the buffer in place of the mention.
@@ -309,11 +329,18 @@ export const Prompt: FC<PromptProps> = ({
         return
       }
       // `Ctrl-` keystrokes are split with the layers above us, per the
-      // ownership table in SPEC §1.6: we take the caret ends and the two
-      // deletions, and Ctrl-C (App) plus Ctrl-B/F/U/D (log scroll) pass
-      // straight through. What must never happen is falling through to the
-      // text path below, where Ink delivers a `Ctrl-` keystroke as its bare
-      // letter — so Ctrl-C would append a 'c' to the buffer on its way out.
+      // ownership table in SPEC §1.6: we take the caret ends and the
+      // deletions, and Ctrl-B/F/D (log scroll) pass straight through. What
+      // must never happen is falling through to the text path below, where
+      // Ink delivers a `Ctrl-` keystroke as its bare letter — so Ctrl-C would
+      // append a 'c' to the buffer on its way out.
+      //
+      // Ctrl-U and Ctrl-C are *conditional* members of that split, and the
+      // condition is the same one: whether there is text to lose. Both report
+      // upward through `onFilledChange`, and the layer that would otherwise
+      // act (the log for Ctrl-U, the App for Ctrl-C) stands down for exactly
+      // as long as the buffer is non-empty. An empty buffer gives them back,
+      // so neither key becomes unreachable.
       //
       // Ctrl-J is not handled here and does not need to be: Ink parses it
       // as the linefeed it is, so it arrives as ordinary input '\n'.
@@ -325,7 +352,16 @@ export const Prompt: FC<PromptProps> = ({
           setValue(next.text)
           setCursorIndex(next.cursor)
         } else if (input === 'k') setValue(deleteToEnd(value, cursorIndex))
-        else if (input === 'p') recallHistory(-1)
+        else if (input === 'u' && value !== '') {
+          setValue(deleteToStart(value, cursorIndex))
+          setCursorIndex(0)
+        } else if (input === 'c' && value !== '') {
+          // Abandon the line, stay in the app. The App's exit path checks the
+          // same emptiness through `onFilledChange`, so exactly one of us acts.
+          setValue('')
+          setCursorIndex(0)
+          setHistoryIndex(null)
+        } else if (input === 'p') recallHistory(-1)
         else if (input === 'n') recallHistory(1)
         return
       }

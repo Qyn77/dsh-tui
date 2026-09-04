@@ -68,7 +68,7 @@ Each zone has a fixed role and stays in that role forever:
   | `↑` / `↓` | One row |
   | `PageUp` / `PageDown` | One viewport, less two rows of overlap |
   | `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
-  | `Ctrl-U` / `Ctrl-D` | Half a viewport |
+  | `Ctrl-U` / `Ctrl-D` | Half a viewport (`Ctrl-U` only while the prompt is empty — §1.6) |
   | `Home` / `End` | Oldest row / back to the live tail |
   | Wheel | Delivered as `↑` / `↓` — see below |
 
@@ -229,8 +229,10 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/sessions` | List the stored sessions, newest first, with the id to resume one by. |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` for the newest. |
 | `/exit`, `/quit` | Leave the REPL. |
-| `Ctrl-C` (idle) | Same as `/exit`. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
+| `Ctrl-C` (buffer non-empty) | Clear the buffer. |
+| `Ctrl-C` (idle, empty buffer) | Ask; a second `Ctrl-C` is the same as `/exit`. |
+| `Esc` (turn running) | Cancel the in-flight turn, without the exit branch. |
 
 Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash command iff it starts with `/` and matches a known name; anything else is sent to the model as a user message.
 
@@ -399,10 +401,14 @@ its way to someone else.
 | `↑` / `↓` | MessageList (otherwise) | Scroll one row |
 | `PageUp` / `PageDown` | MessageList | Scroll a page |
 | `Ctrl-B` / `Ctrl-F` | MessageList | Scroll a page (no `Fn` needed) |
-| `Ctrl-U` / `Ctrl-D` | MessageList | Scroll half a page |
+| `Ctrl-U` | Prompt (buffer non-empty) | Delete from the caret to the start of the buffer |
+| `Ctrl-U` | MessageList (otherwise) | Scroll half a page |
+| `Ctrl-D` | MessageList | Scroll half a page |
 | `Home` / `End` | MessageList | Jump to the oldest row / back to the tail |
 | `Ctrl-O` | MessageList | Toggle the expanded preview budget (`/verbose`) |
-| `Ctrl-C` | App | Cancel turn (when running) or exit (when idle) |
+| `Esc` | App (nothing else claims it) | Cancel the running turn or shell; never exits |
+| `Ctrl-C` | Prompt (buffer non-empty) | Clear the buffer |
+| `Ctrl-C` | App (otherwise) | Cancel turn if one is running; else arm, then confirm, exit |
 | `Ctrl-L` | App | Clear the screen and redraw the frame |
 | pasted text | Prompt, **before every row above** | Insert verbatim; newlines normalised to `\n` |
 
@@ -428,11 +434,18 @@ break the `Enter` key to protect a paste. See `src/paste.ts`.
 
 Four rows are decided rather than inherited, and each costs something:
 
-- **`Ctrl-U` scrolls; it does not kill the line.** In readline it is
-  kill-to-start, and that muscle memory is real. But `PageUp`/`PageDown` need
-  `Fn` on a laptop, `Ctrl-B/F/U/D` are the bindings that make history
-  navigable one-handed, and losing half-page scroll is the larger regression.
-  The prompt's line-editing keys are therefore drawn from what is left.
+- **`Ctrl-U` kills the line when there is a line, and scrolls when there is
+  not.** Neither meaning could be dropped. In readline it is kill-to-start and
+  that muscle memory is real; but `PageUp`/`PageDown` need `Fn` on a laptop,
+  `Ctrl-B/F/U/D` are what make a long log navigable one-handed, and losing
+  half-page scroll is the larger regression. The two never actually collide:
+  wanting to erase a half-written line and wanting to page through history are
+  different moments, and *the buffer being non-empty is exactly the signal that
+  says which moment this is*. So the prompt claims the key while it holds text
+  and hands it straight back when emptied — the same `onArrowClaimChange`
+  negotiation the arrows use (below), through `ctrlUScrolls`. `Ctrl-D` is not
+  negotiable: it is not a readline line-editing key, so there is nothing to
+  arbitrate.
 - **`Home`/`End` move through history, not through the buffer.** The prompt
   has `Ctrl-A`/`Ctrl-E` for its two ends, so the caret loses nothing; the log
   has no other way to reach the top of a long conversation. `End` is also the
@@ -460,7 +473,29 @@ Four rows are decided rather than inherited, and each costs something:
   hook's (§1.2), and because the same hook's geometry re-clamp is what keeps
   the change safe mid-scroll.
 
-**`Ctrl-L` goes through Ink's writer, not through `stdout`.** The binding is one
+**`Ctrl-C` is ordered by what the press would destroy, most recoverable first.**
+A running shell command is aborted; failing that, a running turn is cancelled;
+failing that, a non-empty buffer is cleared; and only with nothing left to
+interrupt does it touch the session — and then it *asks*, arming an exit that a
+second `Ctrl-C` confirms and any other key cancels. The middle branch is the
+point: one `Ctrl-C` used to close a session over a half-written paragraph,
+because the key meant "cancel" when something was running and "quit" the rest of
+the time, and the user's own typing was not counted as something. The notice
+reuses the hint row already reserved below the prompt, so arming the exit moves
+no rows (§1.5.5); the confirm step is the one place in the app where a keystroke
+is deliberately not idempotent, which is why it is announced rather than
+silent.
+
+**`Esc` cancels a turn but can never exit.** It is the key a user reaches for
+when they want the model to *stop*, and until now it did nothing at the App
+level, so the only way to stop a turn was the key that also quits. It shares
+`handleCancel` with `Ctrl-C` and stops there — it has no exit branch and no
+arming step, because a key that cannot close the session does not need a
+confirmation. It stands down entirely while an approval is pending: the
+approval card binds `Esc` to *deny*, and denials happen mid-turn, so an
+unguarded `Esc` would deny the tool and kill the whole turn on one press.
+
+ The binding is one
 line, and the obvious spelling of it is wrong: `stdout.write(CLEAR_SCREEN)`
 erases the screen and leaves it erased, because Ink drops any frame identical to
 the one it last wrote and a redraw request asks for exactly that frame — the
@@ -495,10 +530,12 @@ the word motions and never reach the palette.
 two keys can only have one meaning at a time and the choice has to be made by
 whoever renders both. The Prompt reports through `onArrowClaimChange` whether
 it needs them (palette open, or buffer taller than one row); `App` holds that
-in state and passes `arrowsScroll` to `useMessageListScroll`. Only the arrows
-are negotiable — `PageUp`/`PageDown` and `Ctrl-B/F/U/D` always scroll the log,
-so a half-written multi-row message can never lock the log shut.
-`tests/prompt-frame.spec.ts` pins both directions.
+in state and passes `arrowsScroll` to `useMessageListScroll`. `Ctrl-U` is
+arbitrated the same way, on a different signal (`ctrlUScrolls`, driven by
+`onFilledChange`). Nothing else is negotiable — `PageUp`/`PageDown`,
+`Ctrl-B`/`Ctrl-F` and `Ctrl-D` always scroll the log, so a half-written
+multi-row message can never lock the log shut.
+`tests/prompt-frame.spec.ts` pins both directions of both negotiations.
 
 ### 1.7 Text conventions
 
@@ -515,7 +552,7 @@ so a half-written multi-row message can never lock the log shut.
 - **Width-aware.** Layout re-measures on terminal `resize`. No hard-coded widths beyond 80 chars; long output truncates with `…` (see `truncate` in [`src/message-layout.ts`](./../src/message-layout.ts), which caps a call's subject and its result summary separately).
 - **No flicker.** Already-emitted messages are static; only the streaming assistant block, the running tool, and the StatusBar re-render.
 - **TTY required.** The runner refuses to start without a TTY and prints a one-line error to stderr. Plain pipes are not a use case. The check is the first thing `run()` in `index.ts` does — before the loader await, so it costs nothing and no Session is created. It is ours rather than Ink's on purpose: Ink reports the same condition by throwing from inside `useInput`'s *passive effect*, and `<Static>` (which the banner uses) makes React swallow errors thrown there, turning the failure into a silent hang. See Part 1 banner rule 7.
-- **Graceful shutdown.** In raw mode, Ink receives Ctrl-C as a keypress rather than `SIGINT`. While a turn is running it cancels the turn. While idle it unmounts Ink first (restoring the terminal), then triggers the same launcher `ctx.appExit` path as `/exit`. The runner never calls `process.exit` outside `commands.ts` and `index.ts`. See [Lessons → Ctrl-C shutdown](./lessons/ctrl-c-shutdown.md) for the investigation playbook behind this ordering.
+- **Graceful shutdown.** In raw mode, Ink receives Ctrl-C as a keypress rather than `SIGINT`. While a turn is running it cancels the turn. While idle with an empty buffer the *second* press (§1.6) unmounts Ink first (restoring the terminal), then triggers the same launcher `ctx.appExit` path as `/exit`. The runner never calls `process.exit` outside `commands.ts` and `index.ts`. See [Lessons → Ctrl-C shutdown](./lessons/ctrl-c-shutdown.md) for the investigation playbook behind this ordering.
 
 ### 1.9 Markdown rendering
 

@@ -89,6 +89,16 @@ export function deleteToEnd(text: string, cursor: number): string {
 }
 
 /**
+ * Delete from the start of the buffer up to the caret — the mirror of
+ * {@link deleteToEnd}, and what `Ctrl-U` means in readline. Buffer-scoped
+ * like everything else here: with the caret on a wrapped second row this
+ * clears the rows above it too, which is the same bargain `Ctrl-A` makes.
+ */
+export function deleteToStart(text: string, cursor: number): string {
+  return text.slice(clamp(cursor, text))
+}
+
+/**
  * Append a submitted line to the prompt history, newest last. An empty line
  * and a repeat of the newest entry are both dropped: holding Enter, or
  * sending `/status` twice to watch something change, should not pad the

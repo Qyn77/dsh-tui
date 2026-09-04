@@ -185,6 +185,16 @@ export interface Catalog {
      */
     hint: (rows: number) => string
   }
+  /** The one thing Ctrl-C says before it closes the session. */
+  interrupt: {
+    /**
+     * Shown after a bare Ctrl-C at idle, in place of the scroll hint. It has
+     * to name the key rather than say "press again", because the press that
+     * armed it may well have been an accident and the user needs to know
+     * what they hit.
+     */
+    confirmExit: string
+  }
   /**
    * Chrome around a `!` shell escape. The command's own output is never in
    * here — those are the program's bytes, and translating them would be
@@ -362,6 +372,9 @@ const EN: Catalog = {
   },
   scroll: {
     hint: rows => `↓ ${rows} more row${rows === 1 ? '' : 's'} below · End jumps to the latest`,
+  },
+  interrupt: {
+    confirmExit: 'Press Ctrl-C again to exit · any other key stays',
   },
   shell: {
     usage: 'Usage: !<command> to run it · !!<command> to also show the model',
@@ -545,6 +558,9 @@ const ZH: Catalog = {
   },
   scroll: {
     hint: rows => `↓ 下方还有 ${rows} 行 · End 回到最新`,
+  },
+  interrupt: {
+    confirmExit: '再按一次 Ctrl-C 退出 · 按其他键继续',
   },
   shell: {
     usage: '用法：!<命令> 直接执行 · !!<命令> 同时给模型看',
