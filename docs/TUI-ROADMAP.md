@@ -273,11 +273,17 @@ Priority features:
 **Three of the five v1.0 items in SPEC Part 2 are blocked on something other
 than effort**, and it is worth writing down so the next reader does not size
 them as work: sub-agent visualization, the MCP tool surface and hooks
-visualization all need event payloads emitted by plugins this package does not
-depend on. The event *names* are in `KNOWN_SESSION_EVENT_TYPES`; the shapes are
-not reachable from here. `plan/mode` is the precedent for how to unblock one —
-`src/types.ts` declares that payload locally — but it works there only because
-`{ enabled: boolean }` is a shape one can be certain of without the emitter.
+visualization all need event payloads this package cannot reach — but not for
+the same reason. Hooks and MCP have no published plugin at all. Sub-agent and
+tool-workflow *are* published, on `0.1.2-rc.x`, which peers against
+`dsh-session@^0.1.2-rc.1` while this package pins `0.1.0-rc.7`; borrowing their
+declarations would put two `dsh-session` copies in the tree and split the module
+augmentation that types session events. That one unblocks on a tree-wide version
+bump, not on a devDependency. The event *names* are in
+`KNOWN_SESSION_EVENT_TYPES`; the shapes are not reachable from here. `plan/mode`
+is the precedent for how to unblock one — `src/types.ts` declares that payload
+locally — but it works there only because `{ enabled: boolean }` is a shape one
+can be certain of without the emitter.
 
 Definition of done:
 
