@@ -19,7 +19,7 @@ import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { appExit, service, type AppExit } from './services.ts'
 import { App } from './renderer.tsx'
 import { installResizeOwner, type RepaintRef } from './resize.ts'
-import { planResume, requestFromEnv } from './resume.ts'
+import { planResume, requestFromEnv, type SwapSession } from './resume.ts'
 import { readSettings } from './settings.ts'
 import { probeAppearance } from './theme.ts'
 
@@ -162,7 +162,11 @@ async function run(ctx: Context, config: Config): Promise<void> {
     installModelSelection(agentCtx, ref)
   }
   const agentOptions = { provider: selection.provider, model: selection.model }
-  const { agent } = plan.kind === 'resume'
+  // The whole handle, not just `agent`: `dispose()` is what unwinds an agent's
+  // scope, and `/resume` swapping one out mid-session has to call it or every
+  // switch leaks the previous agent's listeners and tools. At boot the leak was
+  // invisible, because process exit collected it.
+  let handle = plan.kind === 'resume'
     ? await agents.resume({ resumeSessionId: plan.id, agentOptions, setup })
     : await agents.create({
       sessionId: SessionId(`tui-${randomUUID()}`),
@@ -197,15 +201,61 @@ async function run(ctx: Context, config: Config): Promise<void> {
     // deadline. The App still receives the measurement — under `auto` it is
     // what `/theme` reports back.
     const detected = theme === 'auto' ? await detecting : undefined
+    // Assigned once Ink has mounted. `swapSession` is built before `instance`
+    // exists but only ever called from a keystroke, long after.
+    let redraw: () => void = () => {}
+    const swapSession: SwapSession = async (request) => {
+      // Refused rather than cancelled: switching away would make the running
+      // turn's output unreachable, and the user asking for another session is
+      // not necessarily aware one is still going.
+      if (handle.agent.status === 'running') return { kind: 'busy' }
+      const target = await planResume(ctx, request)
+      if (target.kind === 'fresh') {
+        // A boot would start a fresh session here. Mid-session that would be a
+        // far worse answer than doing nothing: the user still has the session
+        // they were in, and throwing it away to honour a mistyped id is not a
+        // trade they asked for.
+        return { kind: 'refused', notice: target.notice ?? 'Cannot resume that session.' }
+      }
+      // `/resume` aimed at the session already on screen. Left to run, the
+      // registry would reject a second agent on a live id, and the user would
+      // get a registry error where the honest answer is "you are already here".
+      if (target.id === handle.agent.id) return { kind: 'current', id: target.id }
+      const previous = handle
+      let next
+      try {
+        next = await agents.resume({ resumeSessionId: target.id, agentOptions, setup })
+      } catch (error) {
+        // The store listed it a moment ago, so this is a load or setup failure
+        // rather than a bad id. Caught rather than left to the dispatcher's
+        // rejection path because only here is it known that nothing was
+        // swapped: the user still has the session they were in, and the
+        // message can say so instead of reading like a lost transcript.
+        return {
+          kind: 'refused',
+          notice: `Cannot resume ${target.id}: ${error instanceof Error ? error.message : String(error)}`,
+        }
+      }
+      handle = next
+      // Draw the new session before unwinding the old one, so no frame is ever
+      // rendered against a disposed agent.
+      redraw()
+      // The switch has already happened and is on screen; a failure to unwind
+      // the previous scope is a leak, not something to report as a failed
+      // resume, and reporting it would contradict what the user is looking at.
+      await previous.dispose().catch(() => {})
+      return { kind: 'switched', id: target.id }
+    }
     const element = (): React.ReactElement =>
       React.createElement(App, {
         ctx,
-        agent,
+        agent: handle.agent,
         exit: exitHook,
         repaint,
         modelRef: ref,
         lang: language,
         themePref: theme,
+        swapSession,
         ...detected === undefined ? {} : { appearance: detected },
         ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
       })
@@ -213,6 +263,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       exitOnCtrlC: false,
       patchConsole: false,
     })
+    redraw = () => { instance.rerender(element()) }
     // Resize repainting has exactly one owner and it lives outside React.
     // The primary screen never gets one: without the alternate screen there
     // is no frame of ours to repair.

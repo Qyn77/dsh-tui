@@ -150,6 +150,54 @@ describe('seeding from the durable log', () => {
     // the view, and this is the test that notices the guard went missing.
     expect(state.entries).toEqual([])
   })
+
+  it('re-seeds from the new log when the agent changes session', async () => {
+    // The `/resume` path. The subscription already followed the swap before
+    // this existed; the projection did not, so the resumed session's events
+    // arrived on top of the previous session's transcript.
+    const first = seedSession(2, 'tui-first')
+    const second = seedSession(5, 'tui-second')
+    const probe = await mount(first)
+    expect(probe.api().state.entries.filter(e => e.kind === 'assistant')).toHaveLength(2)
+
+    await probe.swap(second)
+    const state = probe.api().state
+    probe.unmount()
+
+    const assistant = state.entries.filter(e => e.kind === 'assistant')
+    expect(assistant.map(e => e.text)).toEqual([
+      'answer 01', 'answer 02', 'answer 03', 'answer 04', 'answer 05',
+    ])
+    expect(state.currentTurn).toBe(5)
+  })
+
+  it('empties the view when the resumed session has no events', async () => {
+    // Nothing carried over is the whole point: the banner renders only on an
+    // empty log, so a leftover entry would suppress it on a fresh session.
+    const probe = await mount(seedSession(2, 'tui-first'))
+    await probe.swap(Session.create('tui-empty' as never))
+    const state = probe.api().state
+    probe.unmount()
+
+    expect(state.entries).toEqual([])
+    expect(state.currentTurn).toBe(0)
+  })
+
+  it('keeps a local entry appended after the swap', async () => {
+    // `/resume` reports itself by appending a command entry once the swap
+    // resolves. Re-seeding on the same tick must not swallow it — a switch
+    // that says nothing looks like a command that did nothing.
+    const probe = await mount(seedSession(1, 'tui-first'))
+    await probe.swap(seedSession(3, 'tui-second'))
+    await probe.act(() => {
+      probe.api().appendEntry({ kind: 'command', input: '/resume tui-x', text: 'Resumed.', failed: false })
+    })
+    const state = probe.api().state
+    probe.unmount()
+
+    expect(state.entries.at(-1)).toMatchObject({ kind: 'command', text: 'Resumed.' })
+    expect(state.entries.filter(e => e.kind === 'assistant')).toHaveLength(3)
+  })
 })
 
 describe('the live subscription', () => {
@@ -234,8 +282,8 @@ describe('the live subscription', () => {
   it('follows the agent onto a different session', async () => {
     // The resume path: same Context, new session. The old subscription has to
     // go and the new id has to be the one the guard compares against.
-    const first = seedSession(1)
-    const second = seedSession(3)
+    const first = seedSession(1, 'tui-first')
+    const second = seedSession(3, 'tui-second')
     const probe = await mount(first)
     await probe.swap(second)
 

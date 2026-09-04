@@ -30,6 +30,7 @@ import { catalog, type Lang } from './i18n.ts'
 import { LanguageProvider } from './hooks/useStrings.tsx'
 import { ThemeProvider } from './hooks/useTheme.tsx'
 import type { Appearance, ThemePref } from './theme.ts'
+import type { SwapSession } from './resume.ts'
 import { writeSettings } from './settings.ts'
 import { CLEAR_SCREEN, type RepaintRef } from './resize.ts'
 
@@ -90,6 +91,16 @@ export interface AppProps {
    * any of this existed and is therefore what every test that omits it asserts.
    */
   appearance?: Appearance
+  /**
+   * Swap the agent under the App for a stored session, backing `/resume`.
+   *
+   * Owned by `index.ts` because everything it touches is at the boot boundary:
+   * the agent registry, the mutable handle `element()` closes over, and Ink's
+   * `rerender`. Optional like {@link modelRef} — a test that never resumes
+   * builds an App without one, and `/resume` then reports that switching is
+   * unavailable rather than throwing.
+   */
+  swapSession?: SwapSession
 }
 
 /**
@@ -124,6 +135,7 @@ export const App: FC<AppProps> = ({
   lang: initialLang = 'en',
   themePref: initialThemePref = 'auto',
   appearance: detected = 'dark',
+  swapSession,
 }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
@@ -335,6 +347,7 @@ export const App: FC<AppProps> = ({
           setVerbose: scroll.setExpanded,
           verbose: scroll.expanded,
           emit,
+          swapSession,
           state,
         }).then((result) => {
           // Command output goes into the log, not to stderr. Inside the
@@ -380,7 +393,7 @@ export const App: FC<AppProps> = ({
     },
     [
       ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
-      setTheme, themePref, appearance, emit, strings, state, shell,
+      setTheme, themePref, appearance, emit, strings, state, shell, swapSession,
       scroll.setExpanded, scroll.expanded,
     ],
   )

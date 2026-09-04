@@ -690,6 +690,78 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/resume', () => {
+    const swapped = { kind: 'switched', id: 'tui-9f3c1a2b-0000-4000-8000-000000000001' } as const
+
+    it('prints usage for a bare line, and points at /sessions for the ids', async () => {
+      // Unlike `/verbose`, there is no "the other one" to toggle to: the
+      // argument is the whole command, and it is not guessable.
+      const swapSession = vi.fn()
+      const { cmd } = makeCommand({ swapSession })
+      const result = await dispatch('/resume', cmd)
+      expect(swapSession).not.toHaveBeenCalled()
+      if (result.kind === 'handled') expect(result.message).toContain('/sessions')
+    })
+
+    it('reports a host that wired no swap rather than throwing', async () => {
+      // Same shape as `/model` without a `modelRef`: a missing capability is a
+      // sentence, not an exception.
+      const { cmd } = makeCommand()
+      const result = await dispatch('/resume tui-a', cmd)
+      expect(result.kind).toBe('handled')
+    })
+
+    it('passes the request through untouched, including `last`', async () => {
+      // The command does no parsing of its own: `planResume` owns what an id
+      // may look like, so that a boot and a mid-session switch cannot drift
+      // into accepting different things.
+      const swapSession = vi.fn().mockResolvedValue(swapped)
+      const { cmd } = makeCommand({ swapSession })
+      await dispatch('/resume last', cmd)
+      expect(swapSession).toHaveBeenCalledWith('last')
+    })
+
+    it('names the session it landed in, abbreviated the way /sessions prints it', async () => {
+      const swapSession = vi.fn().mockResolvedValue(swapped)
+      const { cmd } = makeCommand({ swapSession })
+      const result = await dispatch('/resume tui-9f3c1a2b', cmd)
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('tui-9f3c1a2b')
+        expect(result.message).not.toContain('0000-4000')
+        expect(result.failed).not.toBe(true)
+      }
+    })
+
+    it('explains a running turn instead of switching away from it', async () => {
+      const swapSession = vi.fn().mockResolvedValue({ kind: 'busy' })
+      const { cmd } = makeCommand({ swapSession })
+      const result = await dispatch('/resume tui-a', cmd)
+      if (result.kind === 'handled') expect(result.message).toContain('Ctrl-C')
+    })
+
+    it('passes a refusal through as its own words', async () => {
+      // The refusals come from `planResume`, which already phrases them; a
+      // second layer of wording here would be a chance to contradict it.
+      const swapSession = vi.fn().mockResolvedValue({
+        kind: 'refused',
+        notice: 'Cannot resume: "tui-9f" matches 2 stored sessions. Use more of the id.',
+      })
+      const { cmd } = makeCommand({ swapSession })
+      const result = await dispatch('/resume tui-9f', cmd)
+      if (result.kind === 'handled') expect(result.message).toContain('matches 2 stored sessions')
+    })
+
+    it('says so when the target is the session already on screen', async () => {
+      const swapSession = vi.fn().mockResolvedValue({ kind: 'current', id: 'tui-here-0000' })
+      const { cmd } = makeCommand({ swapSession })
+      const result = await dispatch('/resume tui-here', cmd)
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('tui-here')
+        expect(result.failed).not.toBe(true)
+      }
+    })
+  })
+
   describe('/verbose', () => {
     it('toggles on when bare and off, rather than printing usage', async () => {
       // Unlike `/theme`, a bare line acts: there are only two states, so the
@@ -1014,7 +1086,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/clear', '/context', '/copy', '/exit', '/help', '/language', '/model', '/plugins',
-      '/quit', '/sessions', '/status', '/theme', '/usage', '/verbose',
+      '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
     ])
   })
 
@@ -1067,7 +1139,7 @@ describe('filterCommands', () => {
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/language', '/model',
-        '/plugins', '/quit', '/sessions', '/status', '/theme', '/usage', '/verbose',
+        '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
       ])
     })
 

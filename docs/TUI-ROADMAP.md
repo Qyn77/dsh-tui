@@ -241,13 +241,15 @@ still blocked on the focus/selection model §6 refuses. Finding that a global
 toggle needs no such model is what unblocked the item without reversing the
 refusal — the bullet in §6 stands unchanged.
 
-**One item was added here that this list never named:** `/sessions`, which
-prints the stored sessions and the ids to resume them by. It belongs to
-"advanced actions remain discoverable" below rather than to any priority
-feature above — v0.3 shipped session resume, and it turned out that a working
-feature whose only input is an id printed nowhere is not discoverable at all.
-SPEC §1.5.7 has the design; §3.3.1 has why the listing and `planResume` had to
-agree on how short an id may be.
+**Two items were added here that this list never named:** `/sessions`, which
+prints the stored sessions and the ids to resume them by, and `/resume`, which
+switches to one without relaunching. Both belong to "advanced actions remain
+discoverable" below rather than to any priority feature above — v0.3 shipped
+session resume, and it turned out that a working feature whose only input is an
+id printed nowhere is not discoverable at all. Putting the ids on screen then
+made relaunching the only thing still in the way. SPEC §1.5.7 and §1.5.8 have
+the designs; §3.3.1 has why the listing and `planResume` had to agree on how
+short an id may be, and how much of the agent-swap it had over-estimated.
 
 Definition of done:
 
@@ -275,7 +277,7 @@ Definition of done:
 **This list is spent.** All six items shipped across v0.2–v0.4; it is kept as a
 record of the order the work was actually taken in, because that order is the
 argument §8 makes and it held up. The live backlog is SPEC Part 2 — as of
-`/sessions`, v0.1 through v0.4 are all complete and what remains there is the
+`/resume`, v0.1 through v0.4 are all complete and what remains there is the
 v1.0 set.
 
 The next items, in order, should be:

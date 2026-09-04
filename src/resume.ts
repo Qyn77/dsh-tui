@@ -37,6 +37,29 @@ export type ResumePlan =
   | { kind: 'fresh'; notice?: string }
 
 /**
+ * What came of a mid-session `/resume`.
+ *
+ * `busy` is its own outcome rather than a `refused` with a message, because the
+ * reason has to be phrased in the interface language and this module does not
+ * hold the catalog. `refused` carries a {@link ResumePlan} notice, which is
+ * already English for the same reason the boot notice is.
+ */
+export type SwapResult =
+  | { kind: 'switched'; id: SessionId }
+  | { kind: 'current'; id: SessionId }
+  | { kind: 'busy' }
+  | { kind: 'refused'; notice: string }
+
+/**
+ * Swap the agent under a running App for a stored session.
+ *
+ * Injected into the App as a prop rather than reached for, because the pieces
+ * it needs — the registry, the mutable handle, Ink's `rerender` — all live at
+ * the boot boundary, and the App has no business holding any of them.
+ */
+export type SwapSession = (request: string) => Promise<SwapResult>
+
+/**
  * Read the resume request from the environment, for runs that are not
  * configured through a patch file. `DSH_TUI_RESUME=last` continues the newest
  * stored session; any other non-empty value is taken as a session id.

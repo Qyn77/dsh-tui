@@ -94,9 +94,14 @@ export const strip = (frame: string): string =>
  * oldest and the newest row without counting rows. The numbers are
  * zero-padded because `answer 1` is a substring of `answer 10`, and an
  * assertion that passes on the wrong row is worse than no assertion.
+ *
+ * `id` defaults to one shared value, which is what almost every caller wants.
+ * A test about *switching* sessions has to override it: the projection re-seeds
+ * on a change of session id, so two sessions sharing one id would exercise the
+ * unchanged path and prove the opposite of what such a test claims.
  */
-export function seedSession(turns: number): Session {
-  const session = Session.create('tui-frame' as never)
+export function seedSession(turns: number, id = 'tui-frame'): Session {
+  const session = Session.create(id as never)
   for (let turn = 1; turn <= turns; turn += 1) {
     session.append('turn/start', { turn })
     session.append('step/start', { turn, step: 1 })

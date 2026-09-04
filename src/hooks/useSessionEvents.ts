@@ -14,16 +14,27 @@ import { initialState, reduce } from '../state.ts'
 /**
  * What can change the projected view.
  *
- * `event` is the only action the pure reducer sees. The other two are local
+ * `event` is the only action the pure reducer sees. The other three are local
  * view operations with no session event behind them: `reset` backs `/clear`,
- * and `append` backs output that the TUI itself produced (slash command
- * results), which must not be written into the durable session log because
- * the model never saw it.
+ * `append` backs output that the TUI itself produced (slash command results),
+ * which must not be written into the durable session log because the model
+ * never saw it, and `seed` replaces the whole projection when the agent under
+ * the App changes identity.
  */
 type ViewAction =
   | { type: 'event'; event: import('@deepseek-ai/dsh-session').SessionEvent }
   | { type: 'reset' }
   | { type: 'append'; entry: UiEntry }
+  | { type: 'seed'; events: readonly import('@deepseek-ai/dsh-session').SessionEvent[] }
+
+/** Fold a durable log into a fresh projection. */
+function seedFrom(events: readonly import('@deepseek-ai/dsh-session').SessionEvent[]): UiState {
+  let acc = initialState()
+  for (const event of events) {
+    if (isRenderable(event)) acc = reduce(acc, event)
+  }
+  return acc
+}
 
 /**
  * Reactive UI state derived from a live Agent. The returned value re-renders
@@ -41,26 +52,31 @@ export function useSessionEvents(ctx: Context, agent: Agent): {
     (acc: UiState, action: ViewAction) => {
       if (action.type === 'reset') return { ...acc, entries: [] }
       if (action.type === 'append') return { ...acc, entries: [...acc.entries, action.entry] }
+      if (action.type === 'seed') return seedFrom(action.events)
       return reduce(acc, action.event)
     },
     undefined,
-    () => {
-      // Replay the durable log once to seed the view. The agent's session owns
-      // the canonical event list, so resuming an existing session immediately
-      // shows prior work.
-      const events = agent.session.events
-      let acc = initialState()
-      for (const event of events) {
-        if (isRenderable(event)) acc = reduce(acc, event)
-      }
-      return acc
-    },
+    // Replay the durable log once to seed the view. The agent's session owns
+    // the canonical event list, so resuming an existing session immediately
+    // shows prior work.
+    () => seedFrom(agent.session.events),
   )
 
   // Keep a ref to the agent so the subscription effect closes over the latest
   // identity without forcing a re-subscribe.
   const agentRef = useRef(agent)
   agentRef.current = agent
+
+  // Re-seed when the agent under the App changes identity, which `/resume`
+  // does mid-session. This is done during render rather than in an effect on
+  // purpose: an effect runs *after* the frame is drawn, so the terminal would
+  // visibly flash one frame of the previous session's transcript before the
+  // resumed one replaced it.
+  const seededId = useRef(agent.session.id)
+  if (seededId.current !== agent.session.id) {
+    seededId.current = agent.session.id
+    dispatch({ type: 'seed', events: agent.session.events })
+  }
 
   useEffect(() => {
     const handler = (session: import('@deepseek-ai/dsh-session').Session, event: import('@deepseek-ai/dsh-session').SessionEvent): void => {

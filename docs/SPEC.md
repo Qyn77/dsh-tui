@@ -226,7 +226,8 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/theme` | Choose the background the colors assume: `/theme auto\|dark\|light`. Bare `/theme` reports the current setting and, under `auto`, what the terminal answered. |
 | `/copy` | Send the newest reply to the system clipboard over OSC 52. `/copy code` sends the newest fenced block instead. |
 | `/verbose` | Raise the preview budget from 8 lines to 200 for every entry at once. Bare toggles; `on`/`off` set it. |
-| `/sessions` | List the stored sessions, newest first, with the id to hand `DSH_TUI_RESUME` at launch. |
+| `/sessions` | List the stored sessions, newest first, with the id to resume one by. |
+| `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` for the newest. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (idle) | Same as `/exit`. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
@@ -237,7 +238,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: an in-session `/resume <id>` (resuming works at boot and `/sessions` now shows what there is to resume; see §1.5.7 and §3.3.1 for what mid-session would still need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/resume`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. `/resume` used to be listed here as future work and now ships (§1.5.8). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -353,7 +354,17 @@ What it copies is the reply's **markdown source**, not the terminal's rendering 
 
 **Ids are abbreviated to twelve characters, and `planResume` accepts a prefix.** The two are one decision: a listing that abbreviates further than resume can resolve would print ids that do not work. See §3.3.1 for the prefix rules and for why an over-wide row is allowed to overflow rather than give up a column.
 
-**There is still no in-session switch,** and the footer says so rather than letting the table imply one. Selecting a row would mean swapping the agent mid-run, which §3.3.1 sizes; naming the variable is honest about what the command can actually deliver today.
+**Rows are not selectable, and the footer names the command instead.** Selecting one would need a focus model the app does not have — the same refusal `/verbose` is built around (§1.2). Typing `/resume <id>` costs one line and needs no such model.
+
+#### 1.5.8 `/resume`
+
+`/resume <id>` switches the live agent to a stored session; `/resume last` takes the newest. The id is the abbreviated one `/sessions` prints, and the command does no parsing of its own — the request goes to `planResume` verbatim, so a boot and a mid-session switch can never drift into accepting different things.
+
+**A bare `/resume` prints usage rather than acting,** unlike bare `/verbose`. There are not two states to toggle between; the argument *is* the command, and it is not guessable, so the usage line points at `/sessions`.
+
+**What comes back is the transcript, and no count of it.** The App could cheaply report how many session events were replayed, but that number is not the number of rows on screen, and a figure that disagrees with what the user is looking at is worse than no figure. The restored transcript is its own evidence.
+
+**Every refusal leaves the user where they were.** A request that resolves to nothing does not start a fresh session the way a boot does; a target equal to the current session says so; a load failure says the session is intact. See §3.3.1 for the mechanics and for why the running-turn check is depth rather than the main guard.
 
 ### 1.6 Keyboard bindings
 
@@ -565,7 +576,7 @@ Known gaps (deferred, not bugs):
 ### v0.2 — Continuity (shipped)
 
 - **Multiline editor.** The box grows with the buffer to `MAX_PROMPT_ROWS` (10), then scrolls inside itself with a scrollbar. `Ctrl-J` inserts a newline; the `\` + Enter continuation stays for v0.1 backwards-compat.
-- **Session resume.** `DSH_TUI_RESUME=last` continues the newest stored session, or an id continues that one. Discovery is `SessionPersistence` — see §3.3.1. The ids themselves only became visible in v0.4, with `/sessions` (§1.5.7).
+- **Session resume.** `DSH_TUI_RESUME=last` continues the newest stored session, or an id continues that one. Discovery is `SessionPersistence` — see §3.3.1. The ids themselves only became visible in v0.4, with `/sessions` (§1.5.7), and switching without relaunching arrived with `/resume` in the same version (§1.5.8).
 - **`/compact` wired.** Not by this package: it falls through to `ctx.commands`, where dsh-base mounts it.
 - **Spinner during turns.** `useRunningClock` drives one interval per status transition; the StatusBar and the Prompt placeholder read the same frame index so the glyph is in lock-step.
 - **Error rendering.** Network / model / tool errors get a uniform block in `red`.
@@ -597,6 +608,7 @@ Still open: nothing — v0.3 is complete.
 - **Truncation.** *Shipped, as a global switch.* The 8-line cap itself shipped in v0.3; `/verbose` and `Ctrl-O` now raise it to 200 lines for the whole transcript at once (§1.2, §1.5.6). The per-entry `▾ show more` this item originally named is **not** what shipped and stays refused — expanding *one* entry needs a focus/selection model this app does not have (roadmap §6). A global switch needs none, which is why it could ship without reversing that decision.
 - **Clipboard.** *Shipped as `/copy`.* The newest reply, or the newest fenced block, goes to the system clipboard over OSC 52 — across SSH included. `/paste` is **not** coming: reading the clipboard needs a stdin listener mid-session, which is Ink's, and every terminal already pastes on its own. See §1.5.5.
 - **Session listing.** *Shipped as `/sessions`.* Not on the original v0.4 list, and added because v0.3's resume turned out to be unreachable: it wants ids that were printed nowhere. The listing shows them abbreviated and `planResume` accepts a prefix. See §1.5.7.
+- **In-session resume.** *Shipped as `/resume`.* Also unplanned, and the direct consequence of the item above: once the ids were on screen, relaunching to use one was the only remaining obstacle. §3.3.1 had sized this as an agent-swap project; most of it was already built, and the missing piece was a re-seed of the projection. See §1.5.8.
 
 ### v1.0 — Production
 
@@ -773,10 +785,41 @@ columns that tell two sessions apart, so the row is allowed to overflow and the
 before the summary, so an 80-column cut takes the summary's tail and leaves
 "you are here" standing.
 
-The remaining gap is the one this section did not predict: resuming happens at
-boot, so there is no in-session `/resume <id>` slash command. `index.ts` builds
-the agent before `inkRender` and hands it to the App as a prop, so switching
-sessions mid-run still needs an agent-swap path.
+**The agent-swap path this section sized turned out to be mostly built.** The
+prediction was that mid-session switching needed real work because `index.ts`
+creates the agent before `inkRender` and passes it as a prop. What that missed
+is that the App was already written to tolerate a changing agent: the
+`session/event` subscription filters on `agent.session.id` and re-subscribes
+when it changes, and `useShell`, `useApprovalRequests` and `useRegistryCommands`
+all key their effects on the agent itself. Exactly one thing did not follow —
+the reducer's lazy initialiser, which runs once at mount, so the projection
+stayed on the old session's entries.
+
+So `/resume` (§1.5.8) is a re-seed plus a mutable handle. `useSessionEvents`
+compares the session id **during render** and dispatches a `seed` action when it
+changes; doing it in an effect would draw one frame of the previous transcript
+before replacing it, which in a terminal is a visible flash. `index.ts` keeps
+the whole `AgentHandle` rather than destructuring `agent` out of it, swaps it,
+calls `rerender`, and only then awaits `dispose()` on the previous one — that
+order means no frame is ever rendered against a disposed agent. Holding the
+handle also fixes a leak that boot-only resume hid: `dispose()` is what unwinds
+an agent's scope, and it was being dropped on the floor.
+
+Three cases are refused rather than performed. A target equal to the live
+session returns "already here", because `agents.resume()` would reject a second
+agent on a registered id and the user would read a registry error where the
+honest answer is that nothing needs to happen. A load or setup failure is caught
+at the swap, since only there is it known that nothing was swapped — the message
+can say the session is intact instead of reading like a lost transcript. And a
+request that `planResume` resolves to nothing does **not** start a fresh session
+the way a boot does: mid-session that would trade the user's actual work for a
+typo.
+
+`agent.status === 'running'` is also refused, but as depth rather than as the
+main guard: the prompt is already inert while a turn runs
+(`active={state.status === 'idle' && !shell.running}`), so a user cannot
+normally type `/resume` at that moment. The same inertness is why a running `!`
+command needs no separate check.
 
 #### 3.3.2 `/cost` cannot be built, and `/context` can
 

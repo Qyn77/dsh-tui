@@ -135,6 +135,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
 | `/sessions` | List the stored sessions, with the id to resume one by |
+| `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
@@ -271,16 +272,24 @@ you, because expanding adds rows below your position as well as above it.
 where it was running, and the first thing you said in it. The one you are in is
 marked.
 
-Relaunch with that id to continue it:
+Switch to one with `/resume`:
 
-```bash
-DSH_TUI_RESUME=tui-9f3c1a2b dsh --profile tui   # the id as /sessions prints it
-DSH_TUI_RESUME=last dsh --profile tui           # whichever was newest
+```
+/resume tui-9f3c1a2b   the id as /sessions prints it
+/resume last           whichever was newest
 ```
 
+The session you leave is not lost — it stays in the store and `/sessions` still
+lists it, so switching back is another `/resume`.
+
 The shortened id is enough as long as it matches one session; if it matches two,
-you are told so rather than dropped into the wrong history. Resuming is decided
-at launch — there is no way to switch while a session is open.
+you are told so rather than dropped into the wrong history. The same ids work at
+launch, if you would rather start where you left off:
+
+```bash
+DSH_TUI_RESUME=tui-9f3c1a2b dsh --profile tui
+DSH_TUI_RESUME=last dsh --profile tui
+```
 
 ## Develop it
 
@@ -456,7 +465,7 @@ The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump th
 ## Known limitations
 
 - **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
-- **Resume is a boot-time choice.** `DSH_TUI_RESUME=last` (or an id from `/sessions`) continues a stored session; there is no in-session `/resume` and no way to switch without relaunching.
+- **Switching sessions ends the turn you are in.** `/resume` is refused while a turn is running; cancel with Ctrl-C first. There is no way to keep two sessions open side by side.
 - **Long tool output is previewed, not expandable.** The first 8 lines are shown with a `… +N lines` marker; there is no `show more` affordance, because reaching one would need a selection model the app deliberately does not have.
 - **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.
 

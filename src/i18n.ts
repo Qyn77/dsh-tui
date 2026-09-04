@@ -67,6 +67,7 @@ export const COMMAND_NAMES = [
   '/plugins',
   '/quit',
   '/sessions',
+  '/resume',
   '/status',
   '/theme',
   '/usage',
@@ -247,6 +248,16 @@ export interface Catalog {
     noStoredSessions: string
     /** `/sessions` in an assembly that stores nothing — there is no list to have. */
     noPersistence: string
+    /** `/resume` with no argument: what it wants and where to find it. */
+    resumeUsage: string
+    /** `/resume` after the switch, naming the session now on screen. */
+    resumeSwitched: (id: string) => string
+    /** `/resume` aimed at the session already on screen. */
+    resumeCurrent: (id: string) => string
+    /** `/resume` while a turn is running — the switch is refused, not queued. */
+    resumeBusy: string
+    /** `/resume` in a host that wired no swap, such as a test App. */
+    resumeUnavailable: string
     /** `/plugins`: heading above the table, given the number of rows. */
     pluginsHeading: (count: number) => string
     /** `/plugins` when the loader is mounted but has nothing to list. */
@@ -378,7 +389,8 @@ const EN: Catalog = {
     '/model': 'Switch model: /model <name> or <provider>/<name>',
     '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
     '/quit': 'Alias for /exit',
-    '/sessions': 'List stored sessions and how to continue one at launch',
+    '/sessions': 'List stored sessions and how to continue one',
+    '/resume': 'Continue a stored session: /resume <id>, or /resume last',
     '/status': 'Print the current model and session id',
     '/theme': 'Choose the background the colors assume: /theme auto, dark, or light',
     '/usage': 'Break this session\'s token spend out turn by turn',
@@ -416,9 +428,14 @@ const EN: Catalog = {
       current: '(this one)',
       earlier: count => `… +${count} earlier`,
     },
-    sessionsFooter: 'Continue one with DSH_TUI_RESUME=<id> at launch, using the shortened id above, or DSH_TUI_RESUME=last for the newest. There is no in-session switch.',
+    sessionsFooter: 'Continue one with /resume <id>, using the shortened id above, or /resume last for the newest. DSH_TUI_RESUME=<id> does the same at launch.',
     noStoredSessions: 'No stored sessions yet — this is the first one.',
     noPersistence: 'No session persistence in this assembly, so nothing is stored to list.',
+    resumeUsage: 'Usage: /resume <id>, or /resume last for the newest. Run /sessions for the ids.',
+    resumeSwitched: id => `Resumed ${id}. The session you left is still stored — /sessions lists it.`,
+    resumeCurrent: id => `Already in ${id} — nothing to switch to.`,
+    resumeBusy: 'A turn is still running. Cancel it with Ctrl-C first — switching now would put its output out of reach.',
+    resumeUnavailable: 'Switching sessions is not available in this host.',
     pluginsHeading: count => `plugins (${count}):`,
     noPlugins: 'The loader has no plugins to list.',
     noLoader: 'No plugin loader in this assembly — nothing to list.',
@@ -552,7 +569,8 @@ const ZH: Catalog = {
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
-    '/sessions': '列出已存的 session，以及启动时怎么接上其中一个',
+    '/sessions': '列出已存的 session，以及怎么接上其中一个',
+    '/resume': '接上一个已存的 session：/resume <id>，或者 /resume last',
     '/status': '打印当前模型和 session id',
     '/theme': '选择配色假定的背景：/theme auto、dark 或 light',
     '/usage': '按轮次拆开本次 session 的 token 开销',
@@ -590,9 +608,14 @@ const ZH: Catalog = {
       current: '（当前）',
       earlier: count => `… 还有 ${count} 个更早的`,
     },
-    sessionsFooter: '启动时用 DSH_TUI_RESUME=<id> 接上其中一个，上面这个缩短的 id 就能用；或者 DSH_TUI_RESUME=last 接上最新的那个。会话中途没法切换。',
+    sessionsFooter: '用 /resume <id> 接上其中一个，上面这个缩短的 id 就能用；或者 /resume last 接上最新的那个。启动时用 DSH_TUI_RESUME=<id> 是一样的效果。',
     noStoredSessions: '还没有存下任何 session —— 这是第一个。',
     noPersistence: '当前装配没有 session 持久化，也就没有可列的东西。',
+    resumeUsage: '用法：/resume <id>，或者 /resume last 接上最新的那个。id 用 /sessions 看。',
+    resumeSwitched: id => `已经接上 ${id}。你刚才那个 session 还存着——/sessions 里能看到。`,
+    resumeCurrent: id => `已经在 ${id} 里了——没什么可切的。`,
+    resumeBusy: '还有一轮在跑。先按 Ctrl-C 取消——现在切走的话，那一轮的输出就够不着了。',
+    resumeUnavailable: '当前 host 不支持切换 session。',
     pluginsHeading: count => `插件（${count}）：`,
     noPlugins: '加载器里没有可列出的插件。',
     noLoader: '当前装配没有插件加载器，无从列起。',

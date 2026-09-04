@@ -41,10 +41,12 @@ import { isThemePref, type Appearance, type ThemePref } from './theme.ts'
 import {
   MAX_SESSION_ROWS,
   formatSessions,
+  shortId,
   summarizeLog,
   type SessionRow,
 } from './sessions.ts'
 import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from './message-layout.ts'
+import type { SwapSession } from './resume.ts'
 import {
   OSC52_MAX_BYTES,
   byteLength,
@@ -380,6 +382,15 @@ export interface CommandContext {
    * renders an unrecognised OSC as visible garbage has it erased immediately.
    */
   emit?: (sequence: string) => void
+  /**
+   * Swap the live agent for a stored session, backing `/resume`.
+   *
+   * Optional like {@link setTheme}: a context without one reports that
+   * switching is unavailable rather than throwing. The refusal cases —
+   * a running turn, an id that resolves to nothing — are the callee's,
+   * because only it can see the agent's status and the store.
+   */
+  swapSession?: SwapSession
   /** Live UI state for commands that inspect token usage or entries. */
   state: UiState
 }
@@ -437,6 +448,25 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
 
     case '/sessions':
       return await listSessions(cmd, strings)
+
+    case '/resume': {
+      const args = raw.trim().split(/\s+/).slice(1)
+      const request = args[0]
+      if (request === undefined) return { kind: 'handled', message: strings.resumeUsage }
+      if (cmd.swapSession === undefined) {
+        return { kind: 'handled', message: strings.resumeUnavailable }
+      }
+      const result = await cmd.swapSession(request)
+      if (result.kind === 'busy') return { kind: 'handled', message: strings.resumeBusy }
+      if (result.kind === 'current') {
+        return { kind: 'handled', message: strings.resumeCurrent(shortId(result.id)) }
+      }
+      if (result.kind === 'refused') return { kind: 'handled', message: result.notice }
+      // No count of what came back: the transcript underneath this line is the
+      // evidence, and the number the App could cheaply supply is a session
+      // event count, which does not equal the rows the user is looking at.
+      return { kind: 'handled', message: strings.resumeSwitched(shortId(result.id)) }
+    }
 
     // Read fresh, never cached: cordis keeps `Entry.fiber` and `Fiber.state`
     // current through its own events, so any copy kept here could only go
