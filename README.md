@@ -274,8 +274,8 @@ marked.
 Relaunch with that id to continue it:
 
 ```bash
-DSH_TUI_RESUME=tui-9f3c1a2b dsh-tui   # the id as /sessions prints it
-DSH_TUI_RESUME=last dsh-tui           # whichever was newest
+DSH_TUI_RESUME=tui-9f3c1a2b dsh --profile tui   # the id as /sessions prints it
+DSH_TUI_RESUME=last dsh --profile tui           # whichever was newest
 ```
 
 The shortened id is enough as long as it matches one session; if it matches two,

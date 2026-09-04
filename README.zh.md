@@ -235,8 +235,8 @@ session 重来一遍。除此之外没有别的东西读这个文件——API ke
 拿着那个 id 重启就能接上：
 
 ```bash
-DSH_TUI_RESUME=tui-9f3c1a2b dsh-tui   # /sessions 里印出来的那个 id
-DSH_TUI_RESUME=last dsh-tui           # 最新的那个
+DSH_TUI_RESUME=tui-9f3c1a2b dsh --profile tui   # /sessions 里印出来的那个 id
+DSH_TUI_RESUME=last dsh --profile tui           # 最新的那个
 ```
 
 缩短的 id 只要能唯一对上就够了；万一对上了两个，会直接告诉你，而不是把你丢进错的那段历史里。接哪个是启动时定的——开着的时候没法中途换。
