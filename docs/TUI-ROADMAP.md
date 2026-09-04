@@ -266,8 +266,9 @@ Definition of done:
 
 **This list is spent.** All six items shipped across v0.2–v0.4; it is kept as a
 record of the order the work was actually taken in, because that order is the
-argument §8 makes and it held up. The live backlog is SPEC Part 2 — at the time
-of writing it holds one open v0.4 item and the v1.0 set.
+argument §8 makes and it held up. The live backlog is SPEC Part 2 — as of the
+`/verbose` switch, v0.1 through v0.4 are all complete and what remains there is
+the v1.0 set.
 
 The next items, in order, should be:
 
