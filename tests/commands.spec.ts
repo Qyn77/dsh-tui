@@ -12,6 +12,7 @@ import { dispatch, filterCommands, registryCommands, type CommandContext } from 
 import { catalog } from '../src/i18n.ts'
 import type { UiState } from '../src/types.ts'
 import { OSC52_MAX_BYTES, osc52 } from '../src/clipboard.ts'
+import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/message-layout.ts'
 
 interface Stand {
   ctx: Context
@@ -557,6 +558,62 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/verbose', () => {
+    it('toggles on when bare and off, rather than printing usage', async () => {
+      // Unlike `/theme`, a bare line acts: there are only two states, so the
+      // usage line would be a detour on the way to the other one.
+      const setVerbose = vi.fn()
+      const { cmd } = makeCommand({ setVerbose, verbose: false })
+      const result = await dispatch('/verbose', cmd)
+      expect(setVerbose).toHaveBeenCalledWith(true)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).not.toBe(true)
+        expect(result.message).toContain(String(EXPANDED_MAX_LINES))
+      }
+    })
+
+    it('toggles back off when bare and on', async () => {
+      const setVerbose = vi.fn()
+      const { cmd } = makeCommand({ setVerbose, verbose: true })
+      const result = await dispatch('/verbose', cmd)
+      expect(setVerbose).toHaveBeenCalledWith(false)
+      if (result.kind === 'handled') expect(result.message).toContain(String(PREVIEW_MAX_LINES))
+    })
+
+    it('sets explicitly, ignoring what is already in force', async () => {
+      // `on` while already on must stay on — a script or a habit that types it
+      // twice should not land in the opposite state.
+      const setVerbose = vi.fn()
+      const { cmd } = makeCommand({ setVerbose, verbose: true })
+      await dispatch('/verbose on', cmd)
+      expect(setVerbose).toHaveBeenCalledWith(true)
+      await dispatch('/verbose off', cmd)
+      expect(setVerbose).toHaveBeenLastCalledWith(false)
+    })
+
+    it('prints usage and both budgets for an argument it does not know', async () => {
+      const setVerbose = vi.fn()
+      const { cmd } = makeCommand({ setVerbose, verbose: false })
+      const result = await dispatch('/verbose loud', cmd)
+      expect(setVerbose).not.toHaveBeenCalled()
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).toBe(true)
+        expect(result.message).toContain('Usage: /verbose')
+        expect(result.message).toContain('Current: off')
+        expect(result.message).toContain(String(PREVIEW_MAX_LINES))
+        expect(result.message).toContain(String(EXPANDED_MAX_LINES))
+      }
+    })
+
+    it('reports without a handler rather than throwing', async () => {
+      const { cmd } = makeCommand({})
+      const result = await dispatch('/verbose on', cmd)
+      expect(result.kind).toBe('handled')
+    })
+  })
+
 
   describe('/copy', () => {
     /** A state whose newest assistant entry is `text`. */
@@ -825,7 +882,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/clear', '/context', '/copy', '/exit', '/help', '/language', '/model', '/plugins',
-      '/quit', '/status', '/theme', '/usage',
+      '/quit', '/status', '/theme', '/usage', '/verbose',
     ])
   })
 
@@ -878,7 +935,7 @@ describe('filterCommands', () => {
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/language', '/model',
-        '/plugins', '/quit', '/status', '/theme', '/usage',
+        '/plugins', '/quit', '/status', '/theme', '/usage', '/verbose',
       ])
     })
 

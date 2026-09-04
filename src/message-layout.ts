@@ -48,6 +48,35 @@ const ARGS_MAX = 60
 export const PREVIEW_MAX_LINES = 8
 
 /**
+ * Lines a preview may draw once the user has asked to see more.
+ *
+ * A raised cap rather than no cap, and the reason is layout cost rather than
+ * taste. `scroll.ts`'s `windowStart` keeps at least `MIN_MOUNTED_ENTRIES`
+ * mounted no matter how many rows they come to, so an uncapped preview means
+ * twenty entries times however long a `Read` of a large file was — tens of
+ * thousands of Ink `Text` nodes, laid out on every frame. The 8-line cap is
+ * what makes that impossible today, and lifting it entirely would trade a
+ * truncation complaint for a frozen UI.
+ *
+ * 200 is about four screens of one result, which is enough to answer "what
+ * exactly did it say" — the question the 8-line preview cannot. Past it the
+ * withheld-lines marker still appears, so nothing is ever silently dropped.
+ */
+export const EXPANDED_MAX_LINES = 200
+
+/**
+ * The preview budget in force.
+ *
+ * The single place the expand flag becomes a number. `scroll.ts` measures with
+ * it and `MessageList` draws with it, and those two counts must agree exactly
+ * or paging stops being invertible — so they read the budget from here rather
+ * than each deciding what "expanded" means.
+ */
+export function previewLimit(expanded: boolean): number {
+  return expanded ? EXPANDED_MAX_LINES : PREVIEW_MAX_LINES
+}
+
+/**
  * A long output reduced to the rows a transcript can spare.
  *
  * Deliberately **not** a string. The count of withheld lines has to be spoken

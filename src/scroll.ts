@@ -16,6 +16,7 @@ import { userMessageText } from './types.ts'
 import {
   GUTTER_WIDTH,
   outputPreview,
+  previewLimit,
   previewRows,
   shellStatusRows,
   toolCallSummary,
@@ -165,15 +166,20 @@ function textRows(text: string, width: number): number {
  * border, no bottom margin. Over-counting here is the failure that bites — it
  * stops the mount short of the history the offset is asking for, and the
  * oldest entries become unreachable.
+ * @param entry - the entry to measure.
+ * @param columns - the terminal width the entry will be drawn into.
+ * @param expanded - whether the user has lifted the preview cap (`/verbose`,
+ * `Ctrl-O`). It must be the same value `MessageList` renders with, or the two
+ * disagree on how tall a tool result is and paging stops being invertible.
  */
-export function estimateEntryRows(entry: UiEntry, columns: number): number {
+export function estimateEntryRows(entry: UiEntry, columns: number, expanded = false): number {
   const width = Math.max(1, columns - GUTTER_WIDTH)
   // Every entry carries `marginTop={1}` to separate it from the one above.
-  return 1 + entryBodyRows(entry, width)
+  return 1 + entryBodyRows(entry, width, previewLimit(expanded))
 }
 
 /** Rows one entry's own content occupies, excluding its separating margin. */
-function entryBodyRows(entry: UiEntry, width: number): number {
+function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number {
   switch (entry.kind) {
     case 'user':
       return textRows(userMessageText(entry.message) || ' ', width)
@@ -188,7 +194,7 @@ function entryBodyRows(entry: UiEntry, width: number): number {
       // width or on the catalog in force. Only the call summary can wrap.
       let rows = textRows(toolCallSummary(entry.name, entry.args), width)
       if (entry.error !== undefined) rows += 1
-      else if (entry.result) rows += previewRows(toolResultPreview(entry.result))
+      else if (entry.result) rows += previewRows(toolResultPreview(entry.result, maxLines))
       return rows
     }
     case 'runtime-context':
@@ -205,7 +211,7 @@ function entryBodyRows(entry: UiEntry, width: number): number {
       // the status row, for this measurement and for the renderer alike — they
       // have to agree exactly or paging stops being invertible.
       return 1
-        + previewRows(outputPreview(entry.output))
+        + previewRows(outputPreview(entry.output, maxLines))
         + shellStatusRows(entry)
     case 'note':
     case 'compaction':
@@ -229,12 +235,15 @@ const MIN_MOUNTED_ENTRIES = 20
  * log's bottom edge. Above the fold we mount the rows the offset asks for
  * plus a viewport of slack, so scrolling up finds content already laid
  * out instead of a blank gap.
+ * @param expanded - passed straight to {@link estimateEntryRows}; expanding
+ * makes entries taller, so fewer of them are needed to cover the same offset.
  */
 export function windowStart(
   entries: readonly UiEntry[],
   columns: number,
   offset: number,
   viewportRows: number,
+  expanded = false,
 ): number {
   const needed = Math.max(0, offset) + Math.max(1, viewportRows) * 2 + 10
   let rows = 0
@@ -242,7 +251,7 @@ export function windowStart(
   while (index > 0) {
     if (rows >= needed && entries.length - index >= MIN_MOUNTED_ENTRIES) break
     index -= 1
-    rows += estimateEntryRows(entries[index], columns)
+    rows += estimateEntryRows(entries[index], columns, expanded)
   }
   return index
 }

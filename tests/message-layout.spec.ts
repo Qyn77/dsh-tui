@@ -13,9 +13,11 @@ import { describe, expect, it } from 'vitest'
 import { CallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import {
+  EXPANDED_MAX_LINES,
   GUTTER_WIDTH,
   PREVIEW_MAX_LINES,
   outputPreview,
+  previewLimit,
   previewRows,
   toolCallSummary,
   toolResultPreview,
@@ -156,6 +158,29 @@ describe('outputPreview', () => {
 
   it('says nothing at all about an empty output', () => {
     expect(outputPreview('')).toEqual({ lines: [], hidden: 0 })
+  })
+})
+
+describe('previewLimit', () => {
+  it('gives the collapsed budget by default and the raised one when expanded', () => {
+    expect(previewLimit(false)).toBe(PREVIEW_MAX_LINES)
+    expect(previewLimit(true)).toBe(EXPANDED_MAX_LINES)
+  })
+
+  it('stays finite when expanded, so the mounted window has a ceiling', () => {
+    // Not `Infinity`: the scroll window keeps a minimum number of entries
+    // mounted whatever they cost, so an uncapped preview is an uncapped
+    // number of Ink nodes laid out every frame.
+    expect(Number.isFinite(EXPANDED_MAX_LINES)).toBe(true)
+    expect(EXPANDED_MAX_LINES).toBeGreaterThan(PREVIEW_MAX_LINES)
+  })
+
+  it('withholds nothing under the raised budget and still counts what it withholds over it', () => {
+    const under = Array.from({ length: EXPANDED_MAX_LINES }, (_, i) => `l${i}`).join('\n')
+    expect(outputPreview(under, previewLimit(true)).hidden).toBe(0)
+    const over = `${under}\nl-extra`
+    expect(outputPreview(over, previewLimit(true)))
+      .toEqual({ lines: under.split('\n'), hidden: 1 })
   })
 })
 

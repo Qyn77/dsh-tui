@@ -38,6 +38,7 @@ import {
 } from './i18n.ts'
 import { contextOccupancy, formatUsage, totalUsage, usageByTurn } from './usage.ts'
 import { isThemePref, type Appearance, type ThemePref } from './theme.ts'
+import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from './message-layout.ts'
 import {
   OSC52_MAX_BYTES,
   byteLength,
@@ -288,6 +289,17 @@ export interface CommandContext {
    */
   appearance?: Appearance
   /**
+   * Raise or lower how many lines a long tool result or shell output previews.
+   * One switch for the whole transcript, not per entry: the app has no focused
+   * entry to scope it to. Optional for the same reason as {@link setTheme}.
+   */
+  setVerbose?: (on: boolean) => void
+  /**
+   * Whether the raised preview budget is currently in force, defaulting to
+   * `false`. Only `/verbose` reads it, to toggle and to say what is in force.
+   */
+  verbose?: boolean
+  /**
    * Write a control sequence straight to the terminal.
    *
    * Named for what it does rather than for `/copy`, because that is the whole of
@@ -302,6 +314,18 @@ export interface CommandContext {
   emit?: (sequence: string) => void
   /** Live UI state for commands that inspect token usage or entries. */
   state: UiState
+}
+
+/**
+ * Read `/verbose`'s argument. `on` and `off` only — not `true`/`1`/`yes`, and
+ * not the theme-style `auto`, because there is nothing to detect.
+ * @param raw - the first argument, if there was one.
+ * @returns the state asked for, or `undefined` when the word was not one of the two.
+ */
+function parseVerboseArg(raw: string | undefined): boolean | undefined {
+  if (raw === 'on') return true
+  if (raw === 'off') return false
+  return undefined
 }
 
 /**
@@ -403,6 +427,31 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       return {
         kind: 'handled',
         message: strings.themeSwitched(requested, requested === 'auto' ? appearance : requested),
+      }
+    }
+
+    case '/verbose': {
+      const args = raw.trim().split(/\s+/).slice(1)
+      const current = cmd.verbose ?? false
+      // Bare `/verbose` toggles rather than printing usage, unlike `/theme`:
+      // there are only two states, so a round trip through a usage line to
+      // reach the other one would be pure ceremony. Usage is still reachable —
+      // it is what a bad argument prints.
+      const requested = args.length === 0 ? !current : parseVerboseArg(args[0])
+      if (requested === undefined) {
+        return {
+          kind: 'handled',
+          message: strings.verboseUsage(current, PREVIEW_MAX_LINES, EXPANDED_MAX_LINES),
+          failed: true,
+        }
+      }
+      cmd.setVerbose?.(requested)
+      return {
+        kind: 'handled',
+        message: strings.verboseSwitched(
+          requested,
+          requested ? EXPANDED_MAX_LINES : PREVIEW_MAX_LINES,
+        ),
       }
     }
 

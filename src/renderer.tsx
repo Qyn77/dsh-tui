@@ -332,6 +332,8 @@ export const App: FC<AppProps> = ({
           setTheme,
           themePref,
           appearance,
+          setVerbose: scroll.setExpanded,
+          verbose: scroll.expanded,
           emit,
           state,
         }).then((result) => {
@@ -379,6 +381,7 @@ export const App: FC<AppProps> = ({
     [
       ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
       setTheme, themePref, appearance, emit, strings, state, shell,
+      scroll.setExpanded, scroll.expanded,
     ],
   )
 
@@ -476,6 +479,7 @@ export const App: FC<AppProps> = ({
           state={state}
           offset={scroll.offset}
           pinTop={scroll.pinTop}
+          expanded={scroll.expanded}
           onGeometry={scroll.reportGeometry}
         />
         {/*

@@ -233,10 +233,13 @@ Priority features:
   or dark theme over OSC 11 with a `/theme` override, and `/copy` to the system
   clipboard over OSC 52
 
-**Still open:** the `▾ show more` truncation affordance. It is the last v0.4
-item and it is **blocked, not merely unstarted** — expanding one entry needs a
-focus/selection model, which §6 below and SPEC §1.2 both currently refuse. That
-refusal has to be revisited on purpose before the feature can start.
+**Still open:** nothing — v0.4 is complete. The last item was the truncation
+affordance, and it shipped as a *global* switch: `/verbose` and `Ctrl-O` raise
+the preview budget from 8 lines to 200 for every entry at once (SPEC §1.5.6).
+The per-entry `▾ show more` originally written down here did not ship and is
+still blocked on the focus/selection model §6 refuses. Finding that a global
+toggle needs no such model is what unblocked the item without reversing the
+refusal — the bullet in §6 stands unchanged.
 
 Definition of done:
 
@@ -322,8 +325,9 @@ These are not the right next steps unless they are required by a concrete user s
 That last one is load-bearing and gets cited from outside this document, so it
 is spelled out rather than left implied by "broad app-level state machines".
 SPEC §1.2 states the same refusal, `/copy <n>` was dropped because of it
-(SPEC §1.5.5, `src/clipboard.ts`), and the open `▾ show more` item in v0.4 is
-blocked on it. Reversing it is a deliberate decision to make here first, not
+(SPEC §1.5.5, `src/clipboard.ts`), and the v0.4 truncation item shipped as a
+global `/verbose` switch rather than a per-entry `▾ show more` precisely to
+stay on this side of it. Reversing it is a deliberate decision to make here first, not
 something to discover halfway into implementing an affordance.
 
 ## 7. Acceptance rules

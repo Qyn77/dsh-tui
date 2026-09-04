@@ -129,6 +129,46 @@ describe('! shell escape', () => {
     expect(screen).toContain(catalog('en').entries.hiddenLines(30 - PREVIEW_MAX_LINES))
   })
 
+  describe('the expand toggle', () => {
+    /** The 30-line printer the cap case uses, so both read the same fixture. */
+    const thirtyRows
+      = '!node -e "for(let i=1;i<=30;i+=1)process.stdout.write(\'row-\'+i+String.fromCharCode(10))"'
+
+    it('reveals the withheld lines when /verbose turns on', async () => {
+      const painted = await paintApp({ rows: 80 })
+      await run(painted, thirtyRows, 'row-1')
+      expect(painted.screen()).not.toContain('row-30')
+
+      await painted.send('/verbose')
+      await painted.send('\r')
+      await painted.settle(80)
+      const screen = painted.screen()
+      painted.unmount()
+
+      // Past the collapsed cap, all the way to the end, and no marker left to
+      // say anything is missing.
+      expect(screen).toContain(`row-${PREVIEW_MAX_LINES + 1}`)
+      expect(screen).toContain('row-30')
+      expect(screen).not.toContain(catalog('en').entries.hiddenLines(30 - PREVIEW_MAX_LINES))
+    })
+
+    it('reveals them for Ctrl-O too, without a command line', async () => {
+      // The keystroke and the command are the same switch. This is the half
+      // that only exists if `useMessageListScroll` claimed the key — nothing
+      // below the frame can observe that.
+      const painted = await paintApp({ rows: 80 })
+      await run(painted, thirtyRows, 'row-1')
+      expect(painted.screen()).not.toContain('row-30')
+
+      await painted.send('\u000F')
+      await painted.settle(80)
+      const screen = painted.screen()
+      painted.unmount()
+
+      expect(screen).toContain('row-30')
+    })
+  })
+
   it('translates the status row but never the command output', async () => {
     const painted = await paintApp({ lang: 'zh' })
     await run(painted, '!node -e "process.stdout.write(\'raw-bytes\');process.exit(4)"')

@@ -150,7 +150,13 @@ A tool call is **one line**, `Read(src/scroll.ts) ✓`, with a preview of its re
 
 **Output is previewed, at most `PREVIEW_MAX_LINES` (8) rows.** The result of a tool call and the captured output of a `!` escape are drawn the same way: blank lines dropped, the first 8 remaining lines shown at their own indentation, and a `… +N lines` marker when anything was withheld. One line collapsed to one line was too little to read — a diff or a file listing said nothing — and a shell command that printed a large file used to be painted in full, which pushed the prompt and everything above it off the top. Both failures are the same missing cap.
 
-Every row of a preview is drawn `wrap="truncate"`, and that is not a cosmetic choice: it makes the preview's height equal to its line count, independent of the terminal's width and of the interface language. That is what lets `estimateEntryRows` charge `lines + (hidden ? 1 : 0)` exactly rather than estimating, and what lets the withheld count be translated (§3.10). There is deliberately no expand affordance — reaching one entry to expand needs a focus/selection model, which is precisely the app-level state machine the roadmap warns against.
+Every row of a preview is drawn `wrap="truncate"`, and that is not a cosmetic choice: it makes the preview's height equal to its line count, independent of the terminal's width and of the interface language. That is what lets `estimateEntryRows` charge `lines + (hidden ? 1 : 0)` exactly rather than estimating, and what lets the withheld count be translated (§3.10).
+
+**Expanding is global, never per entry.** `/verbose` and `Ctrl-O` (§1.5.6, §1.6) flip one flag that raises the budget from `PREVIEW_MAX_LINES` (8) to `EXPANDED_MAX_LINES` (200) for the whole transcript at once. There is still no per-entry `▾ show more`, and that is the same refusal as before: reaching *one* entry to expand needs a focus/selection model, which is precisely the app-level state machine the roadmap warns against (roadmap §6). A global switch needs no such model, so it is the version that ships.
+
+The raised budget is a bigger cap, not the absence of one. `windowStart` keeps a minimum number of entries mounted whatever they cost in rows, so an uncapped preview means tens of thousands of Ink `Text` nodes laid out every frame. The flag also lives in `useMessageListScroll` rather than beside the other App state, because it is that hook's `reportGeometry` re-clamp that makes a height change safe mid-scroll — the flag and its consequence share an owner.
+
+One known cost: toggling while scrolled into history moves the text under you. The offset counts rows from the bottom, and expanding adds rows below your position as well as above it. Holding position would need the per-entry anchor this design is avoiding.
 
 The glyphs, the gutter width, the one-line summaries, and the preview arithmetic live in [`src/message-layout.ts`](./../src/message-layout.ts) as pure functions, and `src/scroll.ts` reads them to estimate how many rows an entry costs. That sharing is load-bearing: the estimate decides how much history stays mounted, and an estimate that *over*-counts stops the mount short of the offset the user is scrolling to, which puts the oldest entries out of reach.
 
@@ -323,6 +329,16 @@ What it copies is the reply's **markdown source**, not the terminal's rendering 
 
 **There is no `/paste`, and that is a constraint rather than a gap.** Reading the clipboard needs the query form and a read of the reply, which needs a `data` listener on stdin — mid-session, while Ink owns the read loop. `probeAppearance` (§1.10) gets away with that only because it runs before Ink mounts; there is no equivalent window once a session is up, and a reply arriving after mount is typed into the prompt as garbage. It is also the less valuable half: every terminal already pastes with its own binding, and bracketed paste already reaches the prompt.
 
+#### 1.5.6 `/verbose`
+
+`/verbose` raises the preview budget from 8 lines to 200 for **every** entry at once (§1.2). Bare toggles; `on` and `off` set it explicitly; anything else prints the usage line with both budgets in it and does not move the switch.
+
+**Bare toggles rather than printing usage, unlike `/theme`.** There are only two states, so a round trip through a usage line to reach the other one is pure ceremony. `/theme` cannot do the same — it has three settings and one of them is a measurement — and the usage line is still reachable here, because it is what a bad argument prints. `on` while already on stays on: a habit that types it twice must not land in the opposite state.
+
+**It is not saved.** `/theme` and `/language` persist because they are preferences about how the app should look; this is a temporary act of reading something, closer to scrolling than to configuring. Restoring it at launch would also mean the first frame of every session is the expensive one.
+
+`Ctrl-O` is the same switch (§1.6), and the command reports the budget in lines rather than the word `on`, because the number is the part the user cannot guess.
+
 ### 1.6 Keyboard bindings
 
 Ink hands every keystroke to *every* mounted `useInput` handler and offers no
@@ -358,10 +374,11 @@ its way to someone else.
 | `Ctrl-B` / `Ctrl-F` | MessageList | Scroll a page (no `Fn` needed) |
 | `Ctrl-U` / `Ctrl-D` | MessageList | Scroll half a page |
 | `Home` / `End` | MessageList | Jump to the oldest row / back to the tail |
+| `Ctrl-O` | MessageList | Toggle the expanded preview budget (`/verbose`) |
 | `Ctrl-C` | App | Cancel turn (when running) or exit (when idle) |
 | `Ctrl-L` | App | Clear the screen and redraw the frame |
 
-Three rows are decided rather than inherited, and each costs something:
+Four rows are decided rather than inherited, and each costs something:
 
 - **`Ctrl-U` scrolls; it does not kill the line.** In readline it is
   kill-to-start, and that muscle memory is real. But `PageUp`/`PageDown` need
@@ -387,6 +404,13 @@ Three rows are decided rather than inherited, and each costs something:
   Empty lines and a repeat of the newest entry are not recorded, and edits to
   a recalled line are not remembered per entry: keep walking and they are
   gone, as in `bash`.
+
+- **`Ctrl-O` is free only because Ink holds the terminal in raw mode.** In
+  cooked mode it is `VDISCARD` and the tty eats it before any process sees it,
+  which is why almost nothing binds it and why it is available here. It sits
+  with the MessageList rather than the App because the flag it flips is that
+  hook's (§1.2), and because the same hook's geometry re-clamp is what keeps
+  the change safe mid-scroll.
 
 **`Ctrl-L` goes through Ink's writer, not through `stdout`.** The binding is one
 line, and the obvious spelling of it is wrong: `stdout.write(CLEAR_SCREEN)`
@@ -554,7 +578,7 @@ Still open: nothing — v0.3 is complete.
 - **Syntax highlighting.** *Shipped.* Assistant code blocks are tokenized by Shiki, loaded on first use and cached per line so a streaming block is not re-tokenized from the top on every delta — see §1.9. Two themes, chosen by the auto-theme item below.
 - **Auto theme.** *Shipped.* The terminal is asked its background color over OSC 11 at boot and the app picks a light or dark appearance from the reply's luminance; `/theme auto|dark|light` overrides it and persists. What changes is narrow on purpose — the code-block theme and the lighter brand tint, the only two colors that name an absolute value. See §1.10.
 - **Streaming markdown.** *Shipped.* The assistant text is re-parsed on every `assistant/chunk` event and drawn as partial markdown, instead of waiting for `assistant/message` — see §1.9 for why the partial-parse churn the original plan feared does not happen.
-- **Truncation.** The 8-line cap shipped in v0.3; what remains is the `▾ show more` affordance, and it is not free — expanding one entry needs a focus/selection model this app does not have. Read §6 of the roadmap before starting it.
+- **Truncation.** *Shipped, as a global switch.* The 8-line cap itself shipped in v0.3; `/verbose` and `Ctrl-O` now raise it to 200 lines for the whole transcript at once (§1.2, §1.5.6). The per-entry `▾ show more` this item originally named is **not** what shipped and stays refused — expanding *one* entry needs a focus/selection model this app does not have (roadmap §6). A global switch needs none, which is why it could ship without reversing that decision.
 - **Clipboard.** *Shipped as `/copy`.* The newest reply, or the newest fenced block, goes to the system clipboard over OSC 52 — across SSH included. `/paste` is **not** coming: reading the clipboard needs a stdin listener mid-session, which is Ink's, and every terminal already pastes on its own. See §1.5.5.
 
 ### v1.0 — Production

@@ -8,6 +8,14 @@
  * offset — so the top of the log is a real, exact stop rather than an
  * estimate.
  *
+ * It owns one thing that is not strictly scroll: `expanded`, the global
+ * preview cap. It lives here rather than in the App because expanding changes
+ * the content's height, and `reportGeometry` below is what re-clamps the
+ * offset when height changes — the two are the same mechanism, and splitting
+ * them would mean the flag's owner could not see the consequence of setting
+ * it. The name stays `…Scroll` because renaming it would touch two lesson
+ * docs and every spec that cites it, for nothing.
+ *
  * There are two input paths on purpose. Everything Ink reports faithfully
  * (arrows, `PageUp`/`PageDown`, `Ctrl-`-modified letters, and any mouse
  * report it forwards as ordinary input) is handled through `useInput`.
@@ -55,6 +63,14 @@ export interface MessageListScroll {
    */
   pinTop: boolean
   /**
+   * Every truncated preview is drawn at its raised cap instead of the 8-line
+   * one. Global on purpose — see `docs/SPEC.md` §1.2: reaching *one* entry to
+   * expand needs a focus model this app declines to have.
+   */
+  expanded: boolean
+  /** Set the expand flag. `/verbose` calls this; `Ctrl-O` toggles it. */
+  setExpanded: (expanded: boolean) => void
+  /**
    * Report the measured height of the mounted content and of the viewport
    * after a layout. Called on every render; it only triggers work when a
    * number actually changed, so it cannot drive a render loop.
@@ -87,6 +103,7 @@ export function useMessageListScroll(
   const { internal_eventEmitter: events } = useStdin()
   const [offset, setOffset] = useState(0)
   const [pinTop, setPinTop] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   // Geometry lives in a ref, not in state: the key handlers need the
   // current viewport height to size a page, but a measurement that
   // changes nothing about the offset must not cost a render.
@@ -159,6 +176,13 @@ export function useMessageListScroll(
         case 'd':
           scrollBy(-halfPageDelta(viewportRows))
           return
+        // Reaches us only because Ink puts the terminal in raw mode: in
+        // cooked mode Ctrl-O is `VDISCARD` and the tty eats it. Raw mode is
+        // not optional for this app, so the binding is safe — but that is
+        // why it is free, and why no other TUI seems to use it.
+        case 'o':
+          setExpanded(current => !current)
+          return
         default:
           return
       }
@@ -196,5 +220,5 @@ export function useMessageListScroll(
     }
   }, [events])
 
-  return { offset, atTail: offset === 0, pinTop, reportGeometry }
+  return { offset, atTail: offset === 0, pinTop, expanded, setExpanded, reportGeometry }
 }

@@ -68,6 +68,7 @@ export const COMMAND_NAMES = [
   '/status',
   '/theme',
   '/usage',
+  '/verbose',
 ] as const
 
 /** One of the built-in command names. */
@@ -278,6 +279,10 @@ export interface Catalog {
     themeSwitched: (pref: ThemePref, appearance: Appearance) => string
     /** `/theme` with an argument that named no preference. */
     unknownTheme: (raw: string) => string
+    /** `/verbose` with no argument, or one it did not recognise. */
+    verboseUsage: (current: boolean, collapsed: number, expanded: number) => string
+    /** `/verbose` after the toggle moved. */
+    verboseSwitched: (on: boolean, limit: number) => string
     /** `/copy` with no argument, or one it did not recognise. */
     copyUsage: string
     /**
@@ -364,6 +369,7 @@ const EN: Catalog = {
     '/status': 'Print the current model and session id',
     '/theme': 'Choose the background the colors assume: /theme auto, dark, or light',
     '/usage': 'Break this session\'s token spend out turn by turn',
+    '/verbose': 'Show more of each long output: /verbose on, off, or bare to toggle',
   },
   output: {
     helpHeading: 'Available commands:',
@@ -433,6 +439,12 @@ const EN: Catalog = {
         ? `Following the terminal's background, which reads as ${appearance}.`
         : `Colors now assume a ${pref} background.`,
     unknownTheme: raw => `unknown theme '${raw}' — pick one of ${THEME_PREFS.join(', ')}`,
+    verboseUsage: (current, collapsed, expanded) =>
+      `Usage: /verbose [on|off]\nCurrent: ${current ? 'on' : 'off'}\n\nOff, a long tool result or shell output previews its first ${collapsed} lines; on, its first ${expanded}. Ctrl-O toggles the same switch. It is not saved, and it applies to every entry at once — this app has no notion of a focused one.`,
+    verboseSwitched: (on, limit) =>
+      on
+        ? `Long outputs now preview up to ${limit} lines.`
+        : `Long outputs are back to ${limit} lines.`,
     copyUsage: 'Usage: /copy (the newest reply) or /copy code (the newest code block)',
     copySent: (target, bytes, truncatedAt) =>
       `Sent the newest ${target === 'code' ? 'code block' : 'reply'} to the clipboard`
@@ -522,6 +534,7 @@ const ZH: Catalog = {
     '/status': '打印当前模型和 session id',
     '/theme': '选择配色假定的背景：/theme auto、dark 或 light',
     '/usage': '按轮次拆开本次 session 的 token 开销',
+    '/verbose': '让每段长输出多显示一些：/verbose on、off，不带参数则切换',
   },
   output: {
     helpHeading: '可用命令：',
@@ -590,6 +603,12 @@ const ZH: Catalog = {
         ? `已跟随终端背景，探测结果是 ${appearance}。`
         : `配色已改为假定 ${pref} 背景。`,
     unknownTheme: raw => `未知主题「${raw}」—— 请选择 ${THEME_PREFS.join('、')}`,
+    verboseUsage: (current, collapsed, expanded) =>
+      `用法：/verbose [on|off]\n当前：${current ? 'on' : 'off'}\n\n关闭时，长的工具结果或 shell 输出只预览前 ${collapsed} 行；打开时预览前 ${expanded} 行。Ctrl-O 切换的是同一个开关。它不会被保存，而且一次作用于所有条目——本应用没有「当前选中条目」这个概念。`,
+    verboseSwitched: (on, limit) =>
+      on
+        ? `长输出现在最多预览 ${limit} 行。`
+        : `长输出已恢复为 ${limit} 行。`,
     copyUsage: '用法：/copy（最新一条回复）或 /copy code（最新的代码块）',
     copySent: (target, bytes, truncatedAt) =>
       `已把最新的${target === 'code' ? '代码块' : '回复'}发往剪贴板`

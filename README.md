@@ -132,10 +132,12 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
 | `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
+| `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
+| `Ctrl-O` | Same switch as `/verbose`, without typing a command |
 | `y` / `n` / `Esc` | Answer a tool approval request |
 | `Ctrl-C` (idle) | Same as `/exit` |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
@@ -249,6 +251,18 @@ config. GNU `screen` is not supported.
 Large replies are cut at 48 KB, and the command says when it cut. There is no
 `/paste`: your terminal's own paste already reaches the prompt, and reading the
 clipboard back would need the keyboard while the REPL is using it.
+
+### Seeing more of a long output
+
+A tool result or a `!` command's output is previewed at 8 lines, with a
+`… +N lines` marker for the rest. `/verbose` raises that to 200 lines, and
+`Ctrl-O` is the same switch without the typing. `/verbose on` and `/verbose off`
+set it explicitly if you would rather not guess which way a bare toggle goes.
+
+It applies to **every** entry at once, not to one you point at — there is no
+"current entry" in the transcript to point at. It is not remembered between
+sessions, and toggling it while you are scrolled up will move the text under
+you, because expanding adds rows below your position as well as above it.
 
 ## Develop it
 

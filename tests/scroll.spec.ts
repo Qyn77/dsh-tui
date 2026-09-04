@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { CallId, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
-import { PREVIEW_MAX_LINES } from '../src/message-layout.ts'
+import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/message-layout.ts'
 import {
   clampOffset,
   estimateEntryRows,
@@ -291,6 +291,41 @@ describe('estimateEntryRows', () => {
     expect(estimateEntryRows(entry, 80)).toBe(2 + PREVIEW_MAX_LINES + 1)
     expect(estimateEntryRows(entry, 12)).toBe(2 + PREVIEW_MAX_LINES + 1)
   })
+
+  it('charges the expanded budget when the toggle is on', () => {
+    // 30 lines is over the collapsed cap and under the expanded one, so this
+    // is the case where the two answers differ and neither is the raw count
+    // by accident.
+    const entry = {
+      kind: 'shell' as const,
+      command: 'seq 30',
+      output: Array.from({ length: 30 }, (_, i) => String(i)).join('\n'),
+      exitCode: 0,
+      timedOut: false,
+      truncated: false,
+      injected: false,
+    }
+    expect(estimateEntryRows(entry, 80, false)).toBe(2 + PREVIEW_MAX_LINES + 1)
+    // Separator, command, all 30 rows. No marker: nothing was withheld.
+    expect(estimateEntryRows(entry, 80, true)).toBe(2 + 30)
+  })
+
+  it('still caps expanded output, so the mounted window stays bounded', () => {
+    // `windowStart` keeps a minimum number of entries mounted regardless of
+    // their height, so an uncapped preview is an unbounded number of Ink
+    // nodes laid out every frame. The expanded budget is a bigger cap, not
+    // the absence of one.
+    const entry = {
+      kind: 'shell' as const,
+      command: 'seq 500',
+      output: Array.from({ length: 500 }, (_, i) => String(i)).join('\n'),
+      exitCode: 0,
+      timedOut: false,
+      truncated: false,
+      injected: false,
+    }
+    expect(estimateEntryRows(entry, 80, true)).toBe(2 + EXPANDED_MAX_LINES + 1)
+  })
 })
 
 describe('windowStart', () => {
@@ -327,5 +362,22 @@ describe('windowStart', () => {
   it('clamps to the start of the log rather than running off the front', () => {
     const entries = Array.from({ length: 30 }, (_, i) => userEntry(`m${i}`))
     expect(windowStart(entries, 80, 10_000, 20)).toBe(0)
+  })
+
+  it('mounts fewer entries when expanded, because each one is taller', () => {
+    // The flag has to reach here too, not just the renderer: the window is
+    // sized in rows, and expanding changes what a row budget buys.
+    const entries = Array.from({ length: 200 }, () => ({
+      kind: 'shell' as const,
+      command: 'seq 30',
+      output: Array.from({ length: 30 }, (_, i) => String(i)).join('\n'),
+      exitCode: 0,
+      timedOut: false,
+      truncated: false,
+      injected: false,
+    }))
+    const collapsed = windowStart(entries, 80, 200, 20, false)
+    const expanded = windowStart(entries, 80, 200, 20, true)
+    expect(expanded).toBeGreaterThan(collapsed)
   })
 })

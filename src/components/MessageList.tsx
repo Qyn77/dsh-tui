@@ -48,6 +48,7 @@ import {
   toolResultPreview,
   toolStatusGlyph,
   outputPreview,
+  previewLimit,
   type OutputPreview,
 } from '../message-layout.ts'
 import { SHELL_TIMEOUT_MS } from '../shell.ts'
@@ -60,6 +61,12 @@ export interface MessageListProps {
   offset: number
   /** Mount the entire log because the user asked for its beginning. */
   pinTop: boolean
+  /**
+   * Draw every truncated preview at its raised cap. Must be the same value
+   * `scroll.ts` measured with — `MessageList` passes it to `windowStart` right
+   * below, so the two cannot be given different answers from here.
+   */
+  expanded: boolean
   /**
    * Report the measured content and viewport heights after each layout, so
    * the scroll hook can bound the offset against real rows.
@@ -164,7 +171,10 @@ function Preview({ preview, color, dim = false }: {
  * several lines keeps a hanging indent instead of sliding back under the
  * marker — the same shape {@link Row} gives the entry as a whole.
  */
-function ToolCall({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
+function ToolCall({ entry, maxLines }: {
+  entry: Extract<UiEntry, { kind: 'tool' }>
+  maxLines: number
+}) {
   // `cancelled` is gray rather than red: the call did not fail, it never
   // finished. Painting it red would report a problem the tool never had.
   const color = entry.status === 'error'
@@ -174,7 +184,7 @@ function ToolCall({ entry }: { entry: Extract<UiEntry, { kind: 'tool' }> }) {
       : entry.status === 'cancelled'
         ? 'gray'
         : 'yellow'
-  const preview = entry.result ? toolResultPreview(entry.result) : undefined
+  const preview = entry.result ? toolResultPreview(entry.result, maxLines) : undefined
   return (
     <Row glyph={ASSISTANT_GLYPH} color={color}>
       <Text>
@@ -349,11 +359,14 @@ function CommandLine({ entry }: { entry: Extract<UiEntry, { kind: 'command' }> }
  * row in every language and at every width, which is what keeps the measured
  * height and the drawn height equal — the agreement paging depends on.
  */
-function ShellLine({ entry }: { entry: Extract<UiEntry, { kind: 'shell' }> }) {
+function ShellLine({ entry, maxLines }: {
+  entry: Extract<UiEntry, { kind: 'shell' }>
+  maxLines: number
+}) {
   const strings = useStrings()
   const failed = entry.timedOut || entry.signal !== undefined || (entry.exitCode ?? 1) !== 0
   const color = failed ? 'red' : 'cyan'
-  const preview = outputPreview(entry.output)
+  const preview = outputPreview(entry.output, maxLines)
   const status = shellStatusKinds(entry).map((kind) => {
     switch (kind) {
       case 'timedOut':
@@ -394,14 +407,17 @@ function ShellLine({ entry }: { entry: Extract<UiEntry, { kind: 'shell' }> }) {
  * whole mounted window — worth doing now that each of those subtrees is a
  * markdown document rather than a single `Text`.
  */
-const Entry = React.memo(function Entry({ entry }: { entry: UiEntry }) {
+const Entry = React.memo(function Entry({ entry, maxLines }: {
+  entry: UiEntry
+  maxLines: number
+}) {
   switch (entry.kind) {
     case 'user':
       return <UserBlock entry={entry} />
     case 'assistant':
       return <AssistantBlock entry={entry} />
     case 'tool':
-      return <ToolCall entry={entry} />
+      return <ToolCall entry={entry} maxLines={maxLines} />
     case 'note':
       return <NoteLine entry={entry} />
     case 'compaction':
@@ -413,7 +429,7 @@ const Entry = React.memo(function Entry({ entry }: { entry: UiEntry }) {
     case 'command':
       return <CommandLine entry={entry} />
     case 'shell':
-      return <ShellLine entry={entry} />
+      return <ShellLine entry={entry} maxLines={maxLines} />
     default: {
       // Exhaustiveness: a new UiEntry variant will fail to compile here.
       const _exhaustive: never = entry
@@ -422,12 +438,19 @@ const Entry = React.memo(function Entry({ entry }: { entry: UiEntry }) {
   }
 })
 
-export const MessageList: FC<MessageListProps> = ({ state, offset, pinTop, onGeometry }) => {
+export const MessageList: FC<MessageListProps> = ({
+  state,
+  offset,
+  pinTop,
+  expanded,
+  onGeometry,
+}) => {
   const { stdout } = useStdout()
   const columns = stdout?.columns ?? 80
   const viewportRef = useRef<DOMElement | null>(null)
   const contentRef = useRef<DOMElement | null>(null)
   const [viewportRows, setViewportRows] = useState(0)
+  const maxLines = previewLimit(expanded)
 
   // Mount the tail of the log plus enough history to cover the offset. The
   // window always reaches the newest entry, so the mounted content's bottom
@@ -436,7 +459,13 @@ export const MessageList: FC<MessageListProps> = ({ state, offset, pinTop, onGeo
   // everything mounted.
   const start = pinTop
     ? 0
-    : windowStart(state.entries, columns, offset, viewportRows || (stdout?.rows ?? 24))
+    : windowStart(
+      state.entries,
+      columns,
+      offset,
+      viewportRows || (stdout?.rows ?? 24),
+      expanded,
+    )
   const visible = useMemo(() => state.entries.slice(start), [state.entries, start])
 
   // Measure after every layout. Both writes are guarded against no-ops —
@@ -482,7 +511,7 @@ export const MessageList: FC<MessageListProps> = ({ state, offset, pinTop, onGeo
       <Box ref={contentRef} flexDirection="column" flexShrink={0} marginBottom={-offset}>
         {visible.map((entry, idx) => (
           <Box key={start + idx} flexShrink={0}>
-            <Entry entry={entry} />
+            <Entry entry={entry} maxLines={maxLines} />
           </Box>
         ))}
       </Box>
