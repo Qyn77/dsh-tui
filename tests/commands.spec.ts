@@ -713,11 +713,11 @@ describe('slash command dispatch', () => {
         entries: [
           {
             kind: 'assistant', turn: 1, step: 0, text: 'a', finalized: true,
-            usage: { inputTokens: 100, outputTokens: 10 } as never,
+            usage: { inputTokens: 100, outputTokens: 10 },
           },
           {
             kind: 'assistant', turn: 2, step: 0, text: 'b', finalized: true,
-            usage: { inputTokens: 200, outputTokens: 20 } as never,
+            usage: { inputTokens: 200, outputTokens: 20 },
           },
         ],
         status: 'idle',

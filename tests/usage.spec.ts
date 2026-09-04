@@ -163,7 +163,7 @@ describe('usageByTurn', () => {
         kind: 'assistant', turn: 1, step: 0, text: 'hi', finalized: true,
         usage: {
           inputTokens: 10, outputTokens: 1, cacheReadTokens: 100, cacheWriteTokens: 1000,
-        } as TokenUsage,
+        },
       }],
       status: 'idle',
       currentTurn: 1,
