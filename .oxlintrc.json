@@ -27,7 +27,8 @@
       // differences stay in the short overrides below.
       "files": [
         "src/**/*.{ts,tsx}",
-        "tests/**/*.{ts,tsx}"
+        "tests/**/*.{ts,tsx}",
+        "scripts/**/*.ts"
       ],
       "rules": {
         "no-var": "error",
@@ -200,7 +201,8 @@
     {
       "files": [
         "src/**/*.{ts,tsx}",
-        "tests/**/*.{ts,tsx}"
+        "tests/**/*.{ts,tsx}",
+        "scripts/**/*.ts"
       ],
       "rules": {
         "sonarjs/duplicates-in-character-class": "error",
@@ -219,7 +221,8 @@
     {
       "files": [
         "src/**/*.{ts,tsx}",
-        "tests/**/*.{ts,tsx}"
+        "tests/**/*.{ts,tsx}",
+        "scripts/**/*.ts"
       ],
       "rules": {
         "@stylistic/indent": [

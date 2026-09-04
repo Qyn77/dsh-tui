@@ -347,6 +347,22 @@ dsh --profile tui-dev   # restart; picks up the new lib/index.js
 
 `pnpm test` and `pnpm run typecheck` run against the `.ts` source — they don't need a build.
 
+### `pnpm tty-check`
+
+The test suite runs with no TTY and with color forced off, so three shipped
+features are only ever exercised as arithmetic: the OSC 11 background probe, the
+OSC 52 clipboard write, and whether the colors picked from those two are legible
+on your actual background.
+
+```sh
+pnpm tty-check          # run it in the terminal you actually use
+```
+
+It imports the real modules — no second copy of the sequences — prints what your
+terminal answered, and ends two of its four checks with a question, because
+"is this readable" and "did that reach your clipboard" are not things a program
+can see. Anything you answer "no" to is a real bug the suite cannot catch.
+
 ### Project layout
 
 ```

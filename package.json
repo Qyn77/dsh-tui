@@ -65,6 +65,7 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "pack:check": "node scripts/verify-pack.mjs",
+    "tty-check": "node --experimental-strip-types scripts/tty-check.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

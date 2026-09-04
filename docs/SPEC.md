@@ -799,6 +799,10 @@ Use `vitest`. Tests live in `tests/` mirroring `src/`. Run with `pnpm test`. Tes
 
 Do not add a snapshot test. There is no snapshot in this package and no `renderHook`: Ink ships its own reconciler, so `react-dom/test-utils` is not installed and `act` comes from the `react` root export.
 
+**What the suite structurally cannot reach, and what discharges it.** Every test runs with no TTY and with chalk's color level pinned to 0. Three shipped behaviours are therefore covered only as arithmetic: the OSC 11 probe never gets a reply, the OSC 52 write never reaches a clipboard, and no assertion can say whether a chosen color is legible. `docs/TUI-ROADMAP.md` §7 makes "it works in a real TTY" an acceptance rule, so those three are discharged by `scripts/tty-check.ts` (`pnpm tty-check`) — a diagnostic a human runs in their own terminal.
+
+Two rules govern it. It **imports the real modules** (`src/theme.ts`, `src/clipboard.ts`, `src/highlight.ts`, `src/banner-art.ts`) rather than reimplementing the sequences: a checker carrying its own copy of the OSC 11 parser would verify the terminal and prove nothing about the code that ships. And it prints the two human-answerable checks **as questions**, never as ticks — a program cannot see whether a comment token is readable, and a script that claims it can is worse than no script. This is not a test, it does not run in CI, and `package.json#files` excludes `scripts/` so it does not ship.
+
 ### 3.5 Secret handling
 
 - API keys **never** appear in chat, code, commit messages, or issues.
