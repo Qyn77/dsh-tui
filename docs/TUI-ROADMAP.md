@@ -213,7 +213,7 @@ Definition of done:
 - failure and cancellation modes are obvious
 - plugin-provided usage or status data is visible without breaking the chat flow
 
-### v0.4 — Productivity polish (one item open)
+### v0.4 — Productivity polish (complete)
 
 Priority features:
 
@@ -241,6 +241,14 @@ still blocked on the focus/selection model §6 refuses. Finding that a global
 toggle needs no such model is what unblocked the item without reversing the
 refusal — the bullet in §6 stands unchanged.
 
+**One item was added here that this list never named:** `/sessions`, which
+prints the stored sessions and the ids to resume them by. It belongs to
+"advanced actions remain discoverable" below rather than to any priority
+feature above — v0.3 shipped session resume, and it turned out that a working
+feature whose only input is an id printed nowhere is not discoverable at all.
+SPEC §1.5.7 has the design; §3.3.1 has why the listing and `planResume` had to
+agree on how short an id may be.
+
 Definition of done:
 
 - the core REPL feels confident and stable
@@ -266,9 +274,9 @@ Definition of done:
 
 **This list is spent.** All six items shipped across v0.2–v0.4; it is kept as a
 record of the order the work was actually taken in, because that order is the
-argument §8 makes and it held up. The live backlog is SPEC Part 2 — as of the
-`/verbose` switch, v0.1 through v0.4 are all complete and what remains there is
-the v1.0 set.
+argument §8 makes and it held up. The live backlog is SPEC Part 2 — as of
+`/sessions`, v0.1 through v0.4 are all complete and what remains there is the
+v1.0 set.
 
 The next items, in order, should be:
 

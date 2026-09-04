@@ -134,6 +134,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
+| `/sessions` | List the stored sessions, with the id to resume one by |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
@@ -263,6 +264,23 @@ It applies to **every** entry at once, not to one you point at — there is no
 "current entry" in the transcript to point at. It is not remembered between
 sessions, and toggling it while you are scrolled up will move the text under
 you, because expanding adds rows below your position as well as above it.
+
+### Picking up an earlier session
+
+`/sessions` lists what is stored, newest first: a shortened id, when it started,
+where it was running, and the first thing you said in it. The one you are in is
+marked.
+
+Relaunch with that id to continue it:
+
+```bash
+DSH_TUI_RESUME=tui-9f3c1a2b dsh-tui   # the id as /sessions prints it
+DSH_TUI_RESUME=last dsh-tui           # whichever was newest
+```
+
+The shortened id is enough as long as it matches one session; if it matches two,
+you are told so rather than dropped into the wrong history. Resuming is decided
+at launch — there is no way to switch while a session is open.
 
 ## Develop it
 
@@ -438,7 +456,7 @@ The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump th
 ## Known limitations
 
 - **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
-- **Resume is a boot-time choice.** `DSH_TUI_RESUME=last` (or an id) continues a stored session; there is no in-session `/resume`.
+- **Resume is a boot-time choice.** `DSH_TUI_RESUME=last` (or an id from `/sessions`) continues a stored session; there is no in-session `/resume` and no way to switch without relaunching.
 - **Long tool output is previewed, not expandable.** The first 8 lines are shown with a `… +N lines` marker; there is no `show more` affordance, because reaching one would need a selection model the app deliberately does not have.
 - **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.
 

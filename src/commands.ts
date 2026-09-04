@@ -26,7 +26,7 @@
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Context } from '@deepseek-ai/cordis'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { UiState } from './types.ts'
 import { appExit, service } from './services.ts'
 import {
@@ -38,6 +38,12 @@ import {
 } from './i18n.ts'
 import { contextOccupancy, formatUsage, totalUsage, usageByTurn } from './usage.ts'
 import { isThemePref, type Appearance, type ThemePref } from './theme.ts'
+import {
+  MAX_SESSION_ROWS,
+  formatSessions,
+  summarizeLog,
+  type SessionRow,
+} from './sessions.ts'
 import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from './message-layout.ts'
 import {
   OSC52_MAX_BYTES,
@@ -240,6 +246,68 @@ async function togglePlugin(
   return { kind: 'handled', message: strings.pluginToggled(row.name, action.enable) }
 }
 
+/**
+ * One session's opening line, or undefined when there is nothing readable.
+ *
+ * The throw is swallowed on purpose: `inspect` rejects an unknown format
+ * version and a corrupt committed prefix, and neither is a reason to withhold
+ * the row. See {@link listSessions}.
+ */
+async function summarize(
+  persistence: { inspect: (id: SessionId) => Promise<{ events: readonly SessionEvent[] }> },
+  id: SessionId,
+): Promise<string | undefined> {
+  try {
+    const { events } = await persistence.inspect(id)
+    return summarizeLog(events)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Read the store and render the listing.
+ *
+ * The summary column costs one `inspect` per *listed* row — `list()` is
+ * metadata only, with no message text and no count — so the slice happens
+ * before the reads and the budget is `MAX_SESSION_ROWS` however large the store
+ * is. `inspect` rather than `load`: it commits no recovery and publishes
+ * nothing, and an already-live session yields its current snapshot instead of
+ * rejecting, which matters because the running session is in the list.
+ *
+ * A log that cannot be read costs its own summary and nothing else. Losing the
+ * whole listing to one corrupt file would strike exactly when the user is
+ * hunting for a session to escape to.
+ * @param cmd - the dispatch context; `sessionPersistence` is read optionally.
+ * @param strings - the active catalog's output strings.
+ */
+async function listSessions(
+  cmd: CommandContext,
+  strings: Catalog['output'],
+): Promise<CommandResult> {
+  const persistence = service(cmd.ctx, 'sessionPersistence')
+  if (persistence === undefined) return { kind: 'handled', message: strings.noPersistence }
+  const headers = await persistence.list()
+  if (headers.length === 0) return { kind: 'handled', message: strings.noStoredSessions }
+  const newest = [...headers].sort((a, b) => b.createdAt - a.createdAt)
+  const shown = newest.slice(0, MAX_SESSION_ROWS)
+  const rows: SessionRow[] = await Promise.all(shown.map(async (header) => {
+    const summary = await summarize(persistence, header.id)
+    return {
+      id: header.id,
+      createdAt: header.createdAt,
+      ...header.cwd === undefined ? {} : { cwd: header.cwd },
+      ...summary === undefined ? {} : { summary },
+      current: header.id === cmd.agent.session.id,
+    }
+  }))
+  const table = formatSessions(rows, newest.length - shown.length, strings.sessionLabels)
+  return {
+    kind: 'handled',
+    message: `${strings.sessionsHeading(headers.length)}\n${table}\n\n${strings.sessionsFooter}`,
+  }
+}
+
 /** Snapshot one command from the registry. */
 export interface CommandContext {
   ctx: Context
@@ -366,6 +434,9 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
         message: strings.status(model, cmd.agent.id),
       }
     }
+
+    case '/sessions':
+      return await listSessions(cmd, strings)
 
     // Read fresh, never cached: cordis keeps `Entry.fiber` and `Fiber.state`
     // current through its own events, so any copy kept here could only go

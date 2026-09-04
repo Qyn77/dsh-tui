@@ -61,7 +61,7 @@ function newest(headers: readonly SessionHeader[]): SessionHeader | undefined {
  * terminal because a typed id was wrong is a worse trade than starting a fresh
  * one with the reason on screen.
  * @param ctx - the plugin context; `sessionPersistence` is read optionally.
- * @param request - `'last'`, a session id, or undefined for no request at all.
+ * @param request - `'last'`, a full session id or a unique prefix of one, or undefined for no request at all.
  * @param signal - optional cancellation for the backend listing.
  * @returns the plan the runner should follow.
  */
@@ -86,9 +86,22 @@ export async function planResume(
     }
     return { kind: 'resume', id: latest.id }
   }
-  const match = headers.find(header => header.id === request)
-  if (match === undefined) {
+  const exact = headers.find(header => header.id === request)
+  if (exact !== undefined) return { kind: 'resume', id: exact.id }
+  // A stored id is `tui-<uuid>`, which nobody retypes and `/sessions` therefore
+  // abbreviates. Accepting a prefix is what makes the abbreviation usable, and
+  // an exact hit is checked first so a full id can never be read as a prefix of
+  // some longer one.
+  const prefixed = headers.filter(header => header.id.startsWith(request))
+  if (prefixed.length === 0) {
     return { kind: 'fresh', notice: `Cannot resume: no stored session with id "${request}".` }
   }
-  return { kind: 'resume', id: SessionId(request) }
+  if (prefixed.length > 1) {
+    return {
+      kind: 'fresh',
+      notice: `Cannot resume: "${request}" matches ${String(prefixed.length)} stored sessions. Use more of the id.`,
+    }
+  }
+  const [only] = prefixed
+  return { kind: 'resume', id: only.id }
 }

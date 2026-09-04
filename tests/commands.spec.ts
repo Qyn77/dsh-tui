@@ -7,12 +7,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { Session, SessionId } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands.ts'
 import { catalog } from '../src/i18n.ts'
 import type { UiState } from '../src/types.ts'
 import { OSC52_MAX_BYTES, osc52 } from '../src/clipboard.ts'
 import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/message-layout.ts'
+import { MAX_SESSION_ROWS } from '../src/sessions.ts'
 
 interface Stand {
   ctx: Context
@@ -558,6 +560,136 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/sessions', () => {
+    /** A persistence stand-in: `list` returns headers, `inspect` returns logs. */
+    function withStore(
+      headers: readonly { id: string; createdAt: number; cwd?: string }[],
+      logs: Record<string, SessionEvent[] | Error> = {},
+    ): CommandContext {
+      const ctx = new Context()
+      ctx.provide('agentDefaultModel', {
+        currentSelection: () => ({ provider: 'test-provider', model: 'test-model' }),
+      } as never)
+      ctx.provide('sessionPersistence', {
+        list: () => Promise.resolve(headers.map(h => ({ version: 0, ...h }))),
+        inspect: (id: string) => {
+          const log = logs[id]
+          if (log instanceof Error) return Promise.reject(log)
+          return Promise.resolve({ events: log ?? [] })
+        },
+      } as never)
+      const { cmd } = makeCommand({ ctx })
+      return cmd
+    }
+
+    /** A `user/message` event the summariser will accept. */
+    function said(text: string): SessionEvent {
+      return {
+        type: 'user/message',
+        seq: 0,
+        time: 0,
+        data: createUserMessage({
+          content: [{ type: 'text', text }],
+          source: { kind: 'user' },
+        }),
+      }
+    }
+
+    it('reports the missing service rather than throwing', async () => {
+      // An embedded assembly can store nothing at all. That is a missing
+      // feature, not a failure, and the same shape `/plugins` uses for a
+      // missing loader.
+      const { cmd } = makeCommand()
+      const result = await dispatch('/sessions', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).not.toBe(true)
+        expect(result.message).toContain(catalog('en').output.noPersistence)
+      }
+    })
+
+    it('says the store is empty rather than printing a heading over nothing', async () => {
+      const result = await dispatch('/sessions', withStore([]))
+      if (result.kind === 'handled') {
+        expect(result.message).toBe(catalog('en').output.noStoredSessions)
+      }
+    })
+
+    it('lists newest first and marks the running session', async () => {
+      const cmd = withStore(
+        [
+          { id: 'tui-old', createdAt: 1_000 },
+          { id: 'tui-test', createdAt: 3_000 },
+          { id: 'tui-mid', createdAt: 2_000 },
+        ],
+        { 'tui-old': [said('the old one')], 'tui-mid': [said('the middle one')] },
+      )
+      const result = await dispatch('/sessions', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind !== 'handled') return
+      const lines = (result.message ?? '').split('\n')
+      const order = ['tui-test', 'tui-mid', 'tui-old']
+        .map(id => lines.findIndex(line => line.includes(id)))
+      expect(order).toEqual([...order].sort((a, b) => a - b))
+      // `makeSession()` is `tui-test`, so that row is the one being used.
+      expect(lines.find(line => line.includes('tui-test')))
+        .toContain(catalog('en').output.sessionLabels.current)
+      expect(result.message).toContain('the old one')
+    })
+
+    it('still lists a session whose log cannot be read', async () => {
+      // A corrupt or version-mismatched log is exactly when the user is
+      // hunting for a session to escape to. It costs its own summary, and
+      // nothing else.
+      const cmd = withStore(
+        [{ id: 'tui-bad', createdAt: 2_000 }, { id: 'tui-ok', createdAt: 1_000 }],
+        { 'tui-bad': new Error('unsupported format version'), 'tui-ok': [said('readable')] },
+      )
+      const result = await dispatch('/sessions', cmd)
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('tui-bad')
+        expect(result.message).toContain('readable')
+        expect(result.message).not.toContain('unsupported format version')
+      }
+    })
+
+    it('caps the table and reads no more logs than it prints', async () => {
+      // The read budget is the whole reason the slice happens before the
+      // summaries: a large store must not mean a large number of full-log
+      // parses on one keystroke.
+      const headers = Array.from({ length: MAX_SESSION_ROWS + 5 }, (_, i) => ({
+        id: `tui-${i}`,
+        createdAt: 1_000 + i,
+      }))
+      const inspected: string[] = []
+      const ctx = new Context()
+      ctx.provide('agentDefaultModel', {
+        currentSelection: () => ({ provider: 'test-provider', model: 'test-model' }),
+      } as never)
+      ctx.provide('sessionPersistence', {
+        list: () => Promise.resolve(headers.map(h => ({ version: 0, ...h }))),
+        inspect: (id: string) => {
+          inspected.push(id)
+          return Promise.resolve({ events: [] })
+        },
+      } as never)
+      const { cmd } = makeCommand({ ctx })
+      const result = await dispatch('/sessions', cmd)
+      expect(inspected).toHaveLength(MAX_SESSION_ROWS)
+      if (result.kind === 'handled') {
+        expect(result.message).toContain(catalog('en').output.sessionsHeading(headers.length))
+        expect(result.message).toContain(catalog('en').output.sessionLabels.earlier(5))
+      }
+    })
+
+    it('says how to continue one, because the listing is useless without it', async () => {
+      const result = await dispatch('/sessions', withStore([{ id: 'tui-a', createdAt: 1 }]))
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('DSH_TUI_RESUME')
+      }
+    })
+  })
+
   describe('/verbose', () => {
     it('toggles on when bare and off, rather than printing usage', async () => {
       // Unlike `/theme`, a bare line acts: there are only two states, so the
@@ -882,7 +1014,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/clear', '/context', '/copy', '/exit', '/help', '/language', '/model', '/plugins',
-      '/quit', '/status', '/theme', '/usage', '/verbose',
+      '/quit', '/sessions', '/status', '/theme', '/usage', '/verbose',
     ])
   })
 
@@ -935,7 +1067,7 @@ describe('filterCommands', () => {
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/language', '/model',
-        '/plugins', '/quit', '/status', '/theme', '/usage', '/verbose',
+        '/plugins', '/quit', '/sessions', '/status', '/theme', '/usage', '/verbose',
       ])
     })
 

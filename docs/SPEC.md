@@ -225,6 +225,8 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/usage` | Break this session's token spend out turn by turn. |
 | `/theme` | Choose the background the colors assume: `/theme auto\|dark\|light`. Bare `/theme` reports the current setting and, under `auto`, what the terminal answered. |
 | `/copy` | Send the newest reply to the system clipboard over OSC 52. `/copy code` sends the newest fenced block instead. |
+| `/verbose` | Raise the preview budget from 8 lines to 200 for every entry at once. Bare toggles; `on`/`off` set it. |
+| `/sessions` | List the stored sessions, newest first, with the id to hand `DSH_TUI_RESUME` at launch. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (idle) | Same as `/exit`. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
@@ -235,7 +237,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: an in-session `/resume <id>` (resuming works at boot; see §3.3.1 for what mid-session would need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. Still future: an in-session `/resume <id>` (resuming works at boot and `/sessions` now shows what there is to resume; see §1.5.7 and §3.3.1 for what mid-session would still need). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -338,6 +340,20 @@ What it copies is the reply's **markdown source**, not the terminal's rendering 
 **It is not saved.** `/theme` and `/language` persist because they are preferences about how the app should look; this is a temporary act of reading something, closer to scrolling than to configuring. Restoring it at launch would also mean the first frame of every session is the expensive one.
 
 `Ctrl-O` is the same switch (§1.6), and the command reports the budget in lines rather than the word `on`, because the number is the part the user cannot guess.
+
+#### 1.5.7 `/sessions`
+
+`/sessions` lists the stored sessions newest first — abbreviated id, local timestamp, cwd, and the first thing the human said in each — with the current one marked, and a footer naming the environment variable that continues one at launch.
+
+**It exists because resume did.** `DSH_TUI_RESUME` has worked since v0.3 (§3.3.1) and was unusable: the ids it wants are `tui-<uuid>`, generated at boot and printed nowhere. The feature was complete and undiscoverable, which is indistinguishable from missing. Building the listing was therefore not a new capability but the other half of one already shipped.
+
+**Rows come from `list()`, summaries from `inspect()`.** `SessionPersistence.list()` is a metadata-only read and carries no message text, so a summary costs one `inspect()` per row. That is why the table caps at ten rows and prints `… +N earlier` for the rest: the cap bounds the cost of the command, and a listing longer than a screen would be scrolled past anyway. An `inspect()` that fails leaves that row's summary blank rather than failing the command — a session whose log is unreadable is exactly one the user may want to know exists.
+
+**The summary skips injected context.** The first `user/message` event is often a harness-injected preamble, identical across every session; summarising by it would print ten identical rows. Only events whose source is the human count, and a session with none summarises as blank.
+
+**Ids are abbreviated to twelve characters, and `planResume` accepts a prefix.** The two are one decision: a listing that abbreviates further than resume can resolve would print ids that do not work. See §3.3.1 for the prefix rules and for why an over-wide row is allowed to overflow rather than give up a column.
+
+**There is still no in-session switch,** and the footer says so rather than letting the table imply one. Selecting a row would mean swapping the agent mid-run, which §3.3.1 sizes; naming the variable is honest about what the command can actually deliver today.
 
 ### 1.6 Keyboard bindings
 
@@ -549,7 +565,7 @@ Known gaps (deferred, not bugs):
 ### v0.2 — Continuity (shipped)
 
 - **Multiline editor.** The box grows with the buffer to `MAX_PROMPT_ROWS` (10), then scrolls inside itself with a scrollbar. `Ctrl-J` inserts a newline; the `\` + Enter continuation stays for v0.1 backwards-compat.
-- **Session resume.** `DSH_TUI_RESUME=last` continues the newest stored session, or an id continues that one. Discovery is `SessionPersistence` — see §3.3.1.
+- **Session resume.** `DSH_TUI_RESUME=last` continues the newest stored session, or an id continues that one. Discovery is `SessionPersistence` — see §3.3.1. The ids themselves only became visible in v0.4, with `/sessions` (§1.5.7).
 - **`/compact` wired.** Not by this package: it falls through to `ctx.commands`, where dsh-base mounts it.
 - **Spinner during turns.** `useRunningClock` drives one interval per status transition; the StatusBar and the Prompt placeholder read the same frame index so the glyph is in lock-step.
 - **Error rendering.** Network / model / tool errors get a uniform block in `red`.
@@ -580,6 +596,7 @@ Still open: nothing — v0.3 is complete.
 - **Streaming markdown.** *Shipped.* The assistant text is re-parsed on every `assistant/chunk` event and drawn as partial markdown, instead of waiting for `assistant/message` — see §1.9 for why the partial-parse churn the original plan feared does not happen.
 - **Truncation.** *Shipped, as a global switch.* The 8-line cap itself shipped in v0.3; `/verbose` and `Ctrl-O` now raise it to 200 lines for the whole transcript at once (§1.2, §1.5.6). The per-entry `▾ show more` this item originally named is **not** what shipped and stays refused — expanding *one* entry needs a focus/selection model this app does not have (roadmap §6). A global switch needs none, which is why it could ship without reversing that decision.
 - **Clipboard.** *Shipped as `/copy`.* The newest reply, or the newest fenced block, goes to the system clipboard over OSC 52 — across SSH included. `/paste` is **not** coming: reading the clipboard needs a stdin listener mid-session, which is Ink's, and every terminal already pastes on its own. See §1.5.5.
+- **Session listing.** *Shipped as `/sessions`.* Not on the original v0.4 list, and added because v0.3's resume turned out to be unreachable: it wants ids that were printed nowhere. The listing shows them abbreviated and `planResume` accepts a prefix. See §1.5.7.
 
 ### v1.0 — Production
 
@@ -738,6 +755,23 @@ no persistence plugin mounted, an empty store, an id that is not there — are a
 user-visible choices rather than errors: each starts a fresh session and states
 why, as a note in the transcript. That notice cannot be a write to stderr,
 because the alternate screen erases anything printed before Ink's first frame.
+
+**What was missing was not resume but discovery of the ids to resume.** A
+`tui-<uuid>` id is 40 characters that appear nowhere the user can read them, so
+`DSH_TUI_RESUME` was a documented feature nobody could aim. `/sessions`
+(§1.5.7) prints the store, and the two ends had to be designed together: the
+listing abbreviates ids to twelve characters, and `planResume` accepts a unique
+prefix, checking an exact match first so a full id can never be read as a prefix
+of a longer one. An ambiguous prefix is refused with its match count rather than
+resolved by picking one — resuming the wrong history is a failure the user only
+discovers after reading a transcript that is not theirs.
+
+Even abbreviated, a worst-case row is about 95 columns. Widening the terminal's
+share further would mean dropping the timestamp or the cwd, which are the
+columns that tell two sessions apart, so the row is allowed to overflow and the
+*order* of loss is what is guaranteed instead: the `(this one)` marker sits
+before the summary, so an 80-column cut takes the summary's tail and leaves
+"you are here" standing.
 
 The remaining gap is the one this section did not predict: resuming happens at
 boot, so there is no in-session `/resume <id>` slash command. `index.ts` builds

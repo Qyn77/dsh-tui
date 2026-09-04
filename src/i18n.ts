@@ -40,6 +40,7 @@
  */
 
 import type { PluginPhase } from './plugins.ts'
+import type { SessionLabels } from './sessions.ts'
 import type { UsageLabels } from './usage.ts'
 import { THEME_PREFS, type Appearance, type ThemePref } from './theme.ts'
 
@@ -65,6 +66,7 @@ export const COMMAND_NAMES = [
   '/model',
   '/plugins',
   '/quit',
+  '/sessions',
   '/status',
   '/theme',
   '/usage',
@@ -235,6 +237,16 @@ export interface Catalog {
     usageLabels: UsageLabels
     /** `/usage` before any turn has reported tokens. */
     noUsage: string
+    /** `/sessions`: heading above the table, given the store's total. */
+    sessionsHeading: (total: number) => string
+    /** `/sessions`: words for the table itself. */
+    sessionLabels: SessionLabels
+    /** `/sessions`: the line under the table saying how to continue one. */
+    sessionsFooter: string
+    /** `/sessions` when persistence is mounted but nothing has been stored yet. */
+    noStoredSessions: string
+    /** `/sessions` in an assembly that stores nothing — there is no list to have. */
+    noPersistence: string
     /** `/plugins`: heading above the table, given the number of rows. */
     pluginsHeading: (count: number) => string
     /** `/plugins` when the loader is mounted but has nothing to list. */
@@ -366,6 +378,7 @@ const EN: Catalog = {
     '/model': 'Switch model: /model <name> or <provider>/<name>',
     '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
     '/quit': 'Alias for /exit',
+    '/sessions': 'List stored sessions and how to continue one at launch',
     '/status': 'Print the current model and session id',
     '/theme': 'Choose the background the colors assume: /theme auto, dark, or light',
     '/usage': 'Break this session\'s token spend out turn by turn',
@@ -398,6 +411,14 @@ const EN: Catalog = {
       earlier: count => `+${count} earlier`,
     },
     noUsage: 'No turn has reported token usage yet.',
+    sessionsHeading: total => `Stored sessions (${total}):`,
+    sessionLabels: {
+      current: '(this one)',
+      earlier: count => `… +${count} earlier`,
+    },
+    sessionsFooter: 'Continue one with DSH_TUI_RESUME=<id> at launch, using the shortened id above, or DSH_TUI_RESUME=last for the newest. There is no in-session switch.',
+    noStoredSessions: 'No stored sessions yet — this is the first one.',
+    noPersistence: 'No session persistence in this assembly, so nothing is stored to list.',
     pluginsHeading: count => `plugins (${count}):`,
     noPlugins: 'The loader has no plugins to list.',
     noLoader: 'No plugin loader in this assembly — nothing to list.',
@@ -531,6 +552,7 @@ const ZH: Catalog = {
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
+    '/sessions': '列出已存的 session，以及启动时怎么接上其中一个',
     '/status': '打印当前模型和 session id',
     '/theme': '选择配色假定的背景：/theme auto、dark 或 light',
     '/usage': '按轮次拆开本次 session 的 token 开销',
@@ -563,6 +585,14 @@ const ZH: Catalog = {
       earlier: count => `更早 ${count} 轮`,
     },
     noUsage: '还没有任何一轮报告过 token 用量。',
+    sessionsHeading: total => `已存的 session（${total}）：`,
+    sessionLabels: {
+      current: '（当前）',
+      earlier: count => `… 还有 ${count} 个更早的`,
+    },
+    sessionsFooter: '启动时用 DSH_TUI_RESUME=<id> 接上其中一个，上面这个缩短的 id 就能用；或者 DSH_TUI_RESUME=last 接上最新的那个。会话中途没法切换。',
+    noStoredSessions: '还没有存下任何 session —— 这是第一个。',
+    noPersistence: '当前装配没有 session 持久化，也就没有可列的东西。',
     pluginsHeading: count => `插件（${count}）：`,
     noPlugins: '加载器里没有可列出的插件。',
     noLoader: '当前装配没有插件加载器，无从列起。',

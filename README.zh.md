@@ -128,6 +128,7 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `/copy` | 把最新一条回复复制到剪贴板；`/copy code` 取最新的代码块 |
 | `/verbose` | 让每段长输出多显示一些：`/verbose on`、`off`，不带参数则切换 |
 | `/plugins` | 列出本进程加载的插件，以及各自的生命周期状态；`/plugins enable\|disable <名字>` 开关某一个，并写回 loader 配置 |
+| `/sessions` | 列出已存的 session，以及接上其中一个要用的 id |
 | `/exit`, `/quit` | 退出 REPL |
 | `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
 | `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
@@ -226,6 +227,19 @@ session 重来一遍。除此之外没有别的东西读这个文件——API ke
 它一次作用于**所有**条目，而不是你指着的某一条——本应用的对话区里根本没有「当前
 条目」这个概念。它不会跨 session 保存；而且如果你正滚在历史里切换它，文字会在你眼皮
 底下移动，因为展开同时也在你所处位置的下方加了行。
+
+### 接着之前的 session 干活
+
+`/sessions` 按时间倒序列出已经存下来的 session：缩短的 id、开始时间、当时的目录，还有你在里面说的第一句话。你现在所在的这个会被标出来。
+
+拿着那个 id 重启就能接上：
+
+```bash
+DSH_TUI_RESUME=tui-9f3c1a2b dsh-tui   # /sessions 里印出来的那个 id
+DSH_TUI_RESUME=last dsh-tui           # 最新的那个
+```
+
+缩短的 id 只要能唯一对上就够了；万一对上了两个，会直接告诉你，而不是把你丢进错的那段历史里。接哪个是启动时定的——开着的时候没法中途换。
 
 ## 改起来
 
@@ -399,7 +413,7 @@ npm publish --access public
 ## 已知限制
 
 - **`@` 只补全路径，不会把文件塞进消息。** 输入 `@src/pro` 再按 `Tab`，写进消息的是 `@src/prompt-layout.ts` 这段文字，文件内容不会被读取或内联。往 prompt 里放什么是 harness 的决定，不该由一个输入框替它做——何况模型自己就有文件工具，拿到路径就能打开。
-- **续接 session 只能在启动时决定。** `DSH_TUI_RESUME=last`（或者一个 id）可以接上已存的 session，但没有会话内的 `/resume`。
+- **续接 session 只能在启动时决定。** `DSH_TUI_RESUME=last`（或者 `/sessions` 里的一个 id）可以接上已存的 session，但没有会话内的 `/resume`，不重启就换不了。
 - **长工具输出只给预览，展不开。** 会显示前 8 行，末尾加一条 `… 还有 N 行` 的标记；没有展开入口——要做展开就得引入这个应用刻意不要的选中模型。
 - **`ctx.appExit` 由 launcher 提供。** 在 `dsh` CLI 外面跑会大声报错，直到 host 提供 exit hook。
 
