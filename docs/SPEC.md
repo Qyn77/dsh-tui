@@ -188,7 +188,7 @@ The palette is theme-aware, and almost entirely by *not* being theme-aware. Near
 | Command echo | `cyan` | `⤷ /help` — the command line the user ran, echoed in the log. Same `cyan` as the palette's command names. |
 | Command output | default fg | The command's own text under the echo. Never dimmed: it is content the user explicitly asked for, and `gray dim` makes the `/help` table hard to read on a light terminal. |
 | Command failed | `red` | Both rows of an unknown command. |
-| Plan mode on | `yellow` | `⤷ plan mode on`. |
+| Plan mode on | `yellow` | `⤷ plan mode on`. Emitted by `@deepseek-ai/dsh-plan-mode`; `src/types.ts` declares the payload locally so the TUI builds and draws it without depending on that plugin. |
 | Plan mode off | `gray` | `⤷ plan mode off`. |
 | Meta / separators | `gray` | `·`, `in:`, `out:`, `session:`, turn/step counters. |
 | Notes | `gray` dim | Free-floating side remarks. |
@@ -613,10 +613,10 @@ Still open: nothing — v0.3 is complete.
 ### v1.0 — Production
 
 - **Vim / Emacs keybind toggle.** `/keybinds vim` switches the prompt editor.
-- **Plan mode.** A `/plan` command that runs the agent read-only and shows a diff before executing.
-- **Sub-agent visualization.** Sub-agent outputs render as nested MessageList rows with a `↳` indent.
-- **MCP tool surface.** Surface MCP-provided tools with the same approval flow as built-in tools.
-- **Hooks visualization.** Render `PreToolUse` / `PostToolUse` hook outputs inline.
+- **Plan mode.** *The TUI's half is shipped.* `plan/mode` projects to a `plan` entry and draws `⤷ plan mode on`/`off` in both languages (§1.4). The `/plan` command and the read-only run are `@deepseek-ai/dsh-plan-mode`'s, not this package's — it reaches the REPL through the `ctx.commands` fallback (§1.5), the same way `/compact` does. Nothing is left here but the diff preview, which needs a diff to exist first.
+- **Sub-agent visualization.** Sub-agent outputs render as nested MessageList rows with a `↳` indent. **Blocked on the event contract, not on the work.** `subagent/descriptor` and `tool-workflow/agent-start|agent-end|run-start|run-end` are in the session vocabulary, but the plugin that emits them is not a dependency of this package, so their payload shapes are unknown here. Guessing them would be writing a view against a contract nobody can read.
+- **MCP tool surface.** Surface MCP-provided tools with the same approval flow as built-in tools. Blocked the same way — no MCP plugin in the dependency tree to program against.
+- **Hooks visualization.** Render `PreToolUse` / `PostToolUse` hook outputs inline. Blocked the same way: `hook/invoked` and `hook/result` are named in `KNOWN_SESSION_EVENT_TYPES` and nowhere else reachable from here.
 
 ### Aspirational (no commitment)
 

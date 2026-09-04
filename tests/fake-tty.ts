@@ -149,6 +149,13 @@ export interface Painted {
   /** Seal the streamed turn, the way `assistant/message` does. */
   finalize: (text: string, at?: { turn?: number; step?: number }) => Promise<void>
   /**
+   * Append any session event and publish it, for the entry kinds that neither
+   * a keystroke nor an assistant turn can produce. `plan/mode` is the first:
+   * it comes from a plugin this package does not depend on, so the only way to
+   * see how the TUI draws it is to write one into the log by hand.
+   */
+  append: (type: string, data: unknown) => Promise<void>
+  /**
    * Let React settle again without sending anything. `!` commands finish on
    * their own schedule — a real subprocess outlives the default settle — so a
    * frame assertion about one has to be able to wait for it.
@@ -277,6 +284,13 @@ export async function paintApp(
           source: { provider: 'p', model: 'm' },
         }),
       }, { surfaceOp: 'append' })
+      await emitLast()
+    },
+    async append(type, data) {
+      // The event map is closed over types this package declares; the whole
+      // point here is to write one it does not, so the signature is widened
+      // rather than the argument cast into it.
+      ;(session.append as (t: string, d: unknown) => void)(type, data)
       await emitLast()
     },
     unmount: () => { instance.unmount() },

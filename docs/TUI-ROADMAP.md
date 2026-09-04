@@ -261,10 +261,23 @@ Definition of done:
 
 Priority features:
 
-- richer model switching and plan mode context
+- richer model switching and plan mode context — **partly done**: `/model`
+  switches routes and the plan-mode line is drawn from `plan/mode`. The command
+  that enters plan mode belongs to `@deepseek-ai/dsh-plan-mode` and arrives
+  through the `ctx.commands` fallback
 - better overall chat ergonomics
-- session resume and lightweight persistence
+- session resume and lightweight persistence — **done**: `/sessions`, `/resume`
+  and `DSH_TUI_RESUME`, all over `SessionPersistence`
 - optional advanced editing and completion features
+
+**Three of the five v1.0 items in SPEC Part 2 are blocked on something other
+than effort**, and it is worth writing down so the next reader does not size
+them as work: sub-agent visualization, the MCP tool surface and hooks
+visualization all need event payloads emitted by plugins this package does not
+depend on. The event *names* are in `KNOWN_SESSION_EVENT_TYPES`; the shapes are
+not reachable from here. `plan/mode` is the precedent for how to unblock one —
+`src/types.ts` declares that payload locally — but it works there only because
+`{ enabled: boolean }` is a shape one can be certain of without the emitter.
 
 Definition of done:
 

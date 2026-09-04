@@ -318,6 +318,48 @@ describe('tui state reducer', () => {
   })
 })
 
+describe('plan mode', () => {
+  // `plan/mode` comes from `@deepseek-ai/dsh-plan-mode`, which this package
+  // does not depend on: `src/types.ts` declares the payload locally so the TUI
+  // compiles and renders in an assembly that never mounts it. That makes these
+  // the only check that the projection matches the shape it declared — there is
+  // no upstream type to catch a drift for us.
+  it('projects a switch into the transcript, keeping the sequence number', () => {
+    const session = makeSession()
+    session.append('plan/mode', { enabled: true })
+    const state = replay(session.events)
+
+    // `at` carries the seq so the entry sorts with everything around it; a
+    // constant would pile every switch at one position in the list.
+    expect(state.entries).toEqual([
+      { kind: 'plan', enabled: true, at: session.events[0]?.seq },
+    ])
+  })
+
+  it('records leaving plan mode as its own entry, not as a removal', () => {
+    // Both edges are part of the account: a transcript that showed only the
+    // switch on would read as though everything after it was still read-only.
+    const session = makeSession()
+    session.append('plan/mode', { enabled: true })
+    session.append('plan/mode', { enabled: false })
+    const state = replay(session.events)
+
+    expect(state.entries.map(e => e.kind === 'plan' && e.enabled)).toEqual([true, false])
+  })
+
+  it('leaves the turn counter and status alone', () => {
+    // It is a note about how the agent is running, not a step of the
+    // conversation. Touching `currentTurn` would make the StatusBar lie.
+    const session = makeSession()
+    appendTurn(session, 1, true)
+    session.append('plan/mode', { enabled: true })
+    const state = replay(session.events)
+
+    expect(state.currentTurn).toBe(1)
+    expect(state.status).toBe('idle')
+  })
+})
+
 describe('isRuntimeContext', () => {
   it('returns false for a human-source user message', () => {
     const msg = createUserMessage({

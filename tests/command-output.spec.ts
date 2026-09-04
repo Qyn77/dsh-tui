@@ -74,3 +74,31 @@ describe('slash command output', () => {
     expect(screen).toContain('Tip: /help')
   })
 })
+
+describe('the plan-mode line', () => {
+  // `plan/mode` is emitted by `@deepseek-ai/dsh-plan-mode`, which this package
+  // does not depend on. Nothing in the TUI can provoke one, so these write the
+  // event into the log directly — the same path the plugin would take.
+  it('draws a line when the agent enters plan mode', async () => {
+    painted = await paintApp({ rows: 40 })
+    await painted.append('plan/mode', { enabled: true })
+    expect(painted.screen()).toContain('plan mode on')
+  })
+
+  it('draws leaving it too, rather than erasing the line', async () => {
+    // Both edges stay in the transcript: without the second line, everything
+    // after the switch would read as though it were still read-only.
+    painted = await paintApp({ rows: 40 })
+    await painted.append('plan/mode', { enabled: true })
+    await painted.append('plan/mode', { enabled: false })
+    const screen = painted.screen()
+    expect(screen).toContain('plan mode on')
+    expect(screen).toContain('plan mode off')
+  })
+
+  it('writes the line in the interface language', async () => {
+    painted = await paintApp({ rows: 40, lang: 'zh' })
+    await painted.append('plan/mode', { enabled: true })
+    expect(painted.screen()).toContain('计划模式已开启')
+  })
+})
