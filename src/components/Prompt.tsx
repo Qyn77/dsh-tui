@@ -37,6 +37,7 @@ import { Box, Text, measureElement, useInput, useStdout, type DOMElement } from 
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { filterCommands, type CommandMeta } from '../commands.ts'
 import { isMouseReport } from '../scroll.ts'
+import { readPaste } from '../paste.ts'
 import {
   deleteToEnd,
   deleteWordBefore,
@@ -144,6 +145,10 @@ export const Prompt: FC<PromptProps> = ({
   // taken from. A ref, not state: nothing is drawn from it, so writing it must
   // not cost a render. See `moveCaretRow`.
   const desired = useRef<{ cursor: number; column: number } | null>(null)
+  // Whether a bracketed paste is open across chunks. A ref, not state: it has
+  // to be readable and writable inside a single `useInput` call, and a paste
+  // spanning three chunks must not cost three renders to track.
+  const pasting = useRef(false)
   // Submitted lines, newest last, and where in them the user currently is.
   // `null` means "on the live buffer"; `draft` is what that buffer held when
   // they started walking, so Ctrl-N can hand it back.
@@ -286,6 +291,23 @@ export const Prompt: FC<PromptProps> = ({
   // on a terminal UI that has to stay smooth while scrolling the log.
   useInput(
     (input, key) => {
+      // Paste decoding comes first, ahead of every key branch. Inside a
+      // bracketed paste Ink has already labelled some bytes `return`, `tab`
+      // or `backspace` — a pasted newline is the same byte as Enter — so any
+      // dispatch that ran before this point would act on a keystroke the user
+      // never made. See `src/paste.ts`.
+      const paste = readPaste(input, pasting.current)
+      if (paste.bracketed) {
+        pasting.current = paste.open
+        if (paste.text !== '') {
+          setValue((current) => {
+            const next = insertTextAtCursor(current, cursorIndex, paste.text)
+            setCursorIndex(cursorIndex + paste.text.length)
+            return next
+          })
+        }
+        return
+      }
       // `Ctrl-` keystrokes are split with the layers above us, per the
       // ownership table in SPEC §1.6: we take the caret ends and the two
       // deletions, and Ctrl-C (App) plus Ctrl-B/F/U/D (log scroll) pass
@@ -448,10 +470,15 @@ export const Prompt: FC<PromptProps> = ({
         })
         return
       }
-      if (input) {
+      // `paste.text`, not `input`: a terminal that ignores `?2004` still
+      // delivers a multi-line paste as one unbracketed chunk full of `\r`,
+      // and those have to become `\n` before they reach a buffer whose
+      // wrapper only breaks on `\n`. A real Enter never arrives here — Ink
+      // reports it as `key.return`, handled above.
+      if (paste.text) {
         setValue((current) => {
-          const nextValue = insertTextAtCursor(current, cursorIndex, input)
-          setCursorIndex(cursorIndex + input.length)
+          const nextValue = insertTextAtCursor(current, cursorIndex, paste.text)
+          setCursorIndex(cursorIndex + paste.text.length)
           return nextValue
         })
       }

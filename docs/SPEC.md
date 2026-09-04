@@ -330,7 +330,7 @@ What it copies is the reply's **markdown source**, not the terminal's rendering 
 
 **The bytes go through Ink's writer, not `process.stdout`.** An OSC 52 sequence is invisible and moves no cursor, so a raw write would usually be harmless — but a terminal that does not recognise it prints the tail as text, and Ink's writer re-emits the cached frame immediately afterwards, so that debris is erased on the spot. Same mechanism as Ctrl-L (§1.6).
 
-**There is no `/paste`, and that is a constraint rather than a gap.** Reading the clipboard needs the query form and a read of the reply, which needs a `data` listener on stdin — mid-session, while Ink owns the read loop. `probeAppearance` (§1.10) gets away with that only because it runs before Ink mounts; there is no equivalent window once a session is up, and a reply arriving after mount is typed into the prompt as garbage. It is also the less valuable half: every terminal already pastes with its own binding, and bracketed paste already reaches the prompt.
+**There is no `/paste`, and that is a constraint rather than a gap.** Reading the clipboard needs the query form and a read of the reply, which needs a `data` listener on stdin — mid-session, while Ink owns the read loop. `probeAppearance` (§1.10) gets away with that only because it runs before Ink mounts; there is no equivalent window once a session is up, and a reply arriving after mount is typed into the prompt as garbage. It is also the less valuable half: every terminal already pastes with its own binding, and bracketed paste reaches the prompt intact (§1.6 — though that last clause was written well before `?2004h` was actually set, and was false for every release until then).
 
 #### 1.5.6 `/verbose`
 
@@ -404,6 +404,27 @@ its way to someone else.
 | `Ctrl-O` | MessageList | Toggle the expanded preview budget (`/verbose`) |
 | `Ctrl-C` | App | Cancel turn (when running) or exit (when idle) |
 | `Ctrl-L` | App | Clear the screen and redraw the frame |
+| pasted text | Prompt, **before every row above** | Insert verbatim; newlines normalised to `\n` |
+
+**Paste is not a row in that table so much as a layer above it.** The app sets
+bracketed-paste mode (`?2004h`) alongside the alternate screen, so the terminal
+wraps pasted bytes in `ESC [200~` … `ESC [201~`. Between those markers every
+byte is text *by definition*, and the prompt decodes them before it dispatches
+on any key — because inside a paste Ink has already labelled some bytes
+`return`, `tab` or `backspace`, and acting on those labels means acting on
+keystrokes the user never made.
+
+This is not a refinement. A terminal in raw mode sends a pasted newline as
+`\r`, the same byte `Enter` sends, and stdin splits a large paste across
+chunks: a chunk boundary landing on a newline arrived as a lone `\r`, which
+Ink names `return`, and the prompt **submitted half the message**. Nothing
+downstream can distinguish the two — the markers are the only thing that can,
+which is the entire reason the mode exists. A terminal that ignores `?2004`
+still gets its stray `\r`s collapsed to `\n` (without which they reach the
+screen as carriage returns and the pasted lines overprint each other), but the
+split-chunk submission is unfixable there: a lone `\r` with no marker around
+it is genuinely indistinguishable from `Enter`, and pretending otherwise would
+break the `Enter` key to protect a paste. See `src/paste.ts`.
 
 Four rows are decided rather than inherited, and each costs something:
 

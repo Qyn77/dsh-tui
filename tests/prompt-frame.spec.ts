@@ -252,6 +252,74 @@ describe('prompt editing', () => {
   })
 })
 
+/**
+ * Pasting, end to end from stdin bytes to frame.
+ *
+ * `paste.spec.ts` pins the decoder; these exist because the bug was never in
+ * the decoding. stdin delivers a large paste in several chunks, and when a
+ * chunk boundary fell on a newline that chunk *was* a lone `\r` — which Ink
+ * names `return` and the prompt submitted. Only the composed frame can show
+ * that the message stayed in the box.
+ */
+describe('prompt paste', () => {
+  /** The buffer row, caret glyph included. */
+  function buffer(screen: string): string {
+    return promptBox(screen)[1] ?? ''
+  }
+
+  it('keeps a chunk-split paste in the buffer instead of submitting at the newline', async () => {
+    const painted = await paintApp()
+    // Exactly how a terminal splits it: opener with the first line, the
+    // newline alone, then the rest with the terminator.
+    await painted.send(`${ESC}[200~first`)
+    await painted.send('\r')
+    await painted.send(`second${ESC}[201~`)
+    const box = promptBox(painted.screen())
+    painted.unmount()
+
+    // Two rows in the box, and the text still *in* it: a submission would
+    // have cleared the buffer and left `first` in the log.
+    expect(box).toHaveLength(4)
+    expect(box[1]).toContain('first')
+    expect(box[2]).toContain('second')
+  })
+
+  it('accepts a paste that arrives as one chunk', async () => {
+    const painted = await paintApp()
+    await painted.send(`${ESC}[200~alpha\rbeta${ESC}[201~`)
+    const box = promptBox(painted.screen())
+    painted.unmount()
+
+    expect(box).toHaveLength(4)
+    expect(box[1]).toContain('alpha')
+    expect(box[2]).toContain('beta')
+  })
+
+  it('does not let a pasted slash open the command palette mid-paste', async () => {
+    // The palette keys off a leading `/`, and Enter with an exact match runs
+    // the command. A pasted path must not be able to reach that.
+    const painted = await paintApp()
+    await painted.send(`${ESC}[200~/help\rtail${ESC}[201~`)
+    const box = promptBox(painted.screen())
+    painted.unmount()
+
+    expect(box[1]).toContain('/help')
+    expect(box[2]).toContain('tail')
+  })
+
+  it('still submits on a real Enter', async () => {
+    // The guard against over-fixing: Enter arrives as the same `\r` byte, and
+    // outside a paste it has to keep working.
+    const painted = await paintApp()
+    await painted.send('/help')
+    await painted.send('\r')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(buffer(screen)).not.toContain('/help')
+  })
+})
+
 describe('prompt history', () => {
   /** The buffer row, caret glyph included. */
   function buffer(screen: string): string {

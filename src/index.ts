@@ -82,6 +82,22 @@ const ALT_SCROLL_ENTER = '\u001B[?1007h'
  * the user's shell answers the wheel.
  */
 const ALT_SCROLL_EXIT = '\u001B[?1007l'
+/**
+ * Ask the terminal to wrap pasted text in `ESC [200~` … `ESC [201~`.
+ *
+ * Without it a pasted newline is a bare `\r` — byte-identical to the Enter
+ * key — so a paste either overprinted itself in the prompt or, when a stdin
+ * chunk boundary fell on a newline, submitted half a message. `src/paste.ts`
+ * decodes the markers; this is the request that makes them appear.
+ *
+ * A terminal that ignores `?2004` is no worse off than before: the decoder
+ * still collapses stray `\r`s, which fixes the overprinting. Only the
+ * split-chunk submission needs the markers, because only they can tell a
+ * pasted newline from a pressed one.
+ */
+const BRACKETED_PASTE_ENTER = '\u001B[?2004h'
+/** Turn it off again, on every exit path — same rule as {@link ALT_SCROLL_EXIT}. */
+const BRACKETED_PASTE_EXIT = '\u001B[?2004l'
 const RESIZE_LOG = '/tmp/dsh-tui-resize.log'
 const resizeDebug = process.env['DSH_TUI_DEBUG_RESIZE'] === '1'
 function resizeLog(message: string): void {
@@ -188,6 +204,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
     if (alternateScreen) {
       internals.stdout.write(ALT_SCREEN_ENTER)
       internals.stdout.write(ALT_SCROLL_ENTER)
+      internals.stdout.write(BRACKETED_PASTE_ENTER)
     }
     // Filled in by the App's mount effect; the resize owner borrows it to
     // force the settled frame onto the screen. See `resize.ts`.
@@ -284,8 +301,10 @@ async function run(ctx: Context, config: Config): Promise<void> {
   } finally {
     // If Ink exits through an error, never leave the shell in the alternate
     // screen buffer — or in alternate scroll mode, which would leave the
-    // user's wheel sending arrow keys to whatever runs next.
+    // user's wheel sending arrow keys to whatever runs next, or in bracketed
+    // paste, which would make the next shell echo `[200~` around every paste.
     if (alternateScreen) {
+      internals.stdout.write(BRACKETED_PASTE_EXIT)
       internals.stdout.write(ALT_SCROLL_EXIT)
       internals.stdout.write(ALT_SCREEN_EXIT)
     }
