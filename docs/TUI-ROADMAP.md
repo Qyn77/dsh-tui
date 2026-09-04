@@ -124,7 +124,15 @@ The TUI must not become the source of truth for tool execution or agent reasonin
 
 ## 4. Milestones
 
-### v0.1 — REPL core (current baseline)
+**Per-item shipped/pending status lives in [SPEC.md](./SPEC.md) Part 2, not
+here.** This section says what each milestone is *for* and what would count as
+finishing it; SPEC Part 2 is the ledger of what actually shipped, named feature
+by named feature, and it is the one to trust when the two disagree. The
+annotations below are a coarse index into it — they exist so that reading this
+document alone cannot leave a false impression of how much is still open, which
+is exactly what they had started to do.
+
+### v0.1 — REPL core (shipped)
 
 Done or in scope:
 
@@ -143,14 +151,20 @@ Definition of done:
 - Ctrl-C exits or cancels correctly
 - no raw terminal regressions
 
-### v0.2 — Editing and history
+### v0.2 — Editing and history (shipped)
 
 Priority features:
 
-- cursor movement with proper in-line editing
-- Home/End support, Delete handling
-- better prompt editing ergonomics
-- stronger scroll handling under narrow terminals
+- cursor movement with proper in-line editing — **done**: `prompt-editing.ts`
+  owns the caret, and every motion below is a pure function over it
+- Home/End support, Delete handling — **done**, with one deliberate deviation:
+  `Home`/`End` belong to the MessageList, not the prompt, and `Ctrl-U` scrolls
+  a half page rather than killing the line. SPEC §1.6 gives the reasoning
+- better prompt editing ergonomics — **done**: `Ctrl-A`/`Ctrl-E`/`Ctrl-K`,
+  `Alt-B`/`Alt-F`, `Ctrl-W`
+- stronger scroll handling under narrow terminals — **done**: the offset counts
+  rows rather than entries, bounded by a real measurement of the mounted list.
+  See [the scroll lesson](lessons/message-list-scroll.md)
 - history navigation in the prompt — **done**: `Ctrl-P`/`Ctrl-N`, and `↑`/`↓`
   while the buffer is one row tall
 - word motions and line kills — **done**: `Alt-B`/`Alt-F` move by word,
@@ -171,16 +185,26 @@ Definition of done:
 - scrolling no longer conflicts with prompt re-renders
 - the prompt remains stable under long chat logs
 
-### v0.3 — Runtime clarity
+### v0.3 — Runtime clarity (shipped)
 
 Priority features:
 
-- richer tool result rendering
-- clearer agent state transitions
-- approvals / running / cancelled states
-- better error rendering
-- richer slash command discoverability
-- plugin status integration through dsh events and session metadata
+- richer tool result rendering — **done**: a tool call is one line,
+  `Read(src/scroll.ts) ✓`, with its result previewed beneath and capped at 8
+  lines behind a translated `… +N lines` marker. The `round`-bordered card it
+  replaced cost four rows of frame before any content
+- clearer agent state transitions — **done**: `useRunningClock` drives one
+  interval per status transition, and the StatusBar and the Prompt placeholder
+  read the same frame index so the glyph is in lock-step
+- approvals / running / cancelled states — **done**: `y`/`n`/`Esc` on a card
+  beside the Prompt rather than a modal
+- better error rendering — **done** in v0.2: network, model and tool errors get
+  one uniform block in `red`
+- richer slash command discoverability — **done**: the `/` palette filters as
+  you type and `Tab` completes the highlighted name
+- plugin status integration through dsh events and session metadata —
+  **done**: `/plugins` lists package name and lifecycle phase, broken entries
+  first, and `enable`/`disable` rewrite the loader config
 
 Definition of done:
 
@@ -189,15 +213,30 @@ Definition of done:
 - failure and cancellation modes are obvious
 - plugin-provided usage or status data is visible without breaking the chat flow
 
-### v0.4 — Productivity polish
+### v0.4 — Productivity polish (one item open)
 
 Priority features:
 
-- better log density
-- more explicit scroll status
-- clearer active state widgets
-- keyboard shortcuts for common actions
-- small UX improvements without changing the app model
+- better log density — **done**: markdown rendering of assistant turns
+  (streamed from the first delta, not on finalize), Shiki syntax highlighting
+  in fenced blocks, the one-line tool call, and the 8-line output cap
+- more explicit scroll status — **done**: one row under the list is reserved
+  unconditionally for the "scrolled into history" hint. Reserving it while at
+  the tail is deliberate — a row that appears only once you scroll would change
+  the viewport height at that moment, and `PageDown` would then size its step
+  against a different height than the `PageUp` it undoes
+- clearer active state widgets — **done**: `/context` shows window, cumulative
+  spend and live occupancy; `/usage` breaks tokens down per turn
+- keyboard shortcuts for common actions — **done**: see SPEC §1.6, which is the
+  full binding table and the ownership convention that makes it enforceable
+- small UX improvements without changing the app model — **done**: auto light
+  or dark theme over OSC 11 with a `/theme` override, and `/copy` to the system
+  clipboard over OSC 52
+
+**Still open:** the `▾ show more` truncation affordance. It is the last v0.4
+item and it is **blocked, not merely unstarted** — expanding one entry needs a
+focus/selection model, which §6 below and SPEC §1.2 both currently refuse. That
+refusal has to be revisited on purpose before the feature can start.
 
 Definition of done:
 
@@ -222,32 +261,46 @@ Definition of done:
 
 ## 5. Near-term backlog
 
+**This list is spent.** All six items shipped across v0.2–v0.4; it is kept as a
+record of the order the work was actually taken in, because that order is the
+argument §8 makes and it held up. The live backlog is SPEC Part 2 — at the time
+of writing it holds one open v0.4 item and the v1.0 set.
+
 The next items, in order, should be:
 
-1. Prompt editing ergonomics
+1. Prompt editing ergonomics — **done**
    - Home / End
    - Delete / Delete-previous
    - arrow navigation correctness
    - better empty-state cursor placement
 
-2. Scroll robustness
+2. Scroll robustness — **done**
    - avoid terminal-host viewport interference
    - preserve manual scrolling and auto-follow invariants
    - treat prompt re-renders as non-disruptive to log view
 
-3. Better status and run-state rendering
+   Two of these cost a lesson each to get right:
+   [message-list-scroll.md](lessons/message-list-scroll.md) and
+   [prompt-scroll-snaps.md](lessons/prompt-scroll-snaps.md). Read them before
+   touching scroll.
+
+3. Better status and run-state rendering — **done**
    - explicit idle/running/blocked states
    - clearer token counters and session metadata
 
-4. Tool-output readability
+4. Tool-output readability — **done**
    - compact cards, better truncation rules, cleaner error formatting
 
-5. Advanced command and control surface
+   The cards ended up *less* compact than the goal implies: the border was
+   removed entirely, because a transcript is mostly tool calls and four rows of
+   frame per call cost more than they explained.
+
+5. Advanced command and control surface — **done**
    - model switching
    - compact/resume flows
    - richer slash command set
 
-6. Plugin-aware state rendering
+6. Plugin-aware state rendering — **done**
    - recognize dsh-compatible plugin status/events
    - expose usage/health metadata in a compact status view
    - preserve the primary chat loop while rendering auxiliary information
@@ -262,6 +315,37 @@ These are not the right next steps unless they are required by a concrete user s
 - broad app-level state machines not tied to the REPL
 - large feature work that hides the core chat experience
 - plugin UIs that require independent routing or custom terminal hosts
+- **a focus or selection model over log entries** — no "current entry", no
+  cursor in the transcript, no per-entry expand state. The log is a stream you
+  read and scroll, and the prompt is the only thing that holds focus
+
+That last one is load-bearing and gets cited from outside this document, so it
+is spelled out rather than left implied by "broad app-level state machines".
+SPEC §1.2 states the same refusal, `/copy <n>` was dropped because of it
+(SPEC §1.5.5, `src/clipboard.ts`), and the open `▾ show more` item in v0.4 is
+blocked on it. Reversing it is a deliberate decision to make here first, not
+something to discover halfway into implementing an affordance.
+
+## 7. Acceptance rules
+
+A feature is ready when all of the following are true:
+
+- it works in a real TTY
+- it has a clear user-facing effect
+- it does not break scroll or prompt state
+- it is documented in the relevant design docs
+- it is covered by tests when behavior is logic-heavy
+
+The first rule is the one the test suite cannot check for you. Everything in
+`tests/` runs with no TTY and with color forced off, so anything that queries
+the terminal or depends on a color being legible is discharged by running
+`pnpm tty-check` in a real terminal and answering its questions. See SPEC §3.4.
+
+For plugin-related work, the feature is also ready only when it is clear that:
+
+- the plugin is integrated through dsh state/events, not through a separate terminal host
+- the agent conversation remains functional and readable
+- basic file-editing and tool-using agent workflows still work without relying on the TUI itself
 
 ## 7.1 Plugin acceptance rules
 
@@ -274,22 +358,6 @@ A plugin is considered compatible when all of the following are true:
 - it does not hide the underlying agent/tool loop behind custom UI abstractions
 
 The TUI is not a replacement for the dsh runtime; it is the terminal presentation layer for it.
-
-## 7. Acceptance rules
-
-A feature is ready when all of the following are true:
-
-- it works in a real TTY
-- it has a clear user-facing effect
-- it does not break scroll or prompt state
-- it is documented in the relevant design docs
-- it is covered by tests when behavior is logic-heavy
-
-For plugin-related work, the feature is also ready only when it is clear that:
-
-- the plugin is integrated through dsh state/events, not through a separate terminal host
-- the agent conversation remains functional and readable
-- basic file-editing and tool-using agent workflows still work without relying on the TUI itself
 
 ## 8. Recommended implementation order
 
