@@ -295,17 +295,24 @@ Priority features:
   and `DSH_TUI_RESUME`, all over `SessionPersistence`
 - optional advanced editing and completion features
 
-**Two of the five v1.0 items in SPEC Part 2 remain blocked, and this paragraph
-used to say three.** The claim it lost was MCP: it asserted that "hooks and MCP
-have no published plugin at all", and `@deepseek-ai/dsh-mcp-client` publishes
-`0.1.0-rc.7` — the line this package pins. Nothing there was ever blocked, and
-the TUI's half shipped (SPEC §1.12).
+**One of the five v1.0 items in SPEC Part 2 remains blocked. This paragraph
+has now said three, then two, then one** — and both corrections were the same
+mistake, so it is worth naming the mistake rather than just the count. Each
+time, a capability was written off as having "no published plugin", and each
+time the plugin was published on `0.1.0-rc.7`, the line this package already
+pins. `@deepseek-ai/dsh-mcp-client` was the first (the TUI's half shipped, SPEC
+§1.12); `@deepseek-ai/dsh-hook-protocol` is the second. Before this file calls
+anything blocked again, the check is `npm view` and the package's `.d.ts` — not
+recollection.
 
-What is genuinely still out of reach, and for two different reasons:
+Hooks is no longer on this list. `dsh-hook-protocol@0.1.0-rc.7` augments
+`SessionEventMap` with fully typed `hook/invoked` and `hook/result` payloads,
+so the dependency is type-only and the events arrive on a session the TUI
+already reads. It ships dark until a user inserts a bridge, exactly as MCP
+does. See SPEC Part 2 for the two design constraints that come with it.
 
-- **Hooks visualization.** `hook/invoked` and `hook/result` are named in
-  `KNOWN_SESSION_EVENT_TYPES` and nowhere else — no `dsh-hooks` package exists
-  to define their payloads. Nothing to depend on.
+What is genuinely still out of reach:
+
 - **Sub-agent visualization.** `@deepseek-ai/dsh-subagent` and
   `@deepseek-ai/dsh-tool-workflow` *are* published, but on `0.1.2-rc.x`, which
   peers against `dsh-session@^0.1.2-rc.1` while this package pins

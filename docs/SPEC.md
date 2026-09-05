@@ -864,7 +864,13 @@ Still open: nothing — v0.3 is complete.
 
   Two things remain, and neither is this package's to do. *Connection state* is not observable — with no service and no events, "connected" can only be inferred from whether the tools are registered, so a `/mcp` listing would report the tool surface, not the link. And *configuring* a server is a user patch layer (`insert` one `mcp-client` per server), which is not something a TUI user can discover; that is a bundle and documentation problem.
 - **Agent skills.** *Shipped.* `@deepseek-ai/dsh-skill` publishes `0.1.0-rc.7` and `dsh-base` mounts the registry, the filesystem provider and the `skill` tool, all enabled — so the model half was already working and the human half was simply unclaimed. A user-invocable skill is now a `/` row that injects `renderSkillContent()`'s block and starts a turn; see §1.14. Nothing about it needed a version bump.
-- **Hooks visualization.** Render `PreToolUse` / `PostToolUse` hook outputs inline. Blocked the same way as MCP: `hook/invoked` and `hook/result` are named in `KNOWN_SESSION_EVENT_TYPES` and nowhere else — no `dsh-hooks` package exists to define their payloads.
+- **Hooks visualization.** Render hook runs inline. This item said the payloads were undefined because "no `dsh-hooks` package exists". That was wrong, and it is the third time this list has written off a shipped capability for that reason — MCP twice, now this. `@deepseek-ai/dsh-hook-protocol` publishes `0.1.0-rc.7`, the pinned line, and `declare module '@deepseek-ai/dsh-session/types'` gives both events fully typed payloads: `hook/invoked` carries `turn`/`point`/`dialect`/`handlerId` and an optional `matcher`, `hook/result` adds `decision`/`durationMs` and optional `exitCode`/`stderrSummary`, paired to its invocation by `handlerId`.
+
+  The dependency is **type-only** — the same `import type {} from` line §3.5 already uses for eight packages — because the events arrive on the session the TUI is already reading. Its peers stay inside `0.1.0-rc.7`, so unlike sub-agent visualization this pulls no second `dsh-session`.
+
+  It is nevertheless the MCP situation, not the skills one: `dsh-base` mounts no bridge and does not depend on one, so a user must `insert` `hooks-claude-code` or `hooks-codex` themselves. An assembly without a bridge fires no `hook/*` and draws nothing, which is the same one-build-serves-both property §1.12 relies on — the feature is unblocked, but it ships dark for anyone who has not configured a bridge.
+
+  Two facts should shape the design rather than be discovered during it. The events are documented **log-only**: they carry no `surfaceOp`, so they are audit records, not a surface the runtime is asking to be drawn. And the pair is correlated by `handlerId` across two events, so a row cannot be rendered from either one alone — an invocation whose result never arrives is a state the transcript has to have an answer for.
 
 ### Aspirational (no commitment)
 
