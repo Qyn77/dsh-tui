@@ -928,6 +928,8 @@ The bottom third of that list is one pattern repeated: **a component whose logic
 - `hooks/` may import from `state.ts` (as a function call), `markdown.ts` (as a function call), the pure modules, `types.ts`, and React.
 - `components/` may import from `hooks/`, `markdown.ts` (for the `Markdown` component and AST types), the pure modules, `types.ts`, and React. They do **not** import `state.ts` directly — they receive derived props from the renderer.
 - `renderer.tsx` is the only file that wires the reducer to the hooks.
+
+**A `@deepseek-ai/*` package imported for a *value* must be a peer dependency, not just a dev one.** The bundler externalizes peers and bundles everything else, and a bundled copy of a host package is not the host's package. `@deepseek-ai/dsh-scope` is the case that proved it: its scope key is `Symbol('dsh.scope')`, module-local rather than `Symbol.for`, so a second copy inside `lib/index.js` gives `scopeOf()` a different symbol than the one the host used to scope the context — and it silently returns `undefined` for every scoped agent rather than failing. Type-only imports (`import type {}` in `services.ts`) do not have this problem and stay dev-only. `pnpm build` prints `Detected dependencies in bundle:` when this rule is broken; treat that line as an error, not a hint.
 - `index.ts` is the only file that imports Cordis, runs side effects, calls `randomUUID`, and calls `render()`.
 
 Violating these rules breaks testability. The renderer is the integration point; everything below it is a pure function of inputs.
