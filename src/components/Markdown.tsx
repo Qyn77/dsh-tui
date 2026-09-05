@@ -88,7 +88,9 @@ function BlockRow({ block, first, last }: {
     case 'paragraph':
       return (
         <Box marginTop={top} marginBottom={bottom}>
-          <Inlines nodes={block.children} />
+          <Text>
+            <Inlines nodes={block.children} />
+          </Text>
         </Box>
       )
     case 'code-block':
@@ -150,10 +152,10 @@ function CodeBlock({ lang, text, marginTop, marginBottom }: {
       paddingX={1}
     >
       {label !== '' && (
-        <Box>
+        <Text>
           <Text color="gray">{strings.markdown.codeFence}</Text>
           <Text color="cyan" bold>{label}</Text>
-        </Box>
+        </Text>
       )}
       {label !== '' && <Text>{' '}</Text>}
       {highlighted === undefined
@@ -188,10 +190,11 @@ function ListBlock({ ordered, items }: {
   return (
     <Box flexDirection="column" marginY={0}>
       {items.map((children, idx) => (
-        <Box key={idx}>
-          <Text color="gray">{ordered ? `${idx + 1}.` : '▸'}</Text>
-          <Text>{' '}</Text>
-          <Inlines nodes={children} />
+        <Box key={idx} flexDirection="row">
+          <Text color="gray">{ordered ? `${idx + 1}.` : '▸'}{' '}</Text>
+          <Text>
+            <Inlines nodes={children} />
+          </Text>
         </Box>
       ))}
     </Box>
