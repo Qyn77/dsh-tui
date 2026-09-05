@@ -32,12 +32,14 @@
 import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
 import type { UiEntry, UiState } from '../types.ts'
-import { userMessageText } from '../types.ts'
+import { userMessageImages, userMessageText } from '../types.ts'
 import { windowStart } from '../scroll.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 import type { Catalog } from '../i18n.ts'
 import {
   ASSISTANT_GLYPH,
+  ATTACHMENT_GLYPH,
+  attachmentChip,
   GUTTER_WIDTH,
   NOTE_GLYPH,
   TODO_COLOR,
@@ -268,12 +270,32 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
  * Still no `you` label inside it. The frame says whose line this is more
  * plainly than a word would, and a user message carries no metadata to hang
  * off a header row — so the text keeps the marker's own row.
+ *
+ * Attachments get one chip row each, inside the frame and above the text. Above
+ * rather than below because a long message would push them off the top of a
+ * scrolled view, and the chip's whole job is to confirm that the right file
+ * went with the words. Each is `truncate-end`, so a long filename costs exactly
+ * one row and `scroll.ts` can count them without measuring.
+ *
+ * The text row is dropped entirely when there is none: a message that is only
+ * an image should not draw a blank line inside its own frame. The `|| ' '`
+ * fallback stays for the no-attachment case, where an empty frame with no rows
+ * at all collapses to a border with nothing in it.
  */
 function UserBlock({ entry }: { entry: Extract<UiEntry, { kind: 'user' }> }) {
+  const text = userMessageText(entry.message)
+  const images = userMessageImages(entry.message)
   return (
     <Row glyph={USER_GLYPH} color="blue">
-      <Box borderStyle="round" borderColor={USER_BORDER_COLOR} paddingX={1}>
-        <Text>{userMessageText(entry.message) || ' '}</Text>
+      <Box borderStyle="round" borderColor={USER_BORDER_COLOR} paddingX={1} flexDirection="column">
+        {images.map((ref, index) => (
+          <Text key={index} color="cyan" dimColor wrap="truncate-end">
+            {ATTACHMENT_GLYPH}
+            {' '}
+            {attachmentChip(ref, 'image')}
+          </Text>
+        ))}
+        {(text !== '' || images.length === 0) && <Text>{text || ' '}</Text>}
       </Box>
     </Row>
   )

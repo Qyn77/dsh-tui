@@ -153,6 +153,7 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 | Assistant message | none | Floats freely. |
 | Note / compaction / plan | none | Single lines, prefixed with `⤷`. |
 | Task list | none | A `⤷` header and one row per task. Not framed and not pinned — §1.11. |
+| Attachment chip | none | A `⧉` row inside the user's own frame, above the text — §1.13. |
 
 Frames are reserved for **persistent chrome** — the status bar and the prompt — plus exactly one thing in the conversation: the user's own messages.
 
@@ -207,6 +208,7 @@ The palette is theme-aware, and almost entirely by *not* being theme-aware. Near
 | Plan mode on | `yellow` | `⤷ plan mode on`. Emitted by `@deepseek-ai/dsh-plan-mode`; `src/types.ts` declares the payload locally so the TUI builds and draws it without depending on that plugin. |
 | Plan mode off | `gray` | `⤷ plan mode off`. |
 | Task list header | `cyan` dim | `⤷ todos · 1/3 done`. Same `cyan` as a compaction note: both are the runtime telling the user where it is, not content. |
+| Attachment chip | `cyan` dim | `⧉ shot.png · 1440×900 · 284 KB`. Cyan and dim like the other runtime-state rows: the chip reports what the message carries, and must not compete with the words the user wrote beside it. |
 | Task — completed | `green` dim | `☑ read the spec`. Dim because a finished task is context, not news. |
 | Task — in progress | `yellow` | `▸ write the reducer`. The **only** undimmed row in the list, and the only one whose glyph points at something. |
 | Task — pending | `gray` dim | `☐ update the docs`. |
@@ -722,6 +724,45 @@ The split is conservative. Only the first `__` after the prefix is the server bo
 | Transcript | `⏺ github:create_issue(it broke)` | Two servers may each provide a `search`; the registered name is the only thing that tells them apart. `server:tool` says it in a third of the width of `mcp__server__tool`, with the part being scanned for at the end rather than behind two runs of underscores. |
 | Approval card | the same label, then a `yellow` row `via the github MCP server` | Approving a bridged tool is not the same decision as approving a built-in one, and `server:tool` alone does not say so. Drawn directly under the tool name and above the arguments, so a call with many arguments cannot push it out of view — and on its own row, because sharing the heading row let Ink break the tool name mid-word on a narrow card. |
 
+### 1.13 Attaching an image
+
+An image reaches the model as an `image` content block on the user's message, carrying a durable `ImageAttachmentRef` the attachment store issued. Nothing about that path involves a terminal image protocol; Kitty, iTerm2 and sixel draw rasters in a cell grid, which is a different feature this package does not have.
+
+**Naming one.** Paths are detected in the submitted line, at submit time. Dragging a file into a terminal already produces a quoted or backslash-escaped path at the caret, so the gesture users have is the one that works; a `/attach` command would make them type the path they just dragged. Overloading `@` mentions was rejected for a narrower reason: the completion list is a filesystem picker whose write-back is `path + ' '`, and both halves would need a mode.
+
+Detection is deliberately generous and the check that follows is strict. A token counts as a candidate on its extension alone, and then has to resolve to a readable file — which is what lets `here's the failing screen: ./shot.png` attach while `the logo.png needs redoing` does not. A candidate that resolves to nothing is passed over **in silence**: a warning row there would sit under every sentence that happens to name a file. Requiring the path to be the whole line was also considered and rejected, because it breaks the most likely real usage.
+
+**Refusing one.** Every refusal attaches less and sends the text anyway, with the unattached path left in the sentence. Losing a typed line to a bad attachment is the worst outcome available here, and it is the one this package makes impossible.
+
+| Case | Behaviour |
+| --- | --- |
+| Path resolves to nothing | Silent. Not an attachment, and not a row. |
+| File is there but unreadable | A `warn` note naming the file. |
+| Over `imageLimits.maxImageBytes` | A `warn` note naming the limit; the others still go. |
+| Over `maxImagesPerMessage` / `maxMessageImageBytes` | A `warn` note counting what was left out. Only files that turned out to be real are counted, so a sentence naming a dozen nonexistent images cannot report an overflow. |
+| Store rejects the bytes | Its own message, unlocalized — a `.png` holding JPEG bytes lands here, and "decoded image/jpeg" is more use than a translation of it. |
+| No attachment service mounted | A `warn` note. A misconfigured bundle, not a user error. |
+| Route declares no `image` modality | A `warn` note naming the model. |
+
+**Capability.** `LlmModelInfo.inputModalities` documents absent as *unknown* and an explicit omission as *negative capability*, and the TUI honours the distinction: an omission refuses, an absent list attaches. Refusing on unknown would break nearly every provider, since most disclose no modalities at all. A listing call that *fails* is also treated as unknown — a provider hiccup must not cost the user an image. The probe runs only when a candidate was found, so an ordinary message never triggers a provider round-trip.
+
+**Drawing one.** One chip row per image, inside the user's frame and above the text:
+
+```
+> ╭──────────────────────────────────────╮
+  │ ⧉ shot.png · 1440×900 · 284 KB       │
+  │ what is wrong here                   │
+  ╰──────────────────────────────────────╯
+```
+
+Above rather than below, because a long message would push the chip off the top of a scrolled view and the chip's whole job is to confirm the right file went with the words. Each is `truncate-end`, so a chip costs exactly one row whatever the filename — which is what lets `estimateEntryRows` count them instead of measuring. A message that is only images draws no text row at all.
+
+The chip is read off `message.content`, not tracked beside it, so a resumed transcript draws its attachments with no extra state.
+
+Byte sizes use decimal units (`284 KB`, not `278 KiB`): the number is there to be checked against a file manager, and every file manager the user could check it against says `KB` for 1000.
+
+**Not done.** Clipboard image paste. `/copy`'s module explains why the terminal's clipboard cannot be *read* mid-session (OSC 52's reply needs a stdin listener while Ink owns the read loop); that argument does not cover a subprocess like `pngpaste`, but a per-platform external binary is its own decision rather than one that rides along.
+
 ---
 
 ## Part 2 · Roadmap
@@ -777,6 +818,7 @@ Still open: nothing — v0.3 is complete.
 - **Truncation.** *Shipped, as a global switch.* The 8-line cap itself shipped in v0.3; `/verbose` and `Ctrl-O` now raise it to 200 lines for the whole transcript at once (§1.2, §1.5.6). The per-entry `▾ show more` this item originally named is **not** what shipped and stays refused — expanding *one* entry needs a focus/selection model this app does not have (roadmap §6). A global switch needs none, which is why it could ship without reversing that decision.
 - **Clipboard.** *Shipped as `/copy`.* The newest reply, or the newest fenced block, goes to the system clipboard over OSC 52 — across SSH included. `/paste` is **not** coming: reading the clipboard needs a stdin listener mid-session, which is Ink's, and every terminal already pastes on its own. See §1.5.5.
 - **Task list.** *Shipped.* `todo/write` projects to a `todo` entry: a `⤷ todos · N/M done` header over one row per task, with only the in-progress row undimmed. Not on the original v0.4 list, and added because it was the single protocol event the projection ignored while the protocol's own comment said the payload is "shown in the UI". Consecutive writes collapse into one entry; see §1.11 for why it is neither appended per write nor pinned above the prompt.
+- **Image input.** *Shipped.* Image paths in a submitted line are committed to `ctx.attachments` and travel as `image` content blocks, drawn as a `⧉` chip inside the user's frame — see §1.13. Not on the original v0.4 list. It was also, twice, mis-sized in this document's own planning notes as needing a terminal image protocol; it needed none, and no new version line either — `ctx.attachments`, `ImageBlock` and `agent.followup(UserMessage)` are all on `0.1.0-rc.7`. Clipboard paste is the part that did not ship.
 - **Session listing.** *Shipped as `/sessions`.* Not on the original v0.4 list, and added because v0.3's resume turned out to be unreachable: it wants ids that were printed nowhere. The listing shows them abbreviated and `planResume` accepts a prefix. See §1.5.7.
 - **In-session resume.** *Shipped as `/resume`.* Also unplanned, and the direct consequence of the item above: once the ids were on screen, relaunching to use one was the only remaining obstacle. §3.3.1 had sized this as an agent-swap project; most of it was already built, and the missing piece was a re-seed of the projection. See §1.5.8.
 
@@ -829,6 +871,8 @@ src/
 ├── prompt-editing.ts   # Pure prompt buffer edits — beside Prompt.tsx
 ├── prompt-layout.ts    # Pure prompt layout arithmetic
 ├── file-mentions.ts    # `@` mention parsing + path ranking, and the one walk
+├── attachments.ts      # Pure image-path detection in a submitted line
+├── attach-runner.ts    # The one place that reads image bytes and commits them
 ├── plugins.ts          # Pure classification + table for `/plugins`
 ├── banner-art.ts       # Pure banner art + text — beside Banner.tsx
 ├── theme.ts            # Pure appearance arithmetic, and the one terminal probe
@@ -1082,7 +1126,7 @@ Use `vitest`. Tests live in `tests/` mirroring `src/`. Run with `pnpm test`. Tes
 
 **Where a test goes.** The package tests along a seam, not per file, and the seam is *pure module vs. React*:
 
-- **Pure modules get direct unit specs.** `state.ts`, `markdown.ts`, `scroll.ts`, `resize.ts`, `message-layout.ts`, `prompt-layout.ts`, `prompt-editing.ts`, `width.ts` are all reachable without booting anything, so they are tested by calling them.
+- **Pure modules get direct unit specs.** `state.ts`, `markdown.ts`, `scroll.ts`, `resize.ts`, `message-layout.ts`, `prompt-layout.ts`, `prompt-editing.ts`, `attachments.ts`, `width.ts` are all reachable without booting anything, so they are tested by calling them.
 - **Components are tested through the frame**, by rendering the real tree onto a fake TTY and asserting on the characters that reach the screen. `Markdown.tsx`, `MessageList.tsx`, `Prompt.tsx` and `SlashPalette.tsx` therefore have no file named after them in `tests/` — they are covered by `prompt-frame.spec.ts`, `message-scroll.spec.ts`, `command-output.spec.ts` and friends. This is deliberate: a component spec asserting on a React tree would pin the implementation, while the frame test pins the thing the user actually looks at. **An empty row in a file-to-spec table is not automatically a gap here** — check the frame specs before filing one.
 - **Hooks split by what they own.** A hook that only adapts a pure module to React needs no spec of its own. A hook that owns state or a timer gets a mounted probe, because its contract is a sequence over time and no single frame can show it.
 

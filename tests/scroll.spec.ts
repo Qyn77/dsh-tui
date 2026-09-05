@@ -30,11 +30,24 @@ import type { UiEntry } from '../src/types.ts'
 /** Built rather than quoted, so the byte is visible in the source. */
 const ESC = String.fromCharCode(27)
 
-function userEntry(text: string): UiEntry {
+function userEntry(text: string, images = 0, name = 'shot.png'): UiEntry {
   return {
     kind: 'user',
     message: createUserMessage({
-      content: [{ type: 'text', text }],
+      content: [
+        ...Array.from({ length: images }, (_, i) => ({
+          type: 'image' as const,
+          attachment: {
+            attachmentId: `att-${String(i)}` as never,
+            mediaType: 'image/png' as const,
+            bytes: 1_000,
+            width: 10,
+            height: 10,
+            name,
+          },
+        })),
+        ...(text === '' ? [] : [{ type: 'text' as const, text }]),
+      ],
       source: { kind: 'user' },
     }),
   }
@@ -152,8 +165,28 @@ describe('estimateEntryRows', () => {
     expect(estimateEntryRows(userEntry(text), 80)).toBe(5)
   })
 
-  it('adds the metadata header an assistant turn carries', () => {
-    expect(estimateEntryRows(assistantEntry('hi'), 80)).toBe(3)
+  it('charges one row per attachment chip, and no more', () => {
+    // Every chip is drawn `truncate-end`, so its height is independent of the
+    // filename's length and of the frame's width. Estimating instead of
+    // counting would put the oldest messages out of reach the moment someone
+    // attaches a screenshot with a long name.
+    expect(estimateEntryRows(userEntry('hi', 1), 80)).toBe(5)
+    expect(estimateEntryRows(userEntry('hi', 3), 80)).toBe(7)
+  })
+
+  it('charges nothing for a text row a message-of-only-images does not draw', () => {
+    // Separator, the box's two rows, one chip. The `|| ' '` fallback that keeps
+    // an empty frame from collapsing must not add a row here.
+    expect(estimateEntryRows(userEntry('', 1), 80)).toBe(4)
+  })
+
+  it('does not let a long filename change the height', () => {
+    const short = estimateEntryRows(userEntry('hi', 1, 'a.png'), 40)
+    const long = estimateEntryRows(userEntry('hi', 1, `${'a'.repeat(300)}.png`), 40)
+    expect(long).toBe(short)
+  })
+
+  it('adds the metadata header an assistant turn carries', () => {    expect(estimateEntryRows(assistantEntry('hi'), 80)).toBe(3)
   })
 
   it('grows with wrapped text', () => {

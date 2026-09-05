@@ -12,7 +12,7 @@
  */
 
 import type { UiEntry } from './types.ts'
-import { userMessageText } from './types.ts'
+import { userMessageImages, userMessageText } from './types.ts'
 import {
   GUTTER_WIDTH,
   outputPreview,
@@ -189,7 +189,14 @@ function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number 
       // across the full width. Both halves matter: charging the rows without
       // narrowing the text under-counts every message long enough to wrap.
       const inner = Math.max(1, width - USER_FRAME_COLUMNS)
-      return 2 + textRows(userMessageText(entry.message) || ' ', inner)
+      const text = userMessageText(entry.message)
+      const images = userMessageImages(entry.message)
+      // One row per attachment chip, exactly — each is drawn `truncate-end`, so
+      // neither a long filename nor a narrow frame can make it wrap. The text
+      // row disappears with the text when the message is only images, which is
+      // the one case where `|| ' '` would over-count by a row.
+      const body = text === '' && images.length > 0 ? 0 : textRows(text || ' ', inner)
+      return 2 + images.length + body
     }
     case 'assistant':
       // Every turn renders as markdown, streaming or finalized, which adds a

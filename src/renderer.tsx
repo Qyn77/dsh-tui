@@ -6,6 +6,7 @@
  */
 
 import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
+import { readFile } from 'node:fs/promises'
 import React, { useCallback, useEffect, useRef, useState, type FC, type ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
@@ -23,6 +24,7 @@ import { useRegistryCommands } from './hooks/useRegistryCommands.ts'
 import { useApprovalRequests } from './hooks/useApprovalRequests.ts'
 import { useShell } from './hooks/useShell.ts'
 import { parseShellInput } from './shell.ts'
+import { attachImages, classifyModalities, refusalText } from './attach-runner.ts'
 import { service } from './services.ts'
 import { dispatch } from './commands.ts'
 import { handleCancel, handleInterrupt } from './interrupt.ts'
@@ -215,6 +217,15 @@ export const App: FC<AppProps> = ({
   // glyph is in lock-step on screen.
   const { spinnerFrame, elapsedSeconds } = useRunningClock(state.status === 'running')
 
+  // The live status, readable after an `await`. Attaching an image reads files
+  // and commits them to the store before the message can be built, and the
+  // steer-or-follow-up decision has to be made against the status at *send*
+  // time — the closure's captured `state` is from the render that handled the
+  // keystroke, and a turn that started while the bytes were being read would
+  // otherwise get a follow-up where steering was meant.
+  const statusRef = useRef(state.status)
+  statusRef.current = state.status
+
   // Real TTY resize is coordinated by index.ts through Ink's render
   // instance. Keep the hook for non-TTY test streams only.
   useResizeRepaint()
@@ -376,6 +387,48 @@ export const App: FC<AppProps> = ({
     [ctx, modelRef],
   )
 
+  /**
+   * Commit any images the submitted line names, and hand back what is left.
+   *
+   * Both services are read through `ctx.get` at call time rather than injected:
+   * `tui-runner` declares neither in its `inject`, because cordis `inject` is
+   * all-required and naming a service no leaf is obliged to mount would keep
+   * the whole REPL from loading. `attachments` in particular is a base-layer
+   * fact this package must not depend on — a bundle without it still runs, and
+   * says so on the one line that tries to use it.
+   *
+   * The capability probe is a function so it costs a provider round-trip only
+   * when there is something to attach; `attachImages` calls it after it has
+   * found a candidate and never for an ordinary message.
+   */
+  const attach = useCallback(
+    (text: string) => attachImages(text, {
+      // Read at call time, not captured: `!cd` changes the process working
+      // directory (it has to — see `useShell`), and a relative path in the
+      // prompt means the directory the user is in *now*.
+      cwd: process.cwd(),
+      home: process.env['HOME'],
+      store: service(ctx, 'attachments'),
+      readFile: path => readFile(path),
+      imageSupport: async () => {
+        const model = selection?.model ?? ''
+        const llm = service(ctx, 'llm')
+        if (llm === undefined || selection === undefined) return { support: 'unknown', model }
+        try {
+          const models = await llm.listModels(selection.provider)
+          const found = models.find(m => m.id === selection.model)
+          return { support: classifyModalities(found?.inputModalities), model }
+        } catch {
+          // A listing that fails says nothing about the route's capabilities,
+          // and refusing the attachment on a failed *probe* would turn a
+          // provider hiccup into a lost image. Let the request be the judge.
+          return { support: 'unknown', model }
+        }
+      },
+    }),
+    [ctx, selection],
+  )
+
   const onSubmit = useCallback(
     (text: string) => {
       const trimmed = text.trim()
@@ -472,17 +525,36 @@ export const App: FC<AppProps> = ({
       // it appears when the agent has actually recorded it rather than when
       // the key was pressed, and a line the agent discards never shows up
       // claiming to have been sent.
-      const message = createUserMessage({
-        content: [{ type: 'text', text: trimmed }],
-        source: { kind: 'user' },
-      })
-      if (state.status === 'running') agent.steer(message)
-      else agent.followup(message)
+      //
+      // Attaching is the one thing that has to happen before the message can be
+      // built, because an image travels as a content block rather than as text.
+      // It is also the one thing here that does I/O, so the send moves behind a
+      // promise whenever the line names an image — and stays synchronous when
+      // it does not, which is every ordinary message.
+      void (async () => {
+        const attached = await attach(trimmed)
+        for (const refusal of attached.refusals) {
+          appendEntry({ kind: 'note', text: refusalText(refusal, strings), tone: 'warn' })
+        }
+        // A line that was *only* an unattachable path leaves nothing to send.
+        // The refusal above is the whole report; an empty message would reach
+        // the model as a turn with no content.
+        if (attached.text === '' && attached.refs.length === 0) return
+        const message = createUserMessage({
+          content: [
+            ...attached.refs.map(ref => ({ type: 'image' as const, attachment: ref })),
+            ...(attached.text === '' ? [] : [{ type: 'text' as const, text: attached.text }]),
+          ],
+          source: { kind: 'user' },
+        })
+        if (statusRef.current === 'running') agent.steer(message)
+        else agent.followup(message)
+      })()
     },
     [
       ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
       setTheme, themePref, appearance, emit, strings, state, shell, swapSession,
-      scroll.setExpanded, scroll.expanded,
+      scroll.setExpanded, scroll.expanded, attach, statusRef,
     ],
   )
 

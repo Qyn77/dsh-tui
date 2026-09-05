@@ -32,6 +32,8 @@ export const USER_GLYPH = '>'
 export const RESULT_GLYPH = '⎿'
 /** Marks a lifecycle note — compaction, plan mode, injected context. */
 export const NOTE_GLYPH = '⤷'
+/** Marks one image attached to the user's message. */
+export const ATTACHMENT_GLYPH = '⧉'
 
 /**
  * Checkbox per task-list state.
@@ -473,4 +475,40 @@ export function approvalArgs(args: string, maxRows: number = APPROVAL_MAX_ROWS):
     ),
   }))
   return { rows: shown, hidden: Math.max(0, entries.length - shown.length) }
+}
+
+/**
+ * Byte count as a short human string: `284 KB`, `1.4 MB`, `912 B`.
+ *
+ * Decimal units, not binary. The number sits on an attachment chip beside a
+ * pixel size, where it answers "is this the big screenshot or the small one" —
+ * and every file manager the user could check it against says `KB` for 1000.
+ * A `KiB` here would be more precise and would disagree with Finder.
+ */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1_000) return `${String(bytes)} B`
+  if (bytes < 1_000_000) return `${String(Math.round(bytes / 1_000))} KB`
+  return `${(bytes / 1_000_000).toFixed(1)} MB`
+}
+
+/**
+ * One attachment chip's text: name, intrinsic pixel size, encoded size.
+ *
+ * All three are what the ref itself carries, and each answers a different
+ * "did I attach the right thing" — the name is what the user typed, the pixel
+ * size distinguishes two screenshots with similar names, and the byte size is
+ * the one that explains a refusal when the next one is too big.
+ *
+ * `name` is optional on the ref (the store strips path information and a
+ * caller may supply nothing), so a nameless attachment still gets a chip
+ * rather than one reading `undefined`.
+ */
+export function attachmentChip(ref: {
+  name?: string
+  width: number
+  height: number
+  bytes: number
+}, fallbackName: string): string {
+  const name = ref.name ?? fallbackName
+  return `${name} · ${String(ref.width)}×${String(ref.height)} · ${formatBytes(ref.bytes)}`
 }

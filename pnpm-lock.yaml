@@ -39,6 +39,9 @@ importers:
       '@deepseek-ai/dsh-agent-default-model':
         specifier: 0.1.0-rc.7
         version: 0.1.0-rc.7(bf02e2102c17da04e9277c470e7b9ac6)
+      '@deepseek-ai/dsh-attachment':
+        specifier: 0.1.0-rc.7
+        version: 0.1.0-rc.7(@deepseek-ai/cordis@4.0.1-rc.4)(@deepseek-ai/dsh-brand@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1-rc.4)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1-rc.4)))(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1-rc.4))
       '@deepseek-ai/dsh-brand':
         specifier: 0.1.0-rc.7
         version: 0.1.0-rc.7(@deepseek-ai/cordis@4.0.1-rc.4)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1-rc.4))

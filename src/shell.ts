@@ -132,8 +132,11 @@ export function resolveCd(target: CdTarget, ctx: CdContext): string | undefined 
  * Expand a leading `~`. Only a leading one, and only when it is the whole
  * segment: `~/src` and `~` expand, `~user/src` does not (we have no way to look
  * up another account's home) and `./~backup` is a real filename.
+ *
+ * Exported because `attachments.ts` resolves user-typed paths under the same
+ * rules. One copy, so the two cannot drift on which `~` forms count.
  */
-function expandHome(path: string, home?: string): string | undefined {
+export function expandHome(path: string, home?: string): string | undefined {
   if (path !== '~' && !path.startsWith('~/') && !path.startsWith('~\\')) return path
   if (home === undefined) return undefined
   return path === '~' ? home : resolve(home, path.slice(2))

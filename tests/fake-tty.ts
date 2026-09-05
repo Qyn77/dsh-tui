@@ -153,8 +153,12 @@ export interface Painted {
    * a keystroke nor an assistant turn can produce. `plan/mode` is the first:
    * it comes from a plugin this package does not depend on, so the only way to
    * see how the TUI draws it is to write one into the log by hand.
+   *
+   * `options` reaches `Session.append` untouched. Surface-eligible events
+   * (`user/message`, `assistant/message`) are rejected without a `surfaceOp`,
+   * so a test writing one by hand has to say where it goes on the surface.
    */
-  append: (type: string, data: unknown) => Promise<void>
+  append: (type: string, data: unknown, options?: unknown) => Promise<void>
   /**
    * Let React settle again without sending anything. `!` commands finish on
    * their own schedule — a real subprocess outlives the default settle — so a
@@ -314,13 +318,13 @@ export async function paintApp(
       }, { surfaceOp: 'append' })
       await emitLast()
     },
-    async append(type, data) {
+    async append(type, data, options) {
       // The event map is closed over types this package declares; the whole
       // point here is to write one it does not, so the signature is widened
       // rather than the argument cast into it.
       if (type === 'turn/start') running = true
       if (type === 'turn/end') running = false
-      ;(session.append as (t: string, d: unknown) => void)(type, data)
+      ;(session.append as (t: string, d: unknown, o?: unknown) => void)(type, data, options)
       await emitLast()
     },
     unmount: () => { instance.unmount() },

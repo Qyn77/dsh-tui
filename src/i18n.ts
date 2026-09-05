@@ -245,6 +245,30 @@ export interface Catalog {
      */
     cdUnresolved: string
   }
+  /**
+   * Why an image named in a submitted line did not go with it.
+   *
+   * There is deliberately no string for "that file does not exist": a path that
+   * resolves to nothing is the ordinary case of prose naming a file, and it is
+   * passed over in silence. Every string here describes something the user can
+   * act on.
+   */
+  attachments: {
+    /** The file is there but could not be read — permissions, a directory, a device. */
+    unreadable: (name: string) => string
+    /** Over the store's per-image byte limit. */
+    tooLarge: (name: string, limit: string) => string
+    /** More images in one line than the store accepts. */
+    tooMany: (dropped: number, limit: number) => string
+    /** The images that fit individually exceed the whole-message budget together. */
+    tooMuch: (dropped: number, limit: string) => string
+    /** The store refused the bytes; its own message follows, unlocalized. */
+    rejected: (name: string, message: string) => string
+    /** No attachment service is mounted — a misconfigured bundle, not a user error. */
+    noStore: string
+    /** The route declares it does not accept images. */
+    unsupported: (model: string) => string
+  }
   /** The startup splash. */
   banner: {
     /** The one-line "how to drive it" tip under the wordmark. */
@@ -414,6 +438,15 @@ const EN: Catalog = {
     truncated: 'output truncated',
     injected: 'sent to the model',
     cdUnresolved: 'cd: nowhere to go',
+  },
+  attachments: {
+    unreadable: name => `${name} could not be read`,
+    tooLarge: (name, limit) => `${name} is over the ${limit} image limit`,
+    tooMany: (dropped, limit) => `${dropped} image(s) left out — at most ${limit} per message`,
+    tooMuch: (dropped, limit) => `${dropped} image(s) left out — at most ${limit} of images per message`,
+    rejected: (name, message) => `${name} was rejected: ${message}`,
+    noStore: 'Images cannot be attached: no attachment service is mounted.',
+    unsupported: model => `${model} does not accept images. Sent the text only.`,
   },
   banner: {
     // Kept short enough to fit the wordmark column at 80 columns, and only
@@ -606,6 +639,15 @@ const ZH: Catalog = {
     truncated: '输出已截断',
     injected: '已发给模型',
     cdUnresolved: 'cd：没有可去的目录',
+  },
+  attachments: {
+    unreadable: name => `${name} 读不出来`,
+    tooLarge: (name, limit) => `${name} 超过单张 ${limit} 的上限`,
+    tooMany: (dropped, limit) => `有 ${dropped} 张没带上——每条消息最多 ${limit} 张`,
+    tooMuch: (dropped, limit) => `有 ${dropped} 张没带上——每条消息的图片总量最多 ${limit}`,
+    rejected: (name, message) => `${name} 被拒绝：${message}`,
+    noStore: '无法附带图片：没有挂载附件服务。',
+    unsupported: model => `${model} 不接受图片，只发送了文字。`,
   },
   banner: {
     tip: '提示：/help · /status · Tab 补全',

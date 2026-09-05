@@ -287,6 +287,38 @@ server in your own patch layer. Note also that the plugin publishes no
 connection state, so there is no `/mcp` and nothing here can tell you a server
 is down — only that its tools are or are not registered.
 
+### Sending an image
+
+Drag an image file into the terminal and press Enter, and it goes to the model
+along with whatever you typed:
+
+```
+> here's the failing screen /Users/me/Desktop/shot.png
+```
+
+The path is taken out of the text and the image travels as an attachment. What
+you see afterwards is a chip inside your own message confirming what went:
+
+```
+> ╭──────────────────────────────────────╮
+  │ ⧉ shot.png · 1440×900 · 284 KB       │
+  │ here's the failing screen            │
+  ╰──────────────────────────────────────╯
+```
+
+`png`, `jpg`, `jpeg`, `webp` and `gif`. Relative paths, `~/` and quoted or
+backslash-escaped paths with spaces in them all work — which covers whatever
+form your terminal produces when you drop a file on it.
+
+A path is only attached if it actually points at a readable file, so mentioning
+`logo.png` in a sentence does not silently send one. If a file cannot go — too
+big, too many, a model that does not take images, no attachment service in your
+assembly — you get a note saying why, **and the message is still sent.** A bad
+attachment never costs you the line you typed.
+
+There is no clipboard paste for images yet, and nothing renders the picture
+itself in the terminal; the chip is the confirmation.
+
 ### Seeing more of a long output
 
 A tool result or a `!` command's output is previewed at 8 lines, with a

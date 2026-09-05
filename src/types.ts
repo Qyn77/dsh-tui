@@ -5,6 +5,7 @@
  * @module @deepseek-ai/dsh-tui/types
  */
 
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { CallId, TokenUsage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent, TodoItem, TurnEndReason } from '@deepseek-ai/dsh-session'
 
@@ -138,12 +139,32 @@ export interface UiState {
   lastReason?: TurnEndReason
 }
 
-/** A user message is a single text block today; helper for the prompt. */
+/**
+ * The text a user message carries, with any non-text blocks left out.
+ *
+ * A user message is usually one text block, but not always: attaching an image
+ * puts `image` blocks beside it (see {@link userMessageImages}), and a message
+ * that is *only* an image has no text at all. Callers that draw the message
+ * must handle the empty string rather than assuming a line is there.
+ */
 export function userMessageText(message: UserMessage): string {
   return message.content
     .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
     .map(b => b.text)
     .join('')
+}
+
+/**
+ * The images a user message carries, in content order.
+ *
+ * Read off the message rather than tracked beside it, which is what makes a
+ * resumed transcript draw its attachments: the refs are in the durable log's
+ * own `user/message` event, so replay needs no extra state.
+ */
+export function userMessageImages(message: UserMessage): ImageAttachmentRef[] {
+  return message.content
+    .filter((b): b is { type: 'image'; attachment: ImageAttachmentRef } => b.type === 'image')
+    .map(b => b.attachment)
 }
 
 /** Filter the session log down to only the events the TUI cares about. */
