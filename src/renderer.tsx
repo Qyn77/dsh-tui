@@ -247,6 +247,12 @@ export const App: FC<AppProps> = ({
   // concern because the prompt now takes keys during a running turn, which is
   // exactly when the App's Esc means "cancel" — see `Prompt.onEscClaimChange`.
   const [promptClaimsEsc, setPromptClaimsEsc] = useState(false)
+  // Rows the prompt's floating list is taking, so the banner can give way to
+  // it. Nothing about input this time: it is a layout negotiation of the same
+  // shape as the three above, because the banner and the palette sit at
+  // opposite ends of a frame neither of them can measure alone — see
+  // `Prompt.onOverlayRowsChange` and `bannerRowBudget`.
+  const [promptOverlayRows, setPromptOverlayRows] = useState(0)
   // An approval request names the call it is about but not what the call would
   // do; the arguments are in the entry the App already streamed. Searching from
   // the newest end because the question is always about the newest call — a
@@ -501,6 +507,18 @@ export const App: FC<AppProps> = ({
   // strictly shorter makes log-update erase the previous render normally.
   const frameHeight = state.entries.length > 0 ? Math.max(1, (stdout?.rows ?? 24) - 3) : undefined
 
+  // Rows the banner may have. An empty session gets no `frameHeight` at all —
+  // there is nothing to scroll, so nothing to cap — which means the banner is
+  // the one subtree that can push the frame past the terminal on its own, and
+  // it does exactly that as soon as the palette opens under it. A subtree that
+  // outgrows the frame overlaps rather than scrolls (§1.1), which is why the
+  // symptom is half a banner stranded above a whole one until the next resize.
+  //
+  // The reserve is the prompt box (3), the message list's placeholder row (1)
+  // and the one row Ink must be kept clear of, plus whatever the floating list
+  // is currently taking.
+  const bannerRowBudget = Math.max(0, (stdout?.rows ?? 24) - 5 - promptOverlayRows)
+
   return (
     <AppProviders lang={lang} appearance={appearance}>
       <Box flexDirection="column" height={frameHeight} marginRight={1}>
@@ -555,7 +573,9 @@ export const App: FC<AppProps> = ({
         `RangeError: Invalid count value: -2`. See `tests/boot-notice.spec.ts`.
       */}
         {stdout?.isTTY ? (
-          state.entries.length === 0 && <Banner selection={selection} sessionId={agent.id} />
+          state.entries.length === 0 && (
+            <Banner selection={selection} sessionId={agent.id} availableRows={bannerRowBudget} />
+          )
         ) : (
           <Static items={state.entries.length === 0 ? [0] : []} style={{ width: '100%' }}>
             {() => <Banner key="banner" selection={selection} sessionId={agent.id} />}
@@ -627,6 +647,7 @@ export const App: FC<AppProps> = ({
           onArrowClaimChange={setPromptClaimsArrows}
           onFilledChange={setPromptFilled}
           onEscClaimChange={setPromptClaimsEsc}
+          onOverlayRowsChange={setPromptOverlayRows}
           extraCommands={extraCommands}
         />
       </Box>

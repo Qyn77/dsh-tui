@@ -75,7 +75,7 @@ const MetaStack: FC<{ meta: MetaText; width: number }> = ({ meta, width }) => {
   )
 }
 
-export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
+export const Banner: FC<BannerProps> = ({ selection, sessionId, availableRows }) => {
   const { stdout } = useStdout()
   const strings = useStrings()
   const { brandTint } = usePalette()
@@ -86,7 +86,11 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId }) => {
   // behaves. Ink does not surface the column count when stdout is piped;
   // 80 is the safe assumption and is wide enough for the full banner.
   const columns = stdout?.columns ?? 80
-  const tier = bannerTier(columns)
+  const tier = bannerTier(columns, availableRows)
+  // Nothing fits. Drawing the box anyway would not clip it — a subtree taller
+  // than the live frame overlaps what is under it, and what is under this is
+  // the prompt (§1.1).
+  if (tier === 'none') return null
   const meta = metaText(
     selection,
     sessionId,
@@ -213,4 +217,11 @@ export interface BannerProps {
   selection: ModelSelection
   /** Session id of the live agent. */
   sessionId: SessionId
+  /**
+   * Rows the banner may occupy before it has to give way. The App works this
+   * out from the live terminal height minus everything else in the frame; see
+   * `bannerRowBudget` in `renderer.tsx`. Omitted means unlimited, which is
+   * what a non-TTY render wants.
+   */
+  availableRows?: number
 }

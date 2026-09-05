@@ -16,6 +16,7 @@ import {
   centerText,
   metaText,
   bannerTier,
+  BANNER_ROWS,
   BANNER_MIN_WIDTH,
   BANNER_WORDMARK_WIDTH,
 } from '../src/banner-art.ts'
@@ -245,6 +246,32 @@ describe('bannerTier', () => {
   it('never throws on a degenerate width', () => {
     expect(bannerTier(0)).toBe('plain')
     expect(bannerTier(-1)).toBe('plain')
+  })
+
+  it('leaves the width tier alone when the height is not asked about', () => {
+    // The over-fix guard. Every caller that predates the height axis passes
+    // one argument, and must keep getting exactly what it got before.
+    expect(bannerTier(120, Infinity)).toBe('full')
+    expect(bannerTier(120)).toBe('full')
+  })
+
+  it('drops to plain text when the full spread will not fit vertically', () => {
+    expect(bannerTier(120, BANNER_ROWS.full)).toBe('full')
+    expect(bannerTier(120, BANNER_ROWS.full - 1)).toBe('plain')
+  })
+
+  it('drops the taller wordmark for the shorter plain text', () => {
+    // Not a typo, and the reason the height fallback goes straight to
+    // `plain` rather than one tier at a time: losing the whale *raises* the
+    // banner, because the meta facts stack instead of sharing a row.
+    expect(BANNER_ROWS.wordmark).toBeGreaterThan(BANNER_ROWS.full)
+    expect(bannerTier(BANNER_WORDMARK_WIDTH, BANNER_ROWS.full)).toBe('plain')
+  })
+
+  it('gives up entirely when even the plain text will not fit', () => {
+    expect(bannerTier(120, BANNER_ROWS.plain)).toBe('plain')
+    expect(bannerTier(120, BANNER_ROWS.plain - 1)).toBe('none')
+    expect(bannerTier(120, 0)).toBe('none')
   })
 })
 

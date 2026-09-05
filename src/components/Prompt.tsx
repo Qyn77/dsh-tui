@@ -50,6 +50,7 @@ import {
 } from '../prompt-editing.ts'
 import {
   MAX_PROMPT_ROWS,
+  PALETTE_CHROME_ROWS,
   cursorAt,
   paletteWindowRows,
   moveVertically,
@@ -104,6 +105,18 @@ export interface PromptProps {
    * dismiss the palette and kill the turn. Optional, like the arrow claim.
    */
   onEscClaimChange?: (claimed: boolean) => void
+  /**
+   * Report how many rows the floating list above the prompt currently
+   * occupies — `0` when neither the palette nor the file picker is open.
+   *
+   * The App subtracts it from the banner's height budget. On an empty session
+   * the banner is the tallest thing in the frame and the palette opens *above*
+   * the prompt, so with no coordination the two of them together outgrow the
+   * terminal, the frame overlaps itself, and half a banner is left stranded on
+   * screen until the next resize. Optional, like the other claims: a prompt
+   * rendered without it simply never asks the banner for room.
+   */
+  onOverlayRowsChange?: (rows: number) => void
   /**
    * Commands the plugin registry offers, alongside the built-in table. The
    * prompt has no context to read the registry from, so the App resolves it
@@ -162,6 +175,7 @@ export const Prompt: FC<PromptProps> = ({
   onArrowClaimChange,
   onFilledChange,
   onEscClaimChange,
+  onOverlayRowsChange,
   extraCommands,
 }) => {
   const { stdout } = useStdout()
@@ -245,6 +259,19 @@ export const Prompt: FC<PromptProps> = ({
   useEffect(() => {
     onEscClaimChange?.(claimsEsc)
   }, [claimsEsc, onEscClaimChange])
+
+  // How much of the frame the floating list is taking. The banner is sized
+  // against what is left, because on an empty session the two of them are the
+  // only things in the frame and the banner is much the taller.
+  const overlayShown = palette.length > 0
+    ? Math.min(palette.length, paletteRows)
+    : picking
+      ? Math.min(Math.max(fileRows.length, 1), paletteRows)
+      : 0
+  const overlayRows = overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS
+  useEffect(() => {
+    onOverlayRowsChange?.(overlayRows)
+  }, [overlayRows, onOverlayRowsChange])
 
   // Ctrl-U and Ctrl-C both mean something different when there is text to
   // lose. `active` is part of it: while the box is closed (a shell, an

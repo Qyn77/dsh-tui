@@ -54,6 +54,18 @@ export function paletteWindowRows(terminalRows: number): number {
   return Math.max(1, Math.min(MAX_PALETTE_ROWS, available))
 }
 
+/**
+ * Rows a floating list costs on top of its visible entries: the box border
+ * (2), the blank row between the entries and the hint, the hint itself, and
+ * the margin separating the whole thing from the prompt box.
+ *
+ * The counterpart to {@link paletteWindowRows}: that one asks how much list
+ * fits, this one turns a list back into a height so the App can take the room
+ * out of the banner's budget. Both have to move together if the palette's
+ * chrome ever changes.
+ */
+export const PALETTE_CHROME_ROWS = 5
+
 /** Scrollbar glyphs. The track is drawn dim; the thumb is not. */
 const THUMB = '█'
 const TRACK = '│'

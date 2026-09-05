@@ -36,6 +36,13 @@ Each zone has a fixed role and stays in that role forever:
 
   Three tiers rather than two because the drop from the full spread to a single text line is a 31-column cliff, and in that band the wordmark still fits perfectly well on its own — it is the half that carries the product's name, so the whale is the half that goes. Every tier keeps all four facts; only decoration is spent.
 
+  **Height is the second axis, and it has a floor the width axis does not.** `bannerTier(columns, availableRows)` also compares the chosen tier against `BANNER_ROWS` — `full` 19, `wordmark` 21, `plain` 10 — and degrades when it will not fit. Two consequences that read as mistakes and are not:
+
+  - **The height fallback goes straight to `plain`, never one tier at a time.** `wordmark` is *taller* than `full`: dropping the whale moves the meta facts out of the second column and stacks them. Narrower does not mean shorter.
+  - **There is a fourth tier, `none`, which draws nothing.** A terminal can always give the banner one column of something, but it can genuinely have zero rows to spare — the prompt and an open palette have first claim. Drawing a short banner anyway would not clip it; a subtree taller than the frame overlaps what is beneath it, and what is beneath the banner is the prompt.
+
+  The budget is the App's to compute, because only the App knows what else is in the frame: `bannerRowBudget` is the terminal height less the prompt box, the message list's placeholder row, Ink's reserved row, and whatever the prompt reports through `onOverlayRowsChange` (§1.6). An empty session is the case that needs this — it has no message list to scroll, so it gets no `frameHeight` cap at all, and the banner is the one subtree that can push the frame past the terminal on its own.
+
   Seven rules make the banner tidy, and each was learned by getting it wrong:
 
   1. **The whale is a bitmap, not a string of block characters.** A terminal cell is roughly twice as tall as it is wide, so art drawn one-cell-per-pixel comes out vertically stretched and unreadable. `WHALE_BITMAP` is a 28×16 pixel grid and `encodeBitmap` packs each *pair* of pixel rows into one text row (`█` both set, `▀` top only, `▄` bottom only, space neither) so the pixels end up square. A consequence worth remembering: a feature that must read as a clean hole — the whale's eyes — has to sit on a single pixel-row *pair*. Split across two pairs it encodes as `▀▀` above `▄▄` and reads as teeth.
@@ -124,7 +131,9 @@ Each zone has a fixed role and stays in that role forever:
 
 **The live frame reserves the terminal's last column.** `App`'s root box carries `marginRight={1}`, and that single column is the other half of rule 7 — the half that applies to everything Ink *does* redraw. Ink stretches the root to the full terminal width, so a framed child emits lines *exactly* as wide as the terminal, and a line that fills the last column leaves the terminal with a wrap decision that terminals do not answer the same way: park the cursor in the last column and let the following newline move down one row (the VT100 reading), or wrap at once so that newline lands a row further down. Under the second reading a 3-row prompt box occupies six physical rows while Ink erases `eraseLines(<logical line count>)` = four, so **every redraw leaks two rows** — which is what a window drag looked like in practice: a ladder of half-drawn prompt boxes, each one column narrower than the last, exactly like the banner ladder that came before it. One reserved column is unwrappable under either reading and also absorbs a one-column lag between `SIGWINCH` and the write, which is what a fast drag does to `stdout.columns`.
 
-**A subtree may not outgrow the frame.** The live frame is a box of fixed height, and Yoga overlaps rather than scrolls whatever does not fit: the surplus rows are drawn over the rows already laid out, so the frame comes back with two things printed on one line and Ink's `eraseLines` count no longer describing what is on screen. Every zone therefore sizes itself against the viewport — the message list scrolls (§1.1), the prompt caps at `MAX_PROMPT_ROWS`, and the floating palette windows to `paletteWindowRows(stdout.rows)` (§1.5.1). A new zone whose height is driven by data owes the same.
+**A subtree may not outgrow the frame.** The live frame is a box of fixed height, and Yoga overlaps rather than scrolls whatever does not fit: the surplus rows are drawn over the rows already laid out, so the frame comes back with two things printed on one line and Ink's `eraseLines` count no longer describing what is on screen. Every zone therefore sizes itself against the viewport — the message list scrolls (§1.1), the prompt caps at `MAX_PROMPT_ROWS`, the floating palette windows to `paletteWindowRows(stdout.rows)` (§1.5.1), and the banner degrades its tier — to nothing, if it has to — against `bannerRowBudget` (§1.1). A new zone whose height is driven by data owes the same.
+
+Sizing against the viewport is not enough on its own: two zones that each fit can still overflow *together*. The banner and the palette sit at opposite ends of a frame neither can measure, so they negotiate through the App the same way the shared keys do (§1.6) — the prompt reports the floating list's height upward, the App subtracts it from the banner's budget. Any future pair with the same shape owes the same negotiation rather than a second independent cap.
 
 **A settled resize repaints the screen.** Terminals may reflow rows already drawn while Ink still tracks logical rows, so cursor-relative erasure cannot be made reliable during a resize storm. The real TTY uses the alternate screen and one owner for resize (`src/resize.ts`): after 120ms of quiet it calls `instance.clear()`, clears the alternate screen, calls `instance.rerender()` exactly once — a rerender rather than a relayout, because `frameHeight` is computed from `stdout.rows` during render — and then repaints through Ink's `useStdout().write`, which re-emits the frame whether or not Ink considers it changed. `tests/resize-repaint.spec.ts` pins the blank-screen cases. The primary screen and shell scrollback are restored on exit. See [the resize lesson](lessons/resize-reflow.md).
 
@@ -590,6 +599,13 @@ arbitrated the same way, on a different signal (`ctrlUScrolls`, driven by
 `Ctrl-B`/`Ctrl-F` and `Ctrl-D` always scroll the log, so a half-written
 multi-row message can never lock the log shut.
 `tests/prompt-frame.spec.ts` pins both directions of both negotiations.
+
+The same shape carries one thing that is not a key: `onOverlayRowsChange`
+reports how many rows the floating list is taking, so the App can take them out
+of the banner's height budget (§1.1). The reason is the same reason the arrows
+need arbitrating — two components that cannot see each other both act on one
+resource, and only whoever renders both can decide. Here the resource is rows
+rather than a keystroke.
 
 ### 1.7 Text conventions
 

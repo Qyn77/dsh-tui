@@ -21,7 +21,7 @@ import { Context } from '@deepseek-ai/cordis'
 // `strip` is shared with the other frame tests: the widths asserted here must
 // be measured the same way, and this file used to keep a narrower copy that
 // missed private-mode sequences like `\x1b[?1007h`.
-import { strip } from './fake-tty.ts'
+import { paintApp, strip } from './fake-tty.ts'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { Banner } from '../src/components/Banner.tsx'
 import { displayWidth } from '../src/width.ts'
@@ -183,5 +183,46 @@ describe('banner under a resize storm', () => {
     const written = strip(stdout.frames.join(''))
     // The slogan appears once per banner drawn, and only in the banner.
     expect(written.split('探索未至之境').length - 1).toBe(1)
+  })
+})
+
+describe('the banner on a terminal the palette has to share', () => {
+  /** Rows the App's frame occupies on screen. */
+  const frameRows = (screen: string): number => screen.split('\n').length
+
+  it('leaves the whole banner alone when the palette is closed', async () => {
+    // The over-fix guard: the banner must not start hiding itself on a
+    // terminal that has always had room for it.
+    const tty = await paintApp({ turns: 0, columns: 90, rows: 24 })
+    expect(tty.screen()).toContain('探索未至之境')
+    expect(frameRows(tty.screen())).toBeLessThan(24)
+    tty.unmount()
+  })
+
+  it('keeps the frame inside the terminal when the palette opens under it', async () => {
+    // The reported bug. An empty session has no message list to scroll and
+    // so no `frameHeight` cap; banner plus palette plus prompt came to 29
+    // rows on a 24-row terminal, Yoga overlapped the surplus, and half a
+    // banner stayed stranded above the whole one until the next resize.
+    const tty = await paintApp({ turns: 0, columns: 90, rows: 24 })
+    await tty.send('/')
+    expect(frameRows(tty.screen())).toBeLessThan(24)
+    tty.unmount()
+  })
+
+  it('brings the banner back when the palette closes', async () => {
+    const tty = await paintApp({ turns: 0, columns: 90, rows: 24 })
+    await tty.send('/')
+    await tty.send('\u007F')
+    expect(tty.screen()).toContain('探索未至之境')
+    tty.unmount()
+  })
+
+  it('keeps the full banner on a terminal tall enough for both', async () => {
+    const tty = await paintApp({ turns: 0, columns: 90, rows: 40 })
+    await tty.send('/')
+    expect(tty.screen()).toContain('探索未至之境')
+    expect(frameRows(tty.screen())).toBeLessThan(40)
+    tty.unmount()
   })
 })

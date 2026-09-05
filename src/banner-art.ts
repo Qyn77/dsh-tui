@@ -204,19 +204,47 @@ export const BANNER_MIN_WIDTH = WHALE_WIDTH + COLUMN_GAP + WORDMARK_WIDTH + FRAM
 /** Columns the wordmark-only tier needs. */
 export const BANNER_WORDMARK_WIDTH = WORDMARK_WIDTH + FRAME_PADDING
 
-/** How much of the banner survives at the current terminal width. */
-export type BannerTier = 'full' | 'wordmark' | 'plain'
+/** How much of the banner survives at the current terminal size. */
+export type BannerTier = 'full' | 'wordmark' | 'plain' | 'none'
 
 /**
- * Pick the widest tier that fits. Three tiers rather than two because
- * the drop from the full spread to a single text line is a 45-column
- * cliff: between those bounds the wordmark still fits perfectly well on
- * its own, and it is the half that carries the product's name.
+ * Rows each tier's box occupies, borders and padding included.
+ *
+ * `wordmark` is *taller* than `full`, which is not a typo: dropping the whale
+ * takes the meta facts out of the second column and stacks them under the
+ * wordmark instead. Width and height are therefore genuinely two axes, and
+ * narrowing the terminal is not a way to make the banner shorter.
  */
-export function bannerTier(columns: number): BannerTier {
-  if (columns >= BANNER_MIN_WIDTH) return 'full'
-  if (columns >= BANNER_WORDMARK_WIDTH) return 'wordmark'
-  return 'plain'
+export const BANNER_ROWS = { full: 19, wordmark: 21, plain: 10 } as const
+
+/**
+ * Pick the largest tier that fits both ways.
+ *
+ * Three visible tiers rather than two because the drop from the full spread to
+ * a single text line is a 45-column cliff: between those bounds the wordmark
+ * still fits perfectly well on its own, and it is the half that carries the
+ * product's name.
+ *
+ * `none` exists because height cannot be solved the way width is. Every width
+ * tier keeps all four meta facts, so there is always *something* worth drawing
+ * at any width; height has no such floor — a terminal with nine rows left over
+ * cannot show a ten-row box, and a box drawn anyway does not clip, it overflows
+ * the live frame and overlaps whatever is under it (§1.1). The banner is
+ * decoration with a `/clear` to bring it back; the prompt is not. So the banner
+ * is what yields.
+ * @param columns - `stdout.columns`.
+ * @param availableRows - rows the banner may occupy. Defaults to unlimited,
+ * which is what a caller that only cares about the width tier wants.
+ */
+export function bannerTier(columns: number, availableRows = Infinity): BannerTier {
+  const byWidth = columns >= BANNER_MIN_WIDTH
+    ? 'full'
+    : columns >= BANNER_WORDMARK_WIDTH ? 'wordmark' : 'plain'
+  if (availableRows >= BANNER_ROWS[byWidth]) return byWidth
+  // Falling back is always to `plain`: it is the shortest tier, and the one
+  // above it may be the taller of the two width tiers.
+  if (availableRows >= BANNER_ROWS.plain) return 'plain'
+  return 'none'
 }
 
 /**
