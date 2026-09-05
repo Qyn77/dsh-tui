@@ -276,9 +276,13 @@ export interface ProbeOptions {
  * OSC 11 ignore it silently, so "no answer" is the common case rather than the
  * exceptional one, and it has to cost a bounded wait and then nothing. The
  * caller is expected to fire this early and await it late — `index.ts` starts it
- * right after the TTY checks and reads it just before `render()`, with the
- * loader await, the resume plan, and agent creation in between, so the round
- * trip overlaps work that was happening anyway.
+ * right after the TTY checks (and only under `theme: 'auto'`) and reads it just
+ * before `render()`, with the loader await, the resume plan, and agent creation
+ * in between, so the round trip overlaps work that was happening anyway. The
+ * caller then holds stdin raw+paused for the rest of that window, because this
+ * function returns the terminal to the echo-on mode it found, and keystrokes
+ * typed while the boot is still running would be echoed above Ink's undrawn
+ * frame — see `index.ts` for the hold and its release.
  * @param options - streams, deadline, and the `COLORFGBG` fallback.
  * @returns the appearance, or `undefined` when nothing could be determined.
  */

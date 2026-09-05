@@ -147,179 +147,226 @@ async function run(ctx: Context, config: Config): Promise<void> {
       'needs an interactive terminal — stdout is not a TTY. Piping the UI to a file or another process is not a supported mode.',
     )
   }
+  // Read once, before anything else touches the terminal. The App takes the
+  // language as a prop and owns it as state from there, so this is the only
+  // place the process touches `~/.dsh/tui.json` on the way in; `/language`,
+  // `/theme` and `/history` write it back out. It has moved up here because
+  // the theme decides whether the appearance probe runs at all.
+  const { language, theme, history } = readSettings()
   // Asked here and read just before `render()`, with the loader await, the
   // resume plan, and agent creation in between — so the terminal's round trip
   // overlaps work that was happening anyway and costs the boot nothing. It has
   // to happen *before* Ink mounts, because after that stdin is Ink's and a
   // reply would be typed into the prompt; see `probeAppearance`.
-  const detecting = probeAppearance({
-    stdin: process.stdin,
-    stdout: process.stdout,
-    colorFgBg: process.env['COLORFGBG'],
-  })
-
-  // Loader siblings mount concurrently. Await the complete application before
-  // creating an Agent so its scoped tools and adapters are not half-composed.
-  await service(ctx, 'loader')?.await()
-  const agents = service(ctx, 'agents')
-  const defaultModel = service(ctx, 'agentDefaultModel')
-  if (agents === undefined || defaultModel === undefined) return
-
-  const selection = defaultModel.currentSelection()
-  // The mutable ref that `installModelSelection` reads at prompt assembly.
-  // Hoisted to `run()` scope so it can be passed to the App as a prop —
-  // `/model` writes it here, and the next step picks it up.
-  const ref: ModelSelectionRef = { current: selection, assembled: undefined }
-  // Resolved before the agent exists, because the answer decides which factory
-  // call makes it. A request that cannot be honoured does not stop the boot; it
-  // becomes a notice the App shows, since anything written to stderr from here
-  // is erased by the alternate screen.
-  const plan = await planResume(ctx, config.resume ?? requestFromEnv())
-  const setup = (agentCtx: Context): void => {
-    installModelSelection(agentCtx, ref)
-  }
-  const agentOptions = { provider: selection.provider, model: selection.model }
-  // The whole handle, not just `agent`: `dispose()` is what unwinds an agent's
-  // scope, and `/resume` swapping one out mid-session has to call it or every
-  // switch leaks the previous agent's listeners and tools. At boot the leak was
-  // invisible, because process exit collected it.
-  let handle = plan.kind === 'resume'
-    ? await agents.resume({ resumeSessionId: plan.id, agentOptions, setup })
-    : await agents.create({
-      sessionId: SessionId(`tui-${randomUUID()}`),
-      meta: { cwd: process.cwd() },
-      agentOptions,
-      setup,
+  //
+  // Only `auto` asks: an explicit `dark` or `light` has already decided, and a
+  // probe nobody reads is not merely wasted — it is a data listener competing
+  // with Ink's reader if the boot ever outruns the deadline.
+  const detecting = theme === 'auto'
+    ? probeAppearance({
+      stdin: process.stdin,
+      stdout: process.stdout,
+      colorFgBg: process.env['COLORFGBG'],
     })
-
-  // Ctrl-C is handled inside the App via Ink's useInput — Ink's raw mode
-  // does not deliver SIGINT on Ctrl-C, so a process-level signal handler
-  // is dead code. The exit function still lives here so AGENTS.md rule 7
-  // ("no process.exit outside commands.ts and index.ts") is preserved:
-  // the App calls it through a prop and never touches process.exit
-  // itself. The dispatch logic is in `interrupt.ts`.
-  const exitHook: AppExit = appExit(ctx) ?? ((code: number) => process.exit(code))
-
-  const alternateScreen = process.stdout.isTTY
+    : undefined
+  // Hold the keyboard for the whole boot window.
+  //
+  // The probe returns the terminal to the mode it found, which at boot is
+  // canonical with echo on — and everything between that and Ink's mount (the
+  // loader await, the resume plan, agent creation) would otherwise run that
+  // way. Keystrokes typed at a screen that looks ready are echoed by the tty
+  // at the cursor, above the frame Ink has not drawn yet, and the ones typed
+  // while the probe's listener was attached are swallowed into its buffer.
+  // Raw mode silences the echo; pausing keeps the bytes queued in the
+  // terminal rather than flowing into a stream nobody is reading, so the
+  // first keystrokes land in the prompt once Ink mounts and reads. Ink sets
+  // its own raw mode at mount and clears it at unmount; the release in the
+  // finally below covers the paths that never get that far.
+  let heldStdin = false
   try {
-    if (alternateScreen) {
-      internals.stdout.write(ALT_SCREEN_ENTER)
-      internals.stdout.write(ALT_SCROLL_ENTER)
-      internals.stdout.write(BRACKETED_PASTE_ENTER)
+    process.stdin.setRawMode(true)
+    process.stdin.pause()
+    heldStdin = true
+  } catch {
+    // A stdin that refuses raw mode is the degraded case the probe already
+    // tolerates: boot continues, and the boot window keeps its old behaviour
+    // rather than failing a UI over an input preference.
+  }
+
+  try {
+    // Loader siblings mount concurrently. Await the complete application before
+    // creating an Agent so its scoped tools and adapters are not half-composed.
+    await service(ctx, 'loader')?.await()
+    const agents = service(ctx, 'agents')
+    const defaultModel = service(ctx, 'agentDefaultModel')
+    if (agents === undefined || defaultModel === undefined) return
+
+    const selection = defaultModel.currentSelection()
+    // The mutable ref that `installModelSelection` reads at prompt assembly.
+    // Hoisted to `run()` scope so it can be passed to the App as a prop —
+    // `/model` writes it here, and the next step picks it up.
+    const ref: ModelSelectionRef = { current: selection, assembled: undefined }
+    // Resolved before the agent exists, because the answer decides which factory
+    // call makes it. A request that cannot be honoured does not stop the boot; it
+    // becomes a notice the App shows, since anything written to stderr from here
+    // is erased by the alternate screen.
+    const plan = await planResume(ctx, config.resume ?? requestFromEnv())
+    const setup = (agentCtx: Context): void => {
+      installModelSelection(agentCtx, ref)
     }
-    // Filled in by the App's mount effect; the resize owner borrows it to
-    // force the settled frame onto the screen. See `resize.ts`.
-    const repaint: RepaintRef = { current: undefined }
-    // Read once, at the boundary. The App takes the language as a prop and owns
-    // it as state from there, so this is the only place the process touches
-    // `~/.dsh/tui.json` on the way in; `/language`, `/theme` and `/history`
-    // write it back out.
-    const { language, theme, history } = readSettings()
-    // `auto` is the only setting that needs the probe's answer; an explicit
-    // `dark` or `light` has already decided, so it does not wait even the
-    // deadline. The App still receives the measurement — under `auto` it is
-    // what `/theme` reports back.
-    const detected = theme === 'auto' ? await detecting : undefined
-    // Assigned once Ink has mounted. `swapSession` is built before `instance`
-    // exists but only ever called from a keystroke, long after.
-    let redraw: () => void = () => {}
-    const swapSession: SwapSession = async (request) => {
-      // Refused rather than cancelled: switching away would make the running
-      // turn's output unreachable, and the user asking for another session is
-      // not necessarily aware one is still going.
-      if (handle.agent.status === 'running') return { kind: 'busy' }
-      const target = await planResume(ctx, request)
-      if (target.kind === 'fresh') {
-        // A boot would start a fresh session here. Mid-session that would be a
-        // far worse answer than doing nothing: the user still has the session
-        // they were in, and throwing it away to honour a mistyped id is not a
-        // trade they asked for.
-        return { kind: 'refused', notice: target.notice ?? 'Cannot resume that session.' }
+    const agentOptions = { provider: selection.provider, model: selection.model }
+    // The whole handle, not just `agent`: `dispose()` is what unwinds an agent's
+    // scope, and `/resume` swapping one out mid-session has to call it or every
+    // switch leaks the previous agent's listeners and tools. At boot the leak was
+    // invisible, because process exit collected it.
+    let handle = plan.kind === 'resume'
+      ? await agents.resume({ resumeSessionId: plan.id, agentOptions, setup })
+      : await agents.create({
+        sessionId: SessionId(`tui-${randomUUID()}`),
+        meta: { cwd: process.cwd() },
+        agentOptions,
+        setup,
+      })
+
+    // Ctrl-C is handled inside the App via Ink's useInput — Ink's raw mode
+    // does not deliver SIGINT on Ctrl-C, so a process-level signal handler
+    // is dead code. The exit function still lives here so AGENTS.md rule 7
+    // ("no process.exit outside commands.ts and index.ts") is preserved:
+    // the App calls it through a prop and never touches process.exit
+    // itself. The dispatch logic is in `interrupt.ts`.
+    const exitHook: AppExit = appExit(ctx) ?? ((code: number) => process.exit(code))
+
+    const alternateScreen = process.stdout.isTTY
+    try {
+      if (alternateScreen) {
+        internals.stdout.write(ALT_SCREEN_ENTER)
+        internals.stdout.write(ALT_SCROLL_ENTER)
+        internals.stdout.write(BRACKETED_PASTE_ENTER)
       }
-      // `/resume` aimed at the session already on screen. Left to run, the
-      // registry would reject a second agent on a live id, and the user would
-      // get a registry error where the honest answer is "you are already here".
-      if (target.id === handle.agent.id) return { kind: 'current', id: target.id }
-      const previous = handle
-      let next
-      try {
-        next = await agents.resume({ resumeSessionId: target.id, agentOptions, setup })
-      } catch (error) {
-        // The store listed it a moment ago, so this is a load or setup failure
-        // rather than a bad id. Caught rather than left to the dispatcher's
-        // rejection path because only here is it known that nothing was
-        // swapped: the user still has the session they were in, and the
-        // message can say so instead of reading like a lost transcript.
-        return {
-          kind: 'refused',
-          notice: `Cannot resume ${target.id}: ${error instanceof Error ? error.message : String(error)}`,
+      // Filled in by the App's mount effect; the resize owner borrows it to
+      // force the settled frame onto the screen. See `resize.ts`.
+      const repaint: RepaintRef = { current: undefined }
+      // The probe was started before the hold, so its answer (or its deadline)
+      // is already in by now under `auto`; an explicit preference never asked.
+      // The App still receives the measurement — under `auto` it is what
+      // `/theme` reports back.
+      const detected = detecting === undefined ? undefined : await detecting
+      // Assigned once Ink has mounted. `swapSession` is built before `instance`
+      // exists but only ever called from a keystroke, long after.
+      let redraw: () => void = () => {}
+      const swapSession: SwapSession = async (request) => {
+        // Refused rather than cancelled: switching away would make the running
+        // turn's output unreachable, and the user asking for another session is
+        // not necessarily aware one is still going.
+        if (handle.agent.status === 'running') return { kind: 'busy' }
+        const target = await planResume(ctx, request)
+        if (target.kind === 'fresh') {
+          // A boot would start a fresh session here. Mid-session that would be a
+          // far worse answer than doing nothing: the user still has the session
+          // they were in, and throwing it away to honour a mistyped id is not a
+          // trade they asked for.
+          return { kind: 'refused', notice: target.notice ?? 'Cannot resume that session.' }
         }
+        // `/resume` aimed at the session already on screen. Left to run, the
+        // registry would reject a second agent on a live id, and the user would
+        // get a registry error where the honest answer is "you are already here".
+        if (target.id === handle.agent.id) return { kind: 'current', id: target.id }
+        const previous = handle
+        let next
+        try {
+          next = await agents.resume({ resumeSessionId: target.id, agentOptions, setup })
+        } catch (error) {
+          // The store listed it a moment ago, so this is a load or setup failure
+          // rather than a bad id. Caught rather than left to the dispatcher's
+          // rejection path because only here is it known that nothing was
+          // swapped: the user still has the session they were in, and the
+          // message can say so instead of reading like a lost transcript.
+          return {
+            kind: 'refused',
+            notice: `Cannot resume ${target.id}: ${error instanceof Error ? error.message : String(error)}`,
+          }
+        }
+        handle = next
+        // Draw the new session before unwinding the old one, so no frame is ever
+        // rendered against a disposed agent.
+        redraw()
+        // The switch has already happened and is on screen; a failure to unwind
+        // the previous scope is a leak, not something to report as a failed
+        // resume, and reporting it would contradict what the user is looking at.
+        await previous.dispose().catch(() => {})
+        return { kind: 'switched', id: target.id }
       }
-      handle = next
-      // Draw the new session before unwinding the old one, so no frame is ever
-      // rendered against a disposed agent.
-      redraw()
-      // The switch has already happened and is on screen; a failure to unwind
-      // the previous scope is a leak, not something to report as a failed
-      // resume, and reporting it would contradict what the user is looking at.
-      await previous.dispose().catch(() => {})
-      return { kind: 'switched', id: target.id }
-    }
-    const element = (): React.ReactElement =>
-      React.createElement(App, {
-        ctx,
-        agent: handle.agent,
-        exit: exitHook,
-        repaint,
-        modelRef: ref,
-        lang: language,
-        themePref: theme,
-        historyPref: history,
-        swapSession,
-        ...detected === undefined ? {} : { appearance: detected },
-        ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
-        // A boot resume with the history hidden draws an empty transcript, and
-        // an empty transcript after asking for a resume reads as a failure.
-        // The notice says what actually happened, in English for the same
-        // reason the boot notice is: the language preference has not been read
-        // into the App yet, and this line is what it shows first.
-        ...plan.kind === 'resume' && history === 'hide'
-          ? { notice: `Resumed ${shortId(plan.id)} with its history hidden — the model still reads it. /history show draws it.` }
-          : {},
+      const element = (): React.ReactElement =>
+        React.createElement(App, {
+          ctx,
+          agent: handle.agent,
+          exit: exitHook,
+          repaint,
+          modelRef: ref,
+          lang: language,
+          themePref: theme,
+          historyPref: history,
+          swapSession,
+          ...detected === undefined ? {} : { appearance: detected },
+          ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
+          // A boot resume with the history hidden draws an empty transcript, and
+          // an empty transcript after asking for a resume reads as a failure.
+          // The notice says what actually happened, in English for the same
+          // reason the boot notice is: the language preference has not been read
+          // into the App yet, and this line is what it shows first.
+          ...plan.kind === 'resume' && history === 'hide'
+            ? { notice: `Resumed ${shortId(plan.id)} with its history hidden — the model still reads it. /history show draws it.` }
+            : {},
+        })
+      const instance = inkRender(element(), {
+        exitOnCtrlC: false,
+        patchConsole: false,
       })
-    const instance = inkRender(element(), {
-      exitOnCtrlC: false,
-      patchConsole: false,
-    })
-    redraw = () => { instance.rerender(element()) }
-    // Resize repainting has exactly one owner and it lives outside React.
-    // The primary screen never gets one: without the alternate screen there
-    // is no frame of ours to repair.
-    let detachResize: (() => void) | undefined
-    if (alternateScreen) {
-      detachResize = installResizeOwner({
-        stdout: process.stdout,
-        clear: instance.clear,
-        rerender: () => { instance.rerender(element()) },
-        repaint,
-        log: resizeDebug ? resizeLog : undefined,
-      })
+      redraw = () => { instance.rerender(element()) }
+      // Resize repainting has exactly one owner and it lives outside React.
+      // The primary screen never gets one: without the alternate screen there
+      // is no frame of ours to repair.
+      let detachResize: (() => void) | undefined
+      if (alternateScreen) {
+        detachResize = installResizeOwner({
+          stdout: process.stdout,
+          clear: instance.clear,
+          rerender: () => { instance.rerender(element()) },
+          repaint,
+          log: resizeDebug ? resizeLog : undefined,
+        })
+      }
+      instance.cleanup()
+      await instance.waitUntilExit()
+      detachResize?.()
+      instance.unmount()
+    } finally {
+      // If Ink exits through an error, never leave the shell in the alternate
+      // screen buffer — or in alternate scroll mode, which would leave the
+      // user's wheel sending arrow keys to whatever runs next, or in bracketed
+      // paste, which would make the next shell echo `[200~` around every paste.
+      if (alternateScreen) {
+        internals.stdout.write(BRACKETED_PASTE_EXIT)
+        internals.stdout.write(ALT_SCROLL_EXIT)
+        internals.stdout.write(ALT_SCREEN_EXIT)
+      }
+      // no signal handler to detach
     }
-    instance.cleanup()
-    await instance.waitUntilExit()
-    detachResize?.()
-    instance.unmount()
   } finally {
-    // If Ink exits through an error, never leave the shell in the alternate
-    // screen buffer — or in alternate scroll mode, which would leave the
-    // user's wheel sending arrow keys to whatever runs next, or in bracketed
-    // paste, which would make the next shell echo `[200~` around every paste.
-    if (alternateScreen) {
-      internals.stdout.write(BRACKETED_PASTE_EXIT)
-      internals.stdout.write(ALT_SCROLL_EXIT)
-      internals.stdout.write(ALT_SCREEN_EXIT)
+    // Release the boot hold on every path, including the ones that never reach
+    // Ink (a loader failure, a resume that could not load). On the paths that
+    // do, Ink's unmount has already restored the mode and this is idempotent;
+    // on the ones that do not, the shell is about to be handed back a raw
+    // keyboard, where every keystroke arrives unbuffered and unechoed — the
+    // state Ink is expected to undo, undone here instead.
+    if (heldStdin) {
+      try {
+        process.stdin.setRawMode(false)
+      } catch {
+        // Nothing further to try: the same refusal that made the hold partial
+        // makes the release partial, and the frame is done either way.
+      }
     }
-    // no signal handler to detach
   }
 }
 
