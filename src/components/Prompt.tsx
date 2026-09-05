@@ -51,6 +51,7 @@ import {
 import {
   MAX_PROMPT_ROWS,
   cursorAt,
+  paletteWindowRows,
   moveVertically,
   scrollbarColumn,
   visibleStart,
@@ -196,6 +197,12 @@ export const Prompt: FC<PromptProps> = ({
   // cursor from rapid input never escapes.
   const palette = isPaletteMode(value) ? filterCommands(value, extraCommands, lang) : []
   const safePaletteIndex = clampPaletteIndex(paletteIndex, palette)
+
+  // How tall either floating list may get. Read from the live terminal
+  // height rather than fixed, because the App's root box has a fixed height
+  // and an overflowing subtree overlaps instead of scrolling — see
+  // `paletteWindowRows`. Ink re-renders the tree on resize, so this tracks.
+  const paletteRows = paletteWindowRows(stdout?.rows ?? 24)
 
   // The `@` picker. Suppressed while the `/` palette is open so the two can
   // never both claim ↑/↓ or Tab — `/` wins because it is anchored to the first
@@ -574,7 +581,7 @@ export const Prompt: FC<PromptProps> = ({
     <Box flexDirection="column">
       {palette.length > 0 ? (
         <Box marginBottom={1}>
-          <SlashPalette commands={palette} selected={safePaletteIndex} />
+          <SlashPalette commands={palette} selected={safePaletteIndex} maxRows={paletteRows} />
         </Box>
       ) : null}
       {picking ? (
@@ -585,6 +592,7 @@ export const Prompt: FC<PromptProps> = ({
               : [{ name: strings.palette.scanning, description: '' }]}
             selected={fileRows.length > 0 ? safeFileIndex : -1}
             hint={strings.palette.fileHint}
+            maxRows={paletteRows}
           />
         </Box>
       ) : null}

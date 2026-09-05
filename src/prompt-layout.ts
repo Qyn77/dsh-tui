@@ -20,6 +20,40 @@ import { displayWidth } from './width.ts'
  */
 export const MAX_PROMPT_ROWS = 10
 
+/**
+ * Rows of *list* the floating palette may show at once.
+ *
+ * Eight, to match `MAX_MENTION_ROWS` — the `@` picker and the `/` palette are
+ * the same component and a reader comparing them should not have to explain a
+ * difference. The built-in command table alone is fifteen rows, so without a
+ * cap the palette is taller than a short terminal on its own.
+ */
+export const MAX_PALETTE_ROWS = 8
+
+/**
+ * Rows the palette's list gets on a terminal of `terminalRows` rows.
+ *
+ * Load-bearing, not cosmetic. The App gives its root box a fixed
+ * `rows - 3` height so Ink stays on log-update's incremental path; a subtree
+ * that overflows that height does not scroll, it *overlaps* — Yoga lays the
+ * extra rows on top of the ones already there and the frame comes out with
+ * two commands printed on one line, or with fragments of the palette stranded
+ * above the StatusBar until the next resize repaints everything. The palette
+ * is the one subtree whose height is driven by data rather than by the
+ * viewport, so it is the one that has to yield.
+ *
+ * The reserve covers everything the palette shares the frame with: the
+ * StatusBar (3), the prompt box (3), the palette's own border, blank row and
+ * hint (4), and the App's three-row gap to the bottom of the screen.
+ * @param terminalRows - `stdout.rows`.
+ * @returns at least one row, never more than {@link MAX_PALETTE_ROWS}.
+ */
+export function paletteWindowRows(terminalRows: number): number {
+  const RESERVED = 13
+  const available = Math.floor(terminalRows) - RESERVED
+  return Math.max(1, Math.min(MAX_PALETTE_ROWS, available))
+}
+
 /** Scrollbar glyphs. The track is drawn dim; the thumb is not. */
 const THUMB = '█'
 const TRACK = '│'

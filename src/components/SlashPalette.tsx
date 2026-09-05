@@ -14,6 +14,10 @@
  *     Claude Code and most TUIs signal "current selection".
  *   - The name column is padded to a fixed width so the descriptions
  *     line up.
+ *   - The list is windowed to `maxRows` and scrolls to keep the selection
+ *     visible, with a count of what is off-screen next to the hint. This is
+ *     load-bearing rather than cosmetic: see `paletteWindowRows` in
+ *     `prompt-layout.ts`.
  * The palette does not own any state itself; the parent passes
  * `commands` and `selected` so the same index can drive the highlight
  * and any completion actions.
@@ -23,6 +27,7 @@
 import React, { type FC } from 'react'
 import { Box, Text } from 'ink'
 import type { CommandMeta } from '../commands.ts'
+import { MAX_PALETTE_ROWS, visibleStart } from '../prompt-layout.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link SlashPalette}. */
@@ -33,6 +38,11 @@ export interface SlashPaletteProps {
   selected: number
   /** Key legend for the last row. Defaults to the `/` palette's. */
   hint?: string
+  /**
+   * Rows of list to show at once. Defaults to {@link MAX_PALETTE_ROWS}; the
+   * Prompt passes `paletteWindowRows` of the live terminal height.
+   */
+  maxRows?: number
 }
 
 /** Padded width of the name column. Two spaces of gutter, then name, then gutter. */
@@ -50,10 +60,20 @@ function nameColumnWidth(commands: readonly CommandMeta[]): number {
   return max + NAME_GUTTER
 }
 
-export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint }) => {
+export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint, maxRows }) => {
   const strings = useStrings()
   if (commands.length === 0) return null
-  const colWidth = nameColumnWidth(commands)
+  // The window is derived, never stored: `selected` is the only thing that
+  // moves it, so a sticky `previous` would be memory with nothing to
+  // remember. Passing 0 makes the list sit at the top until the selection
+  // walks past the bottom edge, then follow it a row at a time.
+  const window = Math.max(1, Math.floor(maxRows ?? MAX_PALETTE_ROWS))
+  const start = visibleStart(commands.length, selected, window, 0)
+  const shown = commands.slice(start, start + window)
+  const hidden = commands.length - shown.length
+  // Width comes from the visible slice, so scrolling cannot leave the
+  // descriptions indented for a name that is no longer on screen.
+  const colWidth = nameColumnWidth(shown)
   return (
     <Box
       borderStyle="round"
@@ -61,8 +81,8 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint }
       flexDirection="column"
       paddingX={1}
     >
-      {commands.map((cmd, i) => {
-        const isSelected = i === selected
+      {shown.map((cmd, i) => {
+        const isSelected = start + i === selected
         // Pad the name with trailing spaces so the descriptions line
         // up at a fixed column. The trailing `·` is the visual
         // separator Claude Code uses.
@@ -99,6 +119,7 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint }
       <Box marginTop={1}>
         <Text color="gray" dimColor>
           {hint ?? strings.palette.hint}
+          {hidden > 0 ? strings.palette.more(hidden) : ''}
         </Text>
       </Box>
     </Box>

@@ -122,6 +122,8 @@ export interface Catalog {
     fileHint: string
     /** Shown instead of rows while the first directory scan is in flight. */
     scanning: string
+    /** Appended to the hint when the window hides rows. */
+    more: (count: number) => string
   }
   /** The permission card that replaces the prompt while a tool waits. */
   approval: {
@@ -351,6 +353,7 @@ const EN: Catalog = {
     hint: '↑↓ navigate · Tab complete · Enter run · Esc dismiss',
     fileHint: '↑↓ navigate · Tab or Enter insert path · Esc dismiss',
     scanning: 'scanning files…',
+    more: count => ` · +${count} more`,
   },
   approval: {
     title: 'Permission required',
@@ -540,6 +543,7 @@ const ZH: Catalog = {
     hint: '↑↓ 选择 · Tab 补全 · Enter 执行 · Esc 关闭',
     fileHint: '↑↓ 选择 · Tab 或 Enter 插入路径 · Esc 关闭',
     scanning: '正在扫描文件…',
+    more: count => ` · 还有 ${count} 条`,
   },
   approval: {
     title: '需要授权',

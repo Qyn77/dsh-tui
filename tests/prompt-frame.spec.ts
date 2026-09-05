@@ -667,6 +667,76 @@ describe('the @ file picker', () => {
 })
 
 /**
+ * The floating palette against a terminal that cannot hold it.
+ *
+ * The App gives its root box a fixed `stdout.rows - 3` height so Ink stays on
+ * log-update's incremental path. Yoga does not scroll a subtree that
+ * overflows a fixed height — it lays the surplus rows over the ones already
+ * there. So an uncapped palette does not merely look cramped: it prints two
+ * commands on one line, eats the StatusBar and the prompt box, and strands
+ * fragments of itself on screen until the next resize repaints everything.
+ * Which is precisely the "leftover re-rendered content" a 24-row window
+ * showed with the fifteen built-in commands listed at once.
+ */
+describe('the palette on a terminal too short to hold it', () => {
+  it('shows every command when the terminal has room for them', async () => {
+    const painted = await paintApp({ turns: 2, rows: 60 })
+    await painted.send('/c')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // `/clear`, `/context`, `/copy` — the whole `c` family, no counter.
+    expect(screen).toContain('/clear')
+    expect(screen).toContain('/context')
+    expect(screen).toContain('/copy')
+    expect(screen).not.toContain('more')
+  })
+
+  it('windows the list rather than overflowing a 24-row terminal', async () => {
+    const painted = await paintApp({ turns: 2, rows: 24 })
+    await painted.send('/')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // Eight rows shown, the rest counted. Without the cap all fifteen were
+    // laid out, and the frame came back with `/quit` and `/plugins` printed
+    // on the same line.
+    expect(screen).toContain('/clear')
+    expect(screen).toContain('/plugins')
+    expect(screen).not.toContain('/verbose')
+    expect(screen).toContain('+7 more')
+  })
+
+  it('leaves the StatusBar and the prompt box whole underneath it', async () => {
+    // The palette consumed its neighbours before it consumed itself. The
+    // StatusBar's identity row vanished under the token row, and the prompt
+    // box lost its top border to its own content — the frame came back with
+    // a line reading `╰─> /▌────`, which is the debris a resize was clearing.
+    const painted = await paintApp({ turns: 2, rows: 24 })
+    await painted.send('/')
+    const rows = painted.screen().split('\n')
+    painted.unmount()
+
+    expect(rows.some(row => row.includes('session: tui-fram'))).toBe(true)
+    expect(rows.some(row => /^│ > \/▌/.test(row))).toBe(true)
+    expect(rows.some(row => row.includes('╰─>'))).toBe(false)
+  })
+
+  it('scrolls the window down to keep the selection visible', async () => {
+    const painted = await paintApp({ turns: 2, rows: 24 })
+    await painted.send('/')
+    // Fourteen downs is the last of the fifteen built-ins: far enough past
+    // the eighth row to have dragged the window all the way to the bottom.
+    for (let i = 0; i < 14; i += 1) await painted.send(`${ESC}[B`)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('/verbose')
+    expect(screen).not.toContain('/clear')
+  })
+})
+
+/**
  * Typing while the model works. The prompt used to go inert for the whole
  * turn, so every one of these keystrokes had nowhere to land; making the box
  * live during a turn is what puts the frame back in play, and the frame is

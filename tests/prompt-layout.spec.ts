@@ -10,11 +10,13 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  MAX_PALETTE_ROWS,
   MAX_PROMPT_ROWS,
   columnAt,
   cursorAt,
   moveVertically,
   offsetAtColumn,
+  paletteWindowRows,
   scrollbarColumn,
   visibleStart,
   wrapBuffer,
@@ -191,6 +193,27 @@ describe('MAX_PROMPT_ROWS', () => {
     // detail: ten rows plus the border is twelve, which still leaves a
     // usable conversation on a 24-row terminal.
     expect(MAX_PROMPT_ROWS).toBe(10)
+  })
+})
+
+describe('paletteWindowRows', () => {
+  it('gives the palette its full window on a roomy terminal', () => {
+    expect(paletteWindowRows(40)).toBe(MAX_PALETTE_ROWS)
+    expect(paletteWindowRows(24)).toBe(MAX_PALETTE_ROWS)
+  })
+
+  it('shrinks with the terminal, because an overflowing palette overlaps', () => {
+    // The App's root box has a fixed `rows - 3` height. A subtree taller
+    // than that does not scroll — Yoga draws the surplus rows on top of the
+    // ones already there, which is the debris this cap exists to prevent.
+    expect(paletteWindowRows(20)).toBe(7)
+    expect(paletteWindowRows(18)).toBe(5)
+  })
+
+  it('never returns less than one row, however short the terminal', () => {
+    expect(paletteWindowRows(13)).toBe(1)
+    expect(paletteWindowRows(5)).toBe(1)
+    expect(paletteWindowRows(0)).toBe(1)
   })
 })
 
