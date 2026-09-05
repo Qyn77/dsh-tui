@@ -13,7 +13,7 @@ import { render } from 'ink'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import { ApprovalPrompt } from '../src/components/ApprovalPrompt.tsx'
 import type { PendingApproval } from '../src/hooks/useApprovalRequests.ts'
-import { ESC, fakeStdout, fakeTtyStdin, strip } from './fake-tty.ts'
+import { ESC, fakeStdout, fakeTtyStdin, paintApp, strip } from './fake-tty.ts'
 
 const { act } = React
 
@@ -24,7 +24,10 @@ interface Painted {
   unmount: () => void
 }
 
-async function paint(pending: readonly PendingApproval[]): Promise<Painted> {
+async function paint(
+  pending: readonly PendingApproval[],
+  argsFor?: (callId: string) => string | undefined,
+): Promise<Painted> {
   const stdout = fakeStdout(60, 10)
   const stdin = fakeTtyStdin()
   const answers: [number, ApprovalOutcome][] = []
@@ -32,6 +35,7 @@ async function paint(pending: readonly PendingApproval[]): Promise<Painted> {
     React.createElement(ApprovalPrompt, {
       pending,
       onAnswer: (id, outcome) => { answers.push([id, outcome]) },
+      ...argsFor === undefined ? {} : { argsFor },
     }),
     { stdout: stdout as never, stdin, patchConsole: false, debug: true },
   )
@@ -128,5 +132,110 @@ describe('ApprovalPrompt', () => {
     await view.press('\r')
     expect(view.answers).toEqual([])
     view.unmount()
+  })
+})
+
+/**
+ * The arguments on the card. `ApprovalRequest` carries none — a tool name, a
+ * reason and a `callId` is the whole of it — so everything here depends on the
+ * id finding the call in the log the App already streamed. "Allow Bash?" is
+ * not a question anyone can answer, which is what these pin.
+ */
+describe('ApprovalPrompt · what the call would do', () => {
+  const asked: PendingApproval[] = [{ id: 1, toolName: 'Bash', callId: 'call-1' as never }]
+
+  it('lists every argument, not just the identifying one', async () => {
+    const view = await paint(asked, () => JSON.stringify({
+      command: 'rm -rf ./build',
+      timeout: 5000,
+    }))
+    const frame = view.frame()
+    view.unmount()
+
+    expect(frame).toContain('command:')
+    expect(frame).toContain('rm -rf ./build')
+    // The transcript's summary would have dropped this one, and it is part of
+    // what the user is being asked to authorise.
+    expect(frame).toContain('timeout:')
+    expect(frame).toContain('5000')
+  })
+
+  it('still draws the card when the call is not in the log', async () => {
+    const view = await paint(asked, () => undefined)
+    const frame = view.frame()
+    view.unmount()
+
+    expect(frame).toContain('Permission required')
+    expect(frame).toContain('Bash')
+    expect(frame).toContain('y allow once')
+  })
+
+  it('asks nothing of the log when the request named no call', async () => {
+    const lookups: string[] = []
+    const view = await paint([{ id: 1, toolName: 'Bash' }], (id) => {
+      lookups.push(id)
+      return '{}'
+    })
+    view.unmount()
+
+    expect(lookups).toEqual([])
+  })
+})
+
+/**
+ * The same feature through the real App, which is the only place the link is
+ * actually made: the component is handed a resolver, and whether that resolver
+ * finds the right call is the renderer's job. A stubbed `argsFor` cannot fail
+ * the way a wrong `callId` match would.
+ */
+describe('the permission card inside the App', () => {
+  it('finds the call in the log and shows what it would run', async () => {
+    const painted = await paintApp()
+    await painted.append('turn/start', { turn: 1 })
+    await painted.append('tool/call', {
+      turn: 1,
+      step: 1,
+      callId: 'call-7',
+      name: 'Bash',
+      arguments: JSON.stringify({ command: 'rm -rf ./build', timeout: 5000 }),
+    })
+    void painted.ctx.waterfall(
+      'approval/request',
+      { agent: painted.agent, toolName: 'Bash', callId: 'call-7' } as never,
+      () => Promise.resolve<ApprovalOutcome>('unavailable'),
+    )
+    await painted.settle(60)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('Permission required')
+    expect(screen).toContain('rm -rf ./build')
+    expect(screen).toContain('timeout:')
+  })
+
+  it('does not confuse it with an earlier call by another tool', async () => {
+    const painted = await paintApp()
+    await painted.append('turn/start', { turn: 1 })
+    await painted.append('tool/call', {
+      turn: 1, step: 1, callId: 'call-6', name: 'Read',
+      arguments: JSON.stringify({ file_path: 'src/decoy.ts' }),
+    })
+    await painted.append('tool/call', {
+      turn: 1, step: 1, callId: 'call-7', name: 'Bash',
+      arguments: JSON.stringify({ command: 'rm -rf ./build' }),
+    })
+    void painted.ctx.waterfall(
+      'approval/request',
+      { agent: painted.agent, toolName: 'Bash', callId: 'call-7' } as never,
+      () => Promise.resolve<ApprovalOutcome>('unavailable'),
+    )
+    await painted.settle(60)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('command:')
+    // The decoy's own transcript row still says `Read(src/decoy.ts)`, so the
+    // assertion is about the card's `key: value` shape, which only it draws.
+    expect(screen).not.toContain('file_path:')
   })
 })

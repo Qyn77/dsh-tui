@@ -28,6 +28,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
+import type { CallId } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 
@@ -39,6 +40,15 @@ export interface PendingApproval {
   readonly toolName: string
   /** The asker's explanation of why it is asking, when it gave one. */
   readonly reason?: string
+  /**
+   * The tool call being decided, when the asker named one.
+   *
+   * The request carries no arguments — only a name, this id and a reason — so
+   * this is the whole of the link between the question and the call it is
+   * about. The App already streamed that call into the log with its arguments
+   * attached, and the id is what finds it there.
+   */
+  readonly callId?: CallId
 }
 
 /** The queue plus the one operation the view performs on it. */
@@ -99,10 +109,16 @@ export function useApprovalRequests(ctx: Context, agent: Agent): ApprovalQueue {
           id,
           toolName: req.toolName,
           ...req.reason !== undefined ? { reason: req.reason } : {},
+          ...req.callId !== undefined ? { callId: req.callId } : {},
           settle: once,
         }
         held.current.set(id, entry)
-        setPending(list => [...list, { id, toolName: entry.toolName, ...entry.reason !== undefined ? { reason: entry.reason } : {} }])
+        setPending(list => [...list, {
+          id,
+          toolName: entry.toolName,
+          ...entry.reason !== undefined ? { reason: entry.reason } : {},
+          ...entry.callId !== undefined ? { callId: entry.callId } : {},
+        }])
         // The asker withdrawing is not a user decision, so it does not go
         // through `settle`'s answer path — but the card must still disappear.
         req.signal?.addEventListener('abort', () => { settle(id, 'cancelled') }, { once: true })

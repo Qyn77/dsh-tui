@@ -313,3 +313,79 @@ export type ShellStatusKind = 'timedOut' | 'signalled' | 'exit' | 'truncated' | 
 export function shellStatusRows(entry: Extract<UiEntry, { kind: 'shell' }>): 0 | 1 {
   return shellStatusKinds(entry).length > 0 ? 1 : 0
 }
+
+/**
+ * Longest argument *value* the approval card shows, in characters.
+ *
+ * Wider than {@link ARGS_MAX} because the two are answering different
+ * questions. The transcript's summary identifies a call among many, so sixty
+ * columns of the subject is plenty. The card asks the user to authorise this
+ * exact call, and the part that gets cut is the part they were being asked
+ * about — a `bash` command's tail, the flags after the subcommand.
+ */
+const APPROVAL_VALUE_MAX = 160
+
+/** Argument rows the approval card draws before it starts counting the rest. */
+const APPROVAL_MAX_ROWS = 6
+
+/** One argument of a call awaiting approval, ready to draw. */
+export interface ApprovalArg {
+  /** The argument's key, or `''` when the payload had no keys to show. */
+  key: string
+  /** The value, collapsed to one line and truncated. */
+  value: string
+}
+
+/** What the approval card draws below the tool's name. */
+export interface ApprovalArgs {
+  /** The rows to draw, at most {@link APPROVAL_MAX_ROWS}. */
+  rows: readonly ApprovalArg[]
+  /** How many arguments were left out. */
+  hidden: number
+}
+
+/**
+ * Break a tool call's arguments into the rows an approval card shows.
+ *
+ * The transcript shows one identifying argument (`Bash(pnpm test)`), which is
+ * the right amount for a line the user is skimming and the wrong amount for a
+ * line the user is authorising: whichever argument the summary dropped is
+ * exactly the one that could make the call something other than what it looks
+ * like. So every top-level key is listed, and only the *values* are shortened.
+ *
+ * Malformed JSON degrades the way {@link toolCallSummary} does — the raw
+ * payload as a single keyless row — because a model that fumbled the schema is
+ * still describing a call the user has to decide about, and showing nothing
+ * would be the one answer that helps least.
+ * @param args - the call's arguments as a JSON string; may be empty or invalid.
+ * @param maxRows - how many rows to draw before counting the rest.
+ * @returns the rows and the number of arguments they leave out.
+ */
+export function approvalArgs(args: string, maxRows: number = APPROVAL_MAX_ROWS): ApprovalArgs {
+  const trimmed = args.trim()
+  if (trimmed === '') return { rows: [], hidden: 0 }
+  const raw = (value: string): ApprovalArgs => ({
+    rows: [{ key: '', value: truncate(oneLine(value), APPROVAL_VALUE_MAX) }],
+    hidden: 0,
+  })
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    return raw(trimmed)
+  }
+  if (typeof parsed !== 'object' || parsed === null) return raw(String(parsed))
+  const entries = Object.entries(parsed as Record<string, unknown>)
+    .filter(([, value]) => value !== undefined)
+  const limit = Math.max(1, maxRows)
+  const shown = entries.slice(0, limit).map(([key, value]) => ({
+    key,
+    // A nested object or an array is re-serialised rather than shown as
+    // `[object Object]`: the shape is part of what is being authorised.
+    value: truncate(
+      oneLine(typeof value === 'string' ? value : JSON.stringify(value)),
+      APPROVAL_VALUE_MAX,
+    ),
+  }))
+  return { rows: shown, hidden: Math.max(0, entries.length - shown.length) }
+}

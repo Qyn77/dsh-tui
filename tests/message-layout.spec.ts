@@ -14,6 +14,7 @@ import { CallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import {
   EXPANDED_MAX_LINES,
+  approvalArgs,
   GUTTER_WIDTH,
   PREVIEW_MAX_LINES,
   outputPreview,
@@ -204,5 +205,71 @@ describe('toolStatusGlyph', () => {
     const glyphs = (['running', 'ok', 'error'] as const).map(toolStatusGlyph)
     expect(new Set(glyphs).size).toBe(glyphs.length)
     for (const glyph of glyphs) expect(glyph).toHaveLength(1)
+  })
+})
+
+/**
+ * `approvalArgs` answers a different question from `toolCallSummary`, and the
+ * difference is the point: the summary identifies a call among many, this one
+ * describes a call the user is about to authorise. Whichever argument the
+ * summary drops is exactly the one that could make the call something other
+ * than it looks like.
+ */
+describe('approvalArgs', () => {
+  it('lists every top-level key, including the ones the summary drops', () => {
+    const args = JSON.stringify({ command: 'rm -rf ./build', timeout: 5000 })
+
+    expect(toolCallSummary('Bash', args)).toBe('Bash(rm -rf ./build)')
+    expect(approvalArgs(args).rows).toEqual([
+      { key: 'command', value: 'rm -rf ./build' },
+      { key: 'timeout', value: '5000' },
+    ])
+  })
+
+  it('has nothing to say about an empty payload', () => {
+    expect(approvalArgs('')).toEqual({ rows: [], hidden: 0 })
+    expect(approvalArgs('   ')).toEqual({ rows: [], hidden: 0 })
+  })
+
+  it('shows malformed JSON raw rather than showing nothing', () => {
+    // A model that fumbled the schema is still describing a call somebody has
+    // to decide about.
+    const { rows, hidden } = approvalArgs('{"command": "rm -rf ./bui')
+
+    expect(hidden).toBe(0)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.key).toBe('')
+    expect(rows[0]?.value).toContain('rm -rf ./bui')
+  })
+
+  it('re-serialises a nested value instead of printing [object Object]', () => {
+    const { rows } = approvalArgs(JSON.stringify({ edits: [{ old: 'a', new: 'b' }] }))
+
+    expect(rows[0]?.value).toBe('[{"old":"a","new":"b"}]')
+  })
+
+  it('collapses a multi-line value onto its own single row', () => {
+    const { rows } = approvalArgs(JSON.stringify({ content: 'line one\nline two' }))
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.value).toBe('line one line two')
+  })
+
+  it('counts the arguments it leaves out', () => {
+    const args = JSON.stringify({ a: '1', b: '2', c: '3', d: '4' })
+    const { rows, hidden } = approvalArgs(args, 2)
+
+    expect(rows.map(r => r.key)).toEqual(['a', 'b'])
+    expect(hidden).toBe(2)
+  })
+
+  it('truncates a long value but keeps far more of it than the summary does', () => {
+    const command = 'x'.repeat(400)
+    const args = JSON.stringify({ command })
+
+    const summary = toolCallSummary('Bash', args)
+    const row = approvalArgs(args).rows[0]?.value ?? ''
+    expect(row.length).toBeGreaterThan(summary.length)
+    expect(row.endsWith('…')).toBe(true)
   })
 })

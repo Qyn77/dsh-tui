@@ -161,6 +161,14 @@ export interface Painted {
    * frame assertion about one has to be able to wait for it.
    */
   settle: (ms?: number) => Promise<void>
+  /**
+   * The context the App was mounted on, for the events that arrive as Cordis
+   * dispatches rather than as session events — `approval/request` is a
+   * waterfall on this, not a row in the log.
+   */
+  ctx: Context
+  /** The agent double the App was mounted with, to address such a request to. */
+  agent: unknown
   unmount: () => void
 }
 
@@ -280,6 +288,8 @@ export async function paintApp(
   }
   await settle()
   return {
+    ctx,
+    agent,
     screen: () => strip(stdout.frames.at(-1) ?? ''),
     written: () => stdout.frames.join(''),
     settle,

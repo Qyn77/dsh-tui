@@ -131,6 +131,8 @@ export interface Catalog {
     hint: string
     /** How many further questions are queued behind this one. */
     more: (count: number) => string
+    /** How many of the call's arguments the card left out. */
+    moreArgs: (count: number) => string
   }
   /** Rows in the conversation transcript. */
   entries: {
@@ -354,6 +356,7 @@ const EN: Catalog = {
     title: 'Permission required',
     hint: 'y allow once · n deny · Esc deny',
     more: count => ` (+${count} more waiting)`,
+    moreArgs: count => `… +${count} more ${count === 1 ? 'argument' : 'arguments'}`,
   },
   entries: {
     assistant: 'assistant',
@@ -542,6 +545,7 @@ const ZH: Catalog = {
     title: '需要授权',
     hint: 'y 允许一次 · n 拒绝 · Esc 拒绝',
     more: count => `（还有 ${count} 个待确认）`,
+    moreArgs: count => `… 还有 ${count} 个参数`,
   },
   entries: {
     assistant: '助手',

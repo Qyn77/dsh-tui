@@ -140,7 +140,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
 | `Ctrl-O` | Same switch as `/verbose`, without typing a command |
-| `y` / `n` / `Esc` | Answer a tool approval request |
+| `y` / `n` / `Esc` | Answer a tool approval request — the card lists the call's arguments so the answer is about what it would actually do |
 | `Esc` | Cancel the in-flight turn or `!` command; never exits |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
 | `Ctrl-C` (half-written input) | Clear the input |

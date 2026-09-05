@@ -9,7 +9,7 @@ import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
 import React, { useCallback, useEffect, useRef, useState, type FC, type ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, type CallId } from '@deepseek-ai/dsh-llm'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
 import { StatusBar } from './components/StatusBar.tsx'
@@ -247,6 +247,18 @@ export const App: FC<AppProps> = ({
   // concern because the prompt now takes keys during a running turn, which is
   // exactly when the App's Esc means "cancel" — see `Prompt.onEscClaimChange`.
   const [promptClaimsEsc, setPromptClaimsEsc] = useState(false)
+  // An approval request names the call it is about but not what the call would
+  // do; the arguments are in the entry the App already streamed. Searching from
+  // the newest end because the question is always about the newest call — a
+  // linear scan is right here and a `Map` would be a second copy of the log to
+  // keep correct.
+  const argsForCall = useCallback((callId: CallId): string | undefined => {
+    for (let i = state.entries.length - 1; i >= 0; i -= 1) {
+      const entry = state.entries[i]
+      if (entry.kind === 'tool' && entry.callId === callId) return entry.args
+    }
+    return undefined
+  }, [state.entries])
   // Ctrl-C on an empty line at idle asks once before closing the session.
   // The flag disarms on any other keystroke rather than on a timer: a timer
   // would make the outcome of a keypress depend on how long ago the last one
@@ -602,7 +614,11 @@ export const App: FC<AppProps> = ({
         not make the layout jump by a variable number of rows as it comes and
         goes.
       */}
-        <ApprovalPrompt pending={approvals.pending} onAnswer={approvals.answer} />
+        <ApprovalPrompt
+          pending={approvals.pending}
+          onAnswer={approvals.answer}
+          argsFor={argsForCall}
+        />
         <Prompt
           active={!shell.running && approvals.pending.length === 0}
           busy={state.status === 'running' || shell.running}

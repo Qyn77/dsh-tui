@@ -691,10 +691,11 @@ Shipped here but not planned here: the bilingual catalog and `/language` (§3.10
 Shipped:
 
 - **Slash-command tab completion.** The `/` palette filters as you type and `Tab` completes the highlighted name, landing the cursor after a trailing space.
-- **Tool approval flow.** `y`/`n`/`Esc` on a card beside the Prompt, not a modal. It was never blocked on the dependency this spec claimed — see §3.2.1.
+- **Tool approval flow.** `y`/`n`/`Esc` on a card beside the Prompt, not a modal, listing the arguments of the call being authorised. It was never blocked on the dependency this spec claimed — see §3.2.1.
 - **`/model <name>`.** Switches the live agent and the saved default together.
 - **`/context`.** Window, cumulative spend, and a live occupancy percentage read off the newest turn — see §3.3.2.
 - **History.** `↑` / `↓` (and `Ctrl-P` / `Ctrl-N`) walk the user's prior inputs in this session.
+- **Steering.** The prompt stays live while a turn runs and `Enter` routes to `agent.steer` — see §1.6.
 - **Output previews.** Tool results and `!` shell output are capped at 8 lines with a translated `… +N lines` marker, replacing both the one-line summary and the uncapped shell paint — see §1.2.
 - **`@`-mention file picker.** An `@` that opens a word lists matching files under the working directory; `Tab`/`Enter` inserts the path. Completion only — no file contents are attached. See §1.5.2.
 - **`/plugins`.** Loader introspection — package name, lifecycle phase, broken entries first — plus `enable`/`disable`, which rewrite the loader config and refuse the three cases that would be unrecoverable. See §1.5.3.
@@ -807,6 +808,12 @@ So `hooks/useApprovalRequests.ts` registers this terminal as the answerer for it
 - **Every path settles the promise.** The user answering, `req.signal` aborting (the asker withdrew), and the hook unmounting all resolve it — the last as `'unavailable'`, which is exactly what the service would have produced without the hook. A promise held forever would wedge the turn.
 
 There is no "always allow": `'allowed-once'` is the only grant the vocabulary defines, so there is no third key to bind.
+
+**The card shows the call's arguments, and the request does not carry them.** `ApprovalRequest` is a tool name, an optional reason, an optional `callId` and an abort signal — nothing that says what the call would *do*. A card built from the request alone asks "allow `Bash`?", which is not a question anyone can answer: every destructive command and every harmless one produce the same prompt, so the only rational answers are always-yes and always-no, and a permission gate that trains either is worse than no gate.
+
+The arguments are found rather than received. `callId` is documented as the hook for exactly this — it "lets a UI attach the prompt to the tool call it already streamed" — and the App has already projected that call into `state.entries` with its `args` string attached, because the transcript needed it first. So the renderer passes an `argsFor(callId)` resolver down and the card resolves its own question, scanning `entries` from the newest end; the App does not decide *which* question is on screen (the oldest), so it must not be the one doing the lookup. A missing `callId` and a call absent from the log are not distinguished — both mean there is nothing to show, and the question stays answerable either way.
+
+What the card lists is deliberately not what the transcript lists. `toolCallSummary` picks one identifying argument (`Bash(pnpm test)`), which is right for a row being skimmed and wrong for a row being authorised: whichever argument the summary dropped is exactly the one that could make the call something other than what it looks like. `approvalArgs` therefore lists every top-level key and shortens only the values, at 160 columns rather than the transcript's 60, capped at six rows with the rest counted. Nested values are re-serialised rather than printed as `[object Object]`, since the shape is part of what is being authorised, and a malformed payload degrades to one raw row for the same reason the summary does.
 
 What *is* typed and is projected by the reducer: `TurnEndReasonMap.blocked`, which `dsh-agent` documents as a pre-step rejection — the turn was refused before it reached the model and the messages it had claimed were discarded with it. That is the one approval-shaped fact reachable today, and it renders as a note saying the turn never ran rather than as the raw word `blocked`.
 
