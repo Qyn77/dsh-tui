@@ -1,5 +1,5 @@
 /**
- * Real-TTY verification for the three things the automated suite cannot reach.
+ * Real-TTY verification for the four things the automated suite cannot reach.
  *
  * Run it in the terminal you actually use:
  *
@@ -8,12 +8,14 @@
  * ```
  *
  * Everything in `tests/` runs with no TTY and with chalk's color level pinned to
- * 0, so three shipped features are covered by tests that can only see their
+ * 0, so four shipped features are covered by tests that can only see their
  * *arithmetic*: the OSC 11 background probe (`src/theme.ts`), the OSC 52
- * clipboard write (`src/clipboard.ts`), and whether the colors chosen from those
- * two are legible on a real background (`src/highlight.ts`, the brand tints).
- * `docs/TUI-ROADMAP.md` §7 makes "it works in a real TTY" an acceptance rule, and
- * this script is how that rule gets discharged for those three.
+ * clipboard write (`src/clipboard.ts`), whether the colors chosen from those
+ * two are legible on a real background (`src/highlight.ts`, the brand tints),
+ * and whether a hook run's two weights (`src/hook-runs.ts`) are actually
+ * telling apart on screen. `docs/TUI-ROADMAP.md` §7 makes "it works in a real
+ * TTY" an acceptance rule, and this script is how that rule gets discharged for
+ * those four.
  *
  * It **imports the real modules** rather than reimplementing the sequences. A
  * checker with its own copy of the OSC 11 parser would verify the terminal and
@@ -22,15 +24,17 @@
  * than a `.mjs` beside `clean.mjs`: the source is TypeScript and the source is
  * the subject.
  *
- * Nothing here is a test. Two of the four checks end in a question only a human
- * looking at the screen can answer, and the script says so rather than printing
- * a green tick it has not earned.
+ * Nothing here is a test. Three of the five checks end in a question only a
+ * human looking at the screen can answer, and the script says so rather than
+ * printing a green tick it has not earned.
  * @module @deepseek-ai/dsh-tui/scripts/tty-check
  */
 
 import { BRAND_BLUE } from '../src/banner-art.ts'
 import { createLineCache, highlightLang, loadTokenizer, type CodeLine } from '../src/highlight.ts'
+import { hookTone, type HookEntry } from '../src/hook-runs.ts'
 import { multiplexerFromEnv, osc52 } from '../src/clipboard.ts'
+import { NOTE_GLYPH } from '../src/message-layout.ts'
 import {
   BRAND_TINT_ON_DARK,
   BRAND_TINT_ON_LIGHT,
@@ -187,9 +191,39 @@ function checkColors(appearance: Appearance): void {
   ask('On a light background, does the second line vanish and the first survive?')
 }
 
-/** Check 3: does Shiki's chosen theme read on this background? */
+/**
+ * Check 3: are a hook's two weights distinguishable, and is neither one alarming?
+ *
+ * `hookTone` decides which weight a run gets and is unit-tested, but the whole
+ * point of the two weights is that a human glancing at a transcript can tell
+ * them apart — and that is a claim about pixels, not about a pure function.
+ * The suite cannot make it: chalk is level 0 under vitest, so no frame it
+ * renders carries an SGR byte at all.
+ *
+ * The SGR codes here are the ones Ink resolves `gray`, `yellow` and `dimColor`
+ * to. That mapping is the one thing this check reimplements, because Ink will
+ * not render outside its own tree — but the tone each row gets comes from the
+ * shipped `hookTone`, which is the part that could actually be wrong.
+ */
+function checkHooks(): void {
+  heading(4, 'Hook decisions — two weights, never red')
+  const base = { kind: 'hook', handlerId: 'h', point: 'PreToolUse', dialect: 'claude-code', turn: 1, status: 'done' } as const
+  const rows: readonly { entry: HookEntry; text: string }[] = [
+    { entry: { ...base, decision: 'pass', durationMs: 12 }, text: 'PreToolUse hook · pass · claude-code · 12ms' },
+    { entry: { ...base, decision: 'deny', durationMs: 31 }, text: 'PreToolUse hook · deny · claude-code · 31ms' },
+    { entry: { ...base, decision: 'quarantine', durationMs: 8 }, text: 'PreToolUse hook · quarantine · claude-code · 8ms' },
+  ]
+  for (const { entry, text } of rows) {
+    const notable = hookTone(entry) === 'notable'
+    const sgr = notable ? `${ESC}[33m` : `${ESC}[90m${ESC}[2m`
+    process.stdout.write(`   ${sgr}${NOTE_GLYPH} ${text}${RESET}\n`)
+  }
+  ask('Do the last two stand out from the first, and does neither look like an error?')
+}
+
+/** Check 4: does Shiki's chosen theme read on this background? */
 async function checkHighlighting(appearance: Appearance): Promise<void> {
-  heading(4, 'Syntax highlighting')
+  heading(5, 'Syntax highlighting')
   const { shikiTheme } = palette(appearance)
   fact('theme in use', shikiTheme)
   const lang = highlightLang('ts')
@@ -214,9 +248,9 @@ async function checkHighlighting(appearance: Appearance): Promise<void> {
   ask('Is every token readable — especially the comment?')
 }
 
-/** Check 4: does the clipboard actually receive it? */
+/** Check 5: does the clipboard actually receive it? */
 function checkClipboard(): void {
-  heading(5, 'OSC 52 — clipboard')
+  heading(6, 'OSC 52 — clipboard')
   const multiplexer = multiplexerFromEnv()
   // A nonce, so a stale clipboard cannot be mistaken for a successful copy —
   // the failure this check exists to catch looks exactly like "nothing happened".
@@ -241,10 +275,11 @@ async function main(): Promise<void> {
     return
   }
   process.stdout.write(`${ESC}[1mdsh-tui real-TTY check${RESET}\n`)
-  process.stdout.write('Four checks. Two are measurements; two are questions only you can answer.\n')
+  process.stdout.write('Five checks. Two are measurements; three are questions only you can answer.\n')
   checkEnvironment()
   const appearance = await checkBackground()
   checkColors(appearance)
+  checkHooks()
   await checkHighlighting(appearance)
   checkClipboard()
   process.stdout.write(
