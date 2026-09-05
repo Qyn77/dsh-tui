@@ -221,19 +221,26 @@ describe('tui state reducer', () => {
     })
   })
 
-  it('handles session/end-seed by wiping the projected view above the seed', () => {
-    // Build a session log where some events come before `session/end-seed`
-    // (resumed history) and some after (live work). The reducer must drop
-    // everything before the seed boundary.
+  it('carries the projection across session/end-seed instead of wiping it', () => {
+    // A resumed session's log is its stored history followed by the
+    // `session/end-seed` marker the constructor appends — the marker is at
+    // the END, not between old and new work. Wiping on it was the whole
+    // "resume shows a blank screen" bug: the seed replay built the transcript
+    // and the last event tore it down. The reducer must treat it as bookkeeping,
+    // and a user who wants the transcript to start at the live work says so
+    // with `/history off` — that is a view preference, not a log event.
     const events = [
       { type: 'user/message' as const, seq: 0, time: 0, data: createUserMessage({ content: [{ type: 'text', text: 'old' }], source: { kind: 'user' } }), surfaceOp: 'append' as const },
       { type: 'session/end-seed' as const, seq: 1, time: 0, data: {} },
       { type: 'user/message' as const, seq: 2, time: 0, data: createUserMessage({ content: [{ type: 'text', text: 'new' }], source: { kind: 'user' } }), surfaceOp: 'append' as const },
     ]
     const state = replay(events)
-    // Only the post-seed "new" message survives.
-    expect(state.entries).toHaveLength(1)
-    expect((state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'user' }>).message.content[0]).toMatchObject({ type: 'text', text: 'new' })
+    // Both messages survive: the marker projects nothing, not even an erasure.
+    expect(state.entries).toHaveLength(2)
+    const texts = state.entries
+      .map(e => (e as Extract<(typeof state.entries)[number], { kind: 'user' }>).message.content[0])
+      .map(b => (b as { text: string }).text)
+    expect(texts).toEqual(['old', 'new'])
   })
 
   it('ignores inbox/spliced events instead of throwing', () => {

@@ -28,6 +28,7 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { isLang, type Lang } from './i18n.ts'
+import { isHistoryPref, type HistoryPref } from './types.ts'
 import { isThemePref, type ThemePref } from './theme.ts'
 
 /** Preferences this package reads and writes. */
@@ -36,6 +37,12 @@ export interface Settings {
   language: Lang
   /** Which background the colors are chosen for, or `auto` to ask the terminal. */
   theme: ThemePref
+  /**
+   * Whether a resumed session's stored history is drawn, or the transcript
+   * starts at this process's live work. The model reads the whole log either
+   * way — this is a screen preference, not a context one.
+   */
+  history: HistoryPref
 }
 
 /**
@@ -55,7 +62,7 @@ export interface Settings {
  * question, it is the question. Guessing the second is what makes code blocks
  * readable; guessing the first would only make the chrome wrong in a new way.
  */
-export const DEFAULT_SETTINGS: Readonly<Settings> = { language: 'en', theme: 'auto' }
+export const DEFAULT_SETTINGS: Readonly<Settings> = { language: 'en', theme: 'auto', history: 'show' }
 
 /** Directory the dsh family keeps user-level state in. */
 export const SETTINGS_DIR = '.dsh'
@@ -118,9 +125,11 @@ export function parseSettings(raw: string | undefined): Settings {
   if (parsed === undefined) return { ...DEFAULT_SETTINGS }
   const language = parsed['language']
   const theme = parsed['theme']
+  const history = parsed['history']
   return {
     language: isLang(language) ? language : DEFAULT_SETTINGS.language,
     theme: isThemePref(theme) ? theme : DEFAULT_SETTINGS.theme,
+    history: isHistoryPref(history) ? history : DEFAULT_SETTINGS.history,
   }
 }
 

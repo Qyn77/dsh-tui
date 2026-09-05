@@ -27,7 +27,8 @@
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
-import type { UiState } from './types.ts'
+import type { HistoryPref, UiState } from './types.ts'
+import { isHistoryPref } from './types.ts'
 import { appExit, service } from './services.ts'
 import {
   COMMAND_NAMES,
@@ -370,6 +371,18 @@ export interface CommandContext {
    */
   verbose?: boolean
   /**
+   * Switch whether a resumed session's stored history is drawn: repaint now,
+   * persist for the next launch. Optional for the same reason as
+   * {@link setTheme} — a context without one still reports the switch.
+   */
+  setHistory?: (pref: HistoryPref) => void
+  /**
+   * Whether the resumed history is currently drawn, defaulting to `'show'`.
+   * `/history` reads it to toggle, and `/resume` reads it to say whether the
+   * transcript it just swapped in is on screen.
+   */
+  historyPref?: HistoryPref
+  /**
    * Write a control sequence straight to the terminal.
    *
    * Named for what it does rather than for `/copy`, because that is the whole of
@@ -405,6 +418,17 @@ function parseVerboseArg(raw: string | undefined): boolean | undefined {
   if (raw === 'on') return true
   if (raw === 'off') return false
   return undefined
+}
+
+/**
+ * Read `/history`'s argument. `show` and `hide` only — the words are the
+ * setting's own values, so what the user types is what lands in
+ * `~/.dsh/tui.json`.
+ * @param raw - the first argument, if there was one.
+ * @returns the preference asked for, or `undefined` when the word was neither.
+ */
+function parseHistoryArg(raw: string | undefined): HistoryPref | undefined {
+  return isHistoryPref(raw) ? raw : undefined
 }
 
 /**
@@ -465,7 +489,14 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       // No count of what came back: the transcript underneath this line is the
       // evidence, and the number the App could cheaply supply is a session
       // event count, which does not equal the rows the user is looking at.
-      return { kind: 'handled', message: strings.resumeSwitched(shortId(result.id)) }
+      // Unless the history is hidden — then there is no transcript underneath,
+      // and the line has to say so or the screen reads as a failed resume.
+      return {
+        kind: 'handled',
+        message: (cmd.historyPref ?? 'show') === 'hide'
+          ? strings.resumeSwitchedHidden(shortId(result.id))
+          : strings.resumeSwitched(shortId(result.id)),
+      }
     }
 
     // Read fresh, never cached: cordis keeps `Entry.fiber` and `Fiber.state`
@@ -554,6 +585,22 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
           requested ? EXPANDED_MAX_LINES : PREVIEW_MAX_LINES,
         ),
       }
+    }
+
+    case '/history': {
+      const args = raw.trim().split(/\s+/).slice(1)
+      const current = cmd.historyPref ?? 'show'
+      // Bare `/history` toggles, same bargain as `/verbose`: two states, so a
+      // usage line on the way between them is ceremony. A bad argument still
+      // prints the usage — including what is currently in force.
+      const requested = args.length === 0
+        ? (current === 'show' ? 'hide' : 'show')
+        : parseHistoryArg(args[0])
+      if (requested === undefined) {
+        return { kind: 'handled', message: strings.historyUsage(current), failed: true }
+      }
+      cmd.setHistory?.(requested)
+      return { kind: 'handled', message: strings.historySwitched(requested) }
     }
 
     case '/copy': {

@@ -130,6 +130,7 @@ REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续�
 | `/plugins` | 列出本进程加载的插件，以及各自的生命周期状态；`/plugins enable\|disable <名字>` 开关某一个，并写回 loader 配置 |
 | `/sessions` | 列出已存的 session，以及接上其中一个要用的 id |
 | `/resume` | 切到某个已存的 session：`/resume <id>`，或者 `/resume last` |
+| `/history` | 显示或隐藏接续 session 带来的已存历史：`/history show` 或 `hide` |
 | `/exit`, `/quit` | 退出 REPL |
 | `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
 | `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
@@ -352,6 +353,8 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 ```
 
 切走的那个 session 不会丢——它还在库里，`/sessions` 照样列得出来，再 `/resume` 一次就能切回去。
+
+切过来时，已存的历史会画在屏幕上。如果你更想从新内容开始，`/history hide` 把它收起来，`/history show` 再放出来——模型读到的始终是完整日志，这只是屏幕偏好，不影响上下文。这个选择会存进 `~/.dsh/tui.json`，对下次 resume 同样生效。
 
 缩短的 id 只要能唯一对上就够了；万一对上了两个，会直接告诉你，而不是把你丢进错的那段历史里。同样这些 id 在启动时也能用，如果你想开机就落在上次的位置：
 

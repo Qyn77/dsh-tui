@@ -253,6 +253,29 @@ export function userMessageImages(message: UserMessage): ImageAttachmentRef[] {
     .map(b => b.attachment)
 }
 
+/**
+ * Whether a resumed session's stored history is drawn on screen. `'hide'`
+ * starts the transcript at this process's live work — the model still reads
+ * the whole log, so nothing is lost to it, only to the screen.
+ *
+ * Lives here rather than in `settings.ts` because the i18n catalog types its
+ * strings with it and `settings.ts` already imports the catalog's `isLang` —
+ * the module graph has to stay acyclic at runtime, and this file imports
+ * nothing local.
+ */
+export type HistoryPref = 'show' | 'hide'
+
+/** Every value {@link HistoryPref} can be, for parsing and `/history` usage. */
+export const HISTORY_PREFS: readonly HistoryPref[] = ['show', 'hide']
+
+/**
+ * Narrow an unknown value to a {@link HistoryPref}.
+ * @param value - anything, typically read out of `~/.dsh/tui.json`.
+ */
+export function isHistoryPref(value: unknown): value is HistoryPref {
+  return value === 'show' || value === 'hide'
+}
+
 /** Filter the session log down to only the events the TUI cares about. */
 export function isRenderable(event: SessionEvent): boolean {
   switch (event.type) {
@@ -274,7 +297,6 @@ export function isRenderable(event: SessionEvent): boolean {
     case 'hook/result':
     case 'todo/write':
     case 'agent/inbox/spliced':
-    case 'session/end-seed':
       return true
     default:
       return false

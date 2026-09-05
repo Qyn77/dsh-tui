@@ -20,7 +20,7 @@ import React from 'react'
 import { render, Text } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, type SessionEvent } from '@deepseek-ai/dsh-session'
-import type { UiEntry, UiState } from '../src/types.ts'
+import type { HistoryPref, UiEntry, UiState } from '../src/types.ts'
 import { useSessionEvents } from '../src/hooks/useSessionEvents.ts'
 import { fakeStdout, seedSession } from './fake-tty.ts'
 
@@ -41,6 +41,8 @@ interface Probe {
   act: (fn: () => void) => Promise<void>
   /** Swap in a different agent — the resume path. */
   swap: (session: Session) => Promise<void>
+  /** Change the history preference — the `/history` path. */
+  setHistory: (pref: HistoryPref) => Promise<void>
   /**
    * How many times the subscription handler has looked at the agent. The
    * handler reads `agentRef.current.session` on every event, so a delta
@@ -60,7 +62,7 @@ function lastEvent(session: Session): SessionEvent {
   return event
 }
 
-async function mount(session: Session): Promise<Probe> {
+async function mount(session: Session, options?: { history?: HistoryPref }): Promise<Probe> {
   const ctx = new Context()
   let captured: Api | undefined
   // Counting reads of `agent.session` is how the tests see the handler run.
@@ -75,14 +77,14 @@ async function mount(session: Session): Promise<Probe> {
     },
   })
 
-  const Probe: React.FC<{ session: Session }> = ({ session: current }) => {
-    captured = useSessionEvents(ctx, agentFor(current) as never)
+  const Probe: React.FC<{ session: Session; history: HistoryPref }> = ({ session: current, history }) => {
+    captured = useSessionEvents(ctx, agentFor(current) as never, { history })
     return React.createElement(Text, null, 'probe')
   }
 
-  const element = (s: Session): React.ReactElement =>
-    React.createElement(Probe, { session: s })
-  const instance = render(element(session), {
+  const element = (s: Session, history: HistoryPref): React.ReactElement =>
+    React.createElement(Probe, { session: s, history })
+  const instance = render(element(session, options?.history ?? 'show'), {
     stdout: fakeStdout(80, 10) as never,
     patchConsole: false,
     debug: true,
@@ -103,7 +105,11 @@ async function mount(session: Session): Promise<Probe> {
       await settle()
     },
     async swap(next) {
-      instance.rerender(element(next))
+      instance.rerender(element(next, options?.history ?? 'show'))
+      await settle()
+    },
+    async setHistory(pref) {
+      instance.rerender(element(session, pref))
       await settle()
     },
     handlerReads: () => reads,
@@ -198,6 +204,87 @@ describe('seeding from the durable log', () => {
 
     expect(state.entries.at(-1)).toMatchObject({ kind: 'command', text: 'Resumed.' })
     expect(state.entries.filter(e => e.kind === 'assistant')).toHaveLength(3)
+  })
+})
+
+describe('resumed history and the /history preference', () => {
+  /**
+   * A session the way `/resume` actually builds it: constructor-seeded from a
+   * stored log, so its events are the history plus the trailing
+   * `session/end-seed` marker the constructor appends. `seedSession` alone
+   * cannot reproduce the bug — its events were appended live, and the marker
+   * never appears in such a log.
+   */
+  const restored = (turns: number, id = 'tui-restored'): Session =>
+    Session.create(id as never, seedSession(turns, 'tui-stored').events)
+
+  it('draws the stored history of a restored session — the end-seed marker does not wipe it', async () => {
+    // The resume-blank bug: the marker lands after the history, and a reducer
+    // case that cleared the view on it erased everything the seed replay had
+    // just built. The model still read the log, so the session answered as if
+    // the history were there — only the screen was empty.
+    const probe = await mount(restored(2))
+    const { state } = probe.api()
+    probe.unmount()
+
+    const assistant = state.entries.filter(e => e.kind === 'assistant')
+    expect(assistant.map(e => e.text)).toEqual(['answer 01', 'answer 02'])
+    expect(state.currentTurn).toBe(2)
+  })
+
+  it('starts at the live work when the preference says hide', async () => {
+    // The model reads the whole log either way; `hide` is a screen preference.
+    const probe = await mount(restored(2), { history: 'hide' })
+    const { state } = probe.api()
+    probe.unmount()
+
+    expect(state.entries).toEqual([])
+  })
+
+  it('keeps projecting events that arrive after the boundary under hide', async () => {
+    const session = restored(2)
+    const probe = await mount(session, { history: 'hide' })
+    expect(probe.api().state.entries).toEqual([])
+
+    session.append('turn/start', { turn: 3 })
+    await probe.emit(session, lastEvent(session))
+    const state = probe.api().state
+    probe.unmount()
+
+    expect(state.currentTurn).toBe(3)
+    expect(state.status).toBe('running')
+  })
+
+  it('hides the history of a session swapped in under hide', async () => {
+    const probe = await mount(seedSession(1, 'tui-first'), { history: 'hide' })
+    await probe.swap(restored(3, 'tui-second'))
+    const state = probe.api().state
+    probe.unmount()
+
+    expect(state.entries).toEqual([])
+  })
+
+  it('reveals and re-hides the history when the preference moves, keeping local rows', async () => {
+    // `/history` re-seeds rather than waiting for the next resume, so the
+    // transcript follows the preference immediately. The local row — the
+    // "/resume switched" line, here — must survive both directions: it is
+    // this process's own output, not stored history.
+    const probe = await mount(restored(2))
+    expect(probe.api().state.entries.filter(e => e.kind === 'assistant')).toHaveLength(2)
+
+    await probe.act(() => {
+      probe.api().appendEntry({ kind: 'command', input: '/resume tui-x', text: 'Resumed.', failed: false })
+    })
+    await probe.setHistory('hide')
+    expect(probe.api().state.entries).toHaveLength(1)
+    expect(probe.api().state.entries[0]).toMatchObject({ kind: 'command', text: 'Resumed.' })
+
+    await probe.setHistory('show')
+    const state = probe.api().state
+    probe.unmount()
+
+    expect(state.entries.filter(e => e.kind === 'assistant')).toHaveLength(2)
+    expect(state.entries.at(-1)).toMatchObject({ kind: 'command', text: 'Resumed.' })
   })
 })
 

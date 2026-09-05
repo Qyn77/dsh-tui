@@ -698,13 +698,14 @@ describe('the palette on a terminal too short to hold it', () => {
     const screen = painted.screen()
     painted.unmount()
 
-    // Eight rows shown, the rest counted. Without the cap all fifteen were
+    // Eight rows shown, the rest counted. Without the cap all sixteen were
     // laid out, and the frame came back with `/quit` and `/plugins` printed
     // on the same line.
     expect(screen).toContain('/clear')
-    expect(screen).toContain('/plugins')
+    expect(screen).toContain('/history')
+    expect(screen).not.toContain('/plugins')
     expect(screen).not.toContain('/verbose')
-    expect(screen).toContain('+7 more')
+    expect(screen).toContain('+8 more')
   })
 
   it('leaves the StatusBar and the prompt box whole underneath it', async () => {
@@ -725,9 +726,9 @@ describe('the palette on a terminal too short to hold it', () => {
   it('scrolls the window down to keep the selection visible', async () => {
     const painted = await paintApp({ turns: 2, rows: 24 })
     await painted.send('/')
-    // Fourteen downs is the last of the fifteen built-ins: far enough past
+    // Fifteen downs is the last of the sixteen built-ins: far enough past
     // the eighth row to have dragged the window all the way to the bottom.
-    for (let i = 0; i < 14; i += 1) await painted.send(`${ESC}[B`)
+    for (let i = 0; i < 15; i += 1) await painted.send(`${ESC}[B`)
     const screen = painted.screen()
     painted.unmount()
 

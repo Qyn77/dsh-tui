@@ -434,11 +434,6 @@ function onTodoWrite(state: UiState, event: EventOf<'todo/write'>): UiState {
  */
 export function reduce(state: UiState, event: SessionEvent): UiState {
   switch (event.type) {
-    case 'session/end-seed':
-      // Wipe the projected view above the seed boundary so the user only sees
-      // the live work; this matters for resumed sessions.
-      return { ...state, entries: [] }
-
     case 'turn/start':
       return { ...state, status: 'running', currentTurn: event.data.turn }
 
@@ -490,9 +485,18 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
     // Carried in the log but with nothing to project: step boundaries are
     // implied by the assistant entries between them, and inbox splices are
     // pure bookkeeping.
+    //
+    // `session/end-seed` is the marker a resumed session's constructor appends
+    // *after* the stored history, so on this side of a seed replay it arrives
+    // last and wipes everything the replay just built — which was the whole
+    // "resume shows a blank screen" bug. It never arrives live (constructor
+    // seeds do not publish on the firehose), so the only effect a case here
+    // could ever have had was erasing resumed history. A user who wants the
+    // transcript to start at the live work says so with `/history off`.
     case 'step/start':
     case 'step/end':
     case 'agent/inbox/spliced':
+    case 'session/end-seed':
       return state
 
     default:

@@ -17,6 +17,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 // and the cordis EventMap merge for `session/event` and `agent/*`.
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { appExit, service, type AppExit } from './services.ts'
+import { shortId } from './sessions.ts'
 import { App } from './renderer.tsx'
 import { installResizeOwner, type RepaintRef } from './resize.ts'
 import { planResume, requestFromEnv, type SwapSession } from './resume.ts'
@@ -211,8 +212,9 @@ async function run(ctx: Context, config: Config): Promise<void> {
     const repaint: RepaintRef = { current: undefined }
     // Read once, at the boundary. The App takes the language as a prop and owns
     // it as state from there, so this is the only place the process touches
-    // `~/.dsh/tui.json` on the way in; `/language` writes it back out.
-    const { language, theme } = readSettings()
+    // `~/.dsh/tui.json` on the way in; `/language`, `/theme` and `/history`
+    // write it back out.
+    const { language, theme, history } = readSettings()
     // `auto` is the only setting that needs the probe's answer; an explicit
     // `dark` or `light` has already decided, so it does not wait even the
     // deadline. The App still receives the measurement — under `auto` it is
@@ -272,9 +274,18 @@ async function run(ctx: Context, config: Config): Promise<void> {
         modelRef: ref,
         lang: language,
         themePref: theme,
+        historyPref: history,
         swapSession,
         ...detected === undefined ? {} : { appearance: detected },
         ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
+        // A boot resume with the history hidden draws an empty transcript, and
+        // an empty transcript after asking for a resume reads as a failure.
+        // The notice says what actually happened, in English for the same
+        // reason the boot notice is: the language preference has not been read
+        // into the App yet, and this line is what it shows first.
+        ...plan.kind === 'resume' && history === 'hide'
+          ? { notice: `Resumed ${shortId(plan.id)} with its history hidden — the model still reads it. /history show draws it.` }
+          : {},
       })
     const instance = inkRender(element(), {
       exitOnCtrlC: false,

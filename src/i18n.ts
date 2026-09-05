@@ -42,6 +42,7 @@
 import type { PluginPhase } from './plugins.ts'
 import type { SessionLabels } from './sessions.ts'
 import type { UsageLabels } from './usage.ts'
+import { HISTORY_PREFS, type HistoryPref } from './types.ts'
 import { THEME_PREFS, type Appearance, type ThemePref } from './theme.ts'
 
 /** The languages this UI is written in. */
@@ -62,6 +63,7 @@ export const COMMAND_NAMES = [
   '/copy',
   '/exit',
   '/help',
+  '/history',
   '/language',
   '/model',
   '/plugins',
@@ -337,6 +339,8 @@ export interface Catalog {
     resumeUsage: string
     /** `/resume` after the switch, naming the session now on screen. */
     resumeSwitched: (id: string) => string
+    /** `/resume` after the switch, when the resumed history is not drawn. */
+    resumeSwitchedHidden: (id: string) => string
     /** `/resume` aimed at the session already on screen. */
     resumeCurrent: (id: string) => string
     /** `/resume` while a turn is running — the switch is refused, not queued. */
@@ -391,6 +395,10 @@ export interface Catalog {
     verboseUsage: (current: boolean, collapsed: number, expanded: number) => string
     /** `/verbose` after the toggle moved. */
     verboseSwitched: (on: boolean, limit: number) => string
+    /** `/history` with no argument, or one it did not recognise. */
+    historyUsage: (current: HistoryPref) => string
+    /** `/history` after the switch moved. */
+    historySwitched: (pref: HistoryPref) => string
     /** `/copy` with no argument, or one it did not recognise. */
     copyUsage: string
     /**
@@ -495,6 +503,7 @@ const EN: Catalog = {
     '/copy': 'Copy the newest reply to the clipboard; /copy code takes the newest code block',
     '/exit': 'Leave the REPL',
     '/help': 'Show the list of available commands',
+    '/history': 'Show or hide the resumed session\'s stored history: /history show or hide',
     '/language': 'Switch the interface language: /language en or zh',
     '/model': 'Switch model: /model <name> or <provider>/<name>',
     '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
@@ -544,6 +553,7 @@ const EN: Catalog = {
     noPersistence: 'No session persistence in this assembly, so nothing is stored to list.',
     resumeUsage: 'Usage: /resume <id>, or /resume last for the newest. Run /sessions for the ids.',
     resumeSwitched: id => `Resumed ${id}. The session you left is still stored — /sessions lists it.`,
+    resumeSwitchedHidden: id => `Resumed ${id}, history hidden — the model still reads it. /history show draws it. The session you left is still stored — /sessions lists it.`,
     resumeCurrent: id => `Already in ${id} — nothing to switch to.`,
     resumeBusy: 'A turn is still running. Cancel it with Ctrl-C first — switching now would put its output out of reach.',
     resumeUnavailable: 'Switching sessions is not available in this host.',
@@ -594,6 +604,12 @@ const EN: Catalog = {
       on
         ? `Long outputs now preview up to ${limit} lines.`
         : `Long outputs are back to ${limit} lines.`,
+    historyUsage: current =>
+      `Usage: /history <${HISTORY_PREFS.join('|')}>\nCurrent: ${current}\n\nShow draws the stored history a resumed session came with; hide starts the transcript at this process's live work. The model reads the whole log either way — this is a screen preference, not a context one. It is saved and applies to the next resume too.`,
+    historySwitched: pref =>
+      pref === 'show'
+        ? 'Resumed history is drawn again — /resume or a re-seed repaints it.'
+        : 'Resumed history is hidden from now on — the model still reads it.',
     copyUsage: 'Usage: /copy (the newest reply) or /copy code (the newest code block)',
     copySent: (target, bytes, truncatedAt) =>
       `Sent the newest ${target === 'code' ? 'code block' : 'reply'} to the clipboard`
@@ -701,6 +717,7 @@ const ZH: Catalog = {
     '/copy': '把最新一条回复复制到剪贴板；/copy code 取最新的代码块',
     '/exit': '退出 REPL',
     '/help': '显示可用命令列表',
+    '/history': '显示或隐藏接续 session 的已存历史：/history show 或 hide',
     '/language': '切换界面语言：/language en 或 zh',
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
@@ -750,6 +767,7 @@ const ZH: Catalog = {
     noPersistence: '当前装配没有 session 持久化，也就没有可列的东西。',
     resumeUsage: '用法：/resume <id>，或者 /resume last 接上最新的那个。id 用 /sessions 看。',
     resumeSwitched: id => `已经接上 ${id}。你刚才那个 session 还存着——/sessions 里能看到。`,
+    resumeSwitchedHidden: id => `已经接上 ${id}，历史没有画出来——模型还是读得到的。/history show 可以画出来。你刚才那个 session 还存着——/sessions 里能看到。`,
     resumeCurrent: id => `已经在 ${id} 里了——没什么可切的。`,
     resumeBusy: '还有一轮在跑。先按 Ctrl-C 取消——现在切走的话，那一轮的输出就够不着了。',
     resumeUnavailable: '当前 host 不支持切换 session。',
@@ -799,6 +817,12 @@ const ZH: Catalog = {
       on
         ? `长输出现在最多预览 ${limit} 行。`
         : `长输出已恢复为 ${limit} 行。`,
+    historyUsage: current =>
+      `用法：/history <${HISTORY_PREFS.join('|')}>\n当前：${current}\n\nshow 会把接续 session 带来的已存历史画出来；hide 让对话区从本次进程的新内容开始。两种情况下模型读到的都是完整日志——这是屏幕偏好，不是上下文偏好。它会保存下来，对下次 resume 同样生效。`,
+    historySwitched: pref =>
+      pref === 'show'
+        ? '已存历史重新画出来了——/resume 或重新播种会把它补上。'
+        : '从现在起隐藏已存历史——模型仍然读得到。',
     copyUsage: '用法：/copy（最新一条回复）或 /copy code（最新的代码块）',
     copySent: (target, bytes, truncatedAt) =>
       `已把最新的${target === 'code' ? '代码块' : '回复'}发往剪贴板`

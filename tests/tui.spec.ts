@@ -39,7 +39,7 @@ describe('ui type helpers', () => {
       'user/message', 'assistant/chunk', 'assistant/message',
       'tool/call', 'tool/result',
       'compaction/start', 'compaction/end', 'compaction/summary', 'compaction/prune',
-      'plan/mode', 'agent/inbox/spliced', 'session/end-seed',
+      'plan/mode', 'agent/inbox/spliced',
     ] as const
     for (const type of renderableTypes) {
       // isRenderable only reads `type`; the data shape is irrelevant.
@@ -49,6 +49,10 @@ describe('ui type helpers', () => {
     // An event outside the rendered set is filtered out.
     const unknown = { type: 'unknown/event', seq: 0, time: 0, data: {} } as unknown as SessionEvent
     expect(isRenderable(unknown)).toBe(false)
+    // `session/end-seed` is log bookkeeping — the reducer has no case for it,
+    // so letting it through the filter would be work that draws nothing.
+    const endSeed = { type: 'session/end-seed', seq: 0, time: 0, data: {} } as unknown as SessionEvent
+    expect(isRenderable(endSeed)).toBe(false)
   })
 })
 

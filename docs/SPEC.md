@@ -250,6 +250,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/verbose` | Raise the preview budget from 8 lines to 200 for every entry at once. Bare toggles; `on`/`off` set it. |
 | `/sessions` | List the stored sessions, newest first, with the id to resume one by. |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` for the newest. |
+| `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide`. |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
 | `Ctrl-C` (buffer non-empty) | Clear the buffer. |
@@ -396,6 +397,10 @@ What it copies is the reply's **markdown source**, not the terminal's rendering 
 **A bare `/resume` prints usage rather than acting,** unlike bare `/verbose`. There are not two states to toggle between; the argument *is* the command, and it is not guessable, so the usage line points at `/sessions`.
 
 **What comes back is the transcript, and no count of it.** The App could cheaply report how many session events were replayed, but that number is not the number of rows on screen, and a figure that disagrees with what the user is looking at is worse than no figure. The restored transcript is its own evidence.
+
+**The transcript is seeded from the log, and the `session/end-seed` marker must not erase it.** A resumed session's constructor appends that marker *after* the stored history, so on this side of a seed replay it is the last event, and a reducer case that cleared the view on it wiped everything the replay had just built — the model still answered as if the history were there, while the screen showed only the `/resume` line and a 0/0 token count. The reducer now treats it as bookkeeping, and `isRenderable` filters it out.
+
+**`/history` owns the screen, not the context.** `show` (the default) draws the stored history; `hide` starts the transcript at this process's live work. The model reads the whole log either way, so the preference cannot lose anything to the conversation — it decides only what occupies the terminal. It re-seeds immediately, keeps the rows the TUI itself appended (the `/resume` line among them), and persists to `~/.dsh/tui.json` so the next resume — including a `DSH_TUI_RESUME` boot, which shows a notice instead of a transcript — obeys it too.
 
 **Every refusal leaves the user where they were.** A request that resolves to nothing does not start a fresh session the way a boot does; a target equal to the current session says so; a load failure says the session is intact. See §3.3.1 for the mechanics and for why the running-turn check is depth rather than the main guard.
 

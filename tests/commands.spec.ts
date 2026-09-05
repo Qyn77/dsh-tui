@@ -760,6 +760,60 @@ describe('slash command dispatch', () => {
         expect(result.failed).not.toBe(true)
       }
     })
+
+    it('says the history is hidden when the switch landed with it hidden', async () => {
+      // Under `hide` there is no transcript underneath the success line to
+      // evidence the switch, so the line itself has to say where the history
+      // went — otherwise an empty screen reads as a failed resume.
+      const swapSession = vi.fn().mockResolvedValue(swapped)
+      const { cmd } = makeCommand({ swapSession, historyPref: 'hide' })
+      const result = await dispatch('/resume tui-9f3c1a2b', cmd)
+      if (result.kind === 'handled') {
+        expect(result.message).toContain('tui-9f3c1a2b')
+        expect(result.message).toContain('/history show')
+        expect(result.failed).not.toBe(true)
+      }
+    })
+  })
+
+  describe('/history', () => {
+    it('toggles when bare, rather than printing usage', async () => {
+      // Same bargain as `/verbose`: two states, so the usage line would be a
+      // detour on the way to the other one.
+      const setHistory = vi.fn()
+      const { cmd } = makeCommand({ setHistory, historyPref: 'show' })
+      const result = await dispatch('/history', cmd)
+      expect(setHistory).toHaveBeenCalledWith('hide')
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') expect(result.failed).not.toBe(true)
+    })
+
+    it('sets explicitly, ignoring what is already in force', async () => {
+      const setHistory = vi.fn()
+      const { cmd } = makeCommand({ setHistory, historyPref: 'hide' })
+      await dispatch('/history hide', cmd)
+      expect(setHistory).toHaveBeenCalledWith('hide')
+      await dispatch('/history show', cmd)
+      expect(setHistory).toHaveBeenLastCalledWith('show')
+    })
+
+    it('prints usage naming what is in force for an argument it does not know', async () => {
+      const setHistory = vi.fn()
+      const { cmd } = makeCommand({ setHistory, historyPref: 'show' })
+      const result = await dispatch('/history maybe', cmd)
+      expect(setHistory).not.toHaveBeenCalled()
+      if (result.kind === 'handled') {
+        expect(result.failed).toBe(true)
+        expect(result.message).toContain('Usage: /history')
+        expect(result.message).toContain('Current: show')
+      }
+    })
+
+    it('reports without a handler rather than throwing', async () => {
+      const { cmd } = makeCommand({})
+      const result = await dispatch('/history show', cmd)
+      expect(result.kind).toBe('handled')
+    })
   })
 
   describe('/verbose', () => {
@@ -1085,14 +1139,14 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/clear', '/context', '/copy', '/exit', '/help', '/language', '/model', '/plugins',
+      '/clear', '/context', '/copy', '/exit', '/help', '/history', '/language', '/model', '/plugins',
       '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
     ])
   })
 
   it('filters to commands whose names start with the buffer (case-insensitive)', () => {
     const result = filterCommands('/h').map(c => c.name)
-    expect(result).toEqual(['/help'])
+    expect(result).toEqual(['/help', '/history'])
   })
 
   it('distinguishes /clear from /context under a shared prefix', () => {
@@ -1138,7 +1192,7 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/language', '/model',
+        '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/language', '/model',
         '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
       ])
     })

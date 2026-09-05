@@ -48,7 +48,7 @@ afterEach(() => {
 
 describe('parseSettings', () => {
   it('reads a stored language', () => {
-    expect(parseSettings('{"language":"zh"}')).toEqual({ language: 'zh', theme: 'auto' })
+    expect(parseSettings('{"language":"zh"}')).toEqual({ language: 'zh', theme: 'auto', history: 'show' })
   })
 
   it('reads a stored theme preference', () => {
@@ -63,9 +63,21 @@ describe('parseSettings', () => {
     expect(parseSettings('{"theme":4}').theme).toBe(DEFAULT_SETTINGS.theme)
   })
 
-  it('reads the two keys independently', () => {
+  it('reads a stored history preference', () => {
+    expect(parseSettings('{"history":"hide"}').history).toBe('hide')
+    expect(parseSettings('{"history":"show"}').history).toBe('show')
+  })
+
+  it('treats an unrecognized history preference as absent', () => {
+    // Same forward-compatibility rule as the theme and the language.
+    expect(parseSettings('{"history":"maybe"}').history).toBe(DEFAULT_SETTINGS.history)
+    expect(parseSettings('{"history":0}').history).toBe(DEFAULT_SETTINGS.history)
+  })
+
+  it('reads the keys independently', () => {
     expect(parseSettings('{"language":"zh"}').theme).toBe('auto')
     expect(parseSettings('{"theme":"dark"}').language).toBe('en')
+    expect(parseSettings('{"history":"hide"}').language).toBe('en')
   })
 
   it('defaults when there is no file', () => {
@@ -96,7 +108,7 @@ describe('parseSettings', () => {
 
   it('ignores keys it does not know', () => {
     expect(parseSettings('{"language":"zh","future":{"a":1}}'))
-      .toEqual({ language: 'zh', theme: 'auto' })
+      .toEqual({ language: 'zh', theme: 'auto', history: 'show' })
   })
 })
 
@@ -132,8 +144,8 @@ describe('readSettings', () => {
 
   it('reads what writeSettings wrote', () => {
     const home = fakeHome()
-    expect(writeSettings({ language: 'zh' }, home)).toBe(true)
-    expect(readSettings(home)).toEqual({ language: 'zh', theme: 'auto' })
+    expect(writeSettings({ language: 'zh', history: 'hide' }, home)).toBe(true)
+    expect(readSettings(home)).toEqual({ language: 'zh', theme: 'auto', history: 'hide' })
   })
 
   it('defaults when the path is a directory rather than a file', () => {

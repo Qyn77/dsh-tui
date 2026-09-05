@@ -136,6 +136,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
 | `/sessions` | List the stored sessions, with the id to resume one by |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` |
+| `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide` |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
@@ -407,6 +408,12 @@ Switch to one with `/resume`:
 
 The session you leave is not lost — it stays in the store and `/sessions` still
 lists it, so switching back is another `/resume`.
+
+The stored history is drawn when the switch lands. If you would rather the
+transcript start at the new work, `/history hide` folds it away and
+`/history show` brings it back — the model reads the whole log either way, so
+this is a screen preference, not a context one. The choice is saved in
+`~/.dsh/tui.json` and applies to the next resume too.
 
 The shortened id is enough as long as it matches one session; if it matches two,
 you are told so rather than dropped into the wrong history. The same ids work at

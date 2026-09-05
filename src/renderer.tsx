@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, type FC, type
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, type CallId } from '@deepseek-ai/dsh-llm'
+import type { HistoryPref } from './types.ts'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
 import { StatusBar } from './components/StatusBar.tsx'
@@ -89,6 +90,13 @@ export interface AppProps {
    */
   themePref?: ThemePref
   /**
+   * What the user last asked of `/history` — whether a resumed session's
+   * stored history is drawn — read from `~/.dsh/tui.json` by `index.ts`.
+   * Defaults to `'show'`; omitted by every test, which therefore asserts the
+   * transcript a resume leaves on screen.
+   */
+  historyPref?: HistoryPref
+  /**
    * Which way the terminal's background reads, as measured by `index.ts` before
    * Ink mounted — the query has to happen while nobody else owns stdin, so it
    * cannot happen in here. Defaults to `'dark'`, which is what shipped before
@@ -138,12 +146,14 @@ export const App: FC<AppProps> = ({
   notice,
   lang: initialLang = 'en',
   themePref: initialThemePref = 'auto',
+  historyPref: initialHistoryPref = 'show',
   appearance: detected = 'dark',
   swapSession,
 }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
-  const { state, resetView, appendEntry } = useSessionEvents(ctx, agent)
+  const [historyPref, setHistoryPref] = useState<HistoryPref>(initialHistoryPref)
+  const { state, resetView, appendEntry } = useSessionEvents(ctx, agent, { history: historyPref })
   const registryRows = useRegistryCommands(ctx, agent)
   const skillRowsForPalette = useSkillCommands(ctx, agent, registryRows)
   // Registry rows first: they outrank skills on a name collision, and
@@ -205,6 +215,17 @@ export const App: FC<AppProps> = ({
   const setTheme = useCallback((next: ThemePref) => {
     setThemePref(next)
     writeSettings({ theme: next })
+  }, [])
+  /**
+   * Switch whether resumed history is drawn, on the same terms as
+   * {@link setTheme}: the re-seed the preference triggers repaints the
+   * transcript this render, and the file write carries the choice to the next
+   * launch — including a `DSH_TUI_RESUME` boot, which is the other moment the
+   * preference decides what is on screen.
+   */
+  const setHistory = useCallback((next: HistoryPref) => {
+    setHistoryPref(next)
+    writeSettings({ history: next })
   }, [])
   /**
    * Write a control sequence to the terminal, for `/copy`.
@@ -519,6 +540,8 @@ export const App: FC<AppProps> = ({
           lang,
           setTheme,
           themePref,
+          setHistory,
+          historyPref,
           appearance,
           setVerbose: scroll.setExpanded,
           verbose: scroll.expanded,
