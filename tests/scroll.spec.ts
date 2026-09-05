@@ -186,6 +186,43 @@ describe('estimateEntryRows', () => {
     expect(long).toBe(short)
   })
 
+  it('charges a hook run for its own row, and its stderr only when it has some', () => {
+    // The header is drawn `truncate-end`, so neither the hook point, the
+    // decision, nor a translation of either can make it wrap — its height is
+    // one row at any width, which is what keeps paging invertible in both
+    // languages. Only the stderr is charged by wrapping.
+    const run = (stderrSummary?: string): UiEntry => ({
+      kind: 'hook',
+      handlerId: 'h',
+      point: 'PreToolUse',
+      dialect: 'claude-code',
+      turn: 1,
+      status: 'done',
+      decision: 'deny',
+      ...(stderrSummary !== undefined ? { stderrSummary } : {}),
+    })
+    expect(estimateEntryRows(run(), 80)).toBe(2)
+    expect(estimateEntryRows(run(), 20)).toBe(2)
+    expect(estimateEntryRows(run('short'), 80)).toBe(3)
+  })
+
+  it('does not let a blank stderr summary cost a hook run a row', () => {
+    // `hookStderr` drops whitespace-only output. The estimator and the renderer
+    // both go through it, so a hook that printed nothing but a newline is the
+    // same height as one that printed nothing at all.
+    const blank: UiEntry = {
+      kind: 'hook',
+      handlerId: 'h',
+      point: 'Stop',
+      dialect: 'codex',
+      turn: 1,
+      status: 'done',
+      decision: 'pass',
+      stderrSummary: '  \n ',
+    }
+    expect(estimateEntryRows(blank, 80)).toBe(2)
+  })
+
   it('adds the metadata header an assistant turn carries', () => {    expect(estimateEntryRows(assistantEntry('hi'), 80)).toBe(3)
   })
 
