@@ -212,6 +212,11 @@ function onUserMessage(state: UiState, event: EventOf<'user/message'>): UiState 
   // surface mislabeling it as a "you" message.
   const plugin = msg.source.kind === 'plugin' ? msg.source.plugin : undefined
   const form = msg.source.kind === 'plugin' ? msg.source.form : undefined
+  // A skill invocation names itself in its source. Reading that is the whole
+  // reason the source variant exists — the payload is a `<skill_content>`
+  // block, so previewing it would show the user the markup instead of the
+  // fact that `/review` ran.
+  const skill = msg.source.kind === 'skill-invocation' ? msg.source.name : undefined
   // Our own injections are already on screen. A `!!` escape draws its shell row
   // the moment the command finishes; the injection is claimed at the next
   // pre-step, and projecting it too would show the same command and the same
@@ -223,7 +228,8 @@ function onUserMessage(state: UiState, event: EventOf<'user/message'>): UiState 
       kind: 'runtime-context',
       ...(plugin !== undefined ? { plugin } : {}),
       ...(form !== undefined ? { form } : {}),
-      preview: previewText(msg, 80),
+      ...(skill !== undefined ? { skill } : {}),
+      preview: skill === undefined ? previewText(msg, 80) : '',
     }),
   }
 }

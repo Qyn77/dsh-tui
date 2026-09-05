@@ -269,6 +269,18 @@ export interface Catalog {
     /** The route declares it does not accept images. */
     unsupported: (model: string) => string
   }
+  /** Skill invocation from the prompt line. */
+  skills: {
+    /**
+     * A named skill was listed but its body would not load. There is
+     * deliberately no string for "no such skill": an unknown name is the
+     * command surface's `unknown`, and a separate skill-flavoured wording
+     * would tell the user which half of the surface they missed by.
+     */
+    loadFailed: (name: string) => string
+    /** Names the skill an injected instruction block came from, on its transcript row. */
+    invoked: (name: string) => string
+  }
   /** The startup splash. */
   banner: {
     /** The one-line "how to drive it" tip under the wordmark. */
@@ -447,6 +459,10 @@ const EN: Catalog = {
     rejected: (name, message) => `${name} was rejected: ${message}`,
     noStore: 'Images cannot be attached: no attachment service is mounted.',
     unsupported: model => `${model} does not accept images. Sent the text only.`,
+  },
+  skills: {
+    loadFailed: name => `The ${name} skill could not be loaded`,
+    invoked: name => `skill ${name}`,
   },
   banner: {
     // Kept short enough to fit the wordmark column at 80 columns, and only
@@ -648,6 +664,10 @@ const ZH: Catalog = {
     rejected: (name, message) => `${name} 被拒绝：${message}`,
     noStore: '无法附带图片：没有挂载附件服务。',
     unsupported: model => `${model} 不接受图片，只发送了文字。`,
+  },
+  skills: {
+    loadFailed: name => `技能 ${name} 加载不了`,
+    invoked: name => `技能 ${name}`,
   },
   banner: {
     tip: '提示：/help · /status · Tab 补全',

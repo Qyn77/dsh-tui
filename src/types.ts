@@ -80,7 +80,19 @@ export type UiEntry =
    * or the runtime stopped on purpose.
    */
   | { kind: 'note'; text: string; tone?: 'error' | 'warn' }
-  | { kind: 'runtime-context'; plugin?: string; form?: string; preview: string }
+  /**
+   * Context the runtime handed the model on the user's behalf.
+   *
+   * `plugin`/`form` describe a plugin injection and `skill` a user-explicit
+   * skill invocation; they are mutually exclusive, and a row that has neither
+   * is an injection from a source this surface has no vocabulary for yet.
+   *
+   * A skill row carries no `preview` on purpose. The payload is a rendered
+   * `<skill_content>` block, and `@deepseek-ai/dsh-skill` puts the name in the
+   * message source precisely so consumers label the row from metadata instead
+   * of sampling model-facing markup at the user.
+   */
+  | { kind: 'runtime-context'; plugin?: string; form?: string; skill?: string; preview: string }
   /**
    * A slash command and what it printed. Commands never reach the model, so
    * they produce no session event and the reducer cannot mint this — it is

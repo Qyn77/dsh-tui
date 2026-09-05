@@ -7,7 +7,7 @@
 
 import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
 import { readFile } from 'node:fs/promises'
-import React, { useCallback, useEffect, useRef, useState, type FC, type ReactNode } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, type CallId } from '@deepseek-ai/dsh-llm'
@@ -25,6 +25,8 @@ import { useApprovalRequests } from './hooks/useApprovalRequests.ts'
 import { useShell } from './hooks/useShell.ts'
 import { parseShellInput } from './shell.ts'
 import { attachImages, classifyModalities, refusalText } from './attach-runner.ts'
+import { resolveSkill, skillFailureText, viewingScope } from './skill-runner.ts'
+import { useSkillCommands } from './hooks/useSkillCommands.ts'
 import { service } from './services.ts'
 import { dispatch } from './commands.ts'
 import { handleCancel, handleInterrupt } from './interrupt.ts'
@@ -142,7 +144,14 @@ export const App: FC<AppProps> = ({
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
   const { state, resetView, appendEntry } = useSessionEvents(ctx, agent)
-  const extraCommands = useRegistryCommands(ctx, agent)
+  const registryRows = useRegistryCommands(ctx, agent)
+  const skillRowsForPalette = useSkillCommands(ctx, agent, registryRows)
+  // Registry rows first: they outrank skills on a name collision, and
+  // `filterCommands` keeps the first of a duplicate pair.
+  const extraCommands = useMemo(
+    () => [...registryRows, ...skillRowsForPalette],
+    [registryRows, skillRowsForPalette],
+  )
   const approvals = useApprovalRequests(ctx, agent)
   // Appended once, in an effect rather than as a seeded entry, because the view
   // is seeded by replaying the session's durable log and a boot notice is not
@@ -429,6 +438,45 @@ export const App: FC<AppProps> = ({
     [ctx, selection],
   )
 
+  /**
+   * Run a `/name` the command surface did not claim as a skill invocation.
+   *
+   * Two messages, in this order, because the order is mechanical rather than
+   * stylistic: `agent.inject` queues context *without waking the driver* and a
+   * pre-step that has already claimed its batch will miss a late arrival, so
+   * the body has to be pending before anything wakes the turn. The follow-up
+   * carries the user's own words and is what starts it.
+   *
+   * A name nothing resolves to falls back to the ordinary unknown-command row,
+   * so the skill layer being empty or unmounted looks exactly like it did
+   * before skills existed.
+   */
+  const runSkill = useCallback(
+    async (input: string) => {
+      const outcome = await resolveSkill(input, {
+        skills: service(ctx, 'skills'),
+        cwd: process.cwd(),
+        scope: viewingScope(agent),
+      })
+      if (outcome.kind === 'invoked') {
+        agent.inject(outcome.context)
+        agent.followup(outcome.prompt)
+        return
+      }
+      if (outcome.kind === 'failed') {
+        appendEntry({ kind: 'note', text: skillFailureText(outcome.name, strings), tone: 'warn' })
+        return
+      }
+      appendEntry({
+        kind: 'command',
+        input,
+        text: strings.output.unknownCommand,
+        failed: true,
+      })
+    },
+    [ctx, agent, appendEntry, strings],
+  )
+
   const onSubmit = useCallback(
     (text: string) => {
       const trimmed = text.trim()
@@ -490,12 +538,12 @@ export const App: FC<AppProps> = ({
               failed: result.failed === true,
             })
           } else if (result.kind === 'unknown') {
-            appendEntry({
-              kind: 'command',
-              input: result.input,
-              text: strings.output.unknownCommand,
-              failed: true,
-            })
+            // Skills are the last layer of the `/` surface, tried only once
+            // both the built-in table and the plugin registry have declined
+            // the name. That ordering is the precedence rule (`skills.ts`):
+            // the layer a user creates by dropping a file into a directory is
+            // the one that must not shadow anything.
+            void runSkill(result.input)
           }
           // 'exit' is handled inside dispatch by calling appExit; nothing more
           // to do here.

@@ -319,6 +319,34 @@ attachment never costs you the line you typed.
 There is no clipboard paste for images yet, and nothing renders the picture
 itself in the terminal; the chip is the confirmation.
 
+### Running a skill
+
+If your assembly mounts skills, the ones marked as user-invocable show up in
+the `/` palette with a `◆` in front of their description:
+
+```
+/review    ◆ Read a diff and list what would break in production
+```
+
+Type it like any other command, and add whatever the skill should work on:
+
+```
+> /review the auth change
+```
+
+The skill's instructions are handed to the model and the turn starts. Your own
+words stay your own message; the instructions are not folded into them. The
+transcript shows one dim row naming what ran:
+
+```
+⤷ skill review
+```
+
+Built-in commands win a name collision, then plugin commands, then skills — so
+dropping a `clear` skill into a project cannot take `/clear` away from you.
+
+There is no `/skills` listing: the palette is the listing.
+
 ### Seeing more of a long output
 
 A tool result or a `!` command's output is previewed at 8 lines, with a

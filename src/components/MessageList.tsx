@@ -386,7 +386,12 @@ function RuntimeContextLine({ entry }: { entry: Extract<UiEntry, { kind: 'runtim
   // the plugin chose, and renaming another package's `form` in our own UI
   // would leave the user unable to match what they see against that package's
   // documentation.
-  const header = `${strings.entries.runtimeContext}${entry.plugin ? ` · ${entry.plugin}` : ''}${entry.form ? ` (${entry.form})` : ''}`
+  // The skill name is the skill's own identifier and stays untranslated for
+  // the same reason the plugin name does: it is what the user typed, and what
+  // they would type again.
+  const header = entry.skill !== undefined
+    ? strings.skills.invoked(entry.skill)
+    : `${strings.entries.runtimeContext}${entry.plugin ? ` · ${entry.plugin}` : ''}${entry.form ? ` (${entry.form})` : ''}`
   return (
     <Row glyph={NOTE_GLYPH} color="gray" dim>
       <Text color="gray" dimColor>{header}</Text>

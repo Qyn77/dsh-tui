@@ -262,7 +262,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/resume`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. `/resume` used to be listed here as future work and now ships (§1.5.8). `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/resume`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. `/resume` used to be listed here as future work and now ships (§1.5.8). A name neither this table nor that registry holds is tried once more as a user-invocable skill (§1.14) before it is called unknown — three layers, in that order. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -763,6 +763,35 @@ Byte sizes use decimal units (`284 KB`, not `278 KiB`): the number is there to b
 
 **Not done.** Clipboard image paste. `/copy`'s module explains why the terminal's clipboard cannot be *read* mid-session (OSC 52's reply needs a stdin listener while Ink owns the read loop); that argument does not cover a subprocess like `pngpaste`, but a per-platform external binary is its own decision rather than one that rides along.
 
+### 1.14 Invoking a skill
+
+`ctx.skills` (`@deepseek-ai/dsh-skill`) is a layered registry of skill providers; `dsh-base` mounts it along with the filesystem provider and the model-facing `skill` tool. The model half therefore already worked before this package did anything — the model calls `skill` and the TUI draws an ordinary tool call. What was missing was the **human** half, which the registry names but does not implement: every summary carries `invocation.userInvocable`, and nothing was reading it.
+
+A user-invocable skill is a `/` row. It is the only row on that surface that **starts a turn** — every other one changes view state or calls a plugin handler that returns text — so it is marked with `◆` ahead of its description, and the marker sits in the description rather than the name because the name is what Tab writes back into the buffer.
+
+**Precedence is built-ins, then `ctx.commands`, then skills.** Built-ins already win against the registry, for the stated reason that advertising behaviour which cannot run is worse than omitting the row. Skills lose to both for an additional one: a skill is the only layer a user creates by dropping a file into a directory, so it is the layer that must not shadow anything by accident.
+
+**An invocation is two messages, and the split is not ours to choose.** `SkillInvocationSource` is a durable `MessageSourceMap` variant, documented as: the user's own words ride a plain user message, and the rendered skill body follows as injected `instructions`-form context carrying that source. So:
+
+| Message | Channel | Content |
+| --- | --- | --- |
+| the skill body | `agent.inject()` | `renderSkillContent(skill)`, verbatim |
+| the user's words | `agent.followup()` | the prose after the name, or the typed line when there is none |
+
+The body goes first. That ordering is mechanical rather than stylistic: `inject` queues context *without waking the driver*, and a pre-step that has already claimed its batch will miss a late arrival — so the body has to be pending before anything starts the turn.
+
+The body is `renderSkillContent`'s output and not our own wrapper, so the model sees one `<skill_content>` shape whether the skill arrived by tool call or by slash command. The user's words stay outside that wrapper, so a skill's prose and the user's cannot be read as each other.
+
+**The transcript labels the row from metadata.** A skill injection projects to a `runtime-context` entry carrying `skill`, drawn as `⤷ skill review` with no preview — reading `source.name` is exactly what the source variant exists for, and previewing the payload would show the user `<skill_content>` markup they never wrote. A plugin injection still draws its producer and form as before.
+
+**Unknown is one outcome with four causes**: no registry mounted, a name outside the kebab-case grammar, a name no provider offers, and a name whose skill is model-only. They collapse because they produce one user-visible fact — nothing by that name is yours to run — and separating them would tell a user that a skill exists but is not theirs, which leaks the catalog the provider chose not to expose. A skill that *is* listed but whose body will not load is distinct (`The review skill could not be loaded`), because the user did name something real and can go look at it.
+
+**Matching a submitted line is exact**: no prefix, no case folding. The palette is where a partial name gets completed; once a line is submitted, running something the user did not name is worse than saying the name is unknown. The catalog is re-read on invocation rather than reusing the palette's copy — a skill is a file another process may have just rewritten, and `cd` moves which project roots are in view.
+
+**An incomplete catalog is dropped, not applied.** `snapshot()` reports `complete: false` while a provider is still starting up; the palette keeps its last good rows rather than flickering entries out of existence, and `skills/change` brings it back for another look.
+
+**Not done.** No `/skills` listing. The palette *is* the listing, and a command that printed the same rows into the transcript would be a second surface to keep in sync with the first.
+
 ---
 
 ## Part 2 · Roadmap
@@ -834,12 +863,13 @@ Still open: nothing — v0.3 is complete.
   A bridged call reads `github:create_issue(it broke)` in the transcript, and the approval card adds a yellow row naming the server, because approving a bridged tool is a different decision from approving a built-in one: the arguments leave the machine. See §1.12.
 
   Two things remain, and neither is this package's to do. *Connection state* is not observable — with no service and no events, "connected" can only be inferred from whether the tools are registered, so a `/mcp` listing would report the tool surface, not the link. And *configuring* a server is a user patch layer (`insert` one `mcp-client` per server), which is not something a TUI user can discover; that is a bundle and documentation problem.
+- **Agent skills.** *Shipped.* `@deepseek-ai/dsh-skill` publishes `0.1.0-rc.7` and `dsh-base` mounts the registry, the filesystem provider and the `skill` tool, all enabled — so the model half was already working and the human half was simply unclaimed. A user-invocable skill is now a `/` row that injects `renderSkillContent()`'s block and starts a turn; see §1.14. Nothing about it needed a version bump.
 - **Hooks visualization.** Render `PreToolUse` / `PostToolUse` hook outputs inline. Blocked the same way as MCP: `hook/invoked` and `hook/result` are named in `KNOWN_SESSION_EVENT_TYPES` and nowhere else — no `dsh-hooks` package exists to define their payloads.
 
 ### Aspirational (no commitment)
 
 - Mouse support beyond the wheel (click to focus, drag to select rows)
-- Image paste (iTerm / Kitty / Sixel)
+- Clipboard image paste (needs a per-platform external binary; see §1.13)
 - Multi-session tabs
 - Remote session attach (SSH in, see the same TUI)
 
@@ -873,6 +903,8 @@ src/
 ├── file-mentions.ts    # `@` mention parsing + path ranking, and the one walk
 ├── attachments.ts      # Pure image-path detection in a submitted line
 ├── attach-runner.ts    # The one place that reads image bytes and commits them
+├── skills.ts           # Pure skill-row layout, precedence, and name parsing
+├── skill-runner.ts     # Reads ctx.skills and builds an invocation's two messages
 ├── plugins.ts          # Pure classification + table for `/plugins`
 ├── banner-art.ts       # Pure banner art + text — beside Banner.tsx
 ├── theme.ts            # Pure appearance arithmetic, and the one terminal probe
@@ -1126,7 +1158,7 @@ Use `vitest`. Tests live in `tests/` mirroring `src/`. Run with `pnpm test`. Tes
 
 **Where a test goes.** The package tests along a seam, not per file, and the seam is *pure module vs. React*:
 
-- **Pure modules get direct unit specs.** `state.ts`, `markdown.ts`, `scroll.ts`, `resize.ts`, `message-layout.ts`, `prompt-layout.ts`, `prompt-editing.ts`, `attachments.ts`, `width.ts` are all reachable without booting anything, so they are tested by calling them.
+- **Pure modules get direct unit specs.** `state.ts`, `markdown.ts`, `scroll.ts`, `resize.ts`, `message-layout.ts`, `prompt-layout.ts`, `prompt-editing.ts`, `attachments.ts`, `skills.ts`, `width.ts` are all reachable without booting anything, so they are tested by calling them.
 - **Components are tested through the frame**, by rendering the real tree onto a fake TTY and asserting on the characters that reach the screen. `Markdown.tsx`, `MessageList.tsx`, `Prompt.tsx` and `SlashPalette.tsx` therefore have no file named after them in `tests/` — they are covered by `prompt-frame.spec.ts`, `message-scroll.spec.ts`, `command-output.spec.ts` and friends. This is deliberate: a component spec asserting on a React tree would pin the implementation, while the frame test pins the thing the user actually looks at. **An empty row in a file-to-spec table is not automatically a gap here** — check the frame specs before filing one.
 - **Hooks split by what they own.** A hook that only adapts a pure module to React needs no spec of its own. A hook that owns state or a timer gets a mounted probe, because its contract is a sequence over time and no single frame can show it.
 
