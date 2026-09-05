@@ -140,13 +140,17 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 | StatusBar | `round` `#4D6BFE` | Persistent chrome in the same brand blue as the banner above it. |
 | Prompt | `round` (`╭─╮│╰─╯`) | Affordance for an empty input. Cyan when it takes input, gray when it does not (a `!` command, a pending approval). A running turn leaves it cyan — the line steers, §1.6. |
 | Tool call | none | A marked line, not a block; see the gutter below. |
-| User message | none | Floats freely; reads as text, not as a frame. |
+| User message | `round` `blue` | The transcript's only marker of authorship. Same box as the prompt, deliberately: what the user typed and where they type it are one surface. |
 | Assistant message | none | Floats freely. |
 | Note / compaction / plan | none | Single lines, prefixed with `⤷`. |
 
-Frames are reserved for **persistent chrome** — the status bar and the prompt. Nothing in the conversation gets a frame.
+Frames are reserved for **persistent chrome** — the status bar and the prompt — plus exactly one thing in the conversation: the user's own messages.
 
-**The conversation is a glyph gutter.** Every entry renders as a fixed two-cell marker column beside a body column: `⏺` for an assistant turn or a tool call, `>` for a user line, `⎿` for a tool's outcome hanging under its call, `⤷` for a lifecycle note. The two-column form is what gives wrapped text a hanging indent — a long turn continues under the body, never back under the marker — and it keeps the conversation's left edge on one column regardless of what an entry is. Entries are separated by a single blank row, applied as a top margin so a tool's outcome stays welded to the call above it.
+That exception is a reversal, and it is worth saying why it does not reopen the tool-call card. A framed entry costs two rows and four columns, and the question is always what that buys per entry *and how many entries pay it*. Tool calls are most of a transcript — five or ten a turn — so their frame was paid over and over for something the `⏺ Name(subject) ✓` line already said, and rc.7 dropped it. A user message is one entry per turn, and before the frame it was the only kind with **no** marker of authorship at all: an assistant turn announces itself with a magenta `Assistant (turn · step)` header, a tool call names the tool, a note carries `⤷` — a user line had two cells of `>` and nothing else. The frame is the answer to "which of these did I say", and there is one of it per turn to pay for.
+
+Only the user's side is framed. An assistant turn renders as markdown and a fenced code block already draws its own `round` box, so a frame around the turn would be a box inside a box — four columns narrower for the code that needs the width most.
+
+**The conversation is a glyph gutter.** Every entry renders as a fixed two-cell marker column beside a body column, the frame around a user message included — the box sits in the body column and the `>` stays in the gutter, so the conversation's left edge is one column for every entry kind: `⏺` for an assistant turn or a tool call, `>` for a user line, `⎿` for a tool's outcome hanging under its call, `⤷` for a lifecycle note. The two-column form is what gives wrapped text a hanging indent — a long turn continues under the body, never back under the marker — and it keeps the conversation's left edge on one column regardless of what an entry is. Entries are separated by a single blank row, applied as a top margin so a tool's outcome stays welded to the call above it.
 
 A tool call is **one line**, `Read(src/scroll.ts) ✓`, with a preview of its result hanging beneath. It was a `round`-bordered card through rc.7: four rows of frame before any content, and two columns of extra indent for everything inside it. A transcript is mostly tool calls, so their per-entry overhead is what decides how much conversation fits on screen — the card cost more than it explained. Which argument becomes the subject in `Name(subject)` is chosen by convention (`file_path`, `command`, `pattern`, …) rather than by tool name, because this package does not own the tool registry and cannot enumerate it.
 
@@ -160,7 +164,7 @@ The raised budget is a bigger cap, not the absence of one. `windowStart` keeps a
 
 One known cost: toggling while scrolled into history moves the text under you. The offset counts rows from the bottom, and expanding adds rows below your position as well as above it. Holding position would need the per-entry anchor this design is avoiding.
 
-The glyphs, the gutter width, the one-line summaries, and the preview arithmetic live in [`src/message-layout.ts`](./../src/message-layout.ts) as pure functions, and `src/scroll.ts` reads them to estimate how many rows an entry costs. That sharing is load-bearing: the estimate decides how much history stays mounted, and an estimate that *over*-counts stops the mount short of the offset the user is scrolling to, which puts the oldest entries out of reach.
+The glyphs, the gutter width, the columns the user message's frame takes (`USER_FRAME_COLUMNS`), the one-line summaries, and the preview arithmetic live in [`src/message-layout.ts`](./../src/message-layout.ts) as pure functions, and `src/scroll.ts` reads them to estimate how many rows an entry costs. That sharing is load-bearing: the estimate decides how much history stays mounted, and an estimate that *over*-counts stops the mount short of the offset the user is scrolling to, which puts the oldest entries out of reach. The frame is the current example of why the constants are shared rather than written twice — it costs two rows *and* narrows the text that wraps inside it, and an estimate that charged the rows but not the columns would under-count every message long enough to wrap.
 
 **The prompt cursor.** Ink hides the terminal cursor while in raw mode, so the Prompt renders its own. A stable `▌` (LEFT HALF BLOCK, `cyan` bold) sits at the end of the input whenever the prompt is active. During a running turn the cursor disappears, so a locked prompt never visually invites input. The placeholder switches to `… working` in the same step.
 
@@ -175,7 +179,7 @@ The palette is theme-aware, and almost entirely by *not* being theme-aware. Near
 | App brand | `cyan` bold | `>` in the prompt; slash palette border and command names. |
 | Model name | `green` | `provider/model` in the StatusBar. |
 | Model name — banner | default fg, bold | `provider/model` on the banner. Deliberately uncolored: this is the line the banner most needs legible, and every *named* color is a palette entry the terminal resolves against its own background. `white` is the one that fails worst — on a light-background terminal it lands near the background and the line all but vanishes. The default foreground is the only color guaranteed to contrast, because contrast is the job the terminal picked it for. Same reasoning as **Command output** below. |
-| User marker | `blue` | `>` in the gutter of a user line. |
+| User marker + frame | `blue` | `>` in the gutter of a user line, and the `round` box beside it. |
 | Assistant marker + label | `magenta` bold | `⏺` in the gutter; `assistant` in the metadata header. |
 | Tool name | bold | The `Name(subject)` line. |
 | Tool marker + status — ok | `green` | `⏺` on the call line; `✓`. |
@@ -589,7 +593,7 @@ multi-row message can never lock the log shut.
 
 ### 1.7 Text conventions
 
-- User messages are marked with `>` in the gutter and carry no label. The marker already says whose line it is, and a user message has no metadata to hang off a header row — so the text sits on the marker's own row.
+- User messages are marked with `>` in the gutter and framed in a `round` blue box, and carry no label inside it. The marker and the frame already say whose line it is, and a user message has no metadata to hang off a header row — so the text sits on the marker's own row rather than under a header.
 - Assistant turns keep a header row, `assistant · turn N step N`, because they *do* have metadata; the counter is meta and goes in `gray`. The body starts on the next row.
 - Tool calls carry their status as a trailing glyph on the call line: `✓`, `✗`, `…`, `⊘`.
 - A tool still `running` when its turn ends never reported a result, so its status is derived from the `turn/end` reason: `completed` → `✓`, `error` → `✗`, anything else (`interrupted`, `aborted`) → `⊘ cancelled`. It must **never** be reported as `✓` unconditionally — that told the user a tool they had killed with Ctrl-C had completed.

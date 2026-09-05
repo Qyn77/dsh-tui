@@ -42,6 +42,7 @@ import {
   NOTE_GLYPH,
   RESULT_GLYPH,
   SHELL_GLYPH,
+  USER_BORDER_COLOR,
   USER_GLYPH,
   shellStatusKinds,
   toolCallSummary,
@@ -247,13 +248,31 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
   )
 }
 
+/**
+ * A line the user typed, framed.
+ *
+ * The frame is the one exception to "nothing in the conversation gets a box"
+ * (SPEC §1.2), and it earns it by being the only marker of authorship the
+ * transcript has: an assistant turn already announces itself with a magenta
+ * `Assistant (turn · step)` header, while a user line had nothing but a `>`
+ * two cells wide. It is the same `round` box as the prompt, deliberately —
+ * what the user typed and where they type it should look like one surface.
+ *
+ * Only the user's side is framed. An assistant turn is markdown, and a fenced
+ * code block already draws its own `round` box; a second one around the turn
+ * would be a box inside a box, four columns narrower for the code that needs
+ * the width most.
+ *
+ * Still no `you` label inside it. The frame says whose line this is more
+ * plainly than a word would, and a user message carries no metadata to hang
+ * off a header row — so the text keeps the marker's own row.
+ */
 function UserBlock({ entry }: { entry: Extract<UiEntry, { kind: 'user' }> }) {
-  // No `you` label: the marker already says whose line this is, and a user
-  // message carries no metadata to hang off a header row. Dropping it puts
-  // the text itself on the marker's row and saves a row per turn.
   return (
     <Row glyph={USER_GLYPH} color="blue">
-      <Text>{userMessageText(entry.message) || ' '}</Text>
+      <Box borderStyle="round" borderColor={USER_BORDER_COLOR} paddingX={1}>
+        <Text>{userMessageText(entry.message) || ' '}</Text>
+      </Box>
     </Row>
   )
 }

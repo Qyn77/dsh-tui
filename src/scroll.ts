@@ -21,6 +21,7 @@ import {
   shellStatusRows,
   toolCallSummary,
   toolResultPreview,
+  USER_FRAME_COLUMNS,
 } from './message-layout.ts'
 
 
@@ -162,10 +163,12 @@ function textRows(text: string, width: number): number {
  *
  * The arithmetic tracks `MessageList`'s layout, so it has to move whenever
  * that layout does. Every entry is a gutter row: one blank row of separation,
- * then the rows its own text wraps to, indented by the gutter width. No
- * border, no bottom margin. Over-counting here is the failure that bites — it
- * stops the mount short of the history the offset is asking for, and the
- * oldest entries become unreachable.
+ * then the rows its own text wraps to, indented by the gutter width. No bottom
+ * margin, and no border on anything but a user message — that one is framed
+ * (SPEC §1.2) and pays for it twice, in the two rows its box costs and in the
+ * `USER_FRAME_COLUMNS` its text no longer has. Over-counting here is the
+ * failure that bites — it stops the mount short of the history the offset is
+ * asking for, and the oldest entries become unreachable.
  * @param entry - the entry to measure.
  * @param columns - the terminal width the entry will be drawn into.
  * @param expanded - whether the user has lifted the preview cap (`/verbose`,
@@ -181,8 +184,13 @@ export function estimateEntryRows(entry: UiEntry, columns: number, expanded = fa
 /** Rows one entry's own content occupies, excluding its separating margin. */
 function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number {
   switch (entry.kind) {
-    case 'user':
-      return textRows(userMessageText(entry.message) || ' ', width)
+    case 'user': {
+      // The frame's own two rows, and text that wraps inside it rather than
+      // across the full width. Both halves matter: charging the rows without
+      // narrowing the text under-counts every message long enough to wrap.
+      const inner = Math.max(1, width - USER_FRAME_COLUMNS)
+      return 2 + textRows(userMessageText(entry.message) || ' ', inner)
+    }
     case 'assistant':
       // Every turn renders as markdown, streaming or finalized, which adds a
       // blank row between blocks; the raw text is the floor, the safe side.

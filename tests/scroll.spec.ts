@@ -133,11 +133,23 @@ describe('parseNavKey', () => {
 
 describe('estimateEntryRows', () => {
   it('charges an entry for its separator and the rows it draws', () => {
-    // One blank row of separation plus one row of text — no border, no bottom
-    // margin. Anything more would over-count, and over-counting is what puts
-    // history out of reach.
-    expect(estimateEntryRows(userEntry('hi'), 80)).toBe(2)
+    // One blank row of separation plus one row of text — no bottom margin,
+    // and no border on anything but a user message. Anything more would
+    // over-count, and over-counting is what puts history out of reach.
     expect(estimateEntryRows({ kind: 'note', text: 'x' }, 80)).toBe(2)
+  })
+
+  it('charges a user message for the frame around it', () => {
+    // Separator, the box's two rows, and the one row of text inside it.
+    expect(estimateEntryRows(userEntry('hi'), 80)).toBe(4)
+  })
+
+  it('wraps a user message inside its frame, not across the full width', () => {
+    // A line that fits the gutter width but not the four columns the border
+    // and padding take. Charging the box's rows without narrowing the text
+    // would call this one row and under-count every message that wraps.
+    const text = 'a'.repeat(78 - 2)
+    expect(estimateEntryRows(userEntry(text), 80)).toBe(5)
   })
 
   it('adds the metadata header an assistant turn carries', () => {
@@ -151,7 +163,8 @@ describe('estimateEntryRows', () => {
   })
 
   it('counts each hard line break', () => {
-    expect(estimateEntryRows(userEntry('a\nb\nc'), 80)).toBe(4)
+    // Separator, the frame's two rows, and one row per line.
+    expect(estimateEntryRows(userEntry('a\nb\nc'), 80)).toBe(6)
   })
 
   it('charges a shell entry for its command, output and one status row', () => {

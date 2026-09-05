@@ -33,6 +33,24 @@ export const RESULT_GLYPH = '⎿'
 /** Marks a lifecycle note — compaction, plan mode, injected context. */
 export const NOTE_GLYPH = '⤷'
 
+/**
+ * Color of the frame around a user message. The same `blue` as
+ * {@link USER_GLYPH}, so the marker and the box it opens read as one thing.
+ */
+export const USER_BORDER_COLOR = 'blue'
+
+/**
+ * Columns a user message's frame takes away from its text: one border cell
+ * and one padding cell on each side.
+ *
+ * Shared rather than written twice because `MessageList` draws the box and
+ * `scroll.ts` has to predict how tall it came out. Two copies of this number
+ * would disagree the first time either side changed its padding, and the
+ * symptom would be unreachable history rather than a wrong-looking box —
+ * see `estimateEntryRows` in `scroll.ts`.
+ */
+export const USER_FRAME_COLUMNS = 4
+
 /** Longest tool argument summary shown inline, in characters. */
 const ARGS_MAX = 60
 
