@@ -118,11 +118,11 @@ Pop-Location
 > Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1
 > ```
 
-In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the current turn; **`/exit`** leaves.
+In the REPL: type a message and press **Enter** to send; keep typing while the model works and **Enter** steers it; **Esc** cancels the current turn; **`/exit`** leaves.
 
 | Command | Effect |
 | --- | --- |
-| `Enter` | Send the current input as a user message to the model |
+| `Enter` | Send the current input as a user message to the model — while a turn is running it steers that turn instead of queuing a new one |
 | `/help` | Print available slash commands |
 | `/clear` | Clear the visible chat (the session log is unchanged) |
 | `/status` | Print the current model and session id |
@@ -141,8 +141,10 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
 | `Ctrl-O` | Same switch as `/verbose`, without typing a command |
 | `y` / `n` / `Esc` | Answer a tool approval request |
-| `Ctrl-C` (idle) | Same as `/exit` |
+| `Esc` | Cancel the in-flight turn or `!` command; never exits |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn |
+| `Ctrl-C` (half-written input) | Clear the input |
+| `Ctrl-C` (idle, empty input) | Ask first; a second `Ctrl-C` is the same as `/exit` |
 | `Ctrl-J` | Insert a newline in the input (so does `\` then `Enter`) |
 | `Ctrl-P` / `Ctrl-N` | Walk back and forward through this session's inputs |
 | `Ctrl-A` / `Ctrl-E` | Jump the caret to the start / end of the input |
@@ -151,7 +153,7 @@ In the REPL: type a message and press **Enter** to send; **Ctrl-C** cancels the 
 | `↑` / `↓` | Scroll the conversation one row — or move the caret, once the input is more than one row tall |
 | `PageUp` / `PageDown` | Scroll one viewport (two rows of overlap) |
 | `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
-| `Ctrl-U` / `Ctrl-D` | Scroll half a viewport |
+| `Ctrl-U` / `Ctrl-D` | Scroll half a viewport — `Ctrl-U` deletes to the start of the input when there is input to delete |
 | `Home` / `End` | Jump to the oldest row / back to the newest |
 | `Ctrl-L` | Clear the screen and redraw (nothing else changes) |
 | Mouse wheel | Scrolls, in terminals that support alternate scroll mode |
@@ -465,7 +467,7 @@ The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump th
 ## Known limitations
 
 - **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
-- **Switching sessions ends the turn you are in.** `/resume` is refused while a turn is running; cancel with Ctrl-C first. There is no way to keep two sessions open side by side.
+- **Switching sessions ends the turn you are in.** Every slash command is refused while a turn is running — `/resume` included; cancel with Esc first. There is no way to keep two sessions open side by side.
 - **Long tool output is previewed, not expandable.** The first 8 lines are shown with a `… +N lines` marker; there is no `show more` affordance, because reaching one would need a selection model the app deliberately does not have.
 - **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.
 

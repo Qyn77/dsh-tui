@@ -112,7 +112,7 @@ Pop-Location
 > Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1
 > ```
 
-REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`/exit`** 退出。
+REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续打字，**Enter** 会插话到这一轮里；**Esc** 取消当前 turn；**`/exit`** 退出。
 
 | 命令 | 作用 |
 | --- | --- |
@@ -135,8 +135,10 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
 | `Ctrl-O` | 和 `/verbose` 是同一个开关，不用敲命令 |
 | `y` / `n` / `Esc` | 回答工具审批请求 |
-| `Ctrl-C`（空闲时） | 等同 `/exit` |
+| `Esc` | 取消正在跑的 turn 或 `!` 命令；不会退出 |
 | `Ctrl-C`（turn 运行时） | 取消正在跑的 turn |
+| `Ctrl-C`（输入写了一半） | 清空输入 |
+| `Ctrl-C`（空闲且输入为空） | 先问一次，再按一次才等同 `/exit` |
 | `Ctrl-J` | 在输入框里换行（`\` 加 `Enter` 也可以）|
 | `Ctrl-P` / `Ctrl-N` | 在本次 session 输入过的内容之间前后翻 |
 | `Ctrl-A` / `Ctrl-E` | 光标跳到输入的开头 / 结尾 |
@@ -145,7 +147,7 @@ REPL 里：输入消息按 **Enter** 发送；**Ctrl-C** 取消当前 turn；**`
 | `↑` / `↓` | 滚动一行；输入框超过一行时改为移动光标 |
 | `PageUp` / `PageDown` | 按屏滚动（保留两行重叠） |
 | `Ctrl-B` / `Ctrl-F` | 同上，不用按 `Fn` |
-| `Ctrl-U` / `Ctrl-D` | 滚动半屏 |
+| `Ctrl-U` / `Ctrl-D` | 滚动半屏 —— 输入框有内容时 `Ctrl-U` 删到行首 |
 | `Home` / `End` | 跳到最早一行 / 回到最新 |
 | `Ctrl-L` | 清屏重画（别的什么都不变）|
 | 鼠标滚轮 | 支持 alternate scroll 的终端里可滚动 |
@@ -421,7 +423,7 @@ npm publish --access public
 ## 已知限制
 
 - **`@` 只补全路径，不会把文件塞进消息。** 输入 `@src/pro` 再按 `Tab`，写进消息的是 `@src/prompt-layout.ts` 这段文字，文件内容不会被读取或内联。往 prompt 里放什么是 harness 的决定，不该由一个输入框替它做——何况模型自己就有文件工具，拿到路径就能打开。
-- **切 session 得先结束当前这一轮。** 有一轮在跑的时候 `/resume` 会被拒绝，先 Ctrl-C 取消。也没法同时开着两个 session。
+- **切 session 得先结束当前这一轮。** 有一轮在跑的时候所有斜杠命令都会被拒绝，`/resume` 也一样，先按 Esc 取消。也没法同时开着两个 session。
 - **长工具输出只给预览，展不开。** 会显示前 8 行，末尾加一条 `… 还有 N 行` 的标记；没有展开入口——要做展开就得引入这个应用刻意不要的选中模型。
 - **`ctx.appExit` 由 launcher 提供。** 在 `dsh` CLI 外面跑会大声报错，直到 host 提供 exit hook。
 

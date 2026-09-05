@@ -243,6 +243,10 @@ export const App: FC<AppProps> = ({
   // Whether the prompt holds a half-written line. Ctrl-U and Ctrl-C both
   // belong to it while this is set — see `Prompt.onFilledChange`.
   const [promptFilled, setPromptFilled] = useState(false)
+  // Whether the prompt's palette or file picker is open and owns Esc. Only a
+  // concern because the prompt now takes keys during a running turn, which is
+  // exactly when the App's Esc means "cancel" — see `Prompt.onEscClaimChange`.
+  const [promptClaimsEsc, setPromptClaimsEsc] = useState(false)
   // Ctrl-C on an empty line at idle asks once before closing the session.
   // The flag disarms on any other keystroke rather than on a timer: a timer
   // would make the outcome of a keypress depend on how long ago the last one
@@ -272,8 +276,8 @@ export const App: FC<AppProps> = ({
   // key.ctrl), not as a SIGINT signal. The Prompt's useInput also sees
   // this keystroke and would otherwise append 'c' to the buffer; the
   // Prompt handles that on its side, and the App handles the interrupt
-  // here. This runs even when the prompt is "inactive" (a turn is
-  // running) so the user can cancel a long turn.
+  // here. This runs even when the prompt is "inactive" (a shell is running,
+  // an approval is waiting) so the user can always cancel.
   useInput((input, key) => {
     if (key.ctrl && input === 'c') {
       handleInterrupt({
@@ -303,10 +307,10 @@ export const App: FC<AppProps> = ({
     // acting on one keystroke and the thing SPEC §1.6 forbids. Denying is
     // also the narrower reading: the user rejected a command, not the work.
     //
-    // The prompt's own Esc bindings need no such guard: it is inert while a
-    // turn runs, so its palette and file picker cannot be open.
+    // The prompt's palette and file picker outrank it for the same reason,
+    // and they are live during a turn now that the box takes steering input.
     if (key.escape) {
-      if (approvals.pending.length > 0) return
+      if (approvals.pending.length > 0 || promptClaimsEsc) return
       handleCancel({
         agent,
         closeUi,
@@ -372,6 +376,16 @@ export const App: FC<AppProps> = ({
         return
       }
       if (trimmed.startsWith('/')) {
+        // Commands are refused mid-turn rather than queued. The refusal is
+        // coarse on purpose: `/clear`, `/resume` and `/model` reach into the
+        // session the running turn is writing to, plugin-registered commands
+        // can do anything at all, and nothing in the registry says which is
+        // which. One rule with no unknowns beats a per-command allowlist that
+        // is wrong the first time a plugin adds a row.
+        if (state.status === 'running') {
+          appendEntry({ kind: 'command', input: trimmed, text: strings.output.busyCommand, failed: true })
+          return
+        }
         // `dispatch` is async (model listing and context resolution both need
         // provider I/O). Ink ignores a handler's return value, so the promise
         // is driven here and its result appended when it settles — the prompt
@@ -427,12 +441,25 @@ export const App: FC<AppProps> = ({
         })
         return
       }
-      agent.followup(
-        createUserMessage({
-          content: [{ type: 'text', text: trimmed }],
-          source: { kind: 'user' },
-        }),
-      )
+      // `steer` while the driver is running, `followup` while it is idle. Both
+      // take the same message; they differ in where the agent puts it. A
+      // follow-up becomes the sole ordinary message of a turn of its own, so
+      // sending one mid-turn means the correction is read only after the model
+      // has finished doing the thing being corrected. Steering is consumed at
+      // the next *step* boundary of the turn already running, which is the
+      // whole point of typing while it works.
+      //
+      // Nothing is echoed locally. The steered line reaches the log the same
+      // way a follow-up does — as the session's own `user/message` event — so
+      // it appears when the agent has actually recorded it rather than when
+      // the key was pressed, and a line the agent discards never shows up
+      // claiming to have been sent.
+      const message = createUserMessage({
+        content: [{ type: 'text', text: trimmed }],
+        source: { kind: 'user' },
+      })
+      if (state.status === 'running') agent.steer(message)
+      else agent.followup(message)
     },
     [
       ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
@@ -568,18 +595,22 @@ export const App: FC<AppProps> = ({
               )}
         </Box>
         {/*
-        Above the prompt rather than in place of it. The prompt is inert while a
-        turn runs (`active` is false), so the two never fight over a keystroke,
-        and keeping the input row on screen means the question does not make the
-        layout jump by a variable number of rows as it comes and goes.
+        Above the prompt rather than in place of it. A pending approval is the
+        one thing that still makes the prompt inert — a running turn no longer
+        does, since the line steers it — so `y`/`n`/`Esc` reach the card and
+        nothing else. Keeping the input row on screen means the question does
+        not make the layout jump by a variable number of rows as it comes and
+        goes.
       */}
         <ApprovalPrompt pending={approvals.pending} onAnswer={approvals.answer} />
         <Prompt
-          active={state.status === 'idle' && !shell.running}
+          active={!shell.running && approvals.pending.length === 0}
+          busy={state.status === 'running' || shell.running}
           onSubmit={onSubmit}
           spinnerFrame={spinnerFrame}
           onArrowClaimChange={setPromptClaimsArrows}
           onFilledChange={setPromptFilled}
+          onEscClaimChange={setPromptClaimsEsc}
           extraCommands={extraCommands}
         />
       </Box>

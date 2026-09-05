@@ -197,6 +197,16 @@ export interface PaintOptions {
    */
   inject?: (message: unknown) => void
   /**
+   * Stand-ins for `agent.steer` and `agent.followup`, which are the two ways a
+   * submitted line can reach the model. Both default to no-ops; a test that
+   * cares which one ran has to pass both, because the whole assertion is that
+   * exactly one of them fired.
+   */
+  steer?: (message: unknown) => void
+  followup?: (message: unknown) => void
+  /** Stand-in for `agent.cancel`. Defaults to a no-op. */
+  cancel?: (cause: unknown) => void
+  /**
    * Ink's `debug` render mode, on by default because it writes each frame as
    * one plain chunk and that is what makes `screen()` readable.
    *
@@ -217,7 +227,7 @@ const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
-    appearance = 'dark', themePref = 'auto',
+    appearance = 'dark', themePref = 'auto', steer, followup, cancel,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
@@ -226,11 +236,19 @@ export async function paintApp(
   const ctx = new Context()
   ctx.provide('agentDefaultModel', { currentSelection: () => selection } as never)
   const session = seedSession(turns)
+  // The double's status tracks the turn boundaries a test appends, rather
+  // than sitting at 'idle' forever. `handleInterrupt` reads `agent.status`
+  // while the frame reads the reducer's, and a double where the two disagree
+  // would let a Ctrl-C test pass for the wrong reason.
+  let running = false
   const agent = {
     id: session.id,
     session,
-    status: 'idle',
-    cancel: () => {}, followup: () => {}, steer: () => {}, inject: inject ?? (() => {}),
+    get status() { return running ? 'running' : 'idle' },
+    cancel: cancel ?? (() => {}),
+    followup: followup ?? (() => {}),
+    steer: steer ?? (() => {}),
+    inject: inject ?? (() => {}),
     whenIdle: () => Promise.resolve(),
     on: () => () => {},
   }
@@ -290,6 +308,8 @@ export async function paintApp(
       // The event map is closed over types this package declares; the whole
       // point here is to write one it does not, so the signature is widened
       // rather than the argument cast into it.
+      if (type === 'turn/start') running = true
+      if (type === 'turn/end') running = false
       ;(session.append as (t: string, d: unknown) => void)(type, data)
       await emitLast()
     },

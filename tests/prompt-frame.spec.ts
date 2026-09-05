@@ -665,3 +665,117 @@ describe('the @ file picker', () => {
     expect(promptBox(screen).join('\n')).not.toContain('read @src')
   })
 })
+
+/**
+ * Typing while the model works. The prompt used to go inert for the whole
+ * turn, so every one of these keystrokes had nowhere to land; making the box
+ * live during a turn is what puts the frame back in play, and the frame is
+ * the only place the collisions show.
+ */
+describe('steering a running turn', () => {
+  /** Open a turn the way the session plugin does, without answering it. */
+  const startTurn = async (painted: Awaited<ReturnType<typeof paintApp>>): Promise<void> => {
+    await painted.append('turn/start', { turn: 1 })
+  }
+
+  it('keeps taking input and says what Enter will do', async () => {
+    const painted = await paintApp()
+    await startTurn(painted)
+    await painted.send('use pnpm')
+    const box = promptBox(painted.screen()).join('\n')
+    painted.unmount()
+
+    expect(box).toContain('use pnpm')
+  })
+
+  it('captions the empty box with steering rather than working', async () => {
+    const painted = await paintApp()
+    await startTurn(painted)
+    const box = promptBox(painted.screen()).join('\n')
+    painted.unmount()
+
+    expect(box).toContain('steering')
+    expect(box).not.toContain('working')
+  })
+
+  it('routes Enter to steer, not to followup', async () => {
+    const steered: unknown[] = []
+    const followed: unknown[] = []
+    const painted = await paintApp({
+      steer: m => steered.push(m),
+      followup: m => followed.push(m),
+    })
+    await startTurn(painted)
+    await painted.send('use pnpm')
+    await painted.send('\r')
+    painted.unmount()
+
+    expect(steered).toHaveLength(1)
+    expect(followed).toHaveLength(0)
+  })
+
+  it('routes Enter to followup while idle', async () => {
+    const steered: unknown[] = []
+    const followed: unknown[] = []
+    const painted = await paintApp({
+      steer: m => steered.push(m),
+      followup: m => followed.push(m),
+    })
+    await painted.send('use pnpm')
+    await painted.send('\r')
+    painted.unmount()
+
+    expect(followed).toHaveLength(1)
+    expect(steered).toHaveLength(0)
+  })
+
+  it('refuses a slash command mid-turn instead of running it', async () => {
+    const painted = await paintApp()
+    await startTurn(painted)
+    await painted.send('/help')
+    await painted.send('\r')
+    await painted.settle(120)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('commands wait for the turn to finish')
+    expect(screen).not.toContain('Available commands:')
+  })
+
+  it('cancels the turn on Ctrl-C and leaves the half-written line alone', async () => {
+    const cancelled: unknown[] = []
+    const painted = await paintApp({ cancel: c => cancelled.push(c) })
+    await startTurn(painted)
+    await painted.send('use pnpm')
+    await painted.send('\x03')
+    const box = promptBox(painted.screen()).join('\n')
+    painted.unmount()
+
+    expect(cancelled).toHaveLength(1)
+    expect(box).toContain('use pnpm')
+  })
+
+  it('cancels the turn on Esc', async () => {
+    const cancelled: unknown[] = []
+    const painted = await paintApp({ cancel: c => cancelled.push(c) })
+    await startTurn(painted)
+    await painted.send(ESC)
+    painted.unmount()
+
+    expect(cancelled).toHaveLength(1)
+  })
+
+  it('lets Esc close the palette without cancelling the turn under it', async () => {
+    const cancelled: unknown[] = []
+    const painted = await paintApp({ cancel: c => cancelled.push(c) })
+    await startTurn(painted)
+    await painted.send('/he')
+    await painted.send(ESC)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(cancelled).toHaveLength(0)
+    // Not 'Tab complete' — the banner's own tip row ends in 'Tab completes'.
+    expect(screen).not.toContain('Esc dismiss')
+  })
+})

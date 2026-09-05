@@ -63,8 +63,18 @@ import { useLang, useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link Prompt}. */
 export interface PromptProps {
-  /** Whether input is accepted (false while a turn is running). */
+  /** Whether input is accepted (false while a shell runs or an approval waits). */
   active: boolean
+  /**
+   * Whether something is running that `Esc` / `Ctrl-C` would cancel — an agent
+   * turn or a `!` shell command. Orthogonal to {@link active}: the prompt takes
+   * input during a *turn* so the line can steer it (§1.6), which means the two
+   * used to be one flag and no longer are. It picks the caption under the
+   * spinner, and it makes `Ctrl-C` stand down — while something is running that
+   * key stops it, and clearing the buffer at the same time would answer one
+   * keystroke twice.
+   */
+  busy?: boolean
   /** Called with the full line when the user submits a non-slash message. */
   onSubmit: (text: string) => void
   /** Index into {@link SPINNER_FRAMES} for the running-mode placeholder. */
@@ -85,6 +95,14 @@ export interface PromptProps {
    * rendered without it never takes either key.
    */
   onFilledChange?: (filled: boolean) => void
+  /**
+   * Report whether `Esc` currently belongs to the prompt — the palette or the
+   * file picker is open and Esc dismisses it. The App cancels the running turn
+   * on Esc, and since the prompt now takes input *during* a turn (§1.6) the two
+   * meanings can be live at the same moment; without this the one press would
+   * dismiss the palette and kill the turn. Optional, like the arrow claim.
+   */
+  onEscClaimChange?: (claimed: boolean) => void
   /**
    * Commands the plugin registry offers, alongside the built-in table. The
    * prompt has no context to read the registry from, so the App resolves it
@@ -139,8 +157,10 @@ export const Prompt: FC<PromptProps> = ({
   active,
   onSubmit,
   spinnerFrame,
+  busy = false,
   onArrowClaimChange,
   onFilledChange,
+  onEscClaimChange,
   extraCommands,
 }) => {
   const { stdout } = useStdout()
@@ -213,10 +233,16 @@ export const Prompt: FC<PromptProps> = ({
     onArrowClaimChange?.(claimsArrows)
   }, [claimsArrows, onArrowClaimChange])
 
+  // Esc is shared with the App's turn-cancel, on the same terms.
+  const claimsEsc = active && (palette.length > 0 || (picking && mention !== undefined))
+  useEffect(() => {
+    onEscClaimChange?.(claimsEsc)
+  }, [claimsEsc, onEscClaimChange])
+
   // Ctrl-U and Ctrl-C both mean something different when there is text to
-  // lose. `active` is part of it: while a turn runs the prompt takes no keys
-  // at all, so a buffer left over from before must not keep Ctrl-C from
-  // reaching the App.
+  // lose. `active` is part of it: while the box is closed (a shell, an
+  // approval) the prompt takes no keys at all, so a buffer left over from
+  // before must not keep Ctrl-C from reaching the App.
   const filled = active && value !== ''
   useEffect(() => {
     onFilledChange?.(filled)
@@ -355,9 +381,12 @@ export const Prompt: FC<PromptProps> = ({
         else if (input === 'u' && value !== '') {
           setValue(deleteToStart(value, cursorIndex))
           setCursorIndex(0)
-        } else if (input === 'c' && value !== '') {
+        } else if (input === 'c' && value !== '' && !busy) {
           // Abandon the line, stay in the app. The App's exit path checks the
           // same emptiness through `onFilledChange`, so exactly one of us acts.
+          // While a turn runs the App's branch outranks this one — the press
+          // means "stop the model", and eating the line as well would answer
+          // one keystroke twice.
           setValue('')
           setCursorIndex(0)
           setHistoryIndex(null)
@@ -526,9 +555,15 @@ export const Prompt: FC<PromptProps> = ({
   // uses, so the two indicators stay in lock-step. Both come from
   // the App's single `useRunningClock` interval; idle placeholder
   // is unchanged.
-  const placeholder = active
+  //
+  // A running turn no longer implies a dead prompt, so the spinner has two
+  // captions. It says `working` when the box really is closed (a shell, an
+  // approval) and `steering` when the turn is running but the line is still
+  // live — the caption is the only thing telling the user which of the two
+  // Enter is about to do.
+  const placeholder = !busy
     ? strings.prompt.placeholder
-    : `${SPINNER_FRAMES[spinnerFrame]} ${strings.prompt.working}`
+    : `${SPINNER_FRAMES[spinnerFrame]} ${active ? strings.prompt.steering : strings.prompt.working}`
   const cursor = active ? (
     <Text color="cyan" bold>
       ▌

@@ -111,6 +111,8 @@ export interface Catalog {
     placeholder: string
     /** Shown in place of an empty buffer while a turn runs, after the spinner. */
     working: string
+    /** Shown in place of an empty buffer while a turn runs and the prompt still takes input. */
+    steering: string
   }
   /** The floating `/` command palette. */
   palette: {
@@ -238,6 +240,8 @@ export interface Catalog {
     unknown: string
     /** Reported when a `/name` matched neither this table nor the registry. */
     unknownCommand: string
+    /** A slash command typed while a turn is running, which steers instead. */
+    busyCommand: string
     /** `/status`. */
     status: (model: string, session: string) => string
     /** `/context`. */
@@ -339,6 +343,7 @@ const EN: Catalog = {
   prompt: {
     placeholder: 'Ask dsh anything…',
     working: 'working',
+    steering: 'steering — Enter reaches the model at its next step',
   },
   palette: {
     hint: '↑↓ navigate · Tab complete · Enter run · Esc dismiss',
@@ -413,6 +418,7 @@ const EN: Catalog = {
     helpHeading: 'Available commands:',
     unknown: 'unknown',
     unknownCommand: 'unknown command — /help lists them',
+    busyCommand: 'commands wait for the turn to finish — Esc or Ctrl-C stops it, or type without the / to steer',
     status: (model, session) => `model: ${model}\nsession: ${session}`,
     context: (report) => {
       const lines = [
@@ -525,6 +531,7 @@ const ZH: Catalog = {
   prompt: {
     placeholder: '问 dsh 任何问题…',
     working: '处理中',
+    steering: '插话 —— Enter 会在下一步送达模型',
   },
   palette: {
     hint: '↑↓ 选择 · Tab 补全 · Enter 执行 · Esc 关闭',
@@ -596,6 +603,7 @@ const ZH: Catalog = {
     helpHeading: '可用命令：',
     unknown: '未知',
     unknownCommand: '未知命令 —— /help 可以列出全部',
+    busyCommand: '命令要等这一轮结束 —— Esc 或 Ctrl-C 可以中止，或者去掉 / 直接插话',
     status: (model, session) => `模型：${model}\n会话：${session}`,
     context: (report) => {
       const lines = [

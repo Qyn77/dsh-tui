@@ -136,7 +136,7 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 |---|---|---|
 | Banner | `round` `#4D6BFE` | Startup splash; brand blue frames the art. |
 | StatusBar | `round` `#4D6BFE` | Persistent chrome in the same brand blue as the banner above it. |
-| Prompt | `round` (`╭─╮│╰─╯`) | Affordance for an empty input. Cyan when active, gray when a turn is running. |
+| Prompt | `round` (`╭─╮│╰─╯`) | Affordance for an empty input. Cyan when it takes input, gray when it does not (a `!` command, a pending approval). A running turn leaves it cyan — the line steers, §1.6. |
 | Tool call | none | A marked line, not a block; see the gutter below. |
 | User message | none | Floats freely; reads as text, not as a frame. |
 | Assistant message | none | Floats freely. |
@@ -410,6 +410,8 @@ its way to someone else.
 | `Ctrl-C` | Prompt (buffer non-empty) | Clear the buffer |
 | `Ctrl-C` | App (otherwise) | Cancel turn if one is running; else arm, then confirm, exit |
 | `Ctrl-L` | App | Clear the screen and redraw the frame |
+| `Enter` (turn running) | Prompt → `agent.steer` | Reach the model at its next step boundary |
+| `Enter` (idle) | Prompt → `agent.followup` | Open a turn of its own |
 | pasted text | Prompt, **before every row above** | Insert verbatim; newlines normalised to `\n` |
 
 **Paste is not a row in that table so much as a layer above it.** The app sets
@@ -495,7 +497,49 @@ confirmation. It stands down entirely while an approval is pending: the
 approval card binds `Esc` to *deny*, and denials happen mid-turn, so an
 unguarded `Esc` would deny the tool and kill the whole turn on one press.
 
- The binding is one
+**The prompt stays live while a turn runs, and `Enter` steers it.** The box
+used to go inert for the whole turn — `active` was literally
+`state.status === 'idle' && !shell.running` — so the only thing a user could do
+while watching the model go the wrong way was kill the turn and start over.
+`Agent` has had the right call the entire time: `followup()` queues a message
+as the sole ordinary message of *its own* turn, which means a correction sent
+mid-turn is read only after the model has finished doing the thing being
+corrected, while `steer()` is consumed at the next **step** boundary of the
+turn already running. The submit path picks between them on `state.status`;
+nothing else about submission changes.
+
+Three consequences, each of which had to be paid for:
+
+- **`active` and "a turn is running" are now different flags.** `active` means
+  the box takes keys, and only a `!` command or a pending approval closes it.
+  `busy` means something is running that `Esc`/`Ctrl-C` would stop. The spinner
+  caption is how the user tells the two apart on an empty buffer — `working`
+  when the box is closed, `steering` when the turn is running but the line is
+  live — because on a *non-empty* buffer the placeholder is gone and the border
+  is the only cue left.
+- **`Ctrl-C` and `Esc` had to be re-arbitrated**, because each now has a
+  claimant on both sides of a keystroke that was previously unopposed. The
+  prompt's `Ctrl-C` (clear the line) stands down while `busy`: the press means
+  "stop the model", and eating the line as well answers one keystroke twice.
+  The App's `Esc` (cancel the turn) stands down while the prompt's palette or
+  file picker is open, reported through `onEscClaimChange` — the same
+  negotiation shape as the arrows and `Ctrl-U`, and newly necessary only
+  because a palette can be open during a turn at all now.
+- **Slash commands are refused mid-turn** rather than queued, with a note
+  saying so. The refusal is coarse on purpose: `/clear`, `/resume` and `/model`
+  reach into the session the running turn is writing to, a plugin-registered
+  command can do anything at all, and nothing in the registry says which is
+  which. One rule with no unknowns beats an allowlist that is wrong the first
+  time a plugin adds a row. A `!` escape is *not* refused — it spawns a child
+  process and never touches the agent.
+
+Nothing is echoed locally on submit. A steered line reaches the log the same
+way a follow-up does, as the session's own `user/message` event, so it appears
+when the agent has recorded it rather than when the key was pressed — and a
+line the agent discards (cancellation can drop parked steering) never appears
+on screen claiming to have been sent.
+
+**`Ctrl-L` goes through Ink's writer, not through `stdout`.** The binding is one
 line, and the obvious spelling of it is wrong: `stdout.write(CLEAR_SCREEN)`
 erases the screen and leaves it erased, because Ink drops any frame identical to
 the one it last wrote and a redraw request asks for exactly that frame — the
@@ -777,6 +821,7 @@ What *is* typed and is projected by the reducer: `TurnEndReasonMap.blocked`, whi
 - Unknown `/foo` returns `{ kind: 'unknown' }`. The renderer turns it into a failed `command` entry in the log; it is **not** forwarded to the model, which would spend a turn having the model guess at a typo.
 - A `handled` result with no `message` prints nothing. Output that exists is appended as a `command` entry — never written to `stdout`/`stderr`, see §1.5.
 - Reserved prefixes (`/`, `!`) cannot be redefined.
+- A slash command typed while a turn is running never reaches the dispatcher: the renderer refuses it with a note and the line is not steered either (§1.6). `!` escapes are unaffected.
 - Adding a slash command requires:
   1. A case in `commands.ts`
   2. A test in `tests/commands.spec.ts` (every command, every invalid input shape)
@@ -873,11 +918,16 @@ request that `planResume` resolves to nothing does **not** start a fresh session
 the way a boot does: mid-session that would trade the user's actual work for a
 typo.
 
-`agent.status === 'running'` is also refused, but as depth rather than as the
-main guard: the prompt is already inert while a turn runs
-(`active={state.status === 'idle' && !shell.running}`), so a user cannot
-normally type `/resume` at that moment. The same inertness is why a running `!`
-command needs no separate check.
+`agent.status === 'running'` is also refused, and this is now the *second* of
+two guards rather than depth behind an impossibility. It used to be depth: the
+prompt was inert for the whole turn, so a user could not type `/resume` at that
+moment at all. Steering (§1.6) removed that inertness — the box takes input
+during a turn — and the App therefore refuses every slash command while
+`state.status === 'running'` before `dispatch` is reached. This check remains
+because it guards the function rather than the keystroke: `dispatch` is
+reachable from a test and from any future caller that is not the prompt. A
+running `!` command still needs no check of its own, since a running shell does
+close the box.
 
 #### 3.3.2 `/cost` cannot be built, and `/context` can
 
