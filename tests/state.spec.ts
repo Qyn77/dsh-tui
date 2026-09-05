@@ -388,3 +388,72 @@ describe('isRuntimeContext', () => {
     expect(isRuntimeContext(msg)).toBe(true)
   })
 })
+
+describe('todo list', () => {
+  const todos = (...items: [string, 'pending' | 'in_progress' | 'completed'][]) =>
+    items.map(([content, status]) => ({ content, status }))
+
+  it('projects a write into a single entry holding the whole list', () => {
+    // `todo/write` is a whole-list snapshot, so the entry is the list. Nothing
+    // is merged and nothing is derived from the previous write.
+    const session = makeSession()
+    session.append('todo/write', { todos: todos(['read the spec', 'in_progress']) })
+    const state = replay(session.events)
+
+    expect(state.entries).toEqual([
+      { kind: 'todo', todos: [{ content: 'read the spec', status: 'in_progress' }] },
+    ])
+  })
+
+  it('collapses consecutive writes instead of stacking near-identical copies', () => {
+    // The failure this prevents: one row per checked box, burying the
+    // conversation the list belongs to.
+    const session = makeSession()
+    session.append('todo/write', { todos: todos(['a', 'pending'], ['b', 'pending']) })
+    session.append('todo/write', { todos: todos(['a', 'completed'], ['b', 'in_progress']) })
+    session.append('todo/write', { todos: todos(['a', 'completed'], ['b', 'completed']) })
+    const state = replay(session.events)
+
+    expect(state.entries).toHaveLength(1)
+    expect(state.entries[0]).toEqual({
+      kind: 'todo',
+      todos: [{ content: 'a', status: 'completed' }, { content: 'b', status: 'completed' }],
+    })
+  })
+
+  it('starts a new entry when anything was logged since the last one', () => {
+    // The other failure: a list stranded where it first appeared, scrolled off
+    // the top while the work it describes is still running. A write that lands
+    // after the model has spoken belongs at the bottom, where the user is.
+    const session = makeSession()
+    session.append('todo/write', { todos: todos(['a', 'pending']) })
+    appendTurn(session, 1, true)
+    session.append('todo/write', { todos: todos(['a', 'completed']) })
+    const state = replay(session.events)
+
+    const kinds = state.entries.map(e => e.kind)
+    expect(kinds.filter(k => k === 'todo')).toHaveLength(2)
+    expect(kinds.at(-1)).toBe('todo')
+  })
+
+  it('keeps an empty list rather than dropping the entry', () => {
+    // Clearing the list is a real state the model can write, and it is not the
+    // same as never having written one: the transcript should show the plan was
+    // emptied, not that it never existed.
+    const session = makeSession()
+    session.append('todo/write', { todos: [] })
+    const state = replay(session.events)
+
+    expect(state.entries).toEqual([{ kind: 'todo', todos: [] }])
+  })
+
+  it('leaves the turn counter and status alone', () => {
+    const session = makeSession()
+    appendTurn(session, 1, true)
+    session.append('todo/write', { todos: todos(['a', 'pending']) })
+    const state = replay(session.events)
+
+    expect(state.currentTurn).toBe(1)
+    expect(state.status).toBe('idle')
+  })
+})

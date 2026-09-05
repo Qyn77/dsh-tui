@@ -152,6 +152,7 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 | User message | `round` `blue` | The transcript's only marker of authorship. Same box as the prompt, deliberately: what the user typed and where they type it are one surface. |
 | Assistant message | none | Floats freely. |
 | Note / compaction / plan | none | Single lines, prefixed with `⤷`. |
+| Task list | none | A `⤷` header and one row per task. Not framed and not pinned — §1.11. |
 
 Frames are reserved for **persistent chrome** — the status bar and the prompt — plus exactly one thing in the conversation: the user's own messages.
 
@@ -205,6 +206,10 @@ The palette is theme-aware, and almost entirely by *not* being theme-aware. Near
 | Command failed | `red` | Both rows of an unknown command. |
 | Plan mode on | `yellow` | `⤷ plan mode on`. Emitted by `@deepseek-ai/dsh-plan-mode`; `src/types.ts` declares the payload locally so the TUI builds and draws it without depending on that plugin. |
 | Plan mode off | `gray` | `⤷ plan mode off`. |
+| Task list header | `cyan` dim | `⤷ todos · 1/3 done`. Same `cyan` as a compaction note: both are the runtime telling the user where it is, not content. |
+| Task — completed | `green` dim | `☑ read the spec`. Dim because a finished task is context, not news. |
+| Task — in progress | `yellow` | `▸ write the reducer`. The **only** undimmed row in the list, and the only one whose glyph points at something. |
+| Task — pending | `gray` dim | `☐ update the docs`. |
 | Meta / separators | `gray` | `·`, `in:`, `out:`, `session:`, turn/step counters. |
 | Notes | `gray` dim | Free-floating side remarks. |
 | Note — turn failed | `red` | `⤷ [turn N errored: CODE]`. Full brightness: left dim it read as an incidental remark. |
@@ -687,6 +692,23 @@ The app resolves one **appearance** — `dark` or `light` — at boot, and the w
 
 Whether the light tint is *comfortable* on a real white terminal, and whether a given emulator answers OSC 11 at all, are real-TTY judgements in the sense of §7 — the automated tests pin the arithmetic, the fallbacks, and that both appearances paint byte-identical rows, but chalk reports color level 0 under vitest so no test here can assert a color escape.
 
+### 1.11 The task list
+
+`todo/write` is a first-class session event whose payload the protocol documents as "a short imperative line **shown in the UI**". It carries a **whole-list snapshot**, and the protocol declares latest-write-wins on replay, so the TUI keeps the list itself rather than a diff — there is no incremental state and nothing to merge.
+
+**The list is current state wearing an event's clothes**, and that is the whole design problem. Two obvious placements are both wrong:
+
+- *Append every write.* One near-identical copy of the list per checked box. The conversation the list describes is buried under the list.
+- *Always replace the one entry.* The list is stranded wherever it first appeared, scrolling off the top while the work it describes is still running.
+
+The rule is therefore: **replace in place while the list is still the newest entry, append a fresh one otherwise.** A burst of edits costs one row; a write that lands after the model has spoken starts a new row at the bottom, where the user is looking. The decision lives in `state.ts`, not in the component — placement is projection, not presentation.
+
+**Why it is not a pinned panel above the prompt.** That was the alternative, and it is refused on the same grounds as the `▾ show more` affordance: the panel's height would be driven by a list whose length the model chooses, inside the one region of the frame with a fixed height budget. Overflow there does not clip — it renders as overlapping frames, which reads as a resize bug and is not one. Inside the scrollable log, an unusually long list costs scrollback and nothing else.
+
+Every row is drawn `wrap="truncate-end"`, header included, so the entry's height is exactly `1 + tasks`. That is what lets `scroll.ts` measure it *exactly* rather than estimating: neither a long task description nor a long translation of the header can move the height that paging was computed from (§3.10).
+
+The list is **not** truncated against `maxLines`, unlike a tool result or a shell capture. Those are output the user may want a sample of; the task list *is* the summary already, and a list whose tail is hidden cannot answer the only question it exists to answer.
+
 ---
 
 ## Part 2 · Roadmap
@@ -741,6 +763,7 @@ Still open: nothing — v0.3 is complete.
 - **Streaming markdown.** *Shipped.* The assistant text is re-parsed on every `assistant/chunk` event and drawn as partial markdown, instead of waiting for `assistant/message` — see §1.9 for why the partial-parse churn the original plan feared does not happen.
 - **Truncation.** *Shipped, as a global switch.* The 8-line cap itself shipped in v0.3; `/verbose` and `Ctrl-O` now raise it to 200 lines for the whole transcript at once (§1.2, §1.5.6). The per-entry `▾ show more` this item originally named is **not** what shipped and stays refused — expanding *one* entry needs a focus/selection model this app does not have (roadmap §6). A global switch needs none, which is why it could ship without reversing that decision.
 - **Clipboard.** *Shipped as `/copy`.* The newest reply, or the newest fenced block, goes to the system clipboard over OSC 52 — across SSH included. `/paste` is **not** coming: reading the clipboard needs a stdin listener mid-session, which is Ink's, and every terminal already pastes on its own. See §1.5.5.
+- **Task list.** *Shipped.* `todo/write` projects to a `todo` entry: a `⤷ todos · N/M done` header over one row per task, with only the in-progress row undimmed. Not on the original v0.4 list, and added because it was the single protocol event the projection ignored while the protocol's own comment said the payload is "shown in the UI". Consecutive writes collapse into one entry; see §1.11 for why it is neither appended per write nor pinned above the prompt.
 - **Session listing.** *Shipped as `/sessions`.* Not on the original v0.4 list, and added because v0.3's resume turned out to be unreachable: it wants ids that were printed nowhere. The listing shows them abbreviated and `planResume` accepts a prefix. See §1.5.7.
 - **In-session resume.** *Shipped as `/resume`.* Also unplanned, and the direct consequence of the item above: once the ids were on screen, relaunching to use one was the only remaining obstacle. §3.3.1 had sized this as an agent-swap project; most of it was already built, and the missing piece was a re-seed of the projection. See §1.5.8.
 

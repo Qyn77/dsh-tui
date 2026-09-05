@@ -6,7 +6,7 @@
  */
 
 import type { CallId, TokenUsage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, TodoItem, TurnEndReason } from '@deepseek-ai/dsh-session'
 
 /**
  * Pull in session events the TUI renders but that are added to
@@ -59,6 +59,19 @@ export type UiEntry =
   }
   | { kind: 'compaction'; stage: 'start' | 'summary' | 'end' | 'prune'; text?: string }
   | { kind: 'plan'; enabled: boolean; at: number }
+  /**
+   * The model's task list, as of the most recent `todo/write`.
+   *
+   * The event carries a whole-list snapshot and the protocol declares
+   * latest-write-wins on replay, so this entry holds the list itself rather
+   * than a diff — there is no incremental state to keep.
+   *
+   * Consecutive writes collapse into one entry (see the `todo/write` case in
+   * `state.ts`) instead of appending a near-identical copy per checked box.
+   * The list is *current state*, not an event, and a transcript that repeated
+   * it once per item would bury the conversation it belongs to.
+   */
+  | { kind: 'todo'; todos: readonly TodoItem[] }
   /**
    * A free-floating remark. `tone` is what keeps a failed turn from looking
    * like a compaction notice: untoned notes are incidental and dim, an
@@ -150,6 +163,7 @@ export function isRenderable(event: SessionEvent): boolean {
     case 'compaction/summary':
     case 'compaction/prune':
     case 'plan/mode':
+    case 'todo/write':
     case 'agent/inbox/spliced':
     case 'session/end-seed':
       return true

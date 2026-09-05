@@ -325,6 +325,37 @@ function advanceCompaction(
 }
 
 /**
+ * Project the model's task list, collapsing a run of writes into one entry.
+ *
+ * `todo/write` carries a whole-list snapshot, so nothing has to be merged. The
+ * only real decision is placement, and it is made here rather than in the
+ * component: the list is replaced *in place* when it is already the newest
+ * entry, and appended fresh otherwise.
+ *
+ * That rule falls out of what the two failure modes look like. Appending every
+ * write puts a near-identical copy of the list in the transcript per checked
+ * box, which buries the conversation. Always replacing the one existing entry
+ * leaves the list stranded wherever it first appeared — scrolled off the top
+ * while the work it describes is still going. Replacing only while it is still
+ * last means a burst of edits costs one row, and a write that lands after the
+ * model has said something starts a new row at the bottom, where the user is
+ * looking.
+ *
+ * A fixed panel above the prompt was the alternative and is rejected: its
+ * height would be driven by a list whose length the model chooses, inside the
+ * one region of the frame that has a fixed height budget. Overflow there
+ * renders as overlapping frames, not as clipping.
+ */
+function onTodoWrite(state: UiState, event: EventOf<'todo/write'>): UiState {
+  const entry: UiEntry = { kind: 'todo', todos: event.data.todos }
+  const last = state.entries.at(-1)
+  if (last?.kind === 'todo') {
+    return { ...state, entries: replaceAt(state.entries, state.entries.length - 1, entry) }
+  }
+  return { ...state, entries: append(state, entry) }
+}
+
+/**
  * Apply a single session event to a state. Every branch that needs more than
  * one expression lives in its own function above, so this reads as the routing
  * table it is — and so `turn/end`'s two decision ladders are not sharing a
@@ -375,6 +406,9 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
         ...state,
         entries: append(state, { kind: 'plan', enabled: event.data.enabled, at: event.seq }),
       }
+
+    case 'todo/write':
+      return onTodoWrite(state, event)
 
     // Carried in the log but with nothing to project: step boundaries are
     // implied by the assistant entries between them, and inbox splices are

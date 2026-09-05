@@ -160,6 +160,13 @@ export interface Catalog {
     compacting: string
     /** Shown when compaction finishes. */
     compactionDone: string
+    /**
+     * Header of the task list, carrying its own progress.
+     *
+     * The count lives in the header rather than being left for the reader to
+     * tally, because the list is the one entry whose point is the ratio.
+     */
+    todos: (done: number, total: number) => string
   }
   /** The persistent header bar. */
   status: {
@@ -370,6 +377,7 @@ const EN: Catalog = {
     hiddenLines: count => `… +${count} ${count === 1 ? 'line' : 'lines'}`,
     compacting: 'compacting…',
     compactionDone: 'compaction complete',
+    todos: (done, total) => `todos · ${done}/${total} done`,
   },
   status: {
     idle: '⏵ idle',
@@ -560,6 +568,7 @@ const ZH: Catalog = {
     hiddenLines: count => `… 还有 ${count} 行`,
     compacting: '压缩中…',
     compactionDone: '压缩完成',
+    todos: (done, total) => `任务清单 · ${done}/${total} 已完成`,
   },
   status: {
     idle: '⏵ 空闲',

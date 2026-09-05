@@ -34,6 +34,31 @@ export const RESULT_GLYPH = '⎿'
 export const NOTE_GLYPH = '⤷'
 
 /**
+ * Checkbox per task-list state.
+ *
+ * Three glyphs rather than two, because `in_progress` is the one the user
+ * actually scans for: a filled box would make it read as finished, and an empty
+ * one would make it read as untouched. The arrow is the only one of the three
+ * that points at something.
+ */
+export const TODO_GLYPH: Record<'pending' | 'in_progress' | 'completed', string> = {
+  pending: '☐',
+  in_progress: '▸',
+  completed: '☑',
+}
+
+/**
+ * Color per task-list state. Only `in_progress` is drawn undimmed — see
+ * `TodoList` in `components/MessageList.tsx`, which pairs these with
+ * `dimColor` so the current task is the one thing that stands out.
+ */
+export const TODO_COLOR: Record<'pending' | 'in_progress' | 'completed', string> = {
+  pending: 'gray',
+  in_progress: 'yellow',
+  completed: 'green',
+}
+
+/**
  * Color of the frame around a user message. The same `blue` as
  * {@link USER_GLYPH}, so the marker and the box it opens read as one thing.
  */

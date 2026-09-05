@@ -40,6 +40,8 @@ import {
   ASSISTANT_GLYPH,
   GUTTER_WIDTH,
   NOTE_GLYPH,
+  TODO_COLOR,
+  TODO_GLYPH,
   RESULT_GLYPH,
   SHELL_GLYPH,
   USER_BORDER_COLOR,
@@ -315,6 +317,42 @@ function PlanLine({ entry }: { entry: Extract<UiEntry, { kind: 'plan' }> }) {
   )
 }
 
+/**
+ * The model's task list.
+ *
+ * Not truncated against `maxLines`, unlike a tool result or a shell capture.
+ * Those are output the user may want a sample of; this one *is* the summary
+ * already, and a list whose tail is hidden cannot answer the only question it
+ * exists to answer. It stays inside the scrollable log rather than pinning to
+ * the frame, so an unusually long list costs scrollback and nothing else.
+ */
+function TodoList({ entry }: { entry: Extract<UiEntry, { kind: 'todo' }> }) {
+  const strings = useStrings()
+  const done = entry.todos.filter(t => t.status === 'completed').length
+  return (
+    <Row glyph={NOTE_GLYPH} color="cyan" dim>
+      <Text color="cyan" dimColor wrap="truncate-end">
+        {strings.entries.todos(done, entry.todos.length)}
+      </Text>
+      {entry.todos.map((todo, index) => (
+        // The index is the key because the list has no identity of its own: the
+        // event is a whole-list snapshot, so "the third item" is the only stable
+        // thing about a row across two writes.
+        <Text
+          key={index}
+          color={TODO_COLOR[todo.status]}
+          dimColor={todo.status !== 'in_progress'}
+          wrap="truncate-end"
+        >
+          {TODO_GLYPH[todo.status]}
+          {' '}
+          {todo.content}
+        </Text>
+      ))}
+    </Row>
+  )
+}
+
 function RuntimeContextLine({ entry }: { entry: Extract<UiEntry, { kind: 'runtime-context' }> }) {
   const strings = useStrings()
   // Header carries the producer and form so the user can see which
@@ -443,6 +481,8 @@ const Entry = React.memo(function Entry({ entry, maxLines }: {
       return <CompactionLine entry={entry} />
     case 'plan':
       return <PlanLine entry={entry} />
+    case 'todo':
+      return <TodoList entry={entry} />
     case 'runtime-context':
       return <RuntimeContextLine entry={entry} />
     case 'command':

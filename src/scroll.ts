@@ -221,6 +221,12 @@ function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number 
       return 1
         + previewRows(outputPreview(entry.output, maxLines))
         + shellStatusRows(entry)
+    case 'todo':
+      // The header, then one row per task. Exact rather than estimated, because
+      // every one of those rows is drawn `wrap="truncate-end"` — so neither a
+      // long task description nor a long translation of the header can change
+      // the height paging was computed from.
+      return 1 + entry.todos.length
     case 'note':
     case 'compaction':
     case 'plan':

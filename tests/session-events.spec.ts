@@ -136,17 +136,18 @@ describe('seeding from the durable log', () => {
 
   it('skips events the projection has no rendering for', async () => {
     const session = Session.create('tui-seed' as never)
-    session.append('todo/write', { todos: [{ content: 'x', status: 'pending' }] })
+    session.append('request/context', { provider: 'p', model: 'm' })
     const probe = await mount(session)
     const { state } = probe.api()
     probe.unmount()
 
-    // `todo/write` is log-only. Seeding must not invent an entry for it.
+    // `request/context` is route metadata the protocol marks log-only, and the
+    // TUI has no row for it. Seeding must not invent an entry for it.
     //
     // This pins the pair, not the `isRenderable` call: `reduce` returns its
     // input unchanged for an event it has no case for, so deleting the guard
     // leaves this green. It is still worth having — the day someone adds a
-    // `todo/write` case to the reducer, the guard is what stops it reaching
+    // `request/context` case to the reducer, the guard is what stops it reaching
     // the view, and this is the test that notices the guard went missing.
     expect(state.entries).toEqual([])
   })
@@ -243,7 +244,7 @@ describe('the live subscription', () => {
     const probe = await mount(session)
     const before = probe.api().state
 
-    session.append('todo/write', { todos: [] })
+    session.append('request/context', { provider: 'p', model: 'm' })
     await probe.emit(session, lastEvent(session))
     const after = probe.api().state
     probe.unmount()
