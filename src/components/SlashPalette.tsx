@@ -93,7 +93,7 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint, 
         if (isSelected) {
           return (
             <Box key={cmd.name}>
-              <Text backgroundColor="cyan" color="black" bold>
+              <Text backgroundColor="cyan" color="black" bold wrap="truncate-end">
                 {' '}
                 {paddedName}
                 {described ? ` · ${cmd.description}` : ''}
@@ -104,11 +104,23 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint, 
         }
         return (
           <Box key={cmd.name}>
-            <Text color="cyan" bold>
-              {cmd.name}
-            </Text>
+            {/*
+              `flexShrink={0}` and the leading space are both load-bearing.
+              Without the space this row starts one column left of the
+              selected row, which carries one inside its background block —
+              so the `·` column would step sideways as the selection moved.
+              Without the shrink guard Yoga balances an over-long row by
+              taking columns off *both* children, and the name is the one
+              that cannot spare them: `/copy` came out as `/cop`.
+            */}
+            <Box flexShrink={0}>
+              <Text color="cyan" bold>
+                {' '}
+                {paddedName}
+              </Text>
+            </Box>
             {described && (
-              <Text color="gray">
+              <Text color="gray" wrap="truncate-end">
                 {' · '}
                 {cmd.description}
               </Text>

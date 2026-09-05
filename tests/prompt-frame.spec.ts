@@ -742,6 +742,70 @@ describe('the palette on a terminal too short to hold it', () => {
  * live during a turn is what puts the frame back in play, and the frame is
  * the only place the collisions show.
  */
+describe('the palette on a terminal too narrow for its longest description', () => {
+  /** The `·` column of every command row on screen. */
+  const bulletColumns = (screen: string): Set<number> =>
+    new Set(
+      screen
+        .split('\n')
+        // Anchored, because the banner's tip row (`Tip: /help · /status`)
+        // otherwise reads as a command row and lands on its own column.
+        .filter(line => /^│ +\/[a-z]+ +· /.test(line))
+        .map(line => line.indexOf('·')),
+    )
+
+  it('lines every row up on the same bullet column', async () => {
+    // Only the *selected* row used to be padded to the name column, so the
+    // descriptions stepped sideways as the selection moved and the list read
+    // as three ragged columns rather than two.
+    const painted = await paintApp({ turns: 0, columns: 120, rows: 40 })
+    await painted.send('/')
+    const columns = bulletColumns(painted.screen())
+    painted.unmount()
+
+    expect(columns.size).toBe(1)
+  })
+
+  it('keeps them lined up when the widest description will not fit', async () => {
+    const painted = await paintApp({ turns: 0, columns: 90, rows: 40 })
+    await painted.send('/')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(bulletColumns(screen).size).toBe(1)
+    // The description is what gives way, and it says so with an ellipsis.
+    expect(screen).toContain('/copy')
+    expect(screen).toMatch(/Copy the newest reply .*…/)
+  })
+
+  it('never lets an over-long row cost a second line', async () => {
+    // A description that wrapped instead of truncating would make the palette
+    // taller than `paletteWindowRows` promised, which is the overflow the
+    // window exists to prevent — see `bannerRowBudget` in `renderer.tsx`.
+    const painted = await paintApp({ turns: 0, columns: 60, rows: 40 })
+    await painted.send('/')
+    const screen = painted.screen()
+    painted.unmount()
+
+    const rows = screen.split('\n').filter(line => /^│ +\/[a-z]+ +· /.test(line))
+    expect(rows).toHaveLength(8)
+    for (const row of rows) expect(row.length).toBeLessThanOrEqual(60)
+  })
+
+  it('keeps the selected row on the same column as the rest', async () => {
+    // The selected row carries a leading space inside its background block;
+    // the others need a matching one or the bullet steps left when the
+    // highlight moves off a row.
+    const painted = await paintApp({ turns: 0, columns: 120, rows: 40 })
+    await painted.send('/')
+    await painted.send(`${ESC}[B`)
+    const columns = bulletColumns(painted.screen())
+    painted.unmount()
+
+    expect(columns.size).toBe(1)
+  })
+})
+
 describe('steering a running turn', () => {
   /** Open a turn the way the session plugin does, without answering it. */
   const startTurn = async (painted: Awaited<ReturnType<typeof paintApp>>): Promise<void> => {
