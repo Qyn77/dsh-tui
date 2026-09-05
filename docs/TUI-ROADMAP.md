@@ -44,6 +44,23 @@ Unsupported plugin patterns:
 
 The compatibility contract is intentionally narrow: the TUI should surface plugin information when the plugin speaks the same language as the rest of dsh.
 
+**Read "emits dsh-compatible state updates or session events" as a floor, not a
+test.** Stated as a test it is wrong, and it was wrong in a way that cost this
+project two features. `@deepseek-ai/dsh-mcp-client` publishes no service and
+declares no session events at all — it registers bridged tools as
+`mcp__<server>__<tool>`, and that naming convention is its entire interface; the
+TUI surfaces it by parsing the name and depending on the plugin not at all
+(SPEC §1.12). `@deepseek-ai/dsh-skill` does publish a service, but an
+invocation reaches the transcript as an ordinary `user/message` carrying a
+`skill-invocation` source variant, not as an event of its own (SPEC §1.14).
+Neither would pass a literal reading of the rule, and both were reachable on
+the pinned version line the whole time.
+
+So the real question for "can the TUI surface this plugin" is **what does its
+`.d.ts` export** — a service, an event, a module augmentation, a naming
+convention, or nothing — and not whether it emits events. Check `node_modules`
+and the registry before concluding a capability is out of reach.
+
 ## 2. Design principles
 
 1. Terminal-first, not browser-first.
@@ -251,6 +268,14 @@ made relaunching the only thing still in the way. SPEC §1.5.7 and §1.5.8 have
 the designs; §3.3.1 has why the listing and `planResume` had to agree on how
 short an id may be, and how much of the agent-swap it had over-estimated.
 
+**Two more arrived after this section was marked complete**, and neither was on
+any list here: image input (SPEC §1.13) and user-invocable skills (SPEC §1.14).
+Both are worth noting for the same reason as `/sessions` above — they were not
+new work that became possible, they were capabilities already sitting on the
+pinned `0.1.0-rc.7` line that no document had noticed. Image input had twice
+been written down as blocked on a terminal image protocol, which it never
+needed. Skills were not written down anywhere at all.
+
 Definition of done:
 
 - the core REPL feels confident and stable
@@ -270,20 +295,27 @@ Priority features:
   and `DSH_TUI_RESUME`, all over `SessionPersistence`
 - optional advanced editing and completion features
 
-**Three of the five v1.0 items in SPEC Part 2 are blocked on something other
-than effort**, and it is worth writing down so the next reader does not size
-them as work: sub-agent visualization, the MCP tool surface and hooks
-visualization all need event payloads this package cannot reach — but not for
-the same reason. Hooks and MCP have no published plugin at all. Sub-agent and
-tool-workflow *are* published, on `0.1.2-rc.x`, which peers against
-`dsh-session@^0.1.2-rc.1` while this package pins `0.1.0-rc.7`; borrowing their
-declarations would put two `dsh-session` copies in the tree and split the module
-augmentation that types session events. That one unblocks on a tree-wide version
-bump, not on a devDependency. The event *names* are in
-`KNOWN_SESSION_EVENT_TYPES`; the shapes are not reachable from here. `plan/mode`
-is the precedent for how to unblock one — `src/types.ts` declares that payload
-locally — but it works there only because `{ enabled: boolean }` is a shape one
-can be certain of without the emitter.
+**Two of the five v1.0 items in SPEC Part 2 remain blocked, and this paragraph
+used to say three.** The claim it lost was MCP: it asserted that "hooks and MCP
+have no published plugin at all", and `@deepseek-ai/dsh-mcp-client` publishes
+`0.1.0-rc.7` — the line this package pins. Nothing there was ever blocked, and
+the TUI's half shipped (SPEC §1.12).
+
+What is genuinely still out of reach, and for two different reasons:
+
+- **Hooks visualization.** `hook/invoked` and `hook/result` are named in
+  `KNOWN_SESSION_EVENT_TYPES` and nowhere else — no `dsh-hooks` package exists
+  to define their payloads. Nothing to depend on.
+- **Sub-agent visualization.** `@deepseek-ai/dsh-subagent` and
+  `@deepseek-ai/dsh-tool-workflow` *are* published, but on `0.1.2-rc.x`, which
+  peers against `dsh-session@^0.1.2-rc.1` while this package pins
+  `0.1.0-rc.7`. Borrowing their declarations would put two `dsh-session`
+  copies in the tree and split the module augmentation that types session
+  events. This unblocks on a tree-wide version bump, not on a devDependency.
+
+`plan/mode` is the precedent for unblocking one locally — `src/types.ts`
+declares that payload itself — but it works there only because
+`{ enabled: boolean }` is a shape one can be certain of without the emitter.
 
 Definition of done:
 
@@ -295,9 +327,13 @@ Definition of done:
 
 **This list is spent.** All six items shipped across v0.2–v0.4; it is kept as a
 record of the order the work was actually taken in, because that order is the
-argument §8 makes and it held up. The live backlog is SPEC Part 2 — as of
-`/resume`, v0.1 through v0.4 are all complete and what remains there is the
-v1.0 set.
+argument §8 makes and it held up.
+
+**SPEC Part 2 is the only live backlog. This document is not a second one.**
+Everything above is a record of what was decided and what shipped; when the two
+disagree, SPEC is current and this file is stale. Keeping one backlog is not
+tidiness — a second list is how "MCP has no published plugin" survived here
+long enough to be believed twice.
 
 The next items, in order, should be:
 
