@@ -239,3 +239,24 @@ describe('the permission card inside the App', () => {
     expect(screen).not.toContain('file_path:')
   })
 })
+
+describe('an approval for an MCP-bridged tool', () => {
+  it('names the server, because the arguments are leaving the machine', async () => {
+    // The decision the card exists for is different when the callee is a
+    // process this app did not start. `mcp__github__create_issue` alone does
+    // not say that — it reads as one more built-in with an unfortunate name.
+    const view = await paint([{ id: 1, toolName: 'mcp__github__create_issue' }])
+    const frame = view.frame()
+    expect(frame).toContain('github:create_issue')
+    expect(frame).toContain('via the github MCP server')
+    // The registered name, with its underscore runs, is not what the user reads.
+    expect(frame).not.toContain('mcp__github__create_issue')
+    view.unmount()
+  })
+
+  it('says nothing about MCP for a built-in tool', async () => {
+    const view = await paint(one)
+    expect(view.frame()).not.toContain('MCP')
+    view.unmount()
+  })
+})

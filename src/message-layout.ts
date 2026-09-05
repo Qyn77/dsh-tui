@@ -209,7 +209,47 @@ export function truncate(text: string, max: number): string {
 }
 
 /**
- * Render a tool call as `name(subject)`.
+ * Split an MCP tool's registered name into the server that provides it and the
+ * name that server calls it.
+ *
+ * `@deepseek-ai/dsh-mcp-client` registers every tool it bridges as
+ * `mcp__<serverName>__<rawName>`, one plugin instance per server. That prefix
+ * is the *only* trace of MCP the TUI ever sees: the plugin publishes no
+ * service, declares no session events, and its tools arrive on `tool/call`
+ * indistinguishable from a built-in except by the shape of the name. So this
+ * parses the convention rather than querying anything, and needs no dependency
+ * on the plugin — which is what lets an assembly that never mounts MCP and one
+ * that mounts six servers both render correctly.
+ *
+ * The split is deliberately conservative. `serverName` is constrained to
+ * `[A-Za-z0-9_-]{1,32}` upstream, but a *raw* name may itself contain `__`, so
+ * only the first separator after the prefix is honoured and everything past it
+ * is the tool's own name. A name that merely starts with `mcp__` but has no
+ * second separator is not an MCP tool and is returned untouched: guessing would
+ * mislabel a built-in as remote, and the label's whole job is to say where a
+ * call is going.
+ * @param name - the tool's registered name.
+ * @returns the server when the name follows the convention, and the tool name
+ * to display either way.
+ */
+export function parseToolName(name: string): { server?: string; tool: string } {
+  const PREFIX = 'mcp__'
+  if (!name.startsWith(PREFIX)) return { tool: name }
+  const rest = name.slice(PREFIX.length)
+  const cut = rest.indexOf('__')
+  if (cut <= 0 || cut === rest.length - 2) return { tool: name }
+  return { server: rest.slice(0, cut), tool: rest.slice(cut + 2) }
+}
+
+/**
+ * Render a tool call as `name(subject)`, or `server:name(subject)` for a tool
+ * bridged from an MCP server.
+ *
+ * The qualified form is not decoration: two servers may each provide a
+ * `search`, and the registered name is the only thing that tells them apart.
+ * `server:tool` says the same thing as `mcp__server__tool` in a third of the
+ * width, and puts the part the user is scanning for at the end rather than
+ * behind two runs of underscores.
  *
  * `args` arrives as the raw JSON string the model emitted, which means it may
  * be malformed — a truncated stream or a model that fumbled the schema both
@@ -221,8 +261,10 @@ export function truncate(text: string, max: number): string {
  * @returns a single-line label, always non-empty.
  */
 export function toolCallSummary(name: string, args: string): string {
+  const { server, tool } = parseToolName(name)
   const subject = toolCallSubject(args)
-  return subject === '' ? name : `${name}(${subject})`
+  const label = server === undefined ? tool : `${server}:${tool}`
+  return subject === '' ? label : `${label}(${subject})`
 }
 
 /**

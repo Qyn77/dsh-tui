@@ -256,6 +256,37 @@ Large replies are cut at 48 KB, and the command says when it cut. There is no
 `/paste`: your terminal's own paste already reaches the prompt, and reading the
 clipboard back would need the keyboard while the REPL is using it.
 
+### MCP tools
+
+If your assembly mounts `@deepseek-ai/dsh-mcp-client`, the tools it bridges show
+up like any other — with a name that says where they come from.
+
+```
+⏺ github:create_issue(it broke)
+```
+
+The plugin registers them as `mcp__github__create_issue`; the TUI shortens that
+to `github:create_issue` so the part you are scanning for is at the end rather
+than behind two runs of underscores. Two servers can each provide a `search`,
+and this is what tells them apart.
+
+When one of them needs approval, the card says so explicitly:
+
+```
+Permission required  github:create_issue
+via the github MCP server
+```
+
+That line is there because approving a bridged tool is a different decision from
+approving a built-in one — the arguments leave your machine for a process the
+app did not start.
+
+The TUI takes no dependency on the MCP plugin to do this; it reads the naming
+convention. Configuring servers is a bundle concern, one `insert` block per
+server in your own patch layer. Note also that the plugin publishes no
+connection state, so there is no `/mcp` and nothing here can tell you a server
+is down — only that its tools are or are not registered.
+
 ### Seeing more of a long output
 
 A tool result or a `!` command's output is previewed at 8 lines, with a

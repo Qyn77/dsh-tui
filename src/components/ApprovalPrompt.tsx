@@ -28,7 +28,7 @@ import { Box, Text, useInput } from 'ink'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import type { CallId } from '@deepseek-ai/dsh-llm'
 import type { PendingApproval } from '../hooks/useApprovalRequests.ts'
-import { approvalArgs } from '../message-layout.ts'
+import { approvalArgs, parseToolName } from '../message-layout.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link ApprovalPrompt}. */
@@ -67,17 +67,29 @@ export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer, arg
   const waiting = pending.length - 1
   // No `callId` and no entry both mean the same thing here — nothing to show —
   // so neither is distinguished. The question is still answerable without it.
+  // Undimmed yellow, not gray: an MCP call sends its arguments to a process
+  // this app did not start, and that is the fact most likely to change the
+  // answer. It is drawn directly under the tool name, above the arguments, so
+  // a call with many of them cannot push it out of view.
+  const mcp = parseToolName(current.toolName)
   const raw = current.callId === undefined ? undefined : argsFor?.(current.callId)
   const args = raw === undefined ? undefined : approvalArgs(raw)
   return (
     <Box borderStyle="round" borderColor="yellow" flexDirection="column" paddingX={1}>
       <Box>
         <Text color="yellow" bold>{`${strings.approval.title} `}</Text>
-        <Text bold>{current.toolName}</Text>
+        <Text bold>{mcp.server === undefined ? mcp.tool : `${mcp.server}:${mcp.tool}`}</Text>
         {waiting > 0 && (
           <Text color="gray">{strings.approval.more(waiting)}</Text>
         )}
       </Box>
+      {mcp.server !== undefined && (
+        // Its own row rather than a suffix on the heading. Sharing the row put
+        // the tool name and the notice in competition for a narrow card, and
+        // Ink resolved it by breaking the tool name mid-word — the one string
+        // on the card that must stay readable.
+        <Text color="yellow" wrap="truncate-end">{strings.approval.viaMcp(mcp.server)}</Text>
+      )}
       {args !== undefined && args.rows.length > 0 && (
         <Box marginTop={1} flexDirection="column">
           {args.rows.map(arg => (

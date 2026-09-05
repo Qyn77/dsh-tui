@@ -18,6 +18,7 @@ import {
   GUTTER_WIDTH,
   PREVIEW_MAX_LINES,
   outputPreview,
+  parseToolName,
   previewLimit,
   previewRows,
   toolCallSummary,
@@ -271,5 +272,51 @@ describe('approvalArgs', () => {
     const row = approvalArgs(args).rows[0]?.value ?? ''
     expect(row.length).toBeGreaterThan(summary.length)
     expect(row.endsWith('…')).toBe(true)
+  })
+})
+
+describe('MCP tool names', () => {
+  // `@deepseek-ai/dsh-mcp-client` registers bridged tools as
+  // `mcp__<serverName>__<rawName>` and publishes nothing else — no service, no
+  // session events. The convention in the name is the only signal there is,
+  // which is why this is parsed rather than queried.
+  it('splits the server off a bridged name', () => {
+    expect(parseToolName('mcp__github__create_issue')).toEqual({
+      server: 'github',
+      tool: 'create_issue',
+    })
+  })
+
+  it('leaves a built-in name alone', () => {
+    expect(parseToolName('bash')).toEqual({ tool: 'bash' })
+    expect(parseToolName('str_replace_editor')).toEqual({ tool: 'str_replace_editor' })
+  })
+
+  it('keeps a raw name that contains its own separator', () => {
+    // Only the first separator after the prefix is the server boundary. The
+    // server name is constrained upstream; the raw name is whatever the server
+    // called it, `__` included.
+    expect(parseToolName('mcp__notion__page__create')).toEqual({
+      server: 'notion',
+      tool: 'page__create',
+    })
+  })
+
+  it('refuses to guess when the convention is not actually followed', () => {
+    // Mislabelling a built-in as remote is the one error that matters here: the
+    // label's job is to say the arguments are leaving the machine.
+    expect(parseToolName('mcp__github')).toEqual({ tool: 'mcp__github' })
+    expect(parseToolName('mcp____tool')).toEqual({ tool: 'mcp____tool' })
+    expect(parseToolName('mcp__github__')).toEqual({ tool: 'mcp__github__' })
+    expect(parseToolName('mcp_github_create')).toEqual({ tool: 'mcp_github_create' })
+  })
+
+  it('renders a bridged call as server:tool, keeping the subject', () => {
+    expect(toolCallSummary('mcp__github__create_issue', '{"title":"it broke"}'))
+      .toBe('github:create_issue(it broke)')
+  })
+
+  it('renders a built-in call exactly as before', () => {
+    expect(toolCallSummary('bash', '{"command":"ls"}')).toBe('bash(ls)')
   })
 })

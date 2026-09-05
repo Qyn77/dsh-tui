@@ -135,6 +135,15 @@ export interface Catalog {
     more: (count: number) => string
     /** How many of the call's arguments the card left out. */
     moreArgs: (count: number) => string
+    /**
+     * Names the MCP server a call is bound for, on the approval card only.
+     *
+     * Approving a bridged tool is a different decision from approving a
+     * built-in one — the arguments leave the machine — and `server:tool` alone
+     * does not say that. The transcript stays terse; the card, where the user
+     * is actually deciding, spells it out.
+     */
+    viaMcp: (server: string) => string
   }
   /** Rows in the conversation transcript. */
   entries: {
@@ -367,6 +376,7 @@ const EN: Catalog = {
     hint: 'y allow once · n deny · Esc deny',
     more: count => ` (+${count} more waiting)`,
     moreArgs: count => `… +${count} more ${count === 1 ? 'argument' : 'arguments'}`,
+    viaMcp: server => `via the ${server} MCP server`,
   },
   entries: {
     assistant: 'assistant',
@@ -558,6 +568,7 @@ const ZH: Catalog = {
     hint: 'y 允许一次 · n 拒绝 · Esc 拒绝',
     more: count => `（还有 ${count} 个待确认）`,
     moreArgs: count => `… 还有 ${count} 个参数`,
+    viaMcp: server => `经由 ${server} MCP 服务器`,
   },
   entries: {
     assistant: '助手',

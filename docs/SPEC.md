@@ -709,6 +709,19 @@ Every row is drawn `wrap="truncate-end"`, header included, so the entry's height
 
 The list is **not** truncated against `maxLines`, unlike a tool result or a shell capture. Those are output the user may want a sample of; the task list *is* the summary already, and a list whose tail is hidden cannot answer the only question it exists to answer.
 
+### 1.12 MCP-bridged tools
+
+`@deepseek-ai/dsh-mcp-client` registers every tool it bridges as `mcp__<serverName>__<rawName>`. It publishes no service and declares no session events, so that prefix is the only trace of MCP the TUI ever sees — a bridged call arrives on `tool/call` indistinguishable from a built-in except by the shape of its name.
+
+The TUI therefore **parses the convention instead of querying anything**, and depends on the plugin not at all. That is what lets one build serve an assembly with no MCP and an assembly with six servers.
+
+The split is conservative. Only the first `__` after the prefix is the server boundary — a raw name may contain `__` of its own, so `mcp__notion__page__create` is `notion` providing `page__create`. A name that starts with `mcp__` but does not complete the pattern is returned untouched: mislabelling a built-in as remote is the one error that matters, because the label's whole job is to say the arguments are leaving the machine.
+
+| Surface | Form | Why |
+| --- | --- | --- |
+| Transcript | `⏺ github:create_issue(it broke)` | Two servers may each provide a `search`; the registered name is the only thing that tells them apart. `server:tool` says it in a third of the width of `mcp__server__tool`, with the part being scanned for at the end rather than behind two runs of underscores. |
+| Approval card | the same label, then a `yellow` row `via the github MCP server` | Approving a bridged tool is not the same decision as approving a built-in one, and `server:tool` alone does not say so. Drawn directly under the tool name and above the arguments, so a call with many arguments cannot push it out of view — and on its own row, because sharing the heading row let Ink break the tool name mid-word on a narrow card. |
+
 ---
 
 ## Part 2 · Roadmap
@@ -772,7 +785,13 @@ Still open: nothing — v0.3 is complete.
 - **Vim / Emacs keybind toggle.** `/keybinds vim` switches the prompt editor.
 - **Plan mode.** *The TUI's half is shipped.* `plan/mode` projects to a `plan` entry and draws `⤷ plan mode on`/`off` in both languages (§1.4). The `/plan` command and the read-only run are `@deepseek-ai/dsh-plan-mode`'s, not this package's — it reaches the REPL through the `ctx.commands` fallback (§1.5), the same way `/compact` does. Nothing is left here but the diff preview, which needs a diff to exist first.
 - **Sub-agent visualization.** Sub-agent outputs render as nested MessageList rows with a `↳` indent. **Blocked on a version line, not on the work.** `subagent/descriptor` and `tool-workflow/agent-start|agent-end|run-start|run-end` are in the session vocabulary, and `@deepseek-ai/dsh-subagent` / `@deepseek-ai/dsh-tool-workflow` do exist — but only on `0.1.2-rc.x`, whose peer range is `@deepseek-ai/dsh-session@^0.1.2-rc.1`. This package pins its whole peer set to `0.1.0-rc.7`. Adding either one purely to read its type declarations would pull a second `dsh-session` into the tree, and the module augmentation that gives session events their payload types would then have two disagreeing targets. The unblock is a tree-wide bump to `0.1.2-rc.x`, not a devDependency.
-- **MCP tool surface.** Surface MCP-provided tools with the same approval flow as built-in tools. Blocked harder: no MCP plugin is published at all, on any version line, so there is nothing to program against.
+- **MCP tool surface.** *The TUI's half is shipped.* This item previously said no MCP plugin was published on any version line. That was wrong: `@deepseek-ai/dsh-mcp-client` publishes `0.1.0-rc.7`, the line this package pins to, and its peers do not pull a second `dsh-session` — so nothing here was ever blocked.
+
+  What the plugin actually offers turned out to decide the design. It publishes **no service and no session events**; one instance connects to one server and registers that server's tools on `ctx.tools` as `mcp__<serverName>__<rawName>`. The naming convention is the entire interface. So the TUI parses the name (`parseToolName`, §3.4) and takes **no dependency at all** — the same build renders correctly in an assembly that mounts no MCP and in one that mounts six servers.
+
+  A bridged call reads `github:create_issue(it broke)` in the transcript, and the approval card adds a yellow row naming the server, because approving a bridged tool is a different decision from approving a built-in one: the arguments leave the machine. See §1.12.
+
+  Two things remain, and neither is this package's to do. *Connection state* is not observable — with no service and no events, "connected" can only be inferred from whether the tools are registered, so a `/mcp` listing would report the tool surface, not the link. And *configuring* a server is a user patch layer (`insert` one `mcp-client` per server), which is not something a TUI user can discover; that is a bundle and documentation problem.
 - **Hooks visualization.** Render `PreToolUse` / `PostToolUse` hook outputs inline. Blocked the same way as MCP: `hook/invoked` and `hook/result` are named in `KNOWN_SESSION_EVENT_TYPES` and nowhere else — no `dsh-hooks` package exists to define their payloads.
 
 ### Aspirational (no commitment)
@@ -806,7 +825,7 @@ src/
 ├── interrupt.ts        # Ctrl-C / abort plumbing
 ├── width.ts            # Display-column measurement (CJK-aware)
 ├── scroll.ts           # Pure scroll arithmetic
-├── message-layout.ts   # Pure message-list layout arithmetic
+├── message-layout.ts   # Pure message-list layout arithmetic, incl. MCP name parsing
 ├── prompt-editing.ts   # Pure prompt buffer edits — beside Prompt.tsx
 ├── prompt-layout.ts    # Pure prompt layout arithmetic
 ├── file-mentions.ts    # `@` mention parsing + path ranking, and the one walk
