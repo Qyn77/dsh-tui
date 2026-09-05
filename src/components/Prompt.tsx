@@ -36,7 +36,7 @@ import React, { useEffect, useRef, useState, type FC } from 'react'
 import { Box, Text, measureElement, useInput, useStdout, type DOMElement } from 'ink'
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { filterCommands, type CommandMeta } from '../commands.ts'
-import { isMouseReport } from '../scroll.ts'
+import { isMouseReport, isOscTail } from '../scroll.ts'
 import { readPaste } from '../paste.ts'
 import {
   deleteToEnd,
@@ -371,6 +371,12 @@ export const Prompt: FC<PromptProps> = ({
   // on a terminal UI that has to stay smooth while scrolling the log.
   useInput(
     (input, key) => {
+      // Spontaneous terminal reports (OSC sequences whose leading ESC Ink's
+      // key parser peeled off as a lone Escape key) must never be typed into
+      // the buffer. The VS Code integrated terminal is known to send these
+      // unsolicited, and the background-colour probe during boot can also
+      // leave a tail if the terminal answers more than once.
+      if (isOscTail(input)) return
       // Paste decoding comes first, ahead of every key branch. Inside a
       // bracketed paste Ink has already labelled some bytes `return`, `tab`
       // or `backspace` — a pasted newline is the same byte as Enter — so any

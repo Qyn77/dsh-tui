@@ -86,6 +86,25 @@ export function isMouseReport(input: string): boolean {
 }
 
 /**
+ * Is this chunk the tail of an OSC sequence whose leading ESC was peeled off?
+ *
+ * Some terminals (notably VS Code) spontaneously send OSC reports even without being asked,
+ * and Ink's key parser does not understand OSC — it strips the leading ESC
+ * as a lone Escape key, then hands the rest to `useInput` as ordinary
+ * text. Without this filter, a stray `OSC 11` background-colour report ends up
+ * typed into the prompt as `]11;rgb:1919/1a1a/1b1b`.
+ *
+ * The pattern covers the shapes a user would actually see: `]` plus one or two digits
+ * (the OSC number), then `;`, then printable characters up to the terminator.
+ * We do not try to match the whole thing — the terminators vary (BEL, ST,
+ * nothing at all if the report was split — and the point is defence in
+ * depth, not a parser.
+ */
+export function isOscTail(input: string): boolean {
+  return /^\]\d+;/.test(input)
+}
+
+/**
  * Net rows to scroll for the wheel notches in one `useInput` payload.
  * Positive scrolls up into history, negative scrolls back toward the
  * newest row. A payload can carry several reports when the wheel is spun

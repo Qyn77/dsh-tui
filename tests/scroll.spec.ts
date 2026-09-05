@@ -19,6 +19,7 @@ import {
   estimateEntryRows,
   halfPageDelta,
   isMouseReport,
+  isOscTail,
   MOUSE_WHEEL_ROWS,
   pageDelta,
   parseNavKey,
@@ -100,6 +101,18 @@ describe('mouse reports', () => {
     expect(isMouseReport('[Ma!!')).toBe(true)
     expect(isMouseReport('hello')).toBe(false)
     expect(isMouseReport('[5~')).toBe(false)
+  })
+
+  it('recognises the tail of an OSC report whose ESC Ink ate', () => {
+    // Ink's key parser does not understand OSC sequences — it peels the
+    // leading ESC as a lone Escape key and hands the rest to `useInput` as
+    // text. A VS Code terminal that spontaneously sends an OSC 11 report
+    // would otherwise be typed into the prompt as `]11;rgb:…`.
+    expect(isOscTail(']11;rgb:1919/1a1a/1b1b')).toBe(true)
+    expect(isOscTail(']10;rgb:f/f/f')).toBe(true)
+    expect(isOscTail(']52;c;base64data')).toBe(true)
+    expect(isOscTail('hello world')).toBe(false)
+    expect(isOscTail('[5~')).toBe(false)
   })
 
   it('turns wheel notches into signed rows and ignores clicks', () => {

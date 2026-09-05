@@ -305,7 +305,7 @@ export async function probeAppearance(options: ProbeOptions): Promise<Appearance
   try {
     stdin.setRawMode(true)
     stdin.on('data', onData)
-    return await new Promise<Appearance | undefined>((resolve) => {
+    const result = await new Promise<Appearance | undefined>((resolve) => {
       const timer = setTimeout(() => { resolve(fallback) }, timeoutMs)
       // `unref` so a probe still in flight cannot be the reason the process
       // stays alive — this runs during boot, and a boot that fails for another
@@ -321,6 +321,15 @@ export async function probeAppearance(options: ProbeOptions): Promise<Appearance
       // waited out — the one failure that would make the fast path untestable.
       stdout.write(OSC11_QUERY)
     })
+    // Drain window: after the first reply lands, wait a short while longer so
+    // any additional terminal reports (a second OSC 11, an OSC 10 foreground
+    // report, or any other spontaneous bytes some terminals emit alongside
+    // the answer) get consumed here rather than leaking into Ink's input
+    // pipeline. The VS Code integrated terminal is known to do this. 20ms is
+    // well above the typical 1–5ms round-trip and well below what a user
+    // would notice during boot.
+    await new Promise<void>(r => setTimeout(r, 20))
+    return result
   } catch {
     // `setRawMode` throws on some stdin shapes, and a background color is never
     // worth failing a boot over.
