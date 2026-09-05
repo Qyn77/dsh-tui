@@ -34,6 +34,7 @@ import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
 import type { UiEntry, UiState } from '../types.ts'
 import { userMessageImages, userMessageText } from '../types.ts'
 import { windowStart } from '../scroll.ts'
+import { hookStderr, hookTone } from '../hook-runs.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 import type { Catalog } from '../i18n.ts'
 import {
@@ -375,6 +376,52 @@ function TodoList({ entry }: { entry: Extract<UiEntry, { kind: 'todo' }> }) {
   )
 }
 
+/**
+ * One hook run.
+ *
+ * Two weights, not three. A run that let the turn proceed is drawn at the same
+ * dim gray as a compaction notice, because that is what it is — an audit record
+ * of something that changed nothing. A run that denied, asked or halted is
+ * `yellow`, the color this surface already uses for "stopped on purpose" (plan
+ * mode on, an aborted turn). It is deliberately **not** red: red here means a
+ * failure, and a hook that blocked a tool call did not fail — it worked, and
+ * the transcript is the only place the user can find out.
+ *
+ * The dialect rides beside the point the way a plugin's name rides beside
+ * `runtime context`, and for the same reason: with two bridges mounted, two
+ * hooks at one point are otherwise indistinguishable.
+ */
+function HookLine({ entry }: { entry: Extract<UiEntry, { kind: 'hook' }> }) {
+  const strings = useStrings()
+  const notable = hookTone(entry) === 'notable'
+  const color = notable ? 'yellow' : 'gray'
+  const stderr = hookStderr(entry)
+  const label = entry.status === 'cancelled'
+    ? strings.entries.hookUnfinished(entry.point)
+    : entry.decision === undefined
+      ? strings.entries.hookRunning(entry.point)
+      : strings.entries.hookDecided(entry.point, entry.decision)
+  // Duration only once there is one. A running row has no elapsed time to
+  // report — the session records the total with the result, and there is no
+  // per-hook clock to tick in the meantime.
+  const suffix = entry.durationMs === undefined
+    ? ''
+    : ` · ${strings.entries.hookDuration(entry.durationMs)}`
+  return (
+    <Row glyph={NOTE_GLYPH} color={color} dim={!notable}>
+      <Text color={color} dimColor={!notable} wrap="truncate-end">
+        {label}
+        {' · '}
+        {entry.dialect}
+        {suffix}
+      </Text>
+      {stderr !== undefined && (
+        <Text color={color} dimColor>{stderr}</Text>
+      )}
+    </Row>
+  )
+}
+
 function RuntimeContextLine({ entry }: { entry: Extract<UiEntry, { kind: 'runtime-context' }> }) {
   const strings = useStrings()
   // Header carries the producer and form so the user can see which
@@ -512,6 +559,8 @@ const Entry = React.memo(function Entry({ entry, maxLines }: {
       return <TodoList entry={entry} />
     case 'runtime-context':
       return <RuntimeContextLine entry={entry} />
+    case 'hook':
+      return <HookLine entry={entry} />
     case 'command':
       return <CommandLine entry={entry} />
     case 'shell':

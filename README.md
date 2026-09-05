@@ -347,6 +347,39 @@ dropping a `clear` skill into a project cannot take `/clear` away from you.
 
 There is no `/skills` listing: the palette is the listing.
 
+### Hook runs
+
+If your assembly mounts a hook bridge (`@deepseek-ai/dsh-hooks-claude-code` or
+`@deepseek-ai/dsh-hooks-codex`), each hook that runs leaves a row. Most of them
+are quiet — a hook that let the turn carry on is an audit record, drawn at the
+same weight as a compaction notice:
+
+```
+⤷ PreToolUse hook · pass · claude-code · 12ms
+```
+
+A hook that *stopped* something is not quiet, and this is the point of the
+feature. Without the row you would be looking at a tool call that never ran with
+nothing on screen saying why:
+
+```
+⤷ PreToolUse hook · deny · claude-code · 31ms
+  refusing: working tree is dirty
+```
+
+That row is yellow rather than red. Red here means something failed; a hook that
+blocked a call did not fail, it did its job. Anything other than `pass`, `allow`
+or `approve` is drawn this way, including a decision this version has never
+heard of — a bridge can add to the vocabulary, and a decision we cannot name is
+the last thing that should be hidden.
+
+The hook point and the decision are printed in your hook configuration's own
+words, untranslated, so you can match the row against the file you wrote.
+
+As with MCP, the TUI takes no dependency on any hook package — it renders the
+events if they show up and draws nothing if they do not. Configuring a bridge is
+a bundle concern, an `insert` block in your own patch layer.
+
 ### Seeing more of a long output
 
 A tool result or a `!` command's output is previewed at 8 lines, with a

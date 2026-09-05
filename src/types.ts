@@ -10,10 +10,31 @@ import type { CallId, TokenUsage, ToolResultMessage, UserMessage } from '@deepse
 import type { SessionEvent, TodoItem, TurnEndReason } from '@deepseek-ai/dsh-session'
 
 /**
- * Pull in session events the TUI renders but that are added to
- * `SessionEventMap` by other plugins (`@deepseek-ai/dsh-compaction` for
- * `compaction/*`, `@deepseek-ai/dsh-plan-mode` for `plan/mode`). The empty
- * type imports carry their declaration merging into this module.
+ * The bridge that ran a hook. Mirrors `HookDialect` in
+ * `@deepseek-ai/dsh-hook-protocol` — see the note on {@link SessionEventMap}
+ * below for why this package copies the vocabulary instead of importing it.
+ */
+export type HookDialect = 'claude-code' | 'codex'
+
+/**
+ * Session events the TUI renders that other plugins add to `SessionEventMap`:
+ * `@deepseek-ai/dsh-compaction` for `compaction/*`,
+ * `@deepseek-ai/dsh-plan-mode` for `plan/mode`, and
+ * `@deepseek-ai/dsh-hook-protocol` for `hook/*`.
+ *
+ * None of those three is a dependency of this package, which is the point.
+ * `dsh-base` mounts no hook bridge and does not depend on one, so a hard peer
+ * would make every install warn about a package most assemblies will never
+ * have — for a feature that draws nothing until a user inserts a bridge. The
+ * TUI instead renders whatever shows up on the session it is already reading,
+ * the same way it renders MCP-bridged tools by parsing their names and
+ * depending on `dsh-mcp-client` not at all (`docs/SPEC.md` §1.12).
+ *
+ * The cost is that these declarations are copies and can drift. For `hook/*`
+ * the copy is verbatim from `packages/hooks/hook-protocol/lib/types/types.d.ts`
+ * at `0.1.0-rc.7`, which is the version line this package pins; a drift shows
+ * up as a field the renderer reads and no emitter sets, i.e. `undefined`, which
+ * every branch below already handles.
  */
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
@@ -22,6 +43,22 @@ declare module '@deepseek-ai/dsh-session/types' {
     'compaction/prune': { removedSeqs: readonly number[] }
     'compaction/end': { ok: boolean }
     'plan/mode': { enabled: boolean }
+    'hook/invoked': {
+      turn: number
+      point: string
+      dialect: HookDialect
+      matcher?: string
+      handlerId: string
+    }
+    'hook/result': {
+      turn: number
+      point: string
+      handlerId: string
+      decision: string
+      exitCode?: number
+      stderrSummary?: string
+      durationMs: number
+    }
   }
 }
 
@@ -60,6 +97,43 @@ export type UiEntry =
   }
   | { kind: 'compaction'; stage: 'start' | 'summary' | 'end' | 'prune'; text?: string }
   | { kind: 'plan'; enabled: boolean; at: number }
+  /**
+   * One hook run, opened by `hook/invoked` and closed by `hook/result`.
+   *
+   * Paired on `handlerId` rather than on "the most recent open one", which is
+   * how {@link ToolStatus} entries are closed. The events carry the id
+   * precisely so a pair can be correlated, and hooks at one point run as a
+   * group — several may be open at once, so the tool heuristic would close the
+   * wrong row.
+   *
+   * `status` exists for the same reason it does on a tool: an invocation whose
+   * result never arrives must not keep claiming to be running. The protocol
+   * documents the pair as turn-enclosed, so `turn/end` is where that is
+   * settled.
+   *
+   * `decision` is deliberately a bare `string`. The emitter types it that way
+   * because the vocabulary is open — `pass`, `stop`, and the five values a hook
+   * can express (`approve`/`allow`/`block`/`deny`/`ask`) are what exist today,
+   * and a bridge may add to it. See `hookTone` in `hook-runs.ts` for what an
+   * unrecognized one is treated as.
+   */
+  | {
+    kind: 'hook'
+    /** Correlates this row's `hook/invoked` with its `hook/result`. */
+    handlerId: string
+    /** The hook point (`PreToolUse`, `Stop`, …) — the emitter's word, untranslated. */
+    point: string
+    dialect: HookDialect
+    turn: number
+    /** The matcher-group pattern that selected it; absent for match-all. */
+    matcher?: string
+    /** Set by `hook/result`. Absent while the run is still open. */
+    decision?: string
+    exitCode?: number
+    stderrSummary?: string
+    durationMs?: number
+    status: 'running' | 'done' | 'cancelled'
+  }
   /**
    * The model's task list, as of the most recent `todo/write`.
    *
@@ -196,6 +270,8 @@ export function isRenderable(event: SessionEvent): boolean {
     case 'compaction/summary':
     case 'compaction/prune':
     case 'plan/mode':
+    case 'hook/invoked':
+    case 'hook/result':
     case 'todo/write':
     case 'agent/inbox/spliced':
     case 'session/end-seed':

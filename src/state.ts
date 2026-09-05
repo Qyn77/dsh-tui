@@ -110,6 +110,21 @@ function isCompactionStart(entry: UiEntry): entry is EntryOf<'compaction'> {
   return entry.kind === 'compaction' && entry.stage === 'start'
 }
 
+/**
+ * Match the open hook run one `hook/result` belongs to.
+ *
+ * By `handlerId`, not by "the most recent open one" the way `tool/result` is
+ * matched. That heuristic is forced on the tool path because `tool/result`
+ * carries no call id; here the id is in both halves of the pair precisely so
+ * they can be correlated, and hooks matched to one point run as a group — with
+ * several open at once, closing the newest would attribute one hook's decision
+ * to another's row.
+ */
+function openHookRun(handlerId: string): (entry: UiEntry) => entry is EntryOf<'hook'> {
+  return (entry): entry is EntryOf<'hook'> =>
+    entry.kind === 'hook' && entry.status === 'running' && entry.handlerId === handlerId
+}
+
 /** Append one entry to the projected list. */
 function append(state: UiState, entry: UiEntry): UiEntry[] {
   return [...state.entries, entry]
@@ -189,6 +204,14 @@ function onTurnEnd(state: UiState, event: EventOf<'turn/end'>): UiState {
   const entries = state.entries.map((e): UiEntry => {
     if (e.kind === 'assistant' && !e.finalized) return { ...e, finalized: true }
     if (e.kind === 'tool' && e.status === 'running') return { ...e, status: unfinished }
+    // A hook run open at the turn boundary is `cancelled` whatever the reason,
+    // where an open tool inherits the turn's fate. The protocol documents the
+    // invoked/result pair as turn-enclosed, so a missing result is not the
+    // ordinary consequence of a turn ending — it means the pair broke, and the
+    // one thing that cannot be claimed is a decision that was never recorded.
+    // `unfinishedToolStatus` maps a clean completion to `ok`; borrowing it here
+    // would print `pass` for a hook whose verdict is simply unknown.
+    if (e.kind === 'hook' && e.status === 'running') return { ...e, status: 'cancelled' }
     return e
   })
   const note = turnEndNote(event.data.turn, reason)
@@ -312,6 +335,48 @@ function onToolResult(state: UiState, event: EventOf<'tool/result'>): UiState {
   return { ...state, entries: replaceAt(state.entries, found.index, next) }
 }
 
+/** Open a hook row; the matching `hook/result` closes it. */
+function onHookInvoked(state: UiState, event: EventOf<'hook/invoked'>): UiState {
+  const { turn, point, dialect, handlerId, matcher } = event.data
+  return {
+    ...state,
+    entries: append(state, {
+      kind: 'hook',
+      handlerId,
+      point,
+      dialect,
+      turn,
+      ...(matcher !== undefined ? { matcher } : {}),
+      status: 'running',
+    }),
+  }
+}
+
+/**
+ * Close the hook row this result belongs to.
+ *
+ * A result with no open row is dropped rather than opening one. That is the
+ * opposite of how `compaction/end` behaves, and the difference is what a
+ * resumed session can join midway: a compaction is one long-running operation
+ * whose end is worth showing on its own, while a hook run is over in
+ * milliseconds and a row reading "a hook you never saw start has finished"
+ * describes nothing the user can act on.
+ */
+function onHookResult(state: UiState, event: EventOf<'hook/result'>): UiState {
+  const { handlerId, decision, exitCode, stderrSummary, durationMs } = event.data
+  const found = findLast(state.entries, openHookRun(handlerId))
+  if (!found) return state
+  const next: UiEntry = {
+    ...found.entry,
+    decision,
+    ...(exitCode !== undefined ? { exitCode } : {}),
+    ...(stderrSummary !== undefined ? { stderrSummary } : {}),
+    durationMs,
+    status: 'done',
+  }
+  return { ...state, entries: replaceAt(state.entries, found.index, next) }
+}
+
 /**
  * Move an open compaction row to its next stage, or start a fresh row when the
  * event arrives with nothing to advance — a resumed session can join a
@@ -415,6 +480,12 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
 
     case 'todo/write':
       return onTodoWrite(state, event)
+
+    case 'hook/invoked':
+      return onHookInvoked(state, event)
+
+    case 'hook/result':
+      return onHookResult(state, event)
 
     // Carried in the log but with nothing to project: step boundaries are
     // implied by the assistant entries between them, and inbox splices are

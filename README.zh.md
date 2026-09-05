@@ -301,6 +301,35 @@ skill 的指令会交给模型，然后开始一轮对话。你自己写的话�
 
 没有 `/skills` 列表：面板本身就是列表。
 
+### hook 执行记录
+
+如果你的装配里挂了 hook 桥接（`@deepseek-ai/dsh-hooks-claude-code` 或
+`@deepseek-ai/dsh-hooks-codex`），每次 hook 跑过都会留下一行。多数时候它是安静的
+——放行的 hook 只是一条审计记录，权重和压缩提示一样：
+
+```
+⤷ PreToolUse 钩子 · pass · claude-code · 12 毫秒
+```
+
+**拦下**了东西的 hook 就不安静了，这也正是这个功能存在的理由。没有这一行，你看到的
+就是一个没跑起来的工具调用，而屏幕上没有任何东西告诉你为什么：
+
+```
+⤷ PreToolUse 钩子 · deny · claude-code · 31 毫秒
+  refusing: working tree is dirty
+```
+
+这一行是黄色而不是红色。这里的红色表示「出错了」，而拦下调用的 hook 没有出错，
+它正是在干自己的活。除 `pass`、`allow`、`approve` 之外的决定都按这个画法，
+**包括这个版本从没见过的决定**——桥接可以往词汇表里加东西，而一个我们叫不出名字的
+决定，恰恰是最不该被藏起来的。
+
+hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译，这样你能拿这一行
+直接对上自己写的那个文件。
+
+和 MCP 一样，TUI 不为此依赖任何 hook 包——事件来了就画，不来就什么都不画。
+配置桥接是 bundle 层的事，在你自己的 patch 层里 `insert` 一段。
+
 ### 想多看几行长输出
 
 工具结果和 `!` 命令的输出默认只预览 8 行，其余用 `… +N lines` 交代。`/verbose`

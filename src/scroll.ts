@@ -13,6 +13,7 @@
 
 import type { UiEntry } from './types.ts'
 import { userMessageImages, userMessageText } from './types.ts'
+import { hookStderr } from './hook-runs.ts'
 import {
   GUTTER_WIDTH,
   outputPreview,
@@ -214,6 +215,14 @@ function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number 
     }
     case 'runtime-context':
       return 1 + (entry.preview === '' ? 0 : textRows(entry.preview, width))
+    case 'hook': {
+      // The run's own row, then its stderr if it printed any. The header is
+      // drawn `truncate-end`, so no hook point, decision or translation of them
+      // can make it wrap — only the stderr is charged by wrapping, and the
+      // emitter has already capped that before it reached the log.
+      const stderr = hookStderr(entry)
+      return 1 + (stderr === undefined ? 0 : textRows(stderr, width))
+    }
     case 'command':
       // The echoed command line, then its output. `/help` is the tall one
       // and it is exactly as tall as its own newlines say.

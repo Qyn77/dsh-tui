@@ -176,6 +176,21 @@ export interface Catalog {
      * tally, because the list is the one entry whose point is the ratio.
      */
     todos: (done: number, total: number) => string
+    /**
+     * A hook run's row.
+     *
+     * `point` (`PreToolUse`, `Stop`, …) and `decision` (`deny`, `stop`, …) are
+     * the emitter's own words and are interpolated untranslated, for the same
+     * reason a plugin's name is: they are what the user's own hook
+     * configuration says, and translating them would leave them unable to match
+     * the row against the file they wrote.
+     */
+    hookRunning: (point: string) => string
+    hookDecided: (point: string, decision: string) => string
+    /** A run whose result never arrived — see the `turn/end` case in `state.ts`. */
+    hookUnfinished: (point: string) => string
+    /** Wall-clock runtime, appended to a finished run. */
+    hookDuration: (ms: number) => string
   }
   /** The persistent header bar. */
   status: {
@@ -424,6 +439,10 @@ const EN: Catalog = {
     compacting: 'compacting…',
     compactionDone: 'compaction complete',
     todos: (done, total) => `todos · ${done}/${total} done`,
+    hookRunning: point => `${point} hook…`,
+    hookDecided: (point, decision) => `${point} hook · ${decision}`,
+    hookUnfinished: point => `${point} hook · no result`,
+    hookDuration: ms => `${ms}ms`,
   },
   status: {
     idle: '⏵ idle',
@@ -629,6 +648,10 @@ const ZH: Catalog = {
     compacting: '压缩中…',
     compactionDone: '压缩完成',
     todos: (done, total) => `任务清单 · ${done}/${total} 已完成`,
+    hookRunning: point => `${point} 钩子执行中…`,
+    hookDecided: (point, decision) => `${point} 钩子 · ${decision}`,
+    hookUnfinished: point => `${point} 钩子 · 没有结果`,
+    hookDuration: ms => `${ms} 毫秒`,
   },
   status: {
     idle: '⏵ 空闲',

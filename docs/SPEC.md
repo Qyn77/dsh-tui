@@ -792,6 +792,30 @@ The body is `renderSkillContent`'s output and not our own wrapper, so the model 
 
 **Not done.** No `/skills` listing. The palette *is* the listing, and a command that printed the same rows into the transcript would be a second surface to keep in sync with the first.
 
+### 1.15 Hook runs
+
+`@deepseek-ai/dsh-hook-protocol` records two events per hook run — `hook/invoked` and `hook/result` — and the TUI draws them as one row. **It takes no dependency to do it.** `dsh-base` mounts no bridge and does not depend on one, so a hard peer would make every install warn about a package most assemblies will never have, for a feature that draws nothing until a user inserts `hooks-claude-code` or `hooks-codex`. `src/types.ts` declares the two payloads locally instead, the way it already does for `compaction/*` and `plan/mode` — neither of whose packages is a dependency either. That is the same one-build-serves-both property §1.12 buys for MCP by parsing tool names.
+
+The declarations are copies and can drift, which is the honest cost. They are verbatim from `hook-protocol`'s own `types.d.ts` at `0.1.0-rc.7`, the pinned line, so nothing here is a guess about a shape; and a drift surfaces as a field the renderer reads and no emitter sets, i.e. `undefined`, which every branch already handles.
+
+**The pair is correlated by `handlerId`, not by recency.** `tool/result` carries no call id, so `state.ts` closes the most recent running tool and has to. Hooks are different: the id is in both halves precisely so they can be matched, and every hook matching one point runs as a group — with several open at once, closing the newest would print one hook's decision on another's row. A result naming no open run is dropped rather than opening one, unlike `compaction/end`: a compaction is long enough that a resumed session can join it midway and its ending is worth showing alone, while a hook run is over in milliseconds and "a hook you never saw start has finished" describes nothing anyone can act on.
+
+**A run still open at `turn/end` is `cancelled`, whatever the turn's reason.** An open *tool* inherits that reason — a completed turn leaves its tools `ok` (§1.4). A hook must not borrow the rule. The protocol documents the pair as turn-enclosed, so a missing result does not mean the work quietly finished; it means the pair broke. Inheriting `ok` would print `pass`, which is a verdict, for a run whose verdict was never recorded.
+
+**Two weights, and the split is the whole feature.** The events are documented log-only: they carry no `surfaceOp`, so nothing about them asks to be drawn, and most of them are audit records of a hook that changed nothing.
+
+| Decision | Drawn |
+| --- | --- |
+| `pass`, `allow`, `approve` | dim gray, the weight of a compaction notice |
+| `deny`, `block`, `ask`, `stop` | `yellow` |
+| anything else | `yellow` |
+
+Yellow and **not red**, because red on this surface means a failure and a hook that blocked a tool call did not fail — it worked, and this row is the only place the user can learn why the call did not run. The last line of that table is the one that had to be decided rather than observed: the emitter types `decision` as a bare `string` because a bridge may extend the vocabulary, so an unrecognized value is a real decision this build has no word for, and defaulting it to quiet would hide exactly the case the row exists for.
+
+The row reads `⤷ PreToolUse hook · deny · claude-code · 42ms`, with the point and the decision left untranslated for the reason a plugin's name is (§1.4): they are what the user's own hook configuration says, and translating them would leave them unable to match the row against the file they wrote. The dialect rides alongside the way a plugin's name rides beside `runtime context` — with two bridges mounted, two hooks at one point are otherwise indistinguishable. `stderrSummary` follows on its own rows when the hook printed anything; the emitter has already capped it at the bridge's `stderrSummaryMaxChars`, so this surface adds no second cap to keep in sync with `estimateEntryRows`.
+
+**Not done.** No aggregate. A `PreToolUse` hook that matches everything draws one dim row per tool call, and collapsing a run of them is a real idea — but it needs a rule for which of the collapsed rows survives a `deny`, and inventing that before anyone has run the feature would be guessing.
+
 ---
 
 ## Part 2 · Roadmap
@@ -864,13 +888,11 @@ Still open: nothing — v0.3 is complete.
 
   Two things remain, and neither is this package's to do. *Connection state* is not observable — with no service and no events, "connected" can only be inferred from whether the tools are registered, so a `/mcp` listing would report the tool surface, not the link. And *configuring* a server is a user patch layer (`insert` one `mcp-client` per server), which is not something a TUI user can discover; that is a bundle and documentation problem.
 - **Agent skills.** *Shipped.* `@deepseek-ai/dsh-skill` publishes `0.1.0-rc.7` and `dsh-base` mounts the registry, the filesystem provider and the `skill` tool, all enabled — so the model half was already working and the human half was simply unclaimed. A user-invocable skill is now a `/` row that injects `renderSkillContent()`'s block and starts a turn; see §1.14. Nothing about it needed a version bump.
-- **Hooks visualization.** Render hook runs inline. This item said the payloads were undefined because "no `dsh-hooks` package exists". That was wrong, and it is the third time this list has written off a shipped capability for that reason — MCP twice, now this. `@deepseek-ai/dsh-hook-protocol` publishes `0.1.0-rc.7`, the pinned line, and `declare module '@deepseek-ai/dsh-session/types'` gives both events fully typed payloads: `hook/invoked` carries `turn`/`point`/`dialect`/`handlerId` and an optional `matcher`, `hook/result` adds `decision`/`durationMs` and optional `exitCode`/`stderrSummary`, paired to its invocation by `handlerId`.
+- **Hooks visualization.** *Shipped.* This item spent its life saying the payloads were undefined because "no `dsh-hooks` package exists" — the third time this list wrote off a shipped capability that way, after MCP twice. `@deepseek-ai/dsh-hook-protocol` publishes `0.1.0-rc.7`, the pinned line, and declares both payloads in full.
 
-  The dependency is **type-only** — the same `import type {} from` line §3.5 already uses for eight packages — because the events arrive on the session the TUI is already reading. Its peers stay inside `0.1.0-rc.7`, so unlike sub-agent visualization this pulls no second `dsh-session`.
+  A hook run is now one row, paired on `handlerId`, drawn dim when the hook changed nothing and `yellow` when it denied, asked or halted — see §1.15. It cost **no dependency**: `src/types.ts` declares the two payloads locally, as it already does for `compaction/*` and `plan/mode`, because `dsh-base` mounts no bridge and a hard peer would warn on every install for a feature that draws nothing until a user inserts one.
 
-  It is nevertheless the MCP situation, not the skills one: `dsh-base` mounts no bridge and does not depend on one, so a user must `insert` `hooks-claude-code` or `hooks-codex` themselves. An assembly without a bridge fires no `hook/*` and draws nothing, which is the same one-build-serves-both property §1.12 relies on — the feature is unblocked, but it ships dark for anyone who has not configured a bridge.
-
-  Two facts should shape the design rather than be discovered during it. The events are documented **log-only**: they carry no `surfaceOp`, so they are audit records, not a surface the runtime is asking to be drawn. And the pair is correlated by `handlerId` across two events, so a row cannot be rendered from either one alone — an invocation whose result never arrives is a state the transcript has to have an answer for.
+  What remains is an aggregate for the match-everything case, which is deliberately deferred rather than blocked (§1.15).
 
 ### Aspirational (no commitment)
 
@@ -911,6 +933,7 @@ src/
 ├── attach-runner.ts    # The one place that reads image bytes and commits them
 ├── skills.ts           # Pure skill-row layout, precedence, and name parsing
 ├── skill-runner.ts     # Reads ctx.skills and builds an invocation's two messages
+├── hook-runs.ts        # Pure hook-decision vocabulary — how loud a run is drawn
 ├── plugins.ts          # Pure classification + table for `/plugins`
 ├── banner-art.ts       # Pure banner art + text — beside Banner.tsx
 ├── theme.ts            # Pure appearance arithmetic, and the one terminal probe

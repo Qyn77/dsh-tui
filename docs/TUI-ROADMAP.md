@@ -305,11 +305,12 @@ pins. `@deepseek-ai/dsh-mcp-client` was the first (the TUI's half shipped, SPEC
 anything blocked again, the check is `npm view` and the package's `.d.ts` — not
 recollection.
 
-Hooks is no longer on this list. `dsh-hook-protocol@0.1.0-rc.7` augments
-`SessionEventMap` with fully typed `hook/invoked` and `hook/result` payloads,
-so the dependency is type-only and the events arrive on a session the TUI
-already reads. It ships dark until a user inserts a bridge, exactly as MCP
-does. See SPEC Part 2 for the two design constraints that come with it.
+Hooks is no longer on this list because it shipped. `dsh-hook-protocol@0.1.0-rc.7`
+declares `hook/invoked` and `hook/result` in full, and a run now draws as one
+row paired on `handlerId` — dim when the hook changed nothing, yellow when it
+denied, asked or halted. It cost no dependency at all: `src/types.ts` declares
+the payloads locally, as it already did for `compaction/*` and `plan/mode`. Like
+MCP it ships dark until a user inserts a bridge. See SPEC §1.15.
 
 What is genuinely still out of reach:
 
