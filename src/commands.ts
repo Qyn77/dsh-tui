@@ -64,6 +64,7 @@ import {
   resolvePlugin,
   type PluginRow,
 } from './plugins.ts'
+import { describeMcpServers, formatMcpServers } from './mcp.ts'
 
 /** What a command decided. */
 export type CommandResult =
@@ -626,6 +627,22 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
           byteLength(clamped.text),
           clamped.truncated ? OSC52_MAX_BYTES : undefined,
         ),
+      }
+    }
+
+    case '/mcp': {
+      // Read at dispatch time, like every other service-backed command: the
+      // bridge re-syncs tool generations on reconnects, so a fresh read is
+      // the only honest answer. The scope is the agent — a per-agent tool
+      // variant shadows the global one, and `/mcp` should describe what
+      // *this* conversation's model can call.
+      const tools = service(cmd.ctx, 'tools')
+      if (tools === undefined) return { kind: 'handled', message: strings.mcpNoTools }
+      const rows = describeMcpServers(tools.schemas(cmd.agent))
+      if (rows.length === 0) return { kind: 'handled', message: strings.mcpNone }
+      return {
+        kind: 'handled',
+        message: `${strings.mcpHeading(rows.length)}\n${formatMcpServers(rows, strings.mcpServer)}`,
       }
     }
 

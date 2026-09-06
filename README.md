@@ -130,6 +130,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `/context` | Print the context window, this session's token spend, and how full the context is now |
 | `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
+| `/mcp` | List the connected MCP servers and the tools each one registered |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
 | `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
@@ -284,9 +285,15 @@ app did not start.
 
 The TUI takes no dependency on the MCP plugin to do this; it reads the naming
 convention. Configuring servers is a bundle concern, one `insert` block per
-server in your own patch layer. Note also that the plugin publishes no
-connection state, so there is no `/mcp` and nothing here can tell you a server
-is down — only that its tools are or are not registered.
+server in your own patch layer — `@deepseek-ai/dsh-mcp-client` under
+`plugins:` in a profile's `cordis.patch.yml` (or a `--patch` file on the
+command line), with the per-server `serverName`, `command`/`url`, and transport
+options as config keys.
+
+`/mcp` lists what that wiring produced: one header per connected server and the
+tools it registered, read fresh from the tool registry on every call. The
+plugin publishes no connection state, so an absent server shows up as an absent
+row — only its tools being or not being registered says whether it is up.
 
 ### Sending an image
 

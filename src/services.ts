@@ -46,6 +46,10 @@ import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-skill'
+// `tools` backs `/mcp`: the MCP client bridge registers each server's tools
+// on `ctx.tools` as `mcp__<server>__<raw>`, and that registry is the only
+// place the connected servers can be enumerated from the UI side.
+import type {} from '@deepseek-ai/dsh-tools'
 
 /**
  * Read a service that some installed package declares on `Context`.

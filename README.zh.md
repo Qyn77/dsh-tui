@@ -124,6 +124,7 @@ REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续�
 | `/context` | 打印上下文窗口、本次 session 的 token 开销，以及当前上下文占用了多少 |
 | `/usage` | 按轮次拆开本次 session 的 token 开销 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
+| `/mcp` | 列出已连接的 MCP 服务器，以及各自注册的工具 |
 | `/theme` | 选择配色假定的背景：`/theme auto`、`dark` 或 `light` |
 | `/copy` | 把最新一条回复复制到剪贴板；`/copy code` 取最新的代码块 |
 | `/verbose` | 让每段长输出多显示一些：`/verbose on`、`off`，不带参数则切换 |
@@ -246,8 +247,13 @@ session 重来一遍。除此之外没有别的东西读这个文件——API ke
 交给一个不是本程序启动的进程。
 
 TUI 为此没有引入对 MCP 插件的任何依赖，它读的是命名约定。配置 server 属于装配层的事，
-在你自己的 patch 层里一个 server 一个 `insert` 块。另外，插件不发布连接状态，所以这里
-没有 `/mcp`，也无法告诉你某个 server 掉线了——只能看到它的工具在不在。
+在你自己的 patch 层里一个 server 一个 `insert` 块——在 profile 的 `cordis.patch.yml`
+（或命令行的 `--patch` 文件）的 `plugins:` 下面加 `@deepseek-ai/dsh-mcp-client`，
+配置键是每个 server 的 `serverName`、`command`/`url`，以及传输选项。
+
+`/mcp` 列出的就是这份接线的成果：每个连接中的 server 一行表头，下面是它注册的工具，
+每次调用都从工具注册表现读。插件不发布连接状态，所以掉线的 server 表现为一个不存在的
+行——只有它的工具在不在，能说明它还在不在。
 
 ### 发送图片
 

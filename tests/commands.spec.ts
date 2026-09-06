@@ -424,6 +424,81 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/mcp', () => {
+    /**
+     * A tools-registry stand-in. The real one namespaces every bridged MCP
+     * tool as `mcp__<server>__<raw>`; the stand-in serves whatever names the
+     * test seeds, so the grouping is exercised through the same `schemas()`
+     * call the command makes.
+     */
+    function withTools(names: string[]): CommandContext {
+      const ctx = new Context()
+      ctx.provide('tools', {
+        schemas: () => names.map(name => ({ name, description: '' })),
+      } as never)
+      return {
+        ctx,
+        agent: { id: 'tui-1' as never, session: makeSession() } as never,
+        resetView: vi.fn(),
+        setModel: vi.fn().mockResolvedValue(undefined),
+        refreshSelection: vi.fn(),
+        state: emptyState(),
+      }
+    }
+
+    it('lists one block per server with its tools indented beneath', async () => {
+      const result = await dispatch('/mcp', withTools([
+        'bash',
+        'mcp__github__create_issue',
+        'mcp__github__search',
+        'mcp__memory__read_graph',
+      ]))
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      const lines = (result.message ?? '').split('\n')
+      expect(lines[0]).toBe('MCP servers (2):')
+      expect(lines).toContain('  github — 2 tools')
+      expect(lines).toContain('    create_issue')
+      expect(lines).toContain('  memory — 1 tool')
+      expect(lines).toContain('    read_graph')
+    })
+
+    it('reads the registry again on every call, so a re-sync shows', async () => {
+      // The bridge replaces a server's whole tool generation on reconnect;
+      // `/mcp` must not describe the generation it saw last time. One command
+      // context, one mutable registry, two dispatches.
+      const names = ['mcp__github__create_issue']
+      const cmd = withTools(names)
+      const before = await dispatch('/mcp', cmd)
+      if (before.kind !== 'handled') throw new Error('unreachable')
+      expect(before.message).toContain('github — 1 tool')
+      names.push('mcp__github__search')
+      const after = await dispatch('/mcp', cmd)
+      if (after.kind !== 'handled') throw new Error('unreachable')
+      expect(after.message).toContain('github — 2 tools')
+    })
+
+    it('explains how to connect one when the registry has no MCP tools', async () => {
+      const result = await dispatch('/mcp', withTools(['bash', 'fs_read']))
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.mcpNone)
+    })
+
+    it('says so when the assembly has no tools service at all', async () => {
+      const stand = makeStand()
+      const cmd: CommandContext = {
+        ctx: stand.ctx,
+        agent: { id: 'tui-1' as never, session: makeSession() } as never,
+        resetView: vi.fn(),
+        setModel: vi.fn().mockResolvedValue(undefined),
+        refreshSelection: vi.fn(),
+        state: emptyState(),
+      }
+      const result = await dispatch('/mcp', cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.mcpNoTools)
+    })
+  })
+
   describe('/language', () => {
     it('shows usage and the current language when no argument is given', async () => {
       const setLanguage = vi.fn()
@@ -1139,8 +1214,8 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/clear', '/context', '/copy', '/exit', '/help', '/history', '/language', '/model', '/plugins',
-      '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
+      '/clear', '/context', '/copy', '/exit', '/help', '/history', '/language', '/mcp', '/model',
+      '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
     ])
   })
 
@@ -1156,8 +1231,8 @@ describe('filterCommands', () => {
     expect(filterCommands('/co').map(c => c.name)).toEqual(['/context', '/copy'])
   })
 
-  it('matches /model under /m prefix', () => {
-    expect(filterCommands('/m').map(c => c.name)).toEqual(['/model'])
+  it('matches /mcp and /model under /m prefix', () => {
+    expect(filterCommands('/m').map(c => c.name)).toEqual(['/mcp', '/model'])
   })
 
   it('matches /quit under /Q prefix', () => {
@@ -1192,7 +1267,7 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/language', '/model',
+        '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/language', '/mcp', '/model',
         '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
       ])
     })

@@ -65,6 +65,7 @@ export const COMMAND_NAMES = [
   '/help',
   '/history',
   '/language',
+  '/mcp',
   '/model',
   '/plugins',
   '/quit',
@@ -353,6 +354,14 @@ export interface Catalog {
     noPlugins: string
     /** `/plugins` in an assembly with no loader — embedded hosts have none. */
     noLoader: string
+    /** `/mcp`: heading above the server list, given the number of servers. */
+    mcpHeading: (count: number) => string
+    /** `/mcp` when the registry holds no `mcp__`-prefixed tools. */
+    mcpNone: string
+    /** `/mcp`: one line per server — its name and its tool count. */
+    mcpServer: (name: string, count: number) => string
+    /** `/mcp` in an assembly with no tools service to read. */
+    mcpNoTools: string
     /** One word per lifecycle phase, for the table's right column. */
     pluginPhases: Record<PluginPhase, string>
     /** `/plugins` with words it could not read as a subcommand. */
@@ -505,6 +514,7 @@ const EN: Catalog = {
     '/help': 'Show the list of available commands',
     '/history': 'Show or hide the resumed session\'s stored history: /history show or hide',
     '/language': 'Switch the interface language: /language en or zh',
+    '/mcp': 'List connected MCP servers and their tools',
     '/model': 'Switch model: /model <name> or <provider>/<name>',
     '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
     '/quit': 'Alias for /exit',
@@ -560,6 +570,10 @@ const EN: Catalog = {
     pluginsHeading: count => `plugins (${count}):`,
     noPlugins: 'The loader has no plugins to list.',
     noLoader: 'No plugin loader in this assembly — nothing to list.',
+    mcpHeading: count => `MCP servers (${count}):`,
+    mcpNone: 'No MCP servers are connected. Add an \'@deepseek-ai/dsh-mcp-client\' row to a patch layer (a profile\'s cordis.patch.yml, or --patch on the command line) and its tools appear here — the README has the config table.',
+    mcpServer: (name, count) => `${name} — ${count} tool${count === 1 ? '' : 's'}`,
+    mcpNoTools: 'No tool registry in this assembly — nothing to enumerate.',
     pluginPhases: {
       active: 'active',
       loading: 'loading',
@@ -719,6 +733,7 @@ const ZH: Catalog = {
     '/help': '显示可用命令列表',
     '/history': '显示或隐藏接续 session 的已存历史：/history show 或 hide',
     '/language': '切换界面语言：/language en 或 zh',
+    '/mcp': '列出已连接的 MCP 服务器及其工具',
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
@@ -774,6 +789,10 @@ const ZH: Catalog = {
     pluginsHeading: count => `插件（${count}）：`,
     noPlugins: '加载器里没有可列出的插件。',
     noLoader: '当前装配没有插件加载器，无从列起。',
+    mcpHeading: count => `MCP 服务器（${count}）：`,
+    mcpNone: '没有连接中的 MCP 服务器。在某个 patch 层（profile 的 cordis.patch.yml，或命令行的 --patch）里加一个 \'@deepseek-ai/dsh-mcp-client\' 插件行，它的工具就会出现在这里——配置表在 README 里。',
+    mcpServer: (name, count) => `${name} —— ${count} 个工具`,
+    mcpNoTools: '当前装配没有工具注册表，无从枚举。',
     pluginPhases: {
       active: '运行中',
       loading: '加载中',
