@@ -84,6 +84,29 @@ const ALT_SCROLL_ENTER = '\u001B[?1007h'
  */
 const ALT_SCROLL_EXIT = '\u001B[?1007l'
 /**
+ * Turn off the terminal's autowrap (DECAWM) for the app's lifetime.
+ *
+ * Ink erases the previous frame with `eraseLines(<logical line count>)` —
+ * the count of `\n`-separated rows in the frame string. A row the *terminal*
+ * renders wider than Ink laid it out wraps into an extra physical row, the
+ * count comes up short, and the erase leaves the top of the old frame on
+ * screen — a stable residue that only a resize clears. The width mismatch
+ * is real and unfixable from here: East-Asian *ambiguous* characters (the
+ * `·` separator, the braille spinner, `⏵`, `▌`) count as one column to the
+ * layout but render as two in the many terminals CJK users run, and the
+ * full-bleed chrome rows (border to border) have no slack to absorb the
+ * difference.
+ *
+ * With autowrap off, a too-wide row no longer wraps: the glyphs past the
+ * last column overwrite it instead, and since the right border is a row's
+ * final glyph, the row still reads intact — the surplus eats padding, not
+ * structure. The mode is restored on every exit path, like the other
+ * private modes.
+ */
+const AUTOWRAP_OFF = '\u001B[?7l'
+/** Turn it back on — same every-exit-path rule as {@link ALT_SCROLL_EXIT}. */
+const AUTOWRAP_ON = '\u001B[?7h'
+/**
  * Ask the terminal to wrap pasted text in `ESC [200~` … `ESC [201~`.
  *
  * Without it a pasted newline is a bare `\r` — byte-identical to the Enter
@@ -241,6 +264,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       if (alternateScreen) {
         internals.stdout.write(ALT_SCREEN_ENTER)
         internals.stdout.write(ALT_SCROLL_ENTER)
+        internals.stdout.write(AUTOWRAP_OFF)
         internals.stdout.write(BRACKETED_PASTE_ENTER)
       }
       // Filled in by the App's mount effect; the resize owner borrows it to
@@ -344,8 +368,11 @@ async function run(ctx: Context, config: Config): Promise<void> {
       // If Ink exits through an error, never leave the shell in the alternate
       // screen buffer — or in alternate scroll mode, which would leave the
       // user's wheel sending arrow keys to whatever runs next, or in bracketed
-      // paste, which would make the next shell echo `[200~` around every paste.
+      // paste, which would make the next shell echo `[200~` around every paste,
+      // or with autowrap disabled, which would truncate every long line the
+      // shell prints from then on.
       if (alternateScreen) {
+        internals.stdout.write(AUTOWRAP_ON)
         internals.stdout.write(BRACKETED_PASTE_EXIT)
         internals.stdout.write(ALT_SCROLL_EXIT)
         internals.stdout.write(ALT_SCREEN_EXIT)
