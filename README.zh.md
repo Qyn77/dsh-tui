@@ -337,6 +337,37 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 和 MCP 一样，TUI 不为此依赖任何 hook 包——事件来了就画，不来就什么都不画。
 配置桥接是 bundle 层的事，在你自己的 patch 层里 `insert` 一段。
 
+### Code Mode 的子调用
+
+打开 `DSH_TOOLS_MODE=code` 之后，模型不再一次发一个工具调用，而是写一小段程序。
+程序跑在 worker 里，它用到的工具是从程序内部派发出去的。屏幕上这仍然只是一个条目
+——那次 `run_code` 调用——每次派发在它下面占一行：
+
+```
+⏺ run_code(…)
+  ↳ read_file({"file_path":"src/scroll.ts"}) ✓ 84 lines
+  ↳ write_file({"file_path":"src/scroll.ts"}) ✓
+  ⎿ done
+```
+
+不管返回了多少内容，一次派发就是一行；失败的那次多一行写清原因——和被拦下的 hook
+是同一个两行形状，理由也一样：出错的那句话，正是你要读的那句话。
+
+```
+  ↳ read_file({"file_path":"nope.ts"}) ✗
+    ⎿ ENOENT: no such file
+```
+
+派发三十个工具的程序就占三十行，正是这个上限让 transcript 仍然翻得动——子调用画在
+父条目**内部**，而不是各自成为条目，所以它们之间没有空行，也不会被看成下一个真正的
+工具调用。
+
+回合结束时还没跑完的派发，跟着父条目的结局走：被你打断就是 `⊘`，正常收尾就是 `✓`。
+不会有东西一直转下去。
+
+这需要装配里挂了 `code-runtime` 并且设了 `DSH_TOOLS_MODE=code`；默认的工具模式下
+你永远不会看到 `↳` 行。
+
 ### 想多看几行长输出
 
 工具结果和 `!` 命令的输出默认只预览 8 行，其余用 `… +N lines` 交代。`/verbose`

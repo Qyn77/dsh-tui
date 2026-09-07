@@ -21,6 +21,7 @@ import {
   previewLimit,
   previewRows,
   shellStatusRows,
+  subCallRows,
   toolCallSummary,
   toolResultPreview,
   USER_FRAME_COLUMNS,
@@ -230,6 +231,11 @@ function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number 
       // width or on the catalog in force. Only the call summary can wrap.
       const summary = toolCallSummary(entry.name, entry.args)
       let rows = textRows(summary, width)
+      // Code Mode sub-calls, between the call and its outcome. Charged from
+      // `subCallRows` rather than counted here, so the one-row-per-sub-call
+      // budget has a single owner — the renderer reads the same function to
+      // decide whether the failure row exists.
+      for (const sub of entry.subCalls ?? []) rows += subCallRows(sub)
       if (entry.error !== undefined) rows += 1
       else if (entry.result) {
         const preview = toolResultPreview(entry.result, maxLines)

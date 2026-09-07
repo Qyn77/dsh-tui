@@ -31,7 +31,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
-import type { UiEntry, UiState } from '../types.ts'
+import type { SubCall, UiEntry, UiState } from '../types.ts'
 import { userMessageImages, userMessageText } from '../types.ts'
 import { windowStart } from '../scroll.ts'
 import { hookStderr, hookTone } from '../hook-runs.ts'
@@ -47,10 +47,13 @@ import {
   TODO_GLYPH,
   RESULT_GLYPH,
   SHELL_GLYPH,
+  SUBCALL_GLYPH,
   USER_BORDER_COLOR,
   USER_GLYPH,
   inlineResultText,
   shellStatusKinds,
+  subCallErrorLine,
+  subCallPreview,
   toolCallSummary,
   toolResultPreview,
   toolStatusGlyph,
@@ -167,6 +170,46 @@ function Preview({ preview, color, dim = false }: {
 }
 
 /**
+ * One tool call a Code Mode program made from inside `run_code`, as a single
+ * indented row under the call that dispatched it.
+ *
+ * Drawn through the same `toolCallSummary` / `toolStatusGlyph` pair a native
+ * call is, which is the point — `dsh-tools` settles a sub-call in `tool/result`'s
+ * own vocabulary precisely so a UI does not need a second way to say what a tool
+ * call did. What differs is the budget: one row, and a second only for the
+ * failure text (see `subCallRows`). Both are truncated, so the height
+ * `scroll.ts` charged cannot be changed by a long path or a wide glyph.
+ */
+function SubCallRow({ sub, width }: { sub: SubCall; width: number }) {
+  const color = sub.status === 'error'
+    ? 'red'
+    : sub.status === 'ok'
+      ? 'green'
+      : sub.status === 'cancelled'
+        ? 'gray'
+        : 'yellow'
+  const summary = toolCallSummary(sub.name, sub.args)
+  const preview = sub.status === 'error' ? undefined : subCallPreview(sub)
+  const inline = preview === undefined ? undefined : inlineResultText(preview, summary, width)
+  const failure = sub.status === 'error' ? subCallErrorLine(sub) : undefined
+  return (
+    <>
+      <Text wrap="truncate">
+        <Text dimColor>{SUBCALL_GLYPH} </Text>
+        <Text>{summary}</Text>
+        <Text color={color}> {toolStatusGlyph(sub.status)}</Text>
+        {inline !== undefined && <Text dimColor>{inline}</Text>}
+      </Text>
+      {failure !== undefined && (
+        <Text color="red" dimColor wrap="truncate">
+          {'  '}{RESULT_GLYPH} {failure}
+        </Text>
+      )}
+    </>
+  )
+}
+
+/**
  * A tool call: the invocation on one row, its outcome hanging below.
  *
  * The round-bordered card this replaced cost four rows of frame before any
@@ -177,6 +220,9 @@ function Preview({ preview, color, dim = false }: {
  * The outcome gets its own gutter under the call, so a result that runs to
  * several lines keeps a hanging indent instead of sliding back under the
  * marker — the same shape {@link Row} gives the entry as a whole.
+ *
+ * Code Mode sub-calls sit between the call and its outcome, which is the order
+ * they happened in: the program dispatched them, then `run_code` returned.
  */
 function ToolCall({ entry, maxLines, width }: {
   entry: Extract<UiEntry, { kind: 'tool' }>
@@ -208,6 +254,13 @@ function ToolCall({ entry, maxLines, width }: {
         <Text color={color}> {toolStatusGlyph(entry.status)}</Text>
         {inline !== undefined && <Text dimColor>{inline}</Text>}
       </Text>
+      {entry.subCalls?.map(sub => (
+        // Keyed by the sub-call id, which the emitter numbers deterministically
+        // (`<parent>:code:<n>`) — unlike a preview's lines, these rows do have a
+        // stable identity, and a running one is rewritten in place when it
+        // settles.
+        <SubCallRow key={sub.subCallId} sub={sub} width={width - GUTTER_WIDTH} />
+      ))}
       {entry.error !== undefined ? (
         <Text color="red" wrap="truncate">
           {RESULT_GLYPH} {entry.error.name}: {entry.error.code}

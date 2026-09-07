@@ -6,8 +6,21 @@
  */
 
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import type { CallId, TokenUsage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
+import type {
+  CallId,
+  ContentBlock,
+  TokenUsage,
+  ToolResultMessage,
+  UserMessage,
+} from '@deepseek-ai/dsh-llm'
 import type { SessionEvent, TodoItem, TurnEndReason } from '@deepseek-ai/dsh-session'
+// Type-only, for the `tool/code-dispatch*` declarations this file's reducer
+// projects. `@deepseek-ai/dsh-tools` augments `SessionEventMap` with them, so
+// the import is what puts those two event types in the program at all — unlike
+// `compaction/*`, `plan/mode` and `hook/*` below, this vocabulary belongs to a
+// package that is already a peer, so copying it here would be a second
+// declaration of something the tree can simply be told about.
+import type {} from '@deepseek-ai/dsh-tools/types'
 
 /**
  * The bridge that ran a hook. Mirrors `HookDialect` in
@@ -73,6 +86,40 @@ declare module '@deepseek-ai/dsh-session/types' {
  */
 export type ToolStatus = 'running' | 'ok' | 'error' | 'cancelled'
 
+/**
+ * One tool call a `run_code` program dispatched from inside itself.
+ *
+ * Code Mode runs the model's program in a worker and bridges each tool it calls
+ * back through the session as a `tool/code-dispatch-start` / `tool/code-dispatch`
+ * pair. Those are log-only — `deriveMessages()` ignores them, so a sub-call
+ * never re-enters model context — which means the transcript is the *only*
+ * place they can ever be seen. Without them a `run_code` entry is a single
+ * opaque row: the program read four files and edited one, and the screen said
+ * `run_code(…) ✓`.
+ *
+ * A sub-call is not a {@link UiEntry}. It hangs inside the parent tool entry,
+ * paired by `subCallId`, and that placement is the whole design: an entry of its
+ * own would carry the `marginTop` every entry carries, so a program with ten
+ * dispatches would spend ten blank rows saying nothing, and `tool/result`'s
+ * "close the most recent running tool" heuristic would start closing sub-calls
+ * instead of the `run_code` that owns them. Nested inside, the parent stays the
+ * one running tool, exactly as the log says it is.
+ */
+export interface SubCall {
+  /** `<parent>:code:<n>` — pairs the start event with its settlement. */
+  subCallId: CallId
+  /** The tool's registered name, rendered through the same `parseToolName` an MCP call is. */
+  name: string
+  /** The dispatched arguments, JSON-normalized before dispatch by the emitter. */
+  args: string
+  /**
+   * The settlement's model-facing content, in `tool/result`'s own vocabulary.
+   * Absent while the sub-call is still running.
+   */
+  content?: readonly ContentBlock[]
+  status: ToolStatus
+}
+
 /** Visible entry in the chat list. The reducer grows a list of these. */
 export type UiEntry =
   | { kind: 'user'; message: UserMessage }
@@ -94,6 +141,12 @@ export type UiEntry =
     result?: ToolResultMessage
     error?: { name: string; code: string }
     status: ToolStatus
+    /**
+     * Sub-dispatches this call made from inside a Code Mode program, in
+     * dispatch order. Empty or absent for every native call — see
+     * {@link SubCall} for why they live here rather than beside the entry.
+     */
+    subCalls?: readonly SubCall[]
   }
   | { kind: 'compaction'; stage: 'start' | 'summary' | 'end' | 'prune'; text?: string }
   | { kind: 'plan'; enabled: boolean; at: number }
@@ -288,6 +341,8 @@ export function isRenderable(event: SessionEvent): boolean {
     case 'assistant/message':
     case 'tool/call':
     case 'tool/result':
+    case 'tool/code-dispatch-start':
+    case 'tool/code-dispatch':
     case 'compaction/start':
     case 'compaction/end':
     case 'compaction/summary':

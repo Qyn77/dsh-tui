@@ -5,8 +5,8 @@
  */
 
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
-import type { UserMessage } from '@deepseek-ai/dsh-llm'
-import type { ToolStatus, UiEntry, UiState } from './types.ts'
+import type { CallId, UserMessage } from '@deepseek-ai/dsh-llm'
+import type { SubCall, ToolStatus, UiEntry, UiState } from './types.ts'
 import { SHELL_SOURCE_PLUGIN } from './shell.ts'
 
 /** Initial state. */
@@ -197,13 +197,35 @@ function turnEndNote(
   }
 }
 
+/**
+ * The sub-call list of a tool entry the turn ended under, with every open
+ * dispatch given the parent's fate. Returns nothing to spread when the entry
+ * has no sub-calls, so a native call's entry keeps its exact previous shape
+ * rather than growing an empty `subCalls: []`.
+ */
+function closeSubCalls(
+  entry: EntryOf<'tool'>,
+  status: ToolStatus,
+): { subCalls?: readonly SubCall[] } {
+  if (entry.subCalls === undefined || entry.subCalls.length === 0) return {}
+  return {
+    subCalls: entry.subCalls.map(c => (c.status === 'running' ? { ...c, status } : c)),
+  }
+}
+
 /** Close out a turn: finalize whatever is still in flight, then note why it ended. */
 function onTurnEnd(state: UiState, event: EventOf<'turn/end'>): UiState {
   const reason = event.data.reason
   const unfinished = unfinishedToolStatus(reason)
   const entries = state.entries.map((e): UiEntry => {
     if (e.kind === 'assistant' && !e.finalized) return { ...e, finalized: true }
-    if (e.kind === 'tool' && e.status === 'running') return { ...e, status: unfinished }
+    // A sub-call inherits the same fate as the call that dispatched it, and for
+    // the same reason: the bridge drains in-flight dispatches before `run_code`
+    // returns, so one still open at the turn boundary means the program was cut
+    // off mid-flight, not that the tool quietly succeeded.
+    if (e.kind === 'tool' && e.status === 'running') {
+      return { ...e, ...closeSubCalls(e, unfinished), status: unfinished }
+    }
     // A hook run open at the turn boundary is `cancelled` whatever the reason,
     // where an open tool inherits the turn's fate. The protocol documents the
     // invoked/result pair as turn-enclosed, so a missing result is not the
@@ -335,6 +357,99 @@ function onToolResult(state: UiState, event: EventOf<'tool/result'>): UiState {
   return { ...state, entries: replaceAt(state.entries, found.index, next) }
 }
 
+/** Match the tool entry one Code Mode sub-dispatch was made from. */
+function toolWithCallId(callId: CallId): (entry: UiEntry) => entry is EntryOf<'tool'> {
+  return (entry): entry is EntryOf<'tool'> => entry.kind === 'tool' && entry.callId === callId
+}
+
+/**
+ * Rewrite the sub-call list of the tool entry a code dispatch belongs to.
+ *
+ * The parent is found by `parentCallId` rather than by "the most recent running
+ * tool", which is how `tool/result` finds its own. Both events carry the id
+ * here, and a `run_code` program can dispatch into another one — the parent of
+ * a sub-call may itself be a sub-call — so the newest running entry is not
+ * reliably the right one.
+ *
+ * A dispatch whose parent is not on screen is dropped rather than given an
+ * entry of its own. That happens when the `run_code` call scrolled out of the
+ * projection or was never in it (a `/history hide` resume joining mid-turn),
+ * and a bare `Read(…)` row hanging in the transcript with nothing above it
+ * saying a program is running would describe the wrong thing entirely: it would
+ * read as a call the model made directly.
+ * @param state - the state to update.
+ * @param parentCallId - the `run_code` call the dispatch was made from.
+ * @param update - rewrites the parent's sub-call list.
+ */
+function withSubCalls(
+  state: UiState,
+  parentCallId: CallId,
+  update: (subCalls: readonly SubCall[]) => readonly SubCall[],
+): UiState {
+  const found = findLast(state.entries, toolWithCallId(parentCallId))
+  if (!found) return state
+  const next: UiEntry = { ...found.entry, subCalls: update(found.entry.subCalls ?? []) }
+  return { ...state, entries: replaceAt(state.entries, found.index, next) }
+}
+
+/** Open a sub-call row under the `run_code` that dispatched it. */
+function onCodeDispatchStart(state: UiState, event: EventOf<'tool/code-dispatch-start'>): UiState {
+  const { parentCallId, subCallId, name } = event.data
+  return withSubCalls(state, parentCallId, subCalls => [
+    ...subCalls,
+    { subCallId, name, args: normalizeArgs(event.data.arguments), status: 'running' },
+  ])
+}
+
+/**
+ * Close the sub-call this settlement belongs to, or record it whole.
+ *
+ * The append fallback is not defensive padding: the emitter appends a start
+ * only when the scheduler *enters* the tool body, so a projection that joined
+ * between one sub-call's start and its settlement has a settlement with no row
+ * to close. Showing the finished call is strictly better than dropping it —
+ * unlike the orphan `hook/result` case, where the pair is millisecond-short and
+ * a lone result describes nothing, a sub-call's settlement carries the tool's
+ * name, its arguments and its whole outcome.
+ */
+function onCodeDispatch(state: UiState, event: EventOf<'tool/code-dispatch'>): UiState {
+  const { parentCallId, subCallId, name, isError, content } = event.data
+  const status: ToolStatus = isError ? 'error' : 'ok'
+  const args = normalizeArgs(event.data.arguments)
+  return withSubCalls(state, parentCallId, (subCalls) => {
+    const index = subCalls.findIndex(c => c.subCallId === subCallId && c.status === 'running')
+    const settled: SubCall = { subCallId, name, args, content, status }
+    if (index < 0) return [...subCalls, settled]
+    const next = subCalls.slice()
+    next[index] = settled
+    return next
+  })
+}
+
+/**
+ * The dispatched arguments as the string the call summary reads.
+ *
+ * `tool/call` carries its arguments already serialized and every layout
+ * function downstream takes that string; a code dispatch carries the parsed
+ * value instead, normalized before dispatch by the emitter precisely so the
+ * append cannot fail on shape. Re-serializing here keeps one code path drawing
+ * both — the alternative was teaching `toolCallSummary` to accept `unknown`,
+ * which would have pushed a JSON concern into the layout layer.
+ *
+ * A value that cannot be serialized (a cycle the normalizer let through)
+ * degrades to an empty subject rather than throwing: the reducer is pure and
+ * total, and a thrown error here would take down the projection of a turn that
+ * ran fine.
+ */
+function normalizeArgs(args: unknown): string {
+  if (args === undefined) return ''
+  try {
+    return JSON.stringify(args) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 /** Open a hook row; the matching `hook/result` closes it. */
 function onHookInvoked(state: UiState, event: EventOf<'hook/invoked'>): UiState {
   const { turn, point, dialect, handlerId, matcher } = event.data
@@ -454,6 +569,12 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
 
     case 'tool/result':
       return onToolResult(state, event)
+
+    case 'tool/code-dispatch-start':
+      return onCodeDispatchStart(state, event)
+
+    case 'tool/code-dispatch':
+      return onCodeDispatch(state, event)
 
     case 'compaction/start':
       return { ...state, entries: append(state, { kind: 'compaction', stage: 'start' }) }

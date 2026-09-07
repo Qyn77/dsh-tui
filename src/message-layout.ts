@@ -13,7 +13,7 @@
  */
 
 import type { ContentBlock, ToolResultMessage } from '@deepseek-ai/dsh-llm'
-import type { ToolStatus, UiEntry } from './types.ts'
+import type { SubCall, ToolStatus, UiEntry } from './types.ts'
 import { displayWidth } from './width.ts'
 
 /**
@@ -35,6 +35,8 @@ export const RESULT_GLYPH = '⎿'
 export const NOTE_GLYPH = '⤷'
 /** Marks one image attached to the user's message. */
 export const ATTACHMENT_GLYPH = '⧉'
+/** Marks one tool call a Code Mode program dispatched from inside `run_code`. */
+export const SUBCALL_GLYPH = '↳'
 
 /**
  * Checkbox per task-list state.
@@ -376,6 +378,54 @@ function resultText(blocks: readonly ContentBlock[]): string {
     else if (block.type === 'tool-result') text += resultText(block.content)
   }
   return text
+}
+
+/**
+ * Rows a Code Mode sub-call occupies: its own, plus one for an error's first
+ * line.
+ *
+ * **One row per sub-call is the budget, and it is deliberate.** A sub-call
+ * settles with the same `content` + `isError` a native result carries, so
+ * giving each one the native 8-line preview was available and is wrong here: a
+ * program that reads six files would then push its own parent — and the
+ * conversation around it — off the screen, to say six times what `run_code`
+ * already said once. The row names the tool and its subject, which is the
+ * question a reader of a `run_code` entry actually has ("what did the program
+ * touch"). The one exception is a sub-call that failed, because *that* is the
+ * row that explains why the program's own result looks wrong, and the failure
+ * text is nowhere else on screen.
+ *
+ * Exact rather than estimated: both rows are drawn truncated, so neither the
+ * terminal width nor the interface language can turn one into two.
+ */
+export function subCallRows(sub: SubCall): number {
+  return 1 + (sub.status === 'error' && subCallErrorLine(sub) !== undefined ? 1 : 0)
+}
+
+/**
+ * The first line of a failed sub-call's output, or `undefined` when it said
+ * nothing. Trimmed to one line by construction — {@link outputPreview} drops
+ * blank lines, so this is the first line with content rather than the first
+ * line emitted.
+ */
+export function subCallErrorLine(sub: SubCall): string | undefined {
+  if (sub.content === undefined) return undefined
+  const preview = outputPreview(resultText(sub.content), 1)
+  return preview.lines[0]
+}
+
+/**
+ * A settled sub-call's output as a one-line preview, for the inline form.
+ *
+ * Built with a budget of one line on purpose: {@link inlineResultText} only
+ * accepts a preview that withheld nothing, so a multi-line output reports
+ * `hidden > 0` here and correctly declines to ride on the row. That is the same
+ * rule a native call's inline result follows, which is what keeps the two
+ * looking like the same thing.
+ */
+export function subCallPreview(sub: SubCall): OutputPreview | undefined {
+  if (sub.content === undefined) return undefined
+  return outputPreview(resultText(sub.content), 1)
 }
 
 /** Status marker for a tool call. Glyphs are fixed by `docs/SPEC.md` §1.4. */

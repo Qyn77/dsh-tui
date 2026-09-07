@@ -295,15 +295,17 @@ Priority features:
   and `DSH_TUI_RESUME`, all over `SessionPersistence`
 - optional advanced editing and completion features
 
-**One of the five v1.0 items in SPEC Part 2 remains blocked. This paragraph
-has now said three, then two, then one** — and both corrections were the same
-mistake, so it is worth naming the mistake rather than just the count. Each
-time, a capability was written off as having "no published plugin", and each
-time the plugin was published on `0.1.0-rc.7`, the line this package already
-pins. `@deepseek-ai/dsh-mcp-client` was the first (the TUI's half shipped, SPEC
-§1.12); `@deepseek-ai/dsh-hook-protocol` is the second. Before this file calls
-anything blocked again, the check is `npm view` and the package's `.d.ts` — not
-recollection.
+**None of the five v1.0 items in SPEC Part 2 is blocked. This paragraph has
+now said three, then two, then one, then none** — and every correction was the
+same mistake, so it is worth naming the mistake rather than just the count.
+Each time, a capability was written off as unreachable, and each time the
+packages were published on `0.1.0-rc.7`, the line this package already pins.
+`@deepseek-ai/dsh-mcp-client` was the first (the TUI's half shipped, SPEC
+§1.12); `@deepseek-ai/dsh-hook-protocol` the second; sub-agents the third, and
+that one was worse — the claim was not "no plugin" but a specific wrong version
+line, which reads like it came from a check. Before this file calls anything
+blocked again, the check is `npm view` and the package's `.d.ts` — not
+recollection, and not a remembered version number.
 
 Hooks is no longer on this list because it shipped. `dsh-hook-protocol@0.1.0-rc.7`
 declares `hook/invoked` and `hook/result` in full, and a run now draws as one
@@ -312,18 +314,27 @@ denied, asked or halted. It cost no dependency at all: `src/types.ts` declares
 the payloads locally, as it already did for `compaction/*` and `plan/mode`. Like
 MCP it ships dark until a user inserts a bridge. See SPEC §1.15.
 
-What is genuinely still out of reach:
+What is left is unbuilt, not unreachable:
 
 - **Sub-agent visualization.** `@deepseek-ai/dsh-subagent` and
-  `@deepseek-ai/dsh-tool-workflow` *are* published, but on `0.1.2-rc.x`, which
-  peers against `dsh-session@^0.1.2-rc.1` while this package pins
-  `0.1.0-rc.7`. Borrowing their declarations would put two `dsh-session`
-  copies in the tree and split the module augmentation that types session
-  events. This unblocks on a tree-wide version bump, not on a devDependency.
+  `@deepseek-ai/dsh-tool-workflow` both publish `0.1.0-rc.7`, both peer against
+  `dsh-session@^0.1.0-rc.7`, and both augment `SessionEventMap` with their own
+  events. Nothing needs a version bump; the projection simply has not been
+  written. The open design question is the transcript shape — a sub-agent's
+  turn is a whole session's worth of entries inside one tool call, which is a
+  larger nesting problem than the one-row-per-dispatch answer Code Mode got.
 
-`plan/mode` is the precedent for unblocking one locally — `src/types.ts`
-declares that payload itself — but it works there only because
+- **Code Mode sub-calls.** *Shipped* — the same class of gap, found the same
+  way. `tool/code-dispatch-start` and `tool/code-dispatch` were declared by
+  `@deepseek-ai/dsh-tools`, emitted by a `code-runtime` this package's own
+  patch mounts, and dropped on the floor by the reducer. They now draw as one
+  `↳` row each inside the parent `run_code` entry. See SPEC §1.16.
+
+`plan/mode` is the precedent for declaring a payload locally — `src/types.ts`
+declares that one itself — but it works there only because
 `{ enabled: boolean }` is a shape one can be certain of without the emitter.
+Where the emitter is already a peer, as with `dsh-tools`, importing its types
+beats copying them.
 
 Definition of done:
 

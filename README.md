@@ -388,6 +388,40 @@ As with MCP, the TUI takes no dependency on any hook package — it renders the
 events if they show up and draws nothing if they do not. Configuring a bridge is
 a bundle concern, an `insert` block in your own patch layer.
 
+### Code Mode sub-calls
+
+With `DSH_TOOLS_MODE=code`, the model stops emitting one tool call per action and
+writes a small program instead. The program runs in a worker, and the tools it
+reaches for are dispatched from inside it. On screen that stays one entry — the
+`run_code` call — with a line per dispatch nested under it:
+
+```
+⏺ run_code(…)
+  ↳ read_file({"file_path":"src/scroll.ts"}) ✓ 84 lines
+  ↳ write_file({"file_path":"src/scroll.ts"}) ✓
+  ⎿ done
+```
+
+Each dispatch is exactly one row no matter how much it returned, and a failure
+adds a second row with the reason — the same two-line shape a denied hook gets,
+for the same reason: the thing that went wrong is the thing you need to read.
+
+```
+  ↳ read_file({"file_path":"nope.ts"}) ✗
+    ⎿ ENOENT: no such file
+```
+
+A program that dispatches thirty tools costs thirty rows, and that bound is what
+makes the transcript still scrollable — sub-calls are drawn inside the parent
+entry rather than as entries of their own, so they carry no blank line between
+them and cannot be confused with the next real tool call.
+
+A dispatch still running when the turn ends inherits the parent's fate: `⊘` if
+you interrupted, `✓` if the turn completed. Nothing is left spinning.
+
+This is on when `code-runtime` is mounted and `DSH_TOOLS_MODE=code` is set; with
+the default tool mode you will never see a `↳` row.
+
 ### Seeing more of a long output
 
 A tool result or a `!` command's output is previewed at 8 lines, with a
