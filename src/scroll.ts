@@ -25,6 +25,7 @@ import {
   toolCallSummary,
   toolResultPreview,
   USER_FRAME_COLUMNS,
+  workflowRows,
 } from './message-layout.ts'
 
 
@@ -256,6 +257,11 @@ function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number 
       const stderr = hookStderr(entry)
       return 1 + (stderr === undefined ? 0 : textRows(stderr, width))
     }
+    case 'workflow':
+      // Header, one row per member, and a closing row once the run has closed.
+      // Charged from `workflowRows` rather than counted here, so the budget has
+      // a single owner — the renderer reads the same function's shape.
+      return workflowRows(entry)
     case 'command':
       // The echoed command line, then its output. `/help` is the tall one
       // and it is exactly as tall as its own newlines say.

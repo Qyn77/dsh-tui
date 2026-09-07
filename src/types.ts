@@ -32,10 +32,11 @@ export type HookDialect = 'claude-code' | 'codex'
 /**
  * Session events the TUI renders that other plugins add to `SessionEventMap`:
  * `@deepseek-ai/dsh-compaction` for `compaction/*`,
- * `@deepseek-ai/dsh-plan-mode` for `plan/mode`, and
- * `@deepseek-ai/dsh-hook-protocol` for `hook/*`.
+ * `@deepseek-ai/dsh-plan-mode` for `plan/mode`,
+ * `@deepseek-ai/dsh-hook-protocol` for `hook/*`, and
+ * `@deepseek-ai/dsh-tool-workflow` for `tool-workflow/*`.
  *
- * None of those three is a dependency of this package, which is the point.
+ * None of those four is a dependency of this package, which is the point.
  * `dsh-base` mounts no hook bridge and does not depend on one, so a hard peer
  * would make every install warn about a package most assemblies will never
  * have — for a feature that draws nothing until a user inserts a bridge. The
@@ -48,6 +49,14 @@ export type HookDialect = 'claude-code' | 'codex'
  * at `0.1.0-rc.7`, which is the version line this package pins; a drift shows
  * up as a field the renderer reads and no emitter sets, i.e. `undefined`, which
  * every branch below already handles.
+ *
+ * `tool-workflow/*` is copied from that package's `lib/types/types.d.ts` at the
+ * same version, with its branded `WorkflowRunId` widened to `string` and its
+ * two closed unions (`WorkflowAgentOutcome`, `WorkflowStopReason`) widened the
+ * same way. That widening is deliberate and matches `hook/result.decision`:
+ * these words are printed, never switched on, and a build that pattern-matched
+ * `'completed' | 'failed' | 'cancelled'` would fail to compile against a
+ * version that adds a fourth — for a value it was only ever going to display.
  */
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
@@ -72,6 +81,16 @@ declare module '@deepseek-ai/dsh-session/types' {
       stderrSummary?: string
       durationMs: number
     }
+    'tool-workflow/run-start': { runId: string; name: string }
+    'tool-workflow/agent-start': {
+      runId: string
+      seq: number
+      label: string
+      phase?: string
+      childId: string
+    }
+    'tool-workflow/agent-end': { runId: string; seq: number; outcome: string }
+    'tool-workflow/run-end': { runId: string; stopReason: string }
   }
 }
 
@@ -118,6 +137,27 @@ export interface SubCall {
    */
   content?: readonly ContentBlock[]
   status: ToolStatus
+}
+
+/**
+ * One agent inside a workflow run.
+ *
+ * `seq` is the emitter's own member sequence and is what pairs `agent-start`
+ * with `agent-end` — not position in this array, which a dropped start event
+ * would silently shift.
+ *
+ * `outcome` is a bare `string` for the reason `hook/result.decision` is: the
+ * TUI prints it and never branches on it, so a version that grows a fourth
+ * outcome should render, not fail to compile.
+ */
+export interface WorkflowMember {
+  seq: number
+  /** The agent's display label, e.g. `review:bugs`. */
+  label: string
+  /** The phase it was declared in, when the workflow declared phases. */
+  phase?: string
+  /** Set by `agent-end`. Absent while the member is still running. */
+  outcome?: string
 }
 
 /** Visible entry in the chat list. The reducer grows a list of these. */
@@ -185,6 +225,48 @@ export type UiEntry =
     exitCode?: number
     stderrSummary?: string
     durationMs?: number
+    status: 'running' | 'done' | 'cancelled'
+  }
+  /**
+   * One workflow run, opened by `tool-workflow/run-start` and closed by
+   * `tool-workflow/run-end`, with a row per member agent in between.
+   *
+   * This is the sub-agent-shaped feature the roadmap kept calling blocked, and
+   * finding it meant looking past the name. `@deepseek-ai/dsh-subagent` emits
+   * exactly one session event, `subagent/descriptor`, and it is appended to the
+   * **child's** log — the parent session never sees it, so there is nothing
+   * there for this transcript to draw. `@deepseek-ai/dsh-tool-workflow` is the
+   * package that writes into "its calling parent Session", and its four events
+   * are the whole visible surface of a fan-out.
+   *
+   * A run is one entry with nested members, for the same reason a Code Mode
+   * program is ({@link SubCall}): the members belong to the run, they arrive
+   * interleaved with nothing else, and twelve entries would spend twelve blank
+   * `marginTop` rows separating rows that are one thing. Unlike a sub-call, a
+   * member cannot be nested inside a tool entry — the events carry a `runId`
+   * and no `callId`, so there is no sound way to pair a run to the `Workflow`
+   * tool call that started it, and inventing one by recency would attach the
+   * run to whatever tool happened to be open.
+   */
+  | {
+    kind: 'workflow'
+    /** Correlates the run's four event types. Runs may overlap; this is why. */
+    runId: string
+    /** The workflow's declared `meta.name`, the emitter's own word. */
+    name: string
+    members: readonly WorkflowMember[]
+    /**
+     * The emitter's own stop word, set by `tool-workflow/run-end`. Absent when
+     * the run never reported one — including a run this build closed itself at
+     * `turn/end`, which must not put a word in the emitter's mouth.
+     */
+    stopReason?: string
+    /**
+     * Whether the run is still open. Separate from {@link stopReason} for the
+     * reason the hook entry keeps `status` separate from `decision`: a run cut
+     * off at the turn boundary is definitely over and definitely has no stop
+     * word, and collapsing the two would force this build to invent one.
+     */
     status: 'running' | 'done' | 'cancelled'
   }
   /**
@@ -350,6 +432,10 @@ export function isRenderable(event: SessionEvent): boolean {
     case 'plan/mode':
     case 'hook/invoked':
     case 'hook/result':
+    case 'tool-workflow/run-start':
+    case 'tool-workflow/agent-start':
+    case 'tool-workflow/agent-end':
+    case 'tool-workflow/run-end':
     case 'todo/write':
     case 'agent/inbox/spliced':
       return true

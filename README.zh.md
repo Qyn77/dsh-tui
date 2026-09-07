@@ -368,6 +368,39 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 这需要装配里挂了 `code-runtime` 并且设了 `DSH_TOOLS_MODE=code`；默认的工具模式下
 你永远不会看到 `↳` 行。
 
+### 工作流
+
+如果你的装配里挂了 `@deepseek-ai/dsh-tool-workflow`，模型可以把一个回合扇出成好几个
+子 agent。整个 run 画成一个条目，每个 agent 在它下面占一行：
+
+```
+⏺ 工作流 review-changes
+  ↳ review:bugs · Review · completed
+  ↳ review:perf · Review · failed
+  ↳ verify:auth · Verify · 执行中…
+```
+
+整个 run 收尾之后，末尾多一行：
+
+```
+  ⎿ completed · 3 个 agent
+```
+
+一个 agent 就是一行。这些子 agent 各自在自己的 session 里跑着一整段对话，那些内容
+都不画在这里——三十个 agent 每个都摊开自己干的活，只会把发起它们的那段对话埋掉。
+
+结局按工作流工具自己的用词打印，不翻译也不换成符号。只有 `completed` 是安静的，
+其余一律黄色，**包括这个版本从没见过的结局**。是黄色不是红色：被取消的 agent 并没有
+出错。
+
+如果你打断了这个回合，run 会以 `没有结果` 收尾，还在跑的 agent 显示 `没有结果` 而不是
+一直转。两者都不会替工作流编一个它从没报过的词。
+
+真正意义上的 sub-agent（`@deepseek-ai/dsh-subagent`）长得不一样，原因值得知道：一次
+委派把记录写进的是**子 session** 的日志，不是你这条。从这条 transcript 上看，sub-agent
+就是你已经能看到的那次工具调用。而工作流工具，是会把结果报回你正在看的这条 session 的
+那一个。
+
 ### 想多看几行长输出
 
 工具结果和 `!` 命令的输出默认只预览 8 行，其余用 `… +N lines` 交代。`/verbose`

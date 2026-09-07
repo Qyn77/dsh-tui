@@ -31,7 +31,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
-import type { SubCall, UiEntry, UiState } from '../types.ts'
+import type { SubCall, UiEntry, UiState, WorkflowMember } from '../types.ts'
 import { userMessageImages, userMessageText } from '../types.ts'
 import { windowStart } from '../scroll.ts'
 import { hookStderr, hookTone } from '../hook-runs.ts'
@@ -59,7 +59,9 @@ import {
   toolStatusGlyph,
   outputPreview,
   previewLimit,
+  workflowMemberTone,
   type OutputPreview,
+  type WorkflowEntry,
 } from '../message-layout.ts'
 import { SHELL_TIMEOUT_MS } from '../shell.ts'
 import { Markdown } from './Markdown.tsx'
@@ -486,6 +488,68 @@ function HookLine({ entry }: { entry: Extract<UiEntry, { kind: 'hook' }> }) {
   )
 }
 
+/**
+ * One workflow run: a header, a row per member agent, and a closing row.
+ *
+ * No new glyphs. The header takes the assistant's `⏺` because a run *is* the
+ * assistant doing work, members take the `↳` a Code Mode sub-call takes because
+ * they are the same relationship, and the close takes the `⎿` every outcome
+ * takes. Inventing a glyph for this would mean picking a character whose width
+ * is ambiguous in half the world's terminals, to say something three characters
+ * already on screen say correctly.
+ *
+ * Two weights for a settled member, on `hookTone`'s rule: `completed` is quiet,
+ * everything else — `failed`, `cancelled`, and any word a later emitter adds —
+ * is yellow. Red is not used: a cancelled member did not fail, and neither did
+ * a run the user interrupted.
+ */
+function WorkflowRun({ entry }: { entry: WorkflowEntry }) {
+  const strings = useStrings()
+  const running = entry.status === 'running'
+  return (
+    <Row glyph={ASSISTANT_GLYPH} color={running ? undefined : 'gray'} dim={!running}>
+      <Text wrap="truncate-end">{strings.entries.workflowRun(entry.name)}</Text>
+      {entry.members.map(member => (
+        <WorkflowMemberRow key={member.seq} member={member} run={entry} />
+      ))}
+      {!running && (
+        <Text color="gray" dimColor wrap="truncate-end">
+          {RESULT_GLYPH}
+          {' '}
+          {entry.stopReason === undefined
+            ? strings.entries.workflowUnfinished(entry.members.length)
+            : strings.entries.workflowEnded(entry.stopReason, entry.members.length)}
+        </Text>
+      )}
+    </Row>
+  )
+}
+
+/**
+ * One member agent of a run, as a single truncated row.
+ *
+ * The outcome is printed in the emitter's own word rather than mapped to a
+ * glyph, for the reason a hook's `decision` is: the vocabulary is open, and a
+ * word this build cannot name is exactly the one worth showing verbatim. A
+ * member with no outcome shows why it has none — still working, or left behind
+ * when its run closed — which are different facts and must not read alike.
+ */
+function WorkflowMemberRow({ member, run }: { member: WorkflowMember; run: WorkflowEntry }) {
+  const strings = useStrings()
+  const tone = workflowMemberTone(member, run)
+  const color = tone === 'ok' ? 'green' : tone === 'notable' ? 'yellow' : 'gray'
+  const settlement = member.outcome
+    ?? (tone === 'pending' ? strings.entries.workflowPending : strings.entries.workflowAbandoned)
+  return (
+    <Text wrap="truncate-end">
+      <Text dimColor>{SUBCALL_GLYPH} </Text>
+      <Text>{member.label}</Text>
+      {member.phase !== undefined && <Text dimColor>{' · '}{member.phase}</Text>}
+      <Text color={color} dimColor={tone !== 'notable'}>{' · '}{settlement}</Text>
+    </Text>
+  )
+}
+
 function RuntimeContextLine({ entry }: { entry: Extract<UiEntry, { kind: 'runtime-context' }> }) {
   const strings = useStrings()
   // Header carries the producer and form so the user can see which
@@ -626,6 +690,8 @@ const Entry = React.memo(function Entry({ entry, maxLines, width }: {
       return <RuntimeContextLine entry={entry} />
     case 'hook':
       return <HookLine entry={entry} />
+    case 'workflow':
+      return <WorkflowRun entry={entry} />
     case 'command':
       return <CommandLine entry={entry} />
     case 'shell':

@@ -314,21 +314,30 @@ denied, asked or halted. It cost no dependency at all: `src/types.ts` declares
 the payloads locally, as it already did for `compaction/*` and `plan/mode`. Like
 MCP it ships dark until a user inserts a bridge. See SPEC §1.15.
 
-What is left is unbuilt, not unreachable:
+Nothing on that list is unreachable, and as of this revision nothing on it is
+unbuilt either:
 
-- **Sub-agent visualization.** `@deepseek-ai/dsh-subagent` and
-  `@deepseek-ai/dsh-tool-workflow` both publish `0.1.0-rc.7`, both peer against
-  `dsh-session@^0.1.0-rc.7`, and both augment `SessionEventMap` with their own
-  events. Nothing needs a version bump; the projection simply has not been
-  written. The open design question is the transcript shape — a sub-agent's
-  turn is a whole session's worth of entries inside one tool call, which is a
-  larger nesting problem than the one-row-per-dispatch answer Code Mode got.
+- **Code Mode sub-calls.** *Shipped.* `tool/code-dispatch-start` and
+  `tool/code-dispatch` were declared by `@deepseek-ai/dsh-tools`, emitted by a
+  `code-runtime` this package's own patch mounts, and dropped on the floor by
+  the reducer. They now draw as one `↳` row each inside the parent `run_code`
+  entry. See SPEC §1.16.
 
-- **Code Mode sub-calls.** *Shipped* — the same class of gap, found the same
-  way. `tool/code-dispatch-start` and `tool/code-dispatch` were declared by
-  `@deepseek-ai/dsh-tools`, emitted by a `code-runtime` this package's own
-  patch mounts, and dropped on the floor by the reducer. They now draw as one
-  `↳` row each inside the parent `run_code` entry. See SPEC §1.16.
+- **Sub-agent visualization.** *Shipped, as workflow runs.* Twice this file
+  called it blocked on a version line, and once — an hour after fixing that —
+  on a design problem. Both were wrong, and the second wrong answer is the
+  instructive one. `@deepseek-ai/dsh-subagent` emits a single event,
+  `subagent/descriptor`, into the **child's** log, so the parent transcript was
+  never going to find a delegation there. `@deepseek-ai/dsh-tool-workflow`
+  writes `tool-workflow/run-start|agent-start|agent-end|run-end` into the
+  calling parent, and that is the fan-out a user can actually watch. A run is
+  one entry with a `↳` row per member. See SPEC §1.17.
+
+  The version claim deserves its own note, because it will trip the next
+  reader too: every package in this family carries a `latest` dist-tag of
+  `0.0.1-rc.1`. A bare `npm view @deepseek-ai/<pkg>` therefore reports a
+  version *below* the line this package pins and reads like a confirmed
+  blocker. Use `npm view <pkg> versions --json`.
 
 `plan/mode` is the precedent for declaring a payload locally — `src/types.ts`
 declares that one itself — but it works there only because

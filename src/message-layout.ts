@@ -13,7 +13,7 @@
  */
 
 import type { ContentBlock, ToolResultMessage } from '@deepseek-ai/dsh-llm'
-import type { SubCall, ToolStatus, UiEntry } from './types.ts'
+import type { SubCall, ToolStatus, UiEntry, WorkflowMember } from './types.ts'
 import { displayWidth } from './width.ts'
 
 /**
@@ -426,6 +426,63 @@ export function subCallErrorLine(sub: SubCall): string | undefined {
 export function subCallPreview(sub: SubCall): OutputPreview | undefined {
   if (sub.content === undefined) return undefined
   return outputPreview(resultText(sub.content), 1)
+}
+
+/** The member of {@link UiEntry} describing one workflow run. */
+export type WorkflowEntry = Extract<UiEntry, { kind: 'workflow' }>
+
+/**
+ * How a workflow member's settlement should be drawn.
+ *
+ * `pending` is a member of a run that is still going; `abandoned` is one whose
+ * run closed without ever settling it, which is a broken pair rather than an
+ * outcome and so has no word of its own to print.
+ *
+ * The split between `ok` and `notable` is `hookTone`'s, deliberately: only
+ * `completed` is quiet, and **every** other word — including one this build has
+ * never heard of — is drawn as something to look at. `WorkflowAgentOutcome` is
+ * `'completed' | 'failed' | 'cancelled'` today and the emitter may grow it, and
+ * defaulting an unrecognised outcome to quiet would hide the one case where the
+ * transcript is the only place the user could learn a member did not finish
+ * cleanly. `cancelled` is `notable` under this rule and that is intended: a
+ * cancelled member is not a completed one.
+ */
+export type WorkflowMemberTone = 'ok' | 'notable' | 'pending' | 'abandoned'
+
+/**
+ * The tone one member should be drawn at.
+ * @param member - the member row.
+ * @param run - the run it belongs to, which is what distinguishes a member
+ * still working from one its run left behind.
+ * @returns the tone; see {@link WorkflowMemberTone}.
+ */
+export function workflowMemberTone(
+  member: WorkflowMember,
+  run: WorkflowEntry,
+): WorkflowMemberTone {
+  if (member.outcome === undefined) {
+    return run.status === 'running' ? 'pending' : 'abandoned'
+  }
+  return member.outcome === 'completed' ? 'ok' : 'notable'
+}
+
+/**
+ * Rows one workflow run costs: its header, one per member, and a closing row
+ * once it has closed.
+ *
+ * One row per member however much that agent did, for {@link subCallRows}'
+ * reason — a fan-out of thirty is a normal size for this tool, and thirty
+ * agents that each earned a preview would bury the conversation that started
+ * them. The child's own transcript is a whole session and is not this session's
+ * to draw.
+ *
+ * Exact rather than estimated: every row is drawn truncated, so neither width
+ * nor interface language can turn one into two.
+ * @param entry - the run to measure.
+ * @returns the row count, matching what `MessageList` draws.
+ */
+export function workflowRows(entry: WorkflowEntry): number {
+  return 1 + entry.members.length + (entry.status === 'running' ? 0 : 1)
 }
 
 /** Status marker for a tool call. Glyphs are fixed by `docs/SPEC.md` §1.4. */

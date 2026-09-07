@@ -234,6 +234,12 @@ function onTurnEnd(state: UiState, event: EventOf<'turn/end'>): UiState {
     // `unfinishedToolStatus` maps a clean completion to `ok`; borrowing it here
     // would print `pass` for a hook whose verdict is simply unknown.
     if (e.kind === 'hook' && e.status === 'running') return { ...e, status: 'cancelled' }
+    // An open workflow run is `cancelled` for the hook's reason, not the tool's:
+    // `run-end` is documented as firing after the run's resources quiesce, so
+    // reaching the turn boundary without one means the record broke rather than
+    // that the fan-out quietly succeeded. It gains no `stopReason` — the field
+    // holds the emitter's word and the emitter never said one.
+    if (e.kind === 'workflow' && e.status === 'running') return { ...e, status: 'cancelled' }
     return e
   })
   const note = turnEndNote(event.data.turn, reason)
@@ -493,6 +499,95 @@ function onHookResult(state: UiState, event: EventOf<'hook/result'>): UiState {
 }
 
 /**
+ * Match the open workflow run an event belongs to.
+ *
+ * By `runId` and openness together. A bundle can run two workflows at once —
+ * that is what a `runId` is for — and a workflow tool can be called twice with
+ * the same declared `name`, so neither recency nor the name identifies a run.
+ * Openness is part of the predicate so a member arriving after its run closed
+ * cannot reopen it.
+ */
+function openWorkflowRun(runId: string): (entry: UiEntry) => entry is EntryOf<'workflow'> {
+  return (entry): entry is EntryOf<'workflow'> =>
+    entry.kind === 'workflow' && entry.status === 'running' && entry.runId === runId
+}
+
+/**
+ * Rewrite the open run this event names, or leave the state alone.
+ *
+ * Every one of the three follow-up events drops silently when no open run
+ * matches, which is the `hook/result` rule rather than the `compaction/end`
+ * one: a member settling into a run the user never saw start is not a fact
+ * anyone can act on, and there is no name to draw a synthetic header with —
+ * only `run-start` carries the workflow's name.
+ */
+function withRun(
+  state: UiState,
+  runId: string,
+  update: (run: EntryOf<'workflow'>) => EntryOf<'workflow'>,
+): UiState {
+  const found = findLast(state.entries, openWorkflowRun(runId))
+  if (!found) return state
+  return { ...state, entries: replaceAt(state.entries, found.index, update(found.entry)) }
+}
+
+/** Open one workflow record. */
+function onWorkflowRunStart(state: UiState, event: EventOf<'tool-workflow/run-start'>): UiState {
+  const { runId, name } = event.data
+  return {
+    ...state,
+    entries: append(state, { kind: 'workflow', runId, name, members: [], status: 'running' }),
+  }
+}
+
+/** Add one member row to its run. */
+function onWorkflowAgentStart(
+  state: UiState,
+  event: EventOf<'tool-workflow/agent-start'>,
+): UiState {
+  const { runId, seq, label, phase } = event.data
+  return withRun(state, runId, run => ({
+    ...run,
+    members: [...run.members, { seq, label, ...(phase !== undefined ? { phase } : {}) }],
+  }))
+}
+
+/**
+ * Settle one member.
+ *
+ * Paired on `seq`, not on position: a member whose `agent-start` was dropped
+ * (a session resumed mid-run) would shift every later index by one, and the
+ * outcome would land on someone else's row. A `seq` with no row is dropped for
+ * the same reason the run itself is — there is no label to draw it with.
+ */
+function onWorkflowAgentEnd(state: UiState, event: EventOf<'tool-workflow/agent-end'>): UiState {
+  const { runId, seq, outcome } = event.data
+  return withRun(state, runId, (run) => {
+    const index = run.members.findIndex(m => m.seq === seq && m.outcome === undefined)
+    const member = run.members[index]
+    if (member === undefined) return run
+    const members = run.members.slice()
+    members[index] = { ...member, outcome }
+    return { ...run, members }
+  })
+}
+
+/**
+ * Close one workflow record.
+ *
+ * A member still open here keeps its absent `outcome` rather than inheriting
+ * the run's stop word. The emitter documents `run-end` as firing once the run's
+ * live resources have quiesced, so an unsettled member means the pair broke —
+ * and `stopReason` describes the *run*, not that agent. The renderer draws an
+ * outcome-less member of a closed run as cancelled, which is what it is,
+ * without this build claiming the emitter said so.
+ */
+function onWorkflowRunEnd(state: UiState, event: EventOf<'tool-workflow/run-end'>): UiState {
+  const { runId, stopReason } = event.data
+  return withRun(state, runId, run => ({ ...run, stopReason, status: 'done' }))
+}
+
+/**
  * Move an open compaction row to its next stage, or start a fresh row when the
  * event arrives with nothing to advance — a resumed session can join a
  * compaction midway. `match` is what separates the two callers: `summary`
@@ -602,6 +697,18 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
 
     case 'hook/result':
       return onHookResult(state, event)
+
+    case 'tool-workflow/run-start':
+      return onWorkflowRunStart(state, event)
+
+    case 'tool-workflow/agent-start':
+      return onWorkflowAgentStart(state, event)
+
+    case 'tool-workflow/agent-end':
+      return onWorkflowAgentEnd(state, event)
+
+    case 'tool-workflow/run-end':
+      return onWorkflowRunEnd(state, event)
 
     // Carried in the log but with nothing to project: step boundaries are
     // implied by the assistant entries between them, and inbox splices are

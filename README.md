@@ -422,6 +422,44 @@ you interrupted, `✓` if the turn completed. Nothing is left spinning.
 This is on when `code-runtime` is mounted and `DSH_TOOLS_MODE=code` is set; with
 the default tool mode you will never see a `↳` row.
 
+### Workflow runs
+
+If your assembly mounts `@deepseek-ai/dsh-tool-workflow`, the model can fan one
+turn out into several child agents. The run draws as a single entry, with a row
+per agent under it:
+
+```
+⏺ workflow review-changes
+  ↳ review:bugs · Review · completed
+  ↳ review:perf · Review · failed
+  ↳ verify:auth · Verify · running…
+```
+
+and gains a closing row once the run itself is over:
+
+```
+  ⎿ completed · 3 agents
+```
+
+Each agent is one row. The child agents are running whole conversations of their
+own, in their own sessions, and none of that is drawn here — thirty agents each
+showing their work would bury the conversation that started them.
+
+The outcome is printed in the workflow tool's own word, not translated and not
+mapped to a symbol. Only `completed` is quiet; everything else is yellow,
+including an outcome this version has never heard of. Yellow rather than red:
+an agent that was cancelled did not fail.
+
+If you interrupt the turn, the run closes as `no result` and any agent still
+going says `no outcome` rather than spinning forever. Neither invents a word the
+workflow never reported.
+
+Sub-agents proper (`@deepseek-ai/dsh-subagent`) look different, and the reason
+is worth knowing: a delegation writes its record into the *child's* session log,
+not yours. From this transcript a sub-agent is the tool call you can already
+see. The workflow tool is the one that reports back into the session you are
+watching.
+
 ### Seeing more of a long output
 
 A tool result or a `!` command's output is previewed at 8 lines, with a

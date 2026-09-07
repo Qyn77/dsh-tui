@@ -194,6 +194,23 @@ export interface Catalog {
     hookUnfinished: (point: string) => string
     /** Wall-clock runtime, appended to a finished run. */
     hookDuration: (ms: number) => string
+    /**
+     * The header of one workflow run. `name` is the workflow's declared
+     * `meta.name` and stays untranslated for the hook vocabulary's reason: it
+     * is the word in the user's own workflow script.
+     */
+    workflowRun: (name: string) => string
+    /**
+     * The closing row. `reason` is the emitter's `stopReason`, untranslated;
+     * `count` is how many member agents the run published.
+     */
+    workflowEnded: (reason: string, count: number) => string
+    /** A run cut off at the turn boundary, which reported no stop reason at all. */
+    workflowUnfinished: (count: number) => string
+    /** A member still working, in place of the outcome word it has not reported. */
+    workflowPending: string
+    /** A member its run closed without ever settling — a broken pair, not an outcome. */
+    workflowAbandoned: string
   }
   /** The persistent header bar. */
   status: {
@@ -446,6 +463,13 @@ const EN: Catalog = {
     hookDecided: (point, decision) => `${point} hook · ${decision}`,
     hookUnfinished: point => `${point} hook · no result`,
     hookDuration: ms => `${ms}ms`,
+    workflowRun: name => `workflow ${name}`,
+    workflowEnded: (reason, count) =>
+      `${reason} · ${count} agent${count === 1 ? '' : 's'}`,
+    workflowUnfinished: count =>
+      `no result · ${count} agent${count === 1 ? '' : 's'}`,
+    workflowPending: 'running…',
+    workflowAbandoned: 'no outcome',
   },
   status: {
     idle: '⏵ idle',
@@ -662,6 +686,11 @@ const ZH: Catalog = {
     hookDecided: (point, decision) => `${point} 钩子 · ${decision}`,
     hookUnfinished: point => `${point} 钩子 · 没有结果`,
     hookDuration: ms => `${ms} 毫秒`,
+    workflowRun: name => `工作流 ${name}`,
+    workflowEnded: (reason, count) => `${reason} · ${count} 个 agent`,
+    workflowUnfinished: count => `没有结果 · ${count} 个 agent`,
+    workflowPending: '执行中…',
+    workflowAbandoned: '没有结果',
   },
   status: {
     idle: '⏵ 空闲',
