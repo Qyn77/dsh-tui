@@ -68,17 +68,16 @@ describe('catalog parity', () => {
 })
 
 describe('catalog column budgets', () => {
-  // The status bar pads its three labels to one shared width, and a CJK glyph
-  // occupies two terminal columns. A long translation there does not wrap — it
-  // pushes the numbers out of alignment across the whole column.
-  const LABEL_BUDGET = displayWidth('session: ')
+  // The status word is the StatusBar's one translated label, and it sits on a
+  // row shared with the session id and the token arrows — a long translation
+  // there eats the row's headroom. CJK glyphs occupy two terminal columns, so
+  // the budget is measured in columns, not characters.
+  const STATUS_BUDGET = 24
 
   for (const lang of LANGUAGES) {
-    it(`${lang} keeps the status labels inside the label column`, () => {
-      const { session, input, output } = catalog(lang).status
-      for (const label of [session, input, output]) {
-        expect(displayWidth(label)).toBeLessThan(LABEL_BUDGET)
-      }
+    it(`${lang} keeps the status word inside its share of the row`, () => {
+      expect(displayWidth(catalog(lang).status.idle)).toBeLessThan(STATUS_BUDGET)
+      expect(displayWidth(catalog(lang).status.working)).toBeLessThan(STATUS_BUDGET)
     })
   }
 })

@@ -16,6 +16,7 @@ import { userMessageImages, userMessageText } from './types.ts'
 import { hookStderr } from './hook-runs.ts'
 import {
   GUTTER_WIDTH,
+  inlineResultText,
   outputPreview,
   previewLimit,
   previewRows,
@@ -227,9 +228,16 @@ function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number 
       // rather than estimated: an error is one truncated row, and a result is
       // a preview whose every row is truncated too, so neither depends on the
       // width or on the catalog in force. Only the call summary can wrap.
-      let rows = textRows(toolCallSummary(entry.name, entry.args), width)
+      const summary = toolCallSummary(entry.name, entry.args)
+      let rows = textRows(summary, width)
       if (entry.error !== undefined) rows += 1
-      else if (entry.result) rows += previewRows(toolResultPreview(entry.result, maxLines))
+      else if (entry.result) {
+        const preview = toolResultPreview(entry.result, maxLines)
+        // A one-line result that fits beside the summary is drawn *on* the
+        // call row — same predicate the renderer used, same width — so it
+        // adds nothing here. Anything else is the preview's own rows.
+        rows += inlineResultText(preview, summary, width) !== undefined ? 0 : previewRows(preview)
+      }
       return rows
     }
     case 'runtime-context':

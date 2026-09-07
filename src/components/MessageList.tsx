@@ -49,6 +49,7 @@ import {
   SHELL_GLYPH,
   USER_BORDER_COLOR,
   USER_GLYPH,
+  inlineResultText,
   shellStatusKinds,
   toolCallSummary,
   toolResultPreview,
@@ -177,9 +178,10 @@ function Preview({ preview, color, dim = false }: {
  * several lines keeps a hanging indent instead of sliding back under the
  * marker — the same shape {@link Row} gives the entry as a whole.
  */
-function ToolCall({ entry, maxLines }: {
+function ToolCall({ entry, maxLines, width }: {
   entry: Extract<UiEntry, { kind: 'tool' }>
   maxLines: number
+  width: number
 }) {
   // `cancelled` is gray rather than red: the call did not fail, it never
   // finished. Painting it red would report a problem the tool never had.
@@ -190,18 +192,27 @@ function ToolCall({ entry, maxLines }: {
       : entry.status === 'cancelled'
         ? 'gray'
         : 'yellow'
+  const summary = toolCallSummary(entry.name, entry.args)
   const preview = entry.result ? toolResultPreview(entry.result, maxLines) : undefined
+  // A one-line, fully-shown result that fits beside its summary rides on the
+  // call's own row; everything else keeps the `⎿` hanging indent below. The
+  // width is the same one `scroll.ts` measured with, so the row the estimate
+  // charged is the row that got drawn.
+  const inline = preview !== undefined && entry.error === undefined
+    ? inlineResultText(preview, summary, width)
+    : undefined
   return (
     <Row glyph={ASSISTANT_GLYPH} color={color}>
       <Text>
-        <Text bold>{toolCallSummary(entry.name, entry.args)}</Text>
+        <Text bold>{summary}</Text>
         <Text color={color}> {toolStatusGlyph(entry.status)}</Text>
+        {inline !== undefined && <Text dimColor>{inline}</Text>}
       </Text>
       {entry.error !== undefined ? (
         <Text color="red" wrap="truncate">
           {RESULT_GLYPH} {entry.error.name}: {entry.error.code}
         </Text>
-      ) : preview !== undefined && preview.lines.length > 0 ? (
+      ) : preview !== undefined && inline === undefined && preview.lines.length > 0 ? (
         <Box>
           <Box width={GUTTER_WIDTH} flexShrink={0}>
             <Text dimColor>{RESULT_GLYPH}</Text>
@@ -538,9 +549,10 @@ function ShellLine({ entry, maxLines }: {
  * whole mounted window — worth doing now that each of those subtrees is a
  * markdown document rather than a single `Text`.
  */
-const Entry = React.memo(function Entry({ entry, maxLines }: {
+const Entry = React.memo(function Entry({ entry, maxLines, width }: {
   entry: UiEntry
   maxLines: number
+  width: number
 }) {
   switch (entry.kind) {
     case 'user':
@@ -548,7 +560,7 @@ const Entry = React.memo(function Entry({ entry, maxLines }: {
     case 'assistant':
       return <AssistantBlock entry={entry} />
     case 'tool':
-      return <ToolCall entry={entry} maxLines={maxLines} />
+      return <ToolCall entry={entry} maxLines={maxLines} width={width} />
     case 'note':
       return <NoteLine entry={entry} />
     case 'compaction':
@@ -646,7 +658,7 @@ export const MessageList: FC<MessageListProps> = ({
       <Box ref={contentRef} flexDirection="column" flexShrink={0} marginBottom={-offset}>
         {visible.map((entry, idx) => (
           <Box key={start + idx} flexShrink={0}>
-            <Entry entry={entry} maxLines={maxLines} />
+            <Entry entry={entry} maxLines={maxLines} width={Math.max(1, columns - GUTTER_WIDTH)} />
           </Box>
         ))}
       </Box>

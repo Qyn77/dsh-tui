@@ -14,6 +14,7 @@
 
 import type { ContentBlock, ToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { ToolStatus, UiEntry } from './types.ts'
+import { displayWidth } from './width.ts'
 
 /**
  * Glyph column width, in cells — the glyph plus one space.
@@ -148,6 +149,36 @@ export interface OutputPreview {
  */
 export function previewRows(preview: OutputPreview): number {
   return preview.lines.length + (preview.hidden > 0 ? 1 : 0)
+}
+
+/**
+ * The text that puts a short tool result on the call's own row, when there is
+ * one to put.
+ *
+ * A result that is a single line, fully shown, and short enough to share the
+ * call row with its summary does not need a `⎿` row of its own — `bash(pnpm
+ * test) ✓ 34 passed` reads better than the same facts two rows tall, and a
+ * transcript that is mostly tool calls gets measurably denser. Anything else
+ * (multiple lines, withheld lines, or a line that would push the call past
+ * the body width) returns `undefined` and keeps the hanging-indent form.
+ *
+ * `scroll.ts` calls this with the same width the renderer passes, so the
+ * "does it fit" answer the measurement used is the one the drawing honoured —
+ * the agreement paging depends on.
+ * @param preview - the result's preview.
+ * @param summary - the call's one-line summary, as `toolCallSummary` draws it.
+ * @param width - the body column's width, in display columns.
+ * @returns the leading-space text to append to the call row, or `undefined`.
+ */
+export function inlineResultText(
+  preview: OutputPreview,
+  summary: string,
+  width: number,
+): string | undefined {
+  if (preview.hidden > 0 || preview.lines.length !== 1) return undefined
+  const text = ` ${preview.lines[0]!}`
+  if (displayWidth(summary) + displayWidth(text) > width) return undefined
+  return text
 }
 
 /**

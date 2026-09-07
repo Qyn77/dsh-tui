@@ -1,24 +1,26 @@
 /**
- * Top status bar — two vertical columns inside a heavy cyan frame so the
- * chrome has visual weight on par with the message list below.
+ * Top status bar — two rows inside the round brand frame.
  *
- *   ┏━ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┓
- *   ┃                                                              ┃
- *   ┃   <°)))><                       session: tui-652d             ┃
- *   ┃   dsh                          in:        8,558               ┃
- *   ┃   DeepSeek Harness             out:         198               ┃
- *   ┃   deepseek-official/...        ⏵ idle                         ┃
- *   ┃                                                              ┃
- *   ┗━ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┛
+ *   ╭──────────────────────────────────────────────────────────╮
+ *   │ ▄█▀▀█▄ dsh · deepseek-official/deepseek-v4-flash           │
+ *   │ tui-652d · ⏵ idle · ↑ 8,558 · ↓ 198                        │
+ *   ╰──────────────────────────────────────────────────────────╯
  *
- *   left  = brand identity (logo + wordmark + tagline + model)
- *   right = runtime state  (session + tokens + status)
+ *   top    = who is answering      (brand + model)
+ *   bottom = what the run is doing (session + status + tokens)
  *
- * The model line is width-aware (`useStdout` + `fitModelName`) and
- * tail-truncates with a leading `…` when even the bare model would
- * not fit. Status placement (bottom of the right column) is a
- * judgement call: it groups the "what is happening" with the data
- * rather than with the brand.
+ * The old two-column form spent its first content columns on translated
+ * labels (`session:` / `in:` / `out:`) whose only job was to name numbers the
+ * arrow glyphs now name — `↑` for tokens into the model, `↓` for tokens out —
+ * in one column each and in no language, which is also why those three
+ * catalog keys are gone. The one row that can overflow, the model line, is
+ * width-aware (`useStdout` + `fitModelName`) and tail-truncates with a
+ * leading `…` when even the bare model would not fit.
+ *
+ * `↑`/`↓` join `⏵` in the East-Asian Ambiguous set, and are covered by the
+ * same stance the SPEC takes for it (§1.1): autowrap is off for the app's
+ * lifetime, so a row that measures at the width but renders wider clips into
+ * the last column instead of wrapping, and the border stays legible.
  * @module @deepseek-ai/dsh-tui/components/StatusBar
  */
 
@@ -29,7 +31,6 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { UiState } from '../types.ts'
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
-import { displayWidth } from '../width.ts'
 import { totalUsage } from '../usage.ts'
 
 /** Props for {@link StatusBar}. */
@@ -47,37 +48,18 @@ export interface StatusBarProps {
 }
 
 /**
- * Brand glyph for the top of the brand column. A small block-art
- * whale echoing the startup {@link Banner}'s full-size one, sized to
- * a single terminal row so the persistent chrome stays cheap.
+ * Brand glyph for the top of the brand row. A small block-art whale echoing
+ * the startup {@link Banner}'s full-size one, sized to a single terminal row
+ * so the persistent chrome stays cheap.
  */
 const WHALE = '▄█▀▀█▄'
 
 /** DeepSeek's brand blue. Shared with the startup banner. */
 const BRAND_BLUE = '#4D6BFE'
 
-/** Width of the right-column label column. Chosen so the numbers align. */
-const LABEL_WIDTH = 'session: '.length
-
 function shortId(id: SessionId): string {
   // The id is a branded string; show the first eight characters.
   return String(id).slice(0, 8)
-}
-
-
-/**
- * Pad a label so the values in the right column line up at a fixed
- * column. Local helper, not exported — only the meta column needs
- * aligned labels.
- *
- * Measured in display columns, not characters: a translated label is CJK, and
- * `会话:` is three characters occupying five columns. Padding it to
- * `LABEL_WIDTH` *characters* would push the numbers six columns right of the
- * ones below it, which is the whole failure this function exists to prevent.
- */
-function padLabel(label: string): string {
-  const width = displayWidth(label)
-  return width >= LABEL_WIDTH ? label : label + ' '.repeat(LABEL_WIDTH - width)
 }
 
 /**
@@ -108,7 +90,7 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
   const strings = useStrings()
   // Ink does not surface the column count when stdout is piped, so
   // fall back to 80 — narrower than that and the user is on a phone,
-  // wider and our 2-column layout still has headroom.
+  // wider and the top row still has headroom.
   const columns = stdout?.columns ?? 80
   const usage = totalUsage(state)
   const isRunning = state.status === 'running'
@@ -121,37 +103,28 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
   const statusText = isRunning
     ? `${SPINNER_FRAMES[spinnerFrame]} ${strings.status.working} · ${elapsedSeconds}s`
     : strings.status.idle
-  // The model line is on the brand column but has the full terminal
-  // width to itself: 4 cols of outer padding, 1 col breathing
-  // margin, and the budget must be at least 8 so the function has
-  // room to choose a meaningful form (provider/model vs bare model).
-  const modelBudget = Math.max(8, columns - 5)
+  // The model shares its row with the whale and the `·` separators, so the
+  // budget is the terminal less the frame (4), the padding (2), the whale and
+  // its space (6), the dsh word (3) and the separator (3). The floor of 8
+  // keeps `fitModelName` room to choose a meaningful form.
+  const modelBudget = Math.max(8, columns - 18)
   const displayModel = fitModelName(selection.provider, selection.model, modelBudget)
   return (
-    <Box
-      borderStyle="round"
-      borderColor={BRAND_BLUE}
-      paddingX={2}
-      flexDirection="row"
-      columnGap={4}
-    >
-      <Box flexDirection="column">
+    <Box borderStyle="round" borderColor={BRAND_BLUE} paddingX={2} flexDirection="column">
+      <Box>
         <Text color={BRAND_BLUE} bold>{WHALE} dsh</Text>
+        <Text color="gray"> · </Text>
         <Text color="green" bold>{displayModel}</Text>
       </Box>
-      <Box flexDirection="column">
-        <Box>
-          <Text color="gray">{padLabel(strings.status.session)}</Text>
-          <Text>{shortId(sessionId)}</Text>
-          <Text color="gray"> · </Text>
-          <Text color={isRunning ? 'yellow' : 'gray'}>{statusText}</Text>
-        </Box>
-        <Box>
-          <Text color="gray">{padLabel(strings.status.input)}</Text>
-          <Text>{usage.input.toLocaleString()}</Text>
-          <Text color="gray">{`   ${strings.status.output} `}</Text>
-          <Text>{usage.output.toLocaleString()}</Text>
-        </Box>
+      <Box>
+        <Text color="gray">{shortId(sessionId)}</Text>
+        <Text color="gray"> · </Text>
+        <Text color={isRunning ? 'yellow' : 'gray'}>{statusText}</Text>
+        <Text color="gray"> · </Text>
+        <Text color="gray">↑ </Text>
+        <Text>{usage.input.toLocaleString()}</Text>
+        <Text color="gray"> · ↓ </Text>
+        <Text>{usage.output.toLocaleString()}</Text>
       </Box>
     </Box>
   )

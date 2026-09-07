@@ -51,18 +51,18 @@ describe('interface language', () => {
     expect(screen).not.toContain(catalog('en').prompt.placeholder)
   })
 
-  it('paints the status bar labels in Chinese once there is conversation', async () => {
+  it('paints the status bar in Chinese once there is conversation', async () => {
     // The banner yields to the StatusBar as soon as the log is non-empty, so
-    // these labels are only reachable with turns seeded.
+    // its translated strings are only reachable with turns seeded. The status
+    // word is the StatusBar's one remaining translated label — the token
+    // arrows (`↑ in` / `↓ out`) are glyphs, deliberately, so the word has to
+    // carry the language proof alone.
     const painted = await paintApp({ lang: 'zh', turns: 1 })
     const screen = painted.screen()
     painted.unmount()
 
-    const zh = catalog('zh').status
-    expect(screen).toContain(zh.session)
-    expect(screen).toContain(zh.input)
-    expect(screen).toContain(zh.output)
-    expect(screen).not.toContain(catalog('en').status.session)
+    expect(screen).toContain(catalog('zh').status.idle)
+    expect(screen).not.toContain(catalog('en').status.idle)
   })
 
   it('translates the transcript labels, not the identifiers in them', async () => {

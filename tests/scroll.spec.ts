@@ -312,6 +312,8 @@ describe('estimateEntryRows', () => {
       turn: 1,
       step: 1,
     } as const
+    // `a.ts` is one short line, so it rides on the call's own row: the entry
+    // is the separator plus the call, and nothing else.
     const ok = estimateEntryRows(
       {
         ...base,
@@ -324,7 +326,32 @@ describe('estimateEntryRows', () => {
       },
       80,
     )
-    expect(ok).toBe(3)
+    expect(ok).toBe(2)
+  })
+
+  it('keeps the outcome on its own row when it cannot share the call row', () => {
+    // A single line longer than the body width has nowhere to sit beside the
+    // summary, so it falls back to the `⎿` form — one row for the call, one
+    // for the outcome.
+    const wide = 'x'.repeat(90)
+    const rows = estimateEntryRows(
+      {
+        kind: 'tool',
+        callId: CallId('call-1'),
+        name: 'bash',
+        args: '{"command":"ls"}',
+        turn: 1,
+        step: 1,
+        status: 'ok',
+        result: createToolResultMessage({
+          callId: CallId('call-1'),
+          content: [{ type: 'text', text: wide }],
+          isError: false,
+        }),
+      },
+      80,
+    )
+    expect(rows).toBe(3)
   })
 
   it('charges a multi-line result for its preview plus the withheld marker', () => {

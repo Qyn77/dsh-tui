@@ -18,6 +18,7 @@ import {
   GUTTER_WIDTH,
   PREVIEW_MAX_LINES,
   outputPreview,
+  inlineResultText,
   parseToolName,
   previewLimit,
   previewRows,
@@ -198,6 +199,41 @@ describe('previewRows', () => {
     // changes, this expectation is the one that should fail first.
     const wide = { lines: ['x'.repeat(500)], hidden: 0 }
     expect(previewRows(wide)).toBe(1)
+  })
+})
+
+describe('inlineResultText', () => {
+  it('returns the line to append when it fits beside the summary', () => {
+    expect(inlineResultText({ lines: ['34 passed'], hidden: 0 }, 'bash(pnpm test)', 78))
+      .toBe(' 34 passed')
+  })
+
+  it('returns undefined when lines were withheld', () => {
+    // A result that is not fully shown must not read as if it were: the row
+    // the call carries would be a sample posing as the whole outcome.
+    expect(inlineResultText({ lines: ['a'], hidden: 12 }, 'bash(ls)', 78)).toBeUndefined()
+  })
+
+  it('returns undefined for a multi-line result', () => {
+    expect(inlineResultText({ lines: ['a', 'b'], hidden: 0 }, 'bash(ls)', 78)).toBeUndefined()
+  })
+
+  it('returns undefined when the pair would not fit the width', () => {
+    // `bash(ls)` is 8 columns, the appended text 10, the width 17: one short.
+    expect(inlineResultText({ lines: ['x'.repeat(9)], hidden: 0 }, 'bash(ls)', 17))
+      .toBeUndefined()
+    expect(inlineResultText({ lines: ['x'.repeat(9)], hidden: 0 }, 'bash(ls)', 18))
+      .toBe(' xxxxxxxxx')
+  })
+
+  it('measures in display columns, not characters', () => {
+    // `会话` is two characters occupying four columns, and with the leading
+    // space the appended text is 5 columns against an 8-column summary —
+    // 13 together, which only a column-wise measurement sees.
+    expect(inlineResultText({ lines: ['会话'], hidden: 0 }, 'bash(ls)', 13))
+      .toBe(' 会话')
+    expect(inlineResultText({ lines: ['会话'], hidden: 0 }, 'bash(ls)', 12))
+      .toBeUndefined()
   })
 })
 

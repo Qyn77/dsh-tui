@@ -718,7 +718,7 @@ describe('the palette on a terminal too short to hold it', () => {
     const rows = painted.screen().split('\n')
     painted.unmount()
 
-    expect(rows.some(row => row.includes('session: tui-fram'))).toBe(true)
+    expect(rows.some(row => row.includes('tui-fram'))).toBe(true)
     expect(rows.some(row => /^│ > \/▌/.test(row))).toBe(true)
     expect(rows.some(row => row.includes('╰─>'))).toBe(false)
   })

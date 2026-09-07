@@ -201,20 +201,6 @@ export interface Catalog {
     idle: string
     /** Running indicator label, between the spinner and the elapsed seconds. */
     working: string
-    /** Label of the session id row. */
-    session: string
-    /** Label of the billed-input row. */
-    input: string
-    /** Label of the output row. */
-    output: string
-  }
-  /** Rendered markdown blocks. */
-  markdown: {
-    /**
-     * Prefix on a fenced code block's header, before the language tag. The tag
-     * itself is the fence's own `` ```ts `` and is never translated.
-     */
-    codeFence: string
   }
   /** The one reserved row that says the viewport is not at the live tail. */
   scroll: {
@@ -448,7 +434,7 @@ const EN: Catalog = {
   },
   entries: {
     assistant: 'assistant',
-    turnStep: (turn, step) => ` · turn ${turn} step ${step}`,
+    turnStep: (turn, step) => ` · turn ${turn}.${step}`,
     streaming: ' · streaming',
     planMode: enabled => `plan mode ${enabled ? 'on' : 'off'}`,
     runtimeContext: 'runtime context',
@@ -464,12 +450,6 @@ const EN: Catalog = {
   status: {
     idle: '⏵ idle',
     working: 'working',
-    session: 'session:',
-    input: 'in:',
-    output: 'out:',
-  },
-  markdown: {
-    codeFence: 'code · ',
   },
   scroll: {
     hint: rows => `↓ ${rows} more row${rows === 1 ? '' : 's'} below · End jumps to the latest`,
@@ -670,7 +650,7 @@ const ZH: Catalog = {
   },
   entries: {
     assistant: '助手',
-    turnStep: (turn, step) => ` · 第 ${turn} 轮 第 ${step} 步`,
+    turnStep: (turn, step) => ` · 第 ${turn} 轮 ${step} 步`,
     streaming: ' · 输出中',
     planMode: enabled => `计划模式${enabled ? '已开启' : '已关闭'}`,
     runtimeContext: '运行时上下文',
@@ -686,12 +666,6 @@ const ZH: Catalog = {
   status: {
     idle: '⏵ 空闲',
     working: '处理中',
-    session: '会话:',
-    input: '输入:',
-    output: '输出:',
-  },
-  markdown: {
-    codeFence: '代码 · ',
   },
   scroll: {
     hint: rows => `↓ 下方还有 ${rows} 行 · End 回到最新`,

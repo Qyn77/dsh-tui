@@ -22,7 +22,6 @@ import React, { useMemo, type ReactNode } from 'react'
 import { Box, Text } from 'ink'
 import { applyHangingIndent, parseMarkdown, type BlockNode, type InlineNode } from '../markdown.ts'
 import { useCodeHighlight } from '../hooks/useCodeHighlight.ts'
-import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for the {@link Markdown} component. */
 export interface MarkdownProps {
@@ -123,6 +122,13 @@ function HeadingBlock({ level, children, marginTop, marginBottom }: {
 /**
  * A fenced code block: a language label, then the code.
  *
+ * The label is `⏵ lang` on the row the code starts — one row, not the two the
+ * old `code · lang` header plus a blank separator spent, and no translated
+ * word in it: the language tag is the fence's own `` ```ts `` and `⏵` says
+ * "this is a runnable thing" in no language. The arrow is East-Asian
+ * Ambiguous like `⏵` already is; the code block is not full-bleed chrome, so
+ * a wide rendering costs at most a clipped column of padding.
+ *
  * The code is drawn one `<Text>` row per source line rather than one `<Text>`
  * holding the newlines, because a highlighted line is several differently-colored
  * spans and they have to nest inside something. The row count is the same either
@@ -139,8 +145,6 @@ function CodeBlock({ lang, text, marginTop, marginBottom }: {
   marginTop: number
   marginBottom: number
 }): ReactNode {
-  const strings = useStrings()
-  const label = lang === '' ? '' : lang
   const highlighted = useCodeHighlight(lang, text)
   return (
     <Box
@@ -151,13 +155,12 @@ function CodeBlock({ lang, text, marginTop, marginBottom }: {
       borderColor="gray"
       paddingX={1}
     >
-      {label !== '' && (
+      {lang !== '' && (
         <Text>
-          <Text color="gray">{strings.markdown.codeFence}</Text>
-          <Text color="cyan" bold>{label}</Text>
+          <Text color="gray">⏵ </Text>
+          <Text color="cyan" bold>{lang}</Text>
         </Text>
       )}
-      {label !== '' && <Text>{' '}</Text>}
       {highlighted === undefined
         ? text.split('\n').map((line, index) => (
           // The index is the key because these are a positional slice of one

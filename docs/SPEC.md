@@ -24,7 +24,7 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **Banner / StatusBar** — the top zone. The session opens with the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. In a real TTY the banner is part of the alternate-screen frame and is redrawn with the settled resize; non-TTY tests use Ink's `<Static>` for deterministic output. The compact **StatusBar** takes over as the live header as soon as there is a message to head, carrying the same identity in two rows plus the live token counts and run state. `/clear` empties the view and prints a fresh banner.
+- **Banner / StatusBar** — the top zone. The session opens with the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. In a real TTY the banner is part of the alternate-screen frame and is redrawn with the settled resize; non-TTY tests use Ink's `<Static>` for deterministic output. The compact **StatusBar** takes over as the live header as soon as there is a message to head, in two rows: the top row is identity — whale glyph, `dsh`, and the model in `green` — and the bottom row is run state — session id, the status indicator, and the token counts as `↑ <in> · ↓ <out>` (arrows rather than translated labels: one column each, and no language to maintain). `/clear` empties the view and prints a fresh banner.
 
   **Three width tiers**, chosen by `bannerTier(columns)`:
 
@@ -161,7 +161,7 @@ That exception is a reversal, and it is worth saying why it does not reopen the 
 
 Only the user's side is framed. An assistant turn renders as markdown and a fenced code block already draws its own `round` box, so a frame around the turn would be a box inside a box — four columns narrower for the code that needs the width most.
 
-**The conversation is a glyph gutter.** Every entry renders as a fixed two-cell marker column beside a body column, the frame around a user message included — the box sits in the body column and the `>` stays in the gutter, so the conversation's left edge is one column for every entry kind: `⏺` for an assistant turn or a tool call, `>` for a user line, `⎿` for a tool's outcome hanging under its call, `⤷` for a lifecycle note. The two-column form is what gives wrapped text a hanging indent — a long turn continues under the body, never back under the marker — and it keeps the conversation's left edge on one column regardless of what an entry is. Entries are separated by a single blank row, applied as a top margin so a tool's outcome stays welded to the call above it.
+**The conversation is a glyph gutter.** Every entry renders as a fixed two-cell marker column beside a body column, the frame around a user message included — the box sits in the body column and the `>` stays in the gutter, so the conversation's left edge is one column for every entry kind: `⏺` for an assistant turn or a tool call, `>` for a user line, `⎿` for a tool's outcome hanging under its call, `⤷` for a lifecycle note. The two-column form is what gives wrapped text a hanging indent — a long turn continues under the body, never back under the marker — and it keeps the conversation's left edge on one column regardless of what an entry is. Entries are separated by a single blank row, applied as a top margin so a tool's outcome stays welded to the call above it. One outcome never reaches the gutter at all: a tool result that is a single line, fully shown, and short enough to share the call's row is drawn dim right after the status glyph (`⏺ bash(pnpm test) ✓ 34 passed`), the predicate living in `inlineResultText` where `scroll.ts` and the renderer read the same one.
 
 A tool call is **one line**, `Read(src/scroll.ts) ✓`, with a preview of its result hanging beneath. It was a `round`-bordered card through rc.7: four rows of frame before any content, and two columns of extra indent for everything inside it. A transcript is mostly tool calls, so their per-entry overhead is what decides how much conversation fits on screen — the card cost more than it explained. Which argument becomes the subject in `Name(subject)` is chosen by convention (`file_path`, `command`, `pattern`, …) rather than by tool name, because this package does not own the tool registry and cannot enumerate it.
 
@@ -197,7 +197,7 @@ The palette is theme-aware, and almost entirely by *not* being theme-aware. Near
 | Tool marker + status — running | `yellow` | `⏺` on the call line; `…`. |
 | Tool marker + status — error | `red` | `⏺` on the call line; `✗`; the `⎿ Name: code` row. |
 | Tool marker + status — cancelled | `gray` | `⏺` on the call line; `⊘`. The turn ended while the call was in flight — not a failure, so never red. |
-| Tool result | `gray` dim | The `⎿` row under a call. |
+| Tool result | `gray` dim | The `⎿` row under a call — or the same dim, inline after the status glyph, when the whole result is one line that fits beside the summary (`inlineResultText`). |
 | Run state — idle | `gray` | StatusBar status glyph. |
 | Run state — running | `yellow` | StatusBar status glyph. |
 | Streaming | `yellow` | `· streaming` suffix on the assistant block. |
@@ -212,7 +212,7 @@ The palette is theme-aware, and almost entirely by *not* being theme-aware. Near
 | Task — completed | `green` dim | `☑ read the spec`. Dim because a finished task is context, not news. |
 | Task — in progress | `yellow` | `▸ write the reducer`. The **only** undimmed row in the list, and the only one whose glyph points at something. |
 | Task — pending | `gray` dim | `☐ update the docs`. |
-| Meta / separators | `gray` | `·`, `in:`, `out:`, `session:`, turn/step counters. |
+| Meta / separators | `gray` | `·`, the StatusBar's `↑`/`↓` token arrows, turn/step counters. |
 | Notes | `gray` dim | Free-floating side remarks. |
 | Note — turn failed | `red` | `⤷ [turn N errored: CODE]`. Full brightness: left dim it read as an incidental remark. |
 | Note — turn stopped | `yellow` | `⤷ [turn N interrupted]`, `⤷ [turn N aborted]`. |
@@ -650,7 +650,7 @@ Assistant turns render a curated subset of GitHub-flavored markdown, from the fi
 |---|---|
 | `#`–`###` heading | `bold`, color step: `cyan` / `magenta` / `gray` |
 | `####`–`######` heading | `bold gray` |
-| ` ``` fenced ``` ` | `round` border, language label in `cyan bold`, body syntax-highlighted (`gray dim` until the grammar loads) |
+| ` ``` fenced ``` ` | `round` border, a one-row `⏵ <lang>` label (`gray` arrow, `cyan bold` tag — the fence's own tag, never translated), body syntax-highlighted (`gray dim` until the grammar loads) |
 | `` `inline` `` | `cyan dim` |
 | `**bold**` | `bold` |
 | `*italic*` | `italic` |
