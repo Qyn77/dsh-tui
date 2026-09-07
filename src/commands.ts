@@ -40,6 +40,7 @@ import {
 } from './i18n.ts'
 import { contextOccupancy, formatUsage, totalUsage, usageByTurn } from './usage.ts'
 import { isThemePref, type Appearance, type ThemePref } from './theme.ts'
+import { KEYBIND_PREFS, isKeybindPref, type KeybindPref } from './vim.ts'
 import {
   MAX_SESSION_ROWS,
   formatSessions,
@@ -385,6 +386,13 @@ export interface CommandContext {
    */
   historyPref?: HistoryPref
   /**
+   * Switch the prompt editor's keymap, backing `/keybinds`. Optional like
+   * {@link setTheme} — a context without one still reports the switch.
+   */
+  setKeybinds?: (pref: KeybindPref) => void
+  /** Which keymap the prompt currently runs, defaulting to `'default'`. */
+  keybindPref?: KeybindPref
+  /**
    * Write a control sequence straight to the terminal.
    *
    * Named for what it does rather than for `/copy`, because that is the whole of
@@ -587,6 +595,28 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
           requested ? EXPANDED_MAX_LINES : PREVIEW_MAX_LINES,
         ),
       }
+    }
+
+    case '/keybinds': {
+      const args = raw.trim().split(/\s+/).slice(1)
+      const current = cmd.keybindPref ?? 'default'
+      // No bare-toggle here, unlike `/history`. Two states again, but these two
+      // change what every subsequent keystroke *means*, and a user who typed
+      // `/keybinds` to check which one is on must not be switched by the
+      // asking. Reading and writing are different requests.
+      if (args.length === 0) {
+        return { kind: 'handled', message: strings.keybindsUsage(current) }
+      }
+      const requested = args[0]
+      if (!isKeybindPref(requested)) {
+        return {
+          kind: 'handled',
+          message: strings.keybindsUnknown(requested ?? '', KEYBIND_PREFS),
+          failed: true,
+        }
+      }
+      cmd.setKeybinds?.(requested)
+      return { kind: 'handled', message: strings.keybindsSwitched(requested) }
     }
 
     case '/history': {

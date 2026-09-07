@@ -59,6 +59,7 @@ import {
   wrapBuffer,
 } from '../prompt-layout.ts'
 import { applyMention, mentionAt } from '../file-mentions.ts'
+import { INITIAL_VIM, applyVim, type KeybindPref, type VimState } from '../vim.ts'
 import { useFileMentions } from '../hooks/useFileMentions.ts'
 import { SlashPalette } from './SlashPalette.tsx'
 import { useLang, useStrings } from '../hooks/useStrings.tsx'
@@ -124,6 +125,12 @@ export interface PromptProps {
    * rendered without it advertises the built-in table only.
    */
   extraCommands?: readonly CommandMeta[]
+  /**
+   * Which keymap the prompt runs — see `/keybinds` and `src/vim.ts`. Optional
+   * and defaulting to `default`, so a prompt rendered without it is the
+   * readline editor it has always been.
+   */
+  keybinds?: KeybindPref
 }
 
 /**
@@ -177,6 +184,7 @@ export const Prompt: FC<PromptProps> = ({
   onEscClaimChange,
   onOverlayRowsChange,
   extraCommands,
+  keybinds = 'default',
 }) => {
   const { stdout } = useStdout()
   const lang = useLang()
@@ -205,6 +213,12 @@ export const Prompt: FC<PromptProps> = ({
   // it stays dismissed while they finish typing that token and comes back on
   // the next one, which is what Esc means everywhere else in this prompt.
   const [dismissed, setDismissed] = useState<number | null>(null)
+  // Modal editing, when the user has asked for it. `INITIAL_VIM` starts in
+  // insert, so switching keybinds on mid-session does not swallow the next
+  // thing typed — normal mode is a place you go, not a place you land.
+  const [vim, setVim] = useState<VimState>(INITIAL_VIM)
+  const vimOn = keybinds === 'vim'
+  const normalMode = vimOn && vim.mode === 'normal'
 
   // Filter is a pure derivation from `value`; no effect needed. The
   // selection index is clamped on every keystroke so an out-of-range
@@ -255,7 +269,18 @@ export const Prompt: FC<PromptProps> = ({
   }, [claimsArrows, onArrowClaimChange])
 
   // Esc is shared with the App's turn-cancel, on the same terms.
-  const claimsEsc = active && (palette.length > 0 || (picking && mention !== undefined))
+  //
+  // Vim's insert mode joins the claim, but only with something in the buffer.
+  // A vim user is in insert mode almost all the time, so claiming Esc there
+  // unconditionally would take turn-cancel away from them entirely; requiring
+  // text means the key cancels the turn whenever there is no line to leave,
+  // and a second Esc — now in normal mode, where the claim drops — cancels it
+  // even when there is.
+  const claimsEsc = active && (
+    palette.length > 0
+    || (picking && mention !== undefined)
+    || (vimOn && vim.mode === 'insert' && value !== '')
+  )
   useEffect(() => {
     onEscClaimChange?.(claimsEsc)
   }, [claimsEsc, onEscClaimChange])
@@ -363,6 +388,28 @@ export const Prompt: FC<PromptProps> = ({
     setHistory(h => pushHistory(h, submitted))
     setHistoryIndex(null)
     setDraft('')
+    // A sent line puts the prompt back in insert, the way a vi-mode shell
+    // does: the next thing a user does after sending is type, and making them
+    // press `i` first would tax every message to make one keystroke available.
+    setVim(v => (v.mode === 'normal' ? { ...v, mode: 'insert', pending: '' } : v))
+  }
+
+  /**
+   * Offer one keystroke to normal mode. Returns whether it was consumed, so
+   * every call site can fall through to the ordinary editing path unchanged —
+   * which is the whole design: insert mode *is* that path.
+   */
+  const applyVimKey = (key: { input: string; escape: boolean; return: boolean }): boolean => {
+    const result = applyVim(vim, key, value, cursorIndex)
+    if (!result.handled) return false
+    setVim(result.state)
+    if (result.text !== value) setValue(result.text)
+    // `rowDelta` is `j`/`k`, the one pair whose destination depends on the
+    // measured width — so the component answers it with the same row mover
+    // the arrow keys use, and ignores the index the engine reported.
+    if (result.rowDelta !== undefined) moveCaretRow(result.rowDelta)
+    else setCursorIndex(result.cursor)
+    return true
   }
 
   // Ink's raw mode hides the terminal cursor, so we render our own.
@@ -453,6 +500,11 @@ export const Prompt: FC<PromptProps> = ({
           // mistyped: dismiss the list, keep the words.
           setDismissed(mention.start)
           setPaletteIndex(0)
+        } else if (vimOn && applyVimKey({ input: '', escape: true, return: false })) {
+          // Leaving insert mode, or cancelling a half-typed operator. The
+          // visible list wins the key ahead of both, because a list on screen
+          // is what Esc means everywhere else in this prompt.
+          return
         }
         return
       }
@@ -511,6 +563,19 @@ export const Prompt: FC<PromptProps> = ({
         }
         if (rows.length > 1) moveCaretRow(1)
         return
+      }
+      // Normal mode, below every key the palette and the picker claim and
+      // above the text path. Ordering is the whole safety argument: a letter
+      // that reached the text path in normal mode would type the command the
+      // user meant to run, and a modal editor that sometimes types its own
+      // commands is worse than none.
+      //
+      // Backspace arrives as `h`. Ink reports it with an empty `input`, and in
+      // normal mode the vi answer is to move left — deleting instead would be
+      // the one destructive key nobody pressed on purpose.
+      if (normalMode) {
+        const vimInput = key.backspace || key.delete ? 'h' : paste.text
+        if (applyVimKey({ input: vimInput, escape: false, return: key.return })) return
       }
       if (key.return) {
         if (value.endsWith('\\')) {
@@ -604,8 +669,14 @@ export const Prompt: FC<PromptProps> = ({
   const placeholder = !busy
     ? strings.prompt.placeholder
     : `${SPINNER_FRAMES[spinnerFrame]} ${active ? strings.prompt.steering : strings.prompt.working}`
+  // Two cues for normal mode, both free: the caret and the buffer marker turn
+  // yellow. Neither costs a row and neither changes the box's width, which
+  // rules out the two obvious alternatives — a mode line under the box would
+  // grow the frame every time you pressed Esc, and a wider `NORMAL` prefix
+  // would re-fold every wrapped row on the same keystroke.
+  const modeColor = normalMode ? 'yellow' : 'cyan'
   const cursor = active ? (
-    <Text color="cyan" bold>
+    <Text color={modeColor} bold>
       ▌
     </Text>
   ) : null
@@ -637,8 +708,8 @@ export const Prompt: FC<PromptProps> = ({
         */}
         <Box flexDirection="column" flexShrink={0}>
           {visibleRows.map((_row, index) => (
-            <Text key={`prefix-${start + index}`} color="cyan" bold>
-              {start + index === 0 ? '> ' : '  '}
+            <Text key={`prefix-${start + index}`} color={modeColor} bold>
+              {start + index === 0 ? (normalMode ? 'N ' : '> ') : '  '}
             </Text>
           ))}
         </Box>

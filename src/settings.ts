@@ -30,6 +30,7 @@ import { join } from 'node:path'
 import { isLang, type Lang } from './i18n.ts'
 import { isHistoryPref, type HistoryPref } from './types.ts'
 import { isThemePref, type ThemePref } from './theme.ts'
+import { isKeybindPref, type KeybindPref } from './vim.ts'
 
 /** Preferences this package reads and writes. */
 export interface Settings {
@@ -43,6 +44,12 @@ export interface Settings {
    * way — this is a screen preference, not a context one.
    */
   history: HistoryPref
+  /**
+   * Which keymap the prompt editor runs. Persisted for the same reason the
+   * theme is: a modal editor you have to switch on once per session is a worse
+   * offer than no modal editor at all.
+   */
+  keybinds: KeybindPref
 }
 
 /**
@@ -62,7 +69,12 @@ export interface Settings {
  * question, it is the question. Guessing the second is what makes code blocks
  * readable; guessing the first would only make the chrome wrong in a new way.
  */
-export const DEFAULT_SETTINGS: Readonly<Settings> = { language: 'en', theme: 'auto', history: 'show' }
+export const DEFAULT_SETTINGS: Readonly<Settings> = {
+  language: 'en',
+  theme: 'auto',
+  history: 'show',
+  keybinds: 'default',
+}
 
 /** Directory the dsh family keeps user-level state in. */
 export const SETTINGS_DIR = '.dsh'
@@ -126,10 +138,12 @@ export function parseSettings(raw: string | undefined): Settings {
   const language = parsed['language']
   const theme = parsed['theme']
   const history = parsed['history']
+  const keybinds = parsed['keybinds']
   return {
     language: isLang(language) ? language : DEFAULT_SETTINGS.language,
     theme: isThemePref(theme) ? theme : DEFAULT_SETTINGS.theme,
     history: isHistoryPref(history) ? history : DEFAULT_SETTINGS.history,
+    keybinds: isKeybindPref(keybinds) ? keybinds : DEFAULT_SETTINGS.keybinds,
   }
 }
 

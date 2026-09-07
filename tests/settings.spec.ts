@@ -48,7 +48,7 @@ afterEach(() => {
 
 describe('parseSettings', () => {
   it('reads a stored language', () => {
-    expect(parseSettings('{"language":"zh"}')).toEqual({ language: 'zh', theme: 'auto', history: 'show' })
+    expect(parseSettings('{"language":"zh"}')).toEqual({ language: 'zh', theme: 'auto', history: 'show', keybinds: 'default' })
   })
 
   it('reads a stored theme preference', () => {
@@ -108,7 +108,7 @@ describe('parseSettings', () => {
 
   it('ignores keys it does not know', () => {
     expect(parseSettings('{"language":"zh","future":{"a":1}}'))
-      .toEqual({ language: 'zh', theme: 'auto', history: 'show' })
+      .toEqual({ language: 'zh', theme: 'auto', history: 'show', keybinds: 'default' })
   })
 })
 
@@ -145,7 +145,7 @@ describe('readSettings', () => {
   it('reads what writeSettings wrote', () => {
     const home = fakeHome()
     expect(writeSettings({ language: 'zh', history: 'hide' }, home)).toBe(true)
-    expect(readSettings(home)).toEqual({ language: 'zh', theme: 'auto', history: 'hide' })
+    expect(readSettings(home)).toEqual({ language: 'zh', theme: 'auto', history: 'hide', keybinds: 'default' })
   })
 
   it('defaults when the path is a directory rather than a file', () => {

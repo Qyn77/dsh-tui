@@ -923,6 +923,50 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/keybinds', () => {
+    it('reads without writing when bare, unlike /history', async () => {
+      // Deliberately not a toggle. These two states change what every
+      // subsequent keystroke *means*, so a user who typed `/keybinds` to find
+      // out which one is on must not be switched by the asking.
+      const setKeybinds = vi.fn()
+      const { cmd } = makeCommand({ setKeybinds, keybindPref: 'vim' })
+      const result = await dispatch('/keybinds', cmd)
+      expect(setKeybinds).not.toHaveBeenCalled()
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).not.toBe(true)
+        expect(result.message).toContain('Current: vim')
+      }
+    })
+
+    it('sets explicitly, ignoring what is already in force', async () => {
+      const setKeybinds = vi.fn()
+      const { cmd } = makeCommand({ setKeybinds, keybindPref: 'vim' })
+      await dispatch('/keybinds vim', cmd)
+      expect(setKeybinds).toHaveBeenCalledWith('vim')
+      await dispatch('/keybinds default', cmd)
+      expect(setKeybinds).toHaveBeenLastCalledWith('default')
+    })
+
+    it('fails on a keymap it does not have, naming the ones it does', async () => {
+      const setKeybinds = vi.fn()
+      const { cmd } = makeCommand({ setKeybinds, keybindPref: 'default' })
+      const result = await dispatch('/keybinds emacs', cmd)
+      expect(setKeybinds).not.toHaveBeenCalled()
+      if (result.kind === 'handled') {
+        expect(result.failed).toBe(true)
+        expect(result.message).toContain('emacs')
+        expect(result.message).toContain('vim')
+      }
+    })
+
+    it('reports without a handler rather than throwing', async () => {
+      const { cmd } = makeCommand({})
+      const result = await dispatch('/keybinds vim', cmd)
+      expect(result.kind).toBe('handled')
+    })
+  })
+
   describe('/history', () => {
     it('toggles when bare, rather than printing usage', async () => {
       // Same bargain as `/verbose`: two states, so the usage line would be a
@@ -1286,7 +1330,7 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/approval', '/clear', '/context', '/copy', '/exit', '/help', '/history', '/language',
+      '/approval', '/clear', '/context', '/copy', '/exit', '/help', '/history', '/keybinds', '/language',
       '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme',
       '/usage', '/verbose',
     ])
@@ -1340,7 +1384,8 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/language',
+        '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/keybinds',
+        '/language',
         '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
       ])
     })

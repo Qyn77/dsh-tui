@@ -35,6 +35,7 @@ import { catalog, type Lang } from './i18n.ts'
 import { LanguageProvider } from './hooks/useStrings.tsx'
 import { ThemeProvider } from './hooks/useTheme.tsx'
 import type { Appearance, ThemePref } from './theme.ts'
+import type { KeybindPref } from './vim.ts'
 import type { SwapSession } from './resume.ts'
 import { writeSettings } from './settings.ts'
 import { CLEAR_SCREEN, type RepaintRef } from './resize.ts'
@@ -97,6 +98,11 @@ export interface AppProps {
    */
   historyPref?: HistoryPref
   /**
+   * Which keymap the prompt editor starts on, read from `~/.dsh/tui.json` at
+   * boot. Defaults to the readline editor.
+   */
+  keybinds?: KeybindPref
+  /**
    * Which way the terminal's background reads, as measured by `index.ts` before
    * Ink mounted — the query has to happen while nobody else owns stdin, so it
    * cannot happen in here. Defaults to `'dark'`, which is what shipped before
@@ -147,6 +153,7 @@ export const App: FC<AppProps> = ({
   lang: initialLang = 'en',
   themePref: initialThemePref = 'auto',
   historyPref: initialHistoryPref = 'show',
+  keybinds: initialKeybindPref = 'default',
   appearance: detected = 'dark',
   swapSession,
 }) => {
@@ -226,6 +233,16 @@ export const App: FC<AppProps> = ({
   const setHistory = useCallback((next: HistoryPref) => {
     setHistoryPref(next)
     writeSettings({ history: next })
+  }, [])
+  /**
+   * Switch the prompt editor's keymap, on the same terms as {@link setTheme}.
+   * Persisted for a stronger reason than the theme is: a modal editor you have
+   * to re-enable every launch is one nobody would keep using.
+   */
+  const [keybindPref, setKeybindPref] = useState<KeybindPref>(initialKeybindPref)
+  const setKeybinds = useCallback((next: KeybindPref) => {
+    setKeybindPref(next)
+    writeSettings({ keybinds: next })
   }, [])
   /**
    * Write a control sequence to the terminal, for `/copy`.
@@ -540,6 +557,8 @@ export const App: FC<AppProps> = ({
           lang,
           setTheme,
           themePref,
+          setKeybinds,
+          keybindPref,
           setHistory,
           historyPref,
           appearance,
@@ -790,6 +809,7 @@ export const App: FC<AppProps> = ({
           onArrowClaimChange={setPromptClaimsArrows}
           onFilledChange={setPromptFilled}
           onEscClaimChange={setPromptClaimsEsc}
+          keybinds={keybindPref}
           onOverlayRowsChange={setPromptOverlayRows}
           extraCommands={extraCommands}
         />

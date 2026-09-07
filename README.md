@@ -139,6 +139,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `/sessions` | List the stored sessions, with the id to resume one by |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide` |
+| `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`; bare reports which is on and changes nothing |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
@@ -507,6 +508,50 @@ for rather than looking arbitrary:
 Policy rows are never yellow, including `never`. A stricter setting is not a
 warning — it is the setting you chose. One that a delegation chose for you is
 marked as such.
+
+### Vim keybinds
+
+`/keybinds vim` puts a normal mode over the prompt. `/keybinds default` takes
+it back off, and a bare `/keybinds` tells you which one is on without switching
+it — a command you typed to check something should not change it.
+
+Insert mode is the editor you already had. Every readline binding, the `/`
+palette, the `@` picker, history recall, paste: all unchanged. Turning vim on
+adds a mode and takes nothing away.
+
+`Esc` leaves insert mode. You can tell you are in normal mode because the
+prompt marker changes:
+
+```
+> what does this do?      ← insert
+N what does this do?      ← normal
+```
+
+That is the whole indicator, on purpose. A `NORMAL` badge would need a row, and
+the frame is a fixed height — a row that appears when the mode changes is a row
+drawn on top of the transcript.
+
+What works:
+
+| | |
+|---|---|
+| Move | `h` `j` `k` `l` `0` `^` `$` `w` `b` `e` `gg` `G` |
+| Insert | `i` `a` `I` `A` `o` `O` |
+| Delete / change | `x` `D` `C` `dd` `cc`, and `d` or `c` with any motion |
+| Paste | `p` `P` — the last thing you deleted |
+
+Words are split on whitespace, not on punctuation, so `~/.dsh/.env` is one
+`w`. Most of what you type into a prompt is paths and flags, and vim's usual
+word rules would make `w` crawl through them a character at a time.
+
+What does not: counts (`3w`), visual mode, and undo. Undo is the deliberate
+one — an undo that covered `dd` but not `Ctrl-W` would be worse than none.
+
+`Esc` still cancels a running turn. In normal mode it is not claimed by the
+editor, so it falls through the way it always did; in insert mode it goes to
+normal first, and a second one cancels. The `/` palette wins it before either.
+
+The setting is saved to `~/.dsh/tui.json`.
 
 ### Seeing more of a long output
 

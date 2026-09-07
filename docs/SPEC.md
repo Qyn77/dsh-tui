@@ -254,6 +254,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/sessions` | List the stored sessions, newest first, with the id to resume one by. |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` for the newest. |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide`. |
+| `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`. Bare `/keybinds` reports which is in force and switches nothing — §1.19. |
 | `/mcp` | List the connected MCP servers and the tools each one registered, read fresh from `ctx.tools` — which is also all it can say: the plugin publishes no connection state, so an absent server is an absent row (§1.12). |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
@@ -453,6 +454,10 @@ its way to someone else.
 | `Enter` (turn running) | Prompt → `agent.steer` | Reach the model at its next step boundary |
 | `Enter` (idle) | Prompt → `agent.followup` | Open a turn of its own |
 | pasted text | Prompt, **before every row above** | Insert verbatim; newlines normalised to `\n` |
+
+The table above is the `default` keymap, and it is also **insert mode** under
+`/keybinds vim` — the vim layer adds a mode on top of it rather than replacing
+it. See §1.19.
 
 **Paste is not a row in that table so much as a layer above it.** The app sets
 bracketed-paste mode (`?2004h`) alongside the alternate screen, so the terminal
@@ -894,6 +899,26 @@ The policy list is written as `['ask', 'never'] as const satisfies readonly Appr
 
 ---
 
+### 1.19 Vim keybinds
+
+`/keybinds vim` puts a modal keymap over the prompt editor. The whole design is one sentence: **insert mode *is* §1.6's table, unchanged.** Turning the setting on subtracts nothing — the palette, the `@` picker, history recall, bracketed paste, `Ctrl-A/E/W/U/K`, mouse reports and the OSC tails all keep working, because `applyVim` declines every key while the mode is `insert` and the existing handlers run exactly as they did.
+
+**The keymap is a pure function, in `src/vim.ts`.** `applyVim(state, key, text, cursor) → VimResult` has no I/O, no React and no knowledge of Ink, for the same reason `state.ts` doesn't: a keymap is a decision table, and a decision table you can call in a `describe` block is one you can actually pin down. `Prompt.tsx` is the only adapter, and it does three things with the result — set the mode, set the text, move the caret.
+
+**The caret is a bar, not a block, and that changes the motions.** This prompt draws `▌` *between* two characters, so a caret at offset *n* sits before `text[n]`. `$`, `e` and the landing spot of a `dw` therefore all name the position *after* a character, and `Esc` does **not** step the caret left — that is a block-caret behaviour, and copying it here would move the caret away from the character the user was looking at.
+
+**What is implemented, and what deliberately is not.** Motions: `h j k l 0 ^ $ w b e gg G`. Entering insert: `i a I A o O`. Edits: `x D C dd cc` and `d`/`c` with any motion, with `p`/`P` pasting the last deletion. Words are whitespace-delimited, not vim's `iskeyword`, so `~/.dsh/.env` is one word — in a prompt where most text is paths and flags, splitting on punctuation would make `w` useless. **No counts** (`3w`), **no visual mode**, **no undo**. Undo is the one worth naming: an undo stack that covers the vim edits but not `Ctrl-W` would be a worse lie than no undo at all, and covering both is a rewrite of the buffer, not a keymap feature.
+
+**An unknown key in normal mode is swallowed, never typed.** `dq` abandons the operator; `q` alone does nothing. The alternative — falling through to the text path — means a mistyped normal-mode key silently appends a letter to a prompt the user believes they are navigating, and they find out when they press Enter.
+
+**Esc is contested three ways, and turn-cancel has to stay reachable.** The order is: the palette or the `@` picker wins it first; then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
+
+**The mode indicator costs zero rows and zero columns.** The prompt marker changes from `> ` to `N `, and it and the caret turn yellow. Not a `NORMAL` badge under the box: the root is a fixed-height frame and Yoga *overlaps* an overflowing subtree instead of scrolling it (§1.8), so a row that appears when a mode changes is a row that lands on top of the transcript. A width change would be as bad in the other direction — it re-folds every wrapped row in the buffer, which is a caret jump on a keystroke that was supposed to be free.
+
+**The preference persists, and defaults to off.** `keybinds` joins `language`, `theme` and `history` in `~/.dsh/tui.json` through the same total-read/merged-write path (§1.5). Bare `/keybinds` **reads without writing** — unlike `/history`, which toggles. Two states again, but these two change what every subsequent keystroke *means*, and a user who typed `/keybinds` to check which one is on must not be switched by the asking.
+
+---
+
 ## Part 2 · Roadmap
 
 The package is at **v0.1.0-rc.7**. Each milestone below lists what users see when it ships, not what's done internally.
@@ -953,7 +978,7 @@ Still open: nothing — v0.3 is complete.
 
 ### v1.0 — Production
 
-- **Vim / Emacs keybind toggle.** `/keybinds vim` switches the prompt editor.
+- **Vim / Emacs keybind toggle.** *Shipped as `/keybinds vim` — see §1.19.* Emacs is not a second mode and never will be: §1.6's default keymap already *is* the readline/emacs one, so the toggle has two states rather than three. The vim half is a pure keymap in `src/vim.ts` layered over that table, with insert mode left byte-for-byte identical to it.
 - **Plan mode.** *The TUI's half is shipped.* `plan/mode` projects to a `plan` entry and draws `⤷ plan mode on`/`off` in both languages (§1.4). The `/plan` command and the read-only run are `@deepseek-ai/dsh-plan-mode`'s, not this package's — it reaches the REPL through the `ctx.commands` fallback (§1.5), the same way `/compact` does. Nothing is left here but the diff preview, which needs a diff to exist first.
 - **Sub-agent visualization.** *Shipped, as workflow runs — see §1.17.* A fan-out draws as one entry with a `↳` row per child agent. Getting here took three corrections and they are all kept, because each was a different way of being wrong about the same thing.
 

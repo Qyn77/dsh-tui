@@ -351,6 +351,18 @@ unbuilt either:
   events are log-only, so before this the answer you gave vanished with the
   card. See SPEC §1.18.
 
+- **Vim keybinds.** *Shipped as `/keybinds vim`.* The last item on the v1.0
+  list, and the one whose title was half wrong: it read "Vim / Emacs keybind
+  toggle", but the default keymap already *is* the emacs/readline one, so there
+  were only ever two states to toggle between. The vim half is a pure keymap
+  (`src/vim.ts`) layered over that table — insert mode is the existing editor
+  byte for byte, so nothing that already worked in the prompt had to be
+  reimplemented behind a flag. Motions `h j k l 0 ^ $ w b e gg G`, inserts
+  `i a I A o O`, edits `x D C dd cc` and `d`/`c` with a motion, `p`/`P`. No
+  counts, no visual mode, no undo. The mode shows by changing the prompt marker
+  from `>` to `N`, which costs no row and no column — the fixed-height frame
+  overlaps anything that grows. See SPEC §1.19.
+
 `plan/mode` is the precedent for declaring a payload locally — `src/types.ts`
 declares that one itself — but it works there only because
 `{ enabled: boolean }` is a shape one can be certain of without the emitter.

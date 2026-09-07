@@ -44,6 +44,7 @@ import type { SessionLabels } from './sessions.ts'
 import type { UsageLabels } from './usage.ts'
 import { HISTORY_PREFS, type HistoryPref } from './types.ts'
 import { THEME_PREFS, type Appearance, type ThemePref } from './theme.ts'
+import { KEYBIND_PREFS, type KeybindPref } from './vim.ts'
 
 /** The languages this UI is written in. */
 export type Lang = 'en' | 'zh'
@@ -65,6 +66,7 @@ export const COMMAND_NAMES = [
   '/exit',
   '/help',
   '/history',
+  '/keybinds',
   '/language',
   '/mcp',
   '/model',
@@ -436,6 +438,12 @@ export interface Catalog {
     historyUsage: (current: HistoryPref) => string
     /** `/history` after the switch moved. */
     historySwitched: (pref: HistoryPref) => string
+    /** `/keybinds` with no argument: which keymap is in force, and the cheat sheet. */
+    keybindsUsage: (current: KeybindPref) => string
+    /** `/keybinds <pref>` after the switch went through. */
+    keybindsSwitched: (pref: KeybindPref) => string
+    /** `/keybinds` naming something that is not a keymap. */
+    keybindsUnknown: (given: string, prefs: readonly string[]) => string
     /** `/copy` with no argument, or one it did not recognise. */
     copyUsage: string
     /**
@@ -547,6 +555,7 @@ const EN: Catalog = {
     '/exit': 'Leave the REPL',
     '/help': 'Show the list of available commands',
     '/history': 'Show or hide the resumed session\'s stored history: /history show or hide',
+    '/keybinds': 'Choose the prompt editor: /keybinds vim or default',
     '/language': 'Switch the interface language: /language en or zh',
     '/mcp': 'List connected MCP servers and their tools',
     '/model': 'Switch model: /model <name> or <provider>/<name>',
@@ -667,6 +676,14 @@ const EN: Catalog = {
       pref === 'show'
         ? 'Resumed history is drawn again — /resume or a re-seed repaints it.'
         : 'Resumed history is hidden from now on — the model still reads it.',
+    keybindsUsage: current =>
+      `Usage: /keybinds <${KEYBIND_PREFS.join('|')}>\nCurrent: ${current}\n\ndefault is the readline editor: Ctrl-A/E, Ctrl-W, Alt-B/F. vim adds a normal mode on top of it — Esc leaves insert, i/a/I/A/o/O return, hjkl 0 ^ $ w b e gg G move, x D C dd cc and d/c with a motion delete, p/P paste the last deletion. No counts, no visual mode, no undo. Everything else — the palette, the file picker, history recall, paste — is unchanged in both. The setting is saved.`,
+    keybindsSwitched: pref =>
+      pref === 'vim'
+        ? 'Vim keybinds are on. The prompt starts in insert mode; Esc leaves it, and the prompt marker turns from > to N while you are in normal mode.'
+        : 'Vim keybinds are off — the prompt is the readline editor again.',
+    keybindsUnknown: (given, prefs) =>
+      `Not a keymap: ${given}. Try one of: ${prefs.join(', ')}.`,
     copyUsage: 'Usage: /copy (the newest reply) or /copy code (the newest code block)',
     copySent: (target, bytes, truncatedAt) =>
       `Sent the newest ${target === 'code' ? 'code block' : 'reply'} to the clipboard`
@@ -779,6 +796,7 @@ const ZH: Catalog = {
     '/exit': '退出 REPL',
     '/help': '显示可用命令列表',
     '/history': '显示或隐藏接续 session 的已存历史：/history show 或 hide',
+    '/keybinds': '选择提示框的编辑器：/keybinds vim 或 default',
     '/language': '切换界面语言：/language en 或 zh',
     '/mcp': '列出已连接的 MCP 服务器及其工具',
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
@@ -898,6 +916,14 @@ const ZH: Catalog = {
       pref === 'show'
         ? '已存历史重新画出来了——/resume 或重新播种会把它补上。'
         : '从现在起隐藏已存历史——模型仍然读得到。',
+    keybindsUsage: current =>
+      `用法：/keybinds <${KEYBIND_PREFS.join('|')}>\n当前：${current}\n\ndefault 是 readline 那套编辑器：Ctrl-A/E、Ctrl-W、Alt-B/F。vim 在它之上加一层 normal 模式——Esc 离开插入，i/a/I/A/o/O 回去，hjkl 0 ^ $ w b e gg G 移动，x D C dd cc 以及 d/c 接一个 motion 删除，p/P 粘贴上一次删掉的东西。不支持计数（3w）、visual 模式和撤销。其余一切——命令面板、文件选择、历史回溯、粘贴——两种设置下都一样。这个设置会保存。`,
+    keybindsSwitched: pref =>
+      pref === 'vim'
+        ? 'vim 键位已开启。提示框从插入模式开始，Esc 离开插入模式；处在 normal 模式时，提示符会从 > 变成 N。'
+        : 'vim 键位已关闭——提示框回到 readline 那套编辑器。',
+    keybindsUnknown: (given, prefs) =>
+      `不是可选的键位：${given}。可选：${prefs.join('、')}。`,
     copyUsage: '用法：/copy（最新一条回复）或 /copy code（最新的代码块）',
     copySent: (target, bytes, truncatedAt) =>
       `已把最新的${target === 'code' ? '代码块' : '回复'}发往剪贴板`

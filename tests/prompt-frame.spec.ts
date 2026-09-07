@@ -705,7 +705,7 @@ describe('the palette on a terminal too short to hold it', () => {
     expect(screen).toContain('/history')
     expect(screen).not.toContain('/plugins')
     expect(screen).not.toContain('/verbose')
-    expect(screen).toContain('+10 more')
+    expect(screen).toContain('+11 more')
   })
 
   it('leaves the StatusBar and the prompt box whole underneath it', async () => {
@@ -726,9 +726,9 @@ describe('the palette on a terminal too short to hold it', () => {
   it('scrolls the window down to keep the selection visible', async () => {
     const painted = await paintApp({ turns: 2, rows: 24 })
     await painted.send('/')
-    // Seventeen downs is the last of the eighteen built-ins: far enough past
+    // Eighteen downs is the last of the nineteen built-ins: far enough past
     // the eighth row to have dragged the window all the way to the bottom.
-    for (let i = 0; i < 17; i += 1) await painted.send(`${ESC}[B`)
+    for (let i = 0; i < 18; i += 1) await painted.send(`${ESC}[B`)
     const screen = painted.screen()
     painted.unmount()
 
