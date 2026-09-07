@@ -25,6 +25,7 @@ import {
   toolCallSummary,
   toolResultPreview,
   USER_FRAME_COLUMNS,
+  approvalRows,
   workflowRows,
 } from './message-layout.ts'
 
@@ -257,6 +258,13 @@ function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number 
       const stderr = hookStderr(entry)
       return 1 + (stderr === undefined ? 0 : textRows(stderr, width))
     }
+    case 'approval':
+      // The question's own row, then the asker's reason if it gave one.
+      // Charged from `approvalRows` so the budget has a single owner.
+      return approvalRows(entry, width, textRows)
+    case 'approval-policy':
+      // One row, drawn truncated: neither policy word nor translation wraps.
+      return 1
     case 'workflow':
       // Header, one row per member, and a closing row once the run has closed.
       // Charged from `workflowRows` rather than counted here, so the budget has

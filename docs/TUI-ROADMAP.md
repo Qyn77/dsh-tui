@@ -339,6 +339,18 @@ unbuilt either:
   version *below* the line this package pins and reads like a confirmed
   blocker. Use `npm view <pkg> versions --json`.
 
+- **The approval audit trail.** *Shipped.* Not a v1.0 item — SPEC §3.2.1
+  carried it as a known gap — and it is listed here because the gap was stated
+  in that section twice, wrongly both times, in a way this file's counting
+  paragraph is exactly about. First it said the three `approval/*` events are
+  not typed; `@deepseek-ai/dsh-user-approval@0.1.0-rc.7` is a peer and
+  augments `SessionEventMap` with all three. Then it said the reducer simply
+  had no entry for them, which was true and is no longer: an asked question is
+  one row paired on `id`, a decision settles that row, and a policy switch is a
+  row of its own. `/approval` reads and switches the session's policy. The
+  events are log-only, so before this the answer you gave vanished with the
+  card. See SPEC §1.18.
+
 `plan/mode` is the precedent for declaring a payload locally — `src/types.ts`
 declares that one itself — but it works there only because
 `{ enabled: boolean }` is a shape one can be certain of without the emitter.

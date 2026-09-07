@@ -428,6 +428,52 @@ export function subCallPreview(sub: SubCall): OutputPreview | undefined {
   return outputPreview(resultText(sub.content), 1)
 }
 
+/** The member of {@link UiEntry} describing one approval question. */
+export type ApprovalEntry = Extract<UiEntry, { kind: 'approval' }>
+
+/**
+ * Outcomes that granted what was asked.
+ *
+ * `allowed-once` is the only grant the vocabulary defines — there is no
+ * "always allow" to add here. `rejected`, `cancelled` and `unavailable` all
+ * mean the call did not happen, and `unavailable` is the fail-closed default
+ * the service returns when no answerer was registered at all, which is a
+ * configuration fact the user needs to see rather than a decision they made.
+ */
+const QUIET_OUTCOMES: ReadonlySet<string> = new Set(['allowed-once'])
+
+/**
+ * How loudly one approval row should be drawn.
+ *
+ * `hookTone`'s rule, deliberately: only an explicit grant is quiet, and an
+ * outcome this build cannot name is notable rather than ignored. A question
+ * still open has nothing to be loud about yet.
+ * @param entry - the approval row.
+ * @returns `notable` when the call did not go through, `quiet` otherwise.
+ */
+export function approvalTone(entry: ApprovalEntry): 'quiet' | 'notable' {
+  if (entry.outcome === undefined) return 'quiet'
+  return QUIET_OUTCOMES.has(entry.outcome) ? 'quiet' : 'notable'
+}
+
+/**
+ * Rows one approval row costs: itself, plus the asker's reason when it gave
+ * one. The header is drawn truncated; only the reason is charged by wrapping,
+ * for the reason a hook's stderr is.
+ * @param entry - the approval row.
+ * @param width - the usable text width.
+ * @param measure - how the caller counts wrapped rows for a string.
+ * @returns the row count, matching what `MessageList` draws.
+ */
+export function approvalRows(
+  entry: ApprovalEntry,
+  width: number,
+  measure: (text: string, width: number) => number,
+): number {
+  const reason = entry.reason?.trim()
+  return 1 + (reason === undefined || reason === '' ? 0 : measure(reason, width))
+}
+
 /** The member of {@link UiEntry} describing one workflow run. */
 export type WorkflowEntry = Extract<UiEntry, { kind: 'workflow' }>
 

@@ -58,6 +58,7 @@ export const LANGUAGES: readonly Lang[] = ['en', 'zh']
  * cannot be added without a description in both languages.
  */
 export const COMMAND_NAMES = [
+  '/approval',
   '/clear',
   '/context',
   '/copy',
@@ -211,6 +212,20 @@ export interface Catalog {
     workflowPending: string
     /** A member its run closed without ever settling — a broken pair, not an outcome. */
     workflowAbandoned: string
+    /**
+     * The audit row for one approval question. `tool` and `outcome` are the
+     * emitter's own words: the tool's registered name and one of
+     * `allowed-once` / `rejected` / `cancelled` / `unavailable`, untranslated
+     * for the reason a hook's `decision` is.
+     */
+    approvalAsked: (tool: string) => string
+    approvalDecided: (tool: string, outcome: string) => string
+    /** A question the turn ended on before anyone answered it. */
+    approvalUnfinished: (tool: string) => string
+    /** A switch of the session's approval policy; `policy` is `ask` or `never`. */
+    approvalPolicy: (policy: string) => string
+    /** The same, seeded into a child agent at delegation rather than switched. */
+    approvalPolicyDelegated: (policy: string) => string
   }
   /** The persistent header bar. */
   status: {
@@ -365,6 +380,16 @@ export interface Catalog {
     mcpServer: (name: string, count: number) => string
     /** `/mcp` in an assembly with no tools service to read. */
     mcpNoTools: string
+    /** `/approval` with no argument: the session's override and how to change it. */
+    approvalUsage: (policy: string) => string
+    /** `/approval` with no argument when the session never switched. */
+    approvalUsageDefault: string
+    /** `/approval <policy>` after the switch went through. */
+    approvalSwitched: (policy: string) => string
+    /** `/approval` naming something that is not a policy. */
+    approvalUnknown: (given: string, policies: readonly string[]) => string
+    /** `/approval` in an assembly with no approval service to read or set. */
+    approvalNoService: string
     /** One word per lifecycle phase, for the table's right column. */
     pluginPhases: Record<PluginPhase, string>
     /** `/plugins` with words it could not read as a subcommand. */
@@ -470,6 +495,11 @@ const EN: Catalog = {
       `no result · ${count} agent${count === 1 ? '' : 's'}`,
     workflowPending: 'running…',
     workflowAbandoned: 'no outcome',
+    approvalAsked: tool => `approval · ${tool} · waiting`,
+    approvalDecided: (tool, outcome) => `approval · ${tool} · ${outcome}`,
+    approvalUnfinished: tool => `approval · ${tool} · no decision`,
+    approvalPolicy: policy => `approval policy · ${policy}`,
+    approvalPolicyDelegated: policy => `approval policy · ${policy} · delegated`,
   },
   status: {
     idle: '⏵ idle',
@@ -527,6 +557,7 @@ const EN: Catalog = {
     '/status': 'Print the current model and session id',
     '/theme': 'Choose the background the colors assume: /theme auto, dark, or light',
     '/usage': 'Break this session\'s token spend out turn by turn',
+    '/approval': 'Show or switch this session\'s approval policy: /approval ask or never',
     '/verbose': 'Show more of each long output: /verbose on, off, or bare to toggle',
   },
   output: {
@@ -578,6 +609,14 @@ const EN: Catalog = {
     mcpNone: 'No MCP servers are connected. Add an \'@deepseek-ai/dsh-mcp-client\' row to a patch layer (a profile\'s cordis.patch.yml, or --patch on the command line) and its tools appear here — the README has the config table.',
     mcpServer: (name, count) => `${name} — ${count} tool${count === 1 ? '' : 's'}`,
     mcpNoTools: 'No tool registry in this assembly — nothing to enumerate.',
+    approvalUsage: policy =>
+      `Approval policy: ${policy} (set for this session). /approval ask prompts you before a tool that needs authorising; /approval never rejects every such call without asking.`,
+    approvalUsageDefault:
+      'This session has not set an approval policy, so the deployment default applies. /approval ask prompts you before a tool that needs authorising; /approval never rejects every such call without asking.',
+    approvalSwitched: policy => `Approval policy is now ${policy} for this session.`,
+    approvalUnknown: (given, policies) =>
+      `Not an approval policy: ${given}. Try one of: ${policies.join(', ')}.`,
+    approvalNoService: 'No approval service in this assembly — nothing to read or set.',
     pluginPhases: {
       active: 'active',
       loading: 'loading',
@@ -691,6 +730,11 @@ const ZH: Catalog = {
     workflowUnfinished: count => `没有结果 · ${count} 个 agent`,
     workflowPending: '执行中…',
     workflowAbandoned: '没有结果',
+    approvalAsked: tool => `审批 · ${tool} · 等待中`,
+    approvalDecided: (tool, outcome) => `审批 · ${tool} · ${outcome}`,
+    approvalUnfinished: tool => `审批 · ${tool} · 没有决定`,
+    approvalPolicy: policy => `审批策略 · ${policy}`,
+    approvalPolicyDelegated: policy => `审批策略 · ${policy} · 来自委派`,
   },
   status: {
     idle: '⏵ 空闲',
@@ -745,6 +789,7 @@ const ZH: Catalog = {
     '/status': '打印当前模型和 session id',
     '/theme': '选择配色假定的背景：/theme auto、dark 或 light',
     '/usage': '按轮次拆开本次 session 的 token 开销',
+    '/approval': '查看或切换本 session 的审批策略：/approval ask 或 never',
     '/verbose': '让每段长输出多显示一些：/verbose on、off，不带参数则切换',
   },
   output: {
@@ -796,6 +841,14 @@ const ZH: Catalog = {
     mcpNone: '没有连接中的 MCP 服务器。在某个 patch 层（profile 的 cordis.patch.yml，或命令行的 --patch）里加一个 \'@deepseek-ai/dsh-mcp-client\' 插件行，它的工具就会出现在这里——配置表在 README 里。',
     mcpServer: (name, count) => `${name} —— ${count} 个工具`,
     mcpNoTools: '当前装配没有工具注册表，无从枚举。',
+    approvalUsage: policy =>
+      `审批策略：${policy}（本 session 已设置）。/approval ask 会在需要授权的工具跑之前问你；/approval never 则一律直接拒绝、不问。`,
+    approvalUsageDefault:
+      '本 session 没有设过审批策略，走的是部署的默认值。/approval ask 会在需要授权的工具跑之前问你；/approval never 则一律直接拒绝、不问。',
+    approvalSwitched: policy => `本 session 的审批策略已改为 ${policy}。`,
+    approvalUnknown: (given, policies) =>
+      `${given} 不是审批策略。可选：${policies.join('、')}。`,
+    approvalNoService: '当前装配没有审批服务，既读不到也设不了。',
     pluginPhases: {
       active: '运行中',
       loading: '加载中',

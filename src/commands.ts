@@ -25,6 +25,7 @@
  */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { HistoryPref, UiState } from './types.ts'
@@ -628,6 +629,40 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
           clamped.truncated ? OSC52_MAX_BYTES : undefined,
         ),
       }
+    }
+
+    case '/approval': {
+      // The two policies are written out rather than imported from
+      // `APPROVAL_POLICIES`, which is a runtime export: this package depends on
+      // `dsh-user-approval` for types only, and a value import would make an
+      // assembly that never mounts approval fail to load. `satisfies` is what
+      // keeps the copy honest — a third policy makes this line a build error
+      // rather than a validator that silently rejects a valid word.
+      const policies = ['ask', 'never'] as const satisfies readonly ApprovalPolicy[]
+      const approval = service(cmd.ctx, 'approval')
+      if (approval === undefined) {
+        return { kind: 'handled', message: strings.approvalNoService }
+      }
+      const args = raw.trim().split(/\s+/).slice(1)
+      if (args.length === 0) {
+        const override = approval.overrideOf(cmd.agent.session)
+        return {
+          kind: 'handled',
+          message: override === undefined
+            ? strings.approvalUsageDefault
+            : strings.approvalUsage(override),
+        }
+      }
+      const given = args[0]
+      const policy = policies.find(p => p === given)
+      if (policy === undefined) {
+        return { kind: 'handled', message: strings.approvalUnknown(given, policies) }
+      }
+      // `setPolicy` rather than `setApprovalPolicy`: the latter appends to the
+      // log without telling the live agent, so the model would keep answering
+      // under the policy it was last told about.
+      approval.setPolicy(cmd.agent, policy)
+      return { kind: 'handled', message: strings.approvalSwitched(policy) }
     }
 
     case '/mcp': {

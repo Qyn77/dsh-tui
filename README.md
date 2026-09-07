@@ -131,6 +131,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/mcp` | List the connected MCP servers and the tools each one registered |
+| `/approval` | Show this session's approval policy; `/approval ask` or `never` switches it |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
 | `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
@@ -459,6 +460,53 @@ is worth knowing: a delegation writes its record into the *child's* session log,
 not yours. From this transcript a sub-agent is the tool call you can already
 see. The workflow tool is the one that reports back into the session you are
 watching.
+
+### Approvals, and what survives them
+
+When a tool call needs your authorisation, a card appears beside the prompt
+listing the call's arguments; `y` allows it once, `n` refuses it, `Esc` walks
+away. That card is live — it is gone the moment you answer.
+
+What stays is a row in the transcript:
+
+```
+⤷ approval · shell · allowed-once
+⤷ approval · write · rejected
+  writes outside the workspace
+```
+
+This matters more than it looks. Nothing about the question reaches the model,
+and the card cannot outlive the turn, so if the transcript did not record the
+answer then resuming the session an hour later would show a tool that never ran
+with nothing on screen saying you were the one who stopped it.
+
+A granted call is quiet. Anything else is yellow — refused, cancelled,
+`unavailable`, and any outcome this version has never heard of. `unavailable`
+is worth recognising: it is what you get when nothing was there to ask, which
+is a configuration problem rather than a decision you made. Yellow rather than
+red, because a refused call did not fail; that is the gate doing its job.
+
+If the turn ends while a question is still on screen, the row says `no
+decision` rather than leaving a question hanging.
+
+Use `/approval` to see which policy this session is on:
+
+```
+/approval          # what is in force, and how to change it
+/approval ask      # ask before a call that needs authorising
+/approval never    # refuse every such call without asking
+```
+
+A switch leaves its own row, so a run of silently refused calls is accounted
+for rather than looking arbitrary:
+
+```
+⤷ approval policy · never
+```
+
+Policy rows are never yellow, including `never`. A stricter setting is not a
+warning — it is the setting you chose. One that a delegation chose for you is
+marked as such.
 
 ### Seeing more of a long output
 

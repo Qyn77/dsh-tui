@@ -21,6 +21,11 @@ import type { SessionEvent, TodoItem, TurnEndReason } from '@deepseek-ai/dsh-ses
 // package that is already a peer, so copying it here would be a second
 // declaration of something the tree can simply be told about.
 import type {} from '@deepseek-ai/dsh-tools/types'
+// Same reasoning for `approval/*`. `@deepseek-ai/dsh-user-approval` is a peer
+// dependency — `ApprovalPrompt` and `useApprovalRequests` already import its
+// `ApprovalOutcome` — so its augmentation is one import away rather than a
+// copy. SPEC §3.2.1 spent three revisions asserting the opposite.
+import type {} from '@deepseek-ai/dsh-user-approval'
 
 /**
  * The bridge that ran a hook. Mirrors `HookDialect` in
@@ -228,6 +233,54 @@ export type UiEntry =
     status: 'running' | 'done' | 'cancelled'
   }
   /**
+   * One approval question, opened by `approval/asked` and closed by
+   * `approval/decided`.
+   *
+   * The live question is **not** this entry — it is `ApprovalPrompt`, a card
+   * beside the Prompt driven by a Cordis waterfall that never touches the log
+   * (§3.2.1). This is the audit record the pair leaves behind, and it exists
+   * because that card is transient: without the row, a session you resume has
+   * no trace that anything was ever authorised, and a turn where you denied a
+   * tool reads as a tool that simply did not run.
+   *
+   * Paired on `id`, the way a hook run is on `handlerId` and for the same
+   * reason: the service issues one per `request()` call, several can be open,
+   * and closing the newest would attribute one decision to another question.
+   */
+  | {
+    kind: 'approval'
+    /** Correlates `approval/asked` with the `approval/decided` that always follows. */
+    id: string
+    /** The tool the question was about. */
+    toolName: string
+    /** The exact call, when the asker had one — what the card resolved arguments through. */
+    callId?: CallId
+    /** The asker's own explanation, e.g. a hook's permission-decision reason. */
+    reason?: string
+    /**
+     * Set by `approval/decided`: `allowed-once`, `rejected`, `cancelled` or
+     * `unavailable`. A bare `string` on `hook/result.decision`'s reasoning —
+     * printed, never switched on.
+     */
+    outcome?: string
+    status: 'running' | 'done' | 'cancelled'
+  }
+  /**
+   * A switch of the session's approval policy.
+   *
+   * Its own entry rather than a `note` because it is durable and replayable:
+   * the last such event in the log *is* the session's override, so a resumed
+   * transcript that dropped it would show a session behaving under a policy
+   * nothing on screen accounts for.
+   */
+  | {
+    kind: 'approval-policy'
+    /** `ask` or `never` — the emitter's word, printed untranslated. */
+    policy: string
+    /** True when the override was seeded into a child at delegation, not switched at runtime. */
+    delegated: boolean
+  }
+  /**
    * One workflow run, opened by `tool-workflow/run-start` and closed by
    * `tool-workflow/run-end`, with a row per member agent in between.
    *
@@ -432,6 +485,9 @@ export function isRenderable(event: SessionEvent): boolean {
     case 'plan/mode':
     case 'hook/invoked':
     case 'hook/result':
+    case 'approval/asked':
+    case 'approval/decided':
+    case 'approval/policy':
     case 'tool-workflow/run-start':
     case 'tool-workflow/agent-start':
     case 'tool-workflow/agent-end':

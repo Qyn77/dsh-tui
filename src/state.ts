@@ -240,6 +240,11 @@ function onTurnEnd(state: UiState, event: EventOf<'turn/end'>): UiState {
     // that the fan-out quietly succeeded. It gains no `stopReason` — the field
     // holds the emitter's word and the emitter never said one.
     if (e.kind === 'workflow' && e.status === 'running') return { ...e, status: 'cancelled' }
+    // An unanswered question at the turn boundary is `cancelled` for the hook's
+    // reason as well. The service requires an open turn and appends exactly one
+    // `decided` per `asked`, so reaching here without one means the pair broke —
+    // and the one thing that must not be claimed is a decision nobody made.
+    if (e.kind === 'approval' && e.status === 'running') return { ...e, status: 'cancelled' }
     return e
   })
   const note = turnEndNote(event.data.turn, reason)
@@ -499,6 +504,71 @@ function onHookResult(state: UiState, event: EventOf<'hook/result'>): UiState {
 }
 
 /**
+ * Match the open approval question one `approval/decided` belongs to.
+ *
+ * By `id`, for `openHookRun`'s reason: the service issues one per `request()`
+ * call and several can be in flight, so closing the most recent would put one
+ * question's answer on another's row.
+ */
+function openApproval(id: string): (entry: UiEntry) => entry is EntryOf<'approval'> {
+  return (entry): entry is EntryOf<'approval'> =>
+    entry.kind === 'approval' && entry.status === 'running' && entry.id === id
+}
+
+/**
+ * Record that a question was asked.
+ *
+ * This runs alongside the live card, not instead of it: `ApprovalPrompt` is
+ * answering a Cordis waterfall that never reaches the log, while this is the
+ * log's own account of the same moment. The duplication is the point — the
+ * card is gone the instant it is answered, and the row is what a resumed
+ * session has.
+ */
+function onApprovalAsked(state: UiState, event: EventOf<'approval/asked'>): UiState {
+  const { id, toolName, callId, reason } = event.data
+  return {
+    ...state,
+    entries: append(state, {
+      kind: 'approval',
+      id,
+      toolName,
+      ...(callId !== undefined ? { callId } : {}),
+      ...(reason !== undefined ? { reason } : {}),
+      status: 'running',
+    }),
+  }
+}
+
+/**
+ * Close the question this decision belongs to.
+ *
+ * A decision with no open row is dropped rather than opening one, the
+ * `hook/result` rule: the service documents exactly one `decided` per `asked`,
+ * so an unmatched one means the pair broke, and a row reading "a question you
+ * never saw was answered" names nothing the user can act on.
+ */
+function onApprovalDecided(state: UiState, event: EventOf<'approval/decided'>): UiState {
+  const { id, outcome } = event.data
+  const found = findLast(state.entries, openApproval(id))
+  if (!found) return state
+  const next: UiEntry = { ...found.entry, outcome, status: 'done' }
+  return { ...state, entries: replaceAt(state.entries, found.index, next) }
+}
+
+/** Record a policy switch. The last one in the log is the session's override. */
+function onApprovalPolicy(state: UiState, event: EventOf<'approval/policy'>): UiState {
+  const { policy, source } = event.data
+  return {
+    ...state,
+    entries: append(state, {
+      kind: 'approval-policy',
+      policy,
+      delegated: source === 'delegation',
+    }),
+  }
+}
+
+/**
  * Match the open workflow run an event belongs to.
  *
  * By `runId` and openness together. A bundle can run two workflows at once —
@@ -697,6 +767,15 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
 
     case 'hook/result':
       return onHookResult(state, event)
+
+    case 'approval/asked':
+      return onApprovalAsked(state, event)
+
+    case 'approval/decided':
+      return onApprovalDecided(state, event)
+
+    case 'approval/policy':
+      return onApprovalPolicy(state, event)
 
     case 'tool-workflow/run-start':
       return onWorkflowRunStart(state, event)

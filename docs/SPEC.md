@@ -151,6 +151,7 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 | Tool call | none | A marked line, not a block; see the gutter below. |
 | Code Mode sub-call | none | A `↳` row *inside* the `run_code` entry that dispatched it — §1.16. |
 | Workflow run | `⏺` | One entry per fan-out, with a `↳` row per child agent and a `⎿` close — §1.17. |
+| Approval audit | `⤷` | One row per question asked and answered, plus one per policy switch — §1.18. |
 | User message | `round` `blue` | The transcript's only marker of authorship. Same box as the prompt, deliberately: what the user typed and where they type it are one surface. |
 | Assistant message | none | Floats freely. |
 | Note / compaction / plan | none | Single lines, prefixed with `⤷`. |
@@ -869,6 +870,28 @@ A workflow tool fans one turn out into several child agents. `@deepseek-ai/dsh-t
 
 This costs no dependency. `@deepseek-ai/dsh-tool-workflow` is not a peer and should not be — most assemblies will never mount it — so `src/types.ts` copies the four payloads the way it copies `hook/*` (§1.15), widening the branded `WorkflowRunId` and the two closed unions to `string`. Like MCP and hooks, the feature ships dark and draws nothing until a bundle inserts the tool.
 
+### 1.18 The approval audit trail
+
+`approval/asked`, `approval/decided` and `approval/policy` are **log-only**: `deriveMessages()` skips them, so the model never sees them, and the live card (§3.2.1) is gone the instant a key settles it. The transcript is therefore not one of several places a decision is recorded — it is the only one. A build that drew the card and not the rows would let a user answer a question, resume the session an hour later, and find no trace that they were ever asked.
+
+**Two surfaces, one moment, and the duplication is the point.** `ApprovalPrompt` answers a Cordis waterfall that never touches the log; these rows are the log's own account. They are not alternatives to each other and neither can be dropped in favour of the other: the card cannot survive the turn, and the rows cannot be answered.
+
+**Pairing is by `id`, never by recency.** The service issues one id per `request()` call and documents that several can be in flight, so closing "the newest open row" would file one tool's answer under another tool's name — `openHookRun`'s rule (§1.15) for the same reason it holds there. A `decided` with no open row is **dropped** rather than opening one: exactly one decision per ask is documented, so an unmatched one means the pair broke, and a row reading "a question you never saw was answered" names nothing a user can act on. Openness is part of the match, so a second decision cannot reopen a settled question.
+
+**A question still open at `turn/end` is `cancelled`, with no outcome.** Not `outcome: 'cancelled'` — the service has a real `cancelled` decision, and fabricating one here would make a broken record indistinguishable from a question the service actually answered that way. The row says "no decision" instead, which is the true statement.
+
+**Tone follows `hookTone`, for the fourth time.** `'allowed-once'` is the only grant the vocabulary defines and it is the only quiet outcome. `rejected`, `cancelled`, `unavailable` and **any word this build has never heard of** are notable/yellow. `unavailable` earns that weight on its own merits: it is the fail-closed default the service returns when no answerer was registered at all, which is a configuration fact the user needs, not a decision they made. Red is not used — a rejected call did not fail, it was refused, and that is the gate working.
+
+**A policy row is never yellow, including for `never`.** A stricter policy is not a warning; it is the setting the user or a delegation chose. The row exists so that a resumed session can account for behaviour — a run of tool calls silently refused — that would otherwise look arbitrary. `source: 'delegation'` is marked, because "you set this" and "something set this for you" are different facts about the same policy.
+
+**Row budget: one row, plus the asker's reason when it gave one.** The header is drawn `truncate-end` and only the reason is charged by wrapping, exactly as a hook's stderr is (§1.15), so `approvalRows` matches what `MessageList` draws at every width. A policy row is unconditionally one row.
+
+#### `/approval`
+
+`/approval` with no argument prints the session's override, or says the deployment default applies; `/approval ask` and `/approval never` switch it. The command validates the word before it reaches the service, so a typo'd `/approval nver` is refused rather than silently doing nothing that the user would read as a switch.
+
+The policy list is written as `['ask', 'never'] as const satisfies readonly ApprovalPolicy[]` rather than by importing the runtime `APPROVAL_POLICIES`. That keeps the dependency type-only — the command still works in an assembly that never loaded the package, where it reports that there is no approval service — while making a third policy added upstream a **build error here** instead of a value the palette quietly cannot offer.
+
 ---
 
 ## Part 2 · Roadmap
@@ -904,7 +927,7 @@ Shipped here but not planned here: the bilingual catalog and `/language` (§3.10
 Shipped:
 
 - **Slash-command tab completion.** The `/` palette filters as you type and `Tab` completes the highlighted name, landing the cursor after a trailing space.
-- **Tool approval flow.** `y`/`n`/`Esc` on a card beside the Prompt, not a modal, listing the arguments of the call being authorised. It was never blocked on the dependency this spec claimed — see §3.2.1.
+- **Tool approval flow.** `y`/`n`/`Esc` on a card beside the Prompt, not a modal, listing the arguments of the call being authorised. It was never blocked on the dependency this spec claimed — see §3.2.1. The card's other half, the audit rows that survive the turn, shipped with §1.18, along with `/approval` for reading and switching the session's policy.
 - **`/model <name>`.** Switches the live agent and the saved default together.
 - **`/context`.** Window, cumulative spend, and a live occupancy percentage read off the newest turn — see §3.3.2.
 - **History.** `↑` / `↓` (and `Ctrl-P` / `Ctrl-N`) walk the user's prior inputs in this session.
@@ -1038,7 +1061,9 @@ The reducer is the unit-test surface for the model layer. Every new `SessionEven
 
 #### 3.2.1 What the reducer cannot project yet
 
-**Approval prompts are answered, but not by the reducer.** `dsh-session` rc.7 lists `approval/asked`, `approval/decided` and `approval/policy` in its generated persistence catalog — the set of event types this build will read back from a log. This section used to add that they are "not members of the typed `SessionEventMap`", and **that is false**: `@deepseek-ai/dsh-user-approval@0.1.0-rc.7` is a peer dependency of this package and `lib/types/index.d.ts` augments `SessionEventMap` with all three, fully typed. A `case 'approval/asked'` would compile today, given the same `import type {} from '@deepseek-ai/dsh-user-approval/types'` that §1.16 uses for `dsh-tools`. The reason there is no approval `UiEntry` is that one has not been written — the same shape of mistake §1.16 and the roadmap's Part 2 both record, which is why the correction is left in the text rather than quietly deleted. The consequence is real and visible: an approval you answered is invisible after `/resume`, because the live prompt is not `UiState` and the audit events that *are* in the log are dropped.
+**Approval prompts are answered by the live card, and recorded by the reducer — see §1.18.** This section carried two claims about that, in sequence, and both were wrong. The first was that `approval/asked`, `approval/decided` and `approval/policy` are "not members of the typed `SessionEventMap`": false — `@deepseek-ai/dsh-user-approval@0.1.0-rc.7` is a peer dependency and `lib/types/index.d.ts` augments the map with all three, fully typed. The second, written when the first was corrected, was that the reducer had no approval `UiEntry` because nobody had written one; that was true when written and is no longer. Both corrections are left in the text rather than quietly deleted, because the shape of the mistake — reading a *stated* gap as a *verified* one — is the same one §1.16, §1.17 and Part 2 each record, and the count is the point.
+
+The consequence while it lasted was real: an approval you answered was invisible after `/resume`, because the live prompt is not `UiState` and the audit events that *are* in the log were dropped.
 
 **The live prompt was never the blocked part, though.** The question a user has to answer never travels through the session log in the first place: `dsh-tools` calls `ctx.approval.request()`, and `ApprovalService` dispatches `approval/request` as a **waterfall** on the Cordis context. Reading the log is how you learn an approval *happened*; answering one is a live request/response with no reducer in it. Looking for the feature in the event union found the one place it provably was not.
 

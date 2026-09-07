@@ -50,6 +50,10 @@ import type {} from '@deepseek-ai/dsh-skill'
 // on `ctx.tools` as `mcp__<server>__<raw>`, and that registry is the only
 // place the connected servers can be enumerated from the UI side.
 import type {} from '@deepseek-ai/dsh-tools'
+// `approval` backs `/approval`: the service owns the per-session policy fold
+// (`overrideOf`) and the only supported way to change it on a live agent
+// (`setPolicy`), which also queues the transition for the model's next step.
+import type {} from '@deepseek-ai/dsh-user-approval'
 
 /**
  * Read a service that some installed package declares on `Context`.

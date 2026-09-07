@@ -499,6 +499,78 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/approval', () => {
+    /**
+     * An approval-service stand-in. The command only reads `overrideOf` and
+     * writes `setPolicy`; everything else on the real service answers a
+     * Cordis waterfall the REPL never touches.
+     */
+    function withApproval(override?: string): {
+      cmd: CommandContext
+      setPolicy: ReturnType<typeof vi.fn>
+    } {
+      const setPolicy = vi.fn()
+      const ctx = new Context()
+      ctx.provide('approval', { overrideOf: () => override, setPolicy } as never)
+      return {
+        setPolicy,
+        cmd: {
+          ctx,
+          agent: { id: 'tui-1' as never, session: makeSession() } as never,
+          resetView: vi.fn(),
+          setModel: vi.fn().mockResolvedValue(undefined),
+          refreshSelection: vi.fn(),
+          state: emptyState(),
+        },
+      }
+    }
+
+    it('reports the deployment default when the session never switched', async () => {
+      const result = await dispatch('/approval', withApproval().cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.approvalUsageDefault)
+    })
+
+    it('reports the session override when there is one', async () => {
+      const result = await dispatch('/approval', withApproval('never').cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.approvalUsage('never'))
+    })
+
+    it.each(['ask', 'never'])('switches the session to %s', async (policy) => {
+      const { cmd, setPolicy } = withApproval()
+      const result = await dispatch(`/approval ${policy}`, cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(setPolicy).toHaveBeenCalledWith(cmd.agent, policy)
+      expect(result.message).toBe(catalog('en').output.approvalSwitched(policy))
+    })
+
+    it('refuses a word that is not a policy, and does not set anything', async () => {
+      // Fail closed on the way in: a typo'd `/approval nver` that fell through
+      // to the service would be a silent no-op the user reads as a switch.
+      const { cmd, setPolicy } = withApproval()
+      const result = await dispatch('/approval nver', cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(setPolicy).not.toHaveBeenCalled()
+      expect(result.message).toBe(catalog('en').output.approvalUnknown('nver', ['ask', 'never']))
+    })
+
+    it('says so when the assembly has no approval service', async () => {
+      const stand = makeStand()
+      const cmd: CommandContext = {
+        ctx: stand.ctx,
+        agent: { id: 'tui-1' as never, session: makeSession() } as never,
+        resetView: vi.fn(),
+        setModel: vi.fn().mockResolvedValue(undefined),
+        refreshSelection: vi.fn(),
+        state: emptyState(),
+      }
+      const result = await dispatch('/approval never', cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.approvalNoService)
+    })
+  })
+
   describe('/language', () => {
     it('shows usage and the current language when no argument is given', async () => {
       const setLanguage = vi.fn()
@@ -1214,8 +1286,9 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/clear', '/context', '/copy', '/exit', '/help', '/history', '/language', '/mcp', '/model',
-      '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
+      '/approval', '/clear', '/context', '/copy', '/exit', '/help', '/history', '/language',
+      '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme',
+      '/usage', '/verbose',
     ])
   })
 
@@ -1267,8 +1340,8 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/language', '/mcp', '/model',
-        '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
+        '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/language',
+        '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
       ])
     })
 

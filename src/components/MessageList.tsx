@@ -60,6 +60,8 @@ import {
   outputPreview,
   previewLimit,
   workflowMemberTone,
+  approvalTone,
+  type ApprovalEntry,
   type OutputPreview,
   type WorkflowEntry,
 } from '../message-layout.ts'
@@ -489,6 +491,55 @@ function HookLine({ entry }: { entry: Extract<UiEntry, { kind: 'hook' }> }) {
 }
 
 /**
+ * One approval question, as the audit record it is.
+ *
+ * Drawn like a hook run and for the same reason — it is the log's account of
+ * something that already happened, not a question being asked. The question
+ * itself is `ApprovalPrompt`, beside the Prompt, and by the time this row can
+ * be read that card is gone. Two weights on `hookTone`'s rule: a grant is a
+ * dim audit line, and anything that stopped the call is yellow.
+ */
+function ApprovalLine({ entry }: { entry: ApprovalEntry }) {
+  const strings = useStrings()
+  const notable = approvalTone(entry) === 'notable'
+  const color = notable ? 'yellow' : 'gray'
+  const reason = entry.reason?.trim()
+  const label = entry.status === 'cancelled'
+    ? strings.entries.approvalUnfinished(entry.toolName)
+    : entry.outcome === undefined
+      ? strings.entries.approvalAsked(entry.toolName)
+      : strings.entries.approvalDecided(entry.toolName, entry.outcome)
+  return (
+    <Row glyph={NOTE_GLYPH} color={color} dim={!notable}>
+      <Text color={color} dimColor={!notable} wrap="truncate-end">{label}</Text>
+      {reason !== undefined && reason !== '' && (
+        <Text color={color} dimColor>{reason}</Text>
+      )}
+    </Row>
+  )
+}
+
+/**
+ * One approval-policy switch, at a compaction notice's weight.
+ *
+ * Never yellow, including for `never`. A stricter policy is not a warning —
+ * it is the setting the user or the delegation chose, and the row exists so a
+ * resumed session accounts for behaviour that would otherwise look arbitrary.
+ */
+function ApprovalPolicyLine({ entry }: { entry: Extract<UiEntry, { kind: 'approval-policy' }> }) {
+  const strings = useStrings()
+  return (
+    <Row glyph={NOTE_GLYPH} color="gray" dim>
+      <Text color="gray" dimColor wrap="truncate-end">
+        {entry.delegated
+          ? strings.entries.approvalPolicyDelegated(entry.policy)
+          : strings.entries.approvalPolicy(entry.policy)}
+      </Text>
+    </Row>
+  )
+}
+
+/**
  * One workflow run: a header, a row per member agent, and a closing row.
  *
  * No new glyphs. The header takes the assistant's `⏺` because a run *is* the
@@ -690,6 +741,10 @@ const Entry = React.memo(function Entry({ entry, maxLines, width }: {
       return <RuntimeContextLine entry={entry} />
     case 'hook':
       return <HookLine entry={entry} />
+    case 'approval':
+      return <ApprovalLine entry={entry} />
+    case 'approval-policy':
+      return <ApprovalPolicyLine entry={entry} />
     case 'workflow':
       return <WorkflowRun entry={entry} />
     case 'command':
