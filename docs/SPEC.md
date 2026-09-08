@@ -252,6 +252,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/copy` | Send the newest reply to the system clipboard over OSC 52. `/copy code` sends the newest fenced block instead. |
 | `/verbose` | Raise the preview budget from 8 lines to 200 for every entry at once. Bare toggles; `on`/`off` set it. |
 | `/sessions` | List the stored sessions, newest first, with the id to resume one by. |
+| `/skill` | Pick a user-invocable skill from its own list: `/skill ` opens the picker (§1.5.9), `/skill <name> [args]` runs one. Bare `/skill` prints usage. |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` for the newest. |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide`. |
 | `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`. Bare `/keybinds` reports which is in force and switches nothing — §1.19. |
@@ -268,17 +269,17 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/resume`, `/mcp`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. `/resume` used to be listed here as future work and now ships (§1.5.8). A name neither this table nor that registry holds is tried once more as a user-invocable skill (§1.14) before it is called unknown — three layers, in that order. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/skill`, `/resume`, `/mcp`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. `/resume` used to be listed here as future work and now ships (§1.5.8). A name neither this table nor that registry holds is tried once more as a user-invocable skill (§1.14) before it is called unknown — three layers, in that order. Skills are the one layer that does **not** appear in the `/` palette: they get the dedicated `/skill ` picker of §1.5.9, and direct `/<name>` typing still reaches them. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
-When the buffer starts with `/` and contains no space yet, a `round` cyan-bordered palette floats above the prompt showing the commands whose names start with the buffer (case-insensitive). The first row is selected by default.
+When the buffer starts with `/` and contains no space yet, a `round` cyan-bordered palette floats above the prompt showing the commands whose names start with the buffer (case-insensitive). The list is the built-in table and the plugin registry only; user-invocable skills are deliberately not rows here (§1.5.9). The first row is selected by default.
 
 | Key | Effect |
 |---|---|
 | `↑` / `↓` | Move the selection (clamped to the filtered list). |
 | `Tab` | Replace the buffer with the highlighted name + trailing space. |
-| `Enter` | If the buffer is an exact command name, dispatch it. Otherwise, complete the highlighted name into the buffer (same as `Tab`). |
+| `Enter` | If the buffer is an exact command name, dispatch it. Otherwise, complete the highlighted name into the buffer (same as `Tab`). `/skill` is the one exception: Enter on it completes to `/skill ` and opens the skill picker rather than dispatching the bare command. |
 | `Esc` | Clear the buffer. |
 | Any other key | Standard buffer editing. |
 
@@ -409,6 +410,26 @@ What it copies is the reply's **markdown source**, not the terminal's rendering 
 
 **Every refusal leaves the user where they were.** A request that resolves to nothing does not start a fresh session the way a boot does; a target equal to the current session says so; a load failure says the session is intact. See §3.3.1 for the mechanics and for why the running-turn check is depth rather than the main guard.
 
+#### 1.5.9 The `/skill` picker
+
+Skills are the most numerous, most accidental layer of the `/` surface — a bundle drops a directory of them in — so they no longer share the `/` palette with the twenty built-ins and the plugin registry. They get a command of their own: typing `/skill ` (with the trailing space) opens a second floating list, drawn through the same `SlashPalette` component, which contains **only** user-invocable skills. The skill glyph `◆` therefore appears in exactly one frame: this one.
+
+| Key | Effect |
+|---|---|
+| `↑` / `↓` | Move the selection (clamped to the filtered list). |
+| `Tab` | Replace the buffer with `/<name> ` and close the picker — arguments can follow, so the skill is not necessarily run yet. |
+| `Enter` | Submit the highlighted name immediately as `/<name>`: the skill runs with no arguments. |
+| `Esc` | Dismiss the list once while keeping the buffer; a second meaningful change to the token forgets the dismissal. |
+| Any other key | Standard buffer editing; the token filters the list. |
+
+The token after `/skill ` filters by case-insensitive **prefix** on the bare name, in registry order. The picker anchors to position 0 and to one token exactly: `/skillx` does not open it, a second token (a second space) closes it, and a `/skill ` on a continuation line does not open it — commands begin on line 0. The hint row reads `↑↓ navigate · Tab insert /<name> · Enter run · Esc dismiss` and the same height windowing as the `/` palette applies (§1.5.1), since this is the other subtree whose height is driven by data.
+
+**The three lists are mutually exclusive, in one precedence order: the `/` palette, then the skill picker, then the `@` file picker.** Only one may own `↑`/`↓`/`Tab`/`Esc` at a time, and Ink offers no way to stop a keystroke (§1.6), so the exclusivity is structural: while the buffer matches a `/` token the two mentions are not even derived. The skill picker outranks the `@` mention for the same reason the `/` palette does — it is anchored at the first character.
+
+**Bare `/skill` prints usage; `/skill <name> [args]` rewrites and runs.** The dispatcher turns `/skill review the auth` into `/review the auth` and hands the rewritten line to the *same* runner the unknown-name fallback uses (§1.14), so the explicit form and direct typing share one inject/followup ordering and one set of failure notes. There is exactly one Enter exception in the `/` palette (§1.5.1): with `/skill` highlighted it completes to `/skill ` and opens this picker instead of dispatching the bare command — the picker is what the key was reaching for. Enter on a dismissed picker submits the literal buffer, so `/skill review` after `Esc` still runs `review`.
+
+**There is no "scanning" placeholder.** Skill rows arrive as a prop from an asynchronous catalog read (§1.14); until the first complete listing lands the picker simply shows nothing, unlike the `@` picker whose one-time directory walk names itself while in flight. The catalog is already mounted before the prompt is interactive, so a placeholder would almost always paint an empty box and vanish a frame later.
+
 ### 1.6 Keyboard bindings
 
 Ink hands every keystroke to *every* mounted `useInput` handler and offers no
@@ -435,6 +456,10 @@ its way to someone else.
 | `Tab` | Slash palette | Complete the highlighted command |
 | `Esc` | Slash palette | Dismiss palette and clear buffer |
 | `↑` / `↓` | Slash palette | Move palette selection |
+| `Tab` | `/skill` picker | Insert `/<name> `, keep editing |
+| `Enter` | `/skill` picker | Run the highlighted skill |
+| `Esc` | `/skill` picker | Dismiss the list once, keep the buffer |
+| `↑` / `↓` | `/skill` picker | Move picker selection |
 | `Tab` / `Enter` | `@` file picker | Insert the highlighted path |
 | `Esc` | `@` file picker | Dismiss the list, keep the buffer |
 | `↑` / `↓` | `@` file picker | Move picker selection |
@@ -783,9 +808,9 @@ Byte sizes use decimal units (`284 KB`, not `278 KiB`): the number is there to b
 
 `ctx.skills` (`@deepseek-ai/dsh-skill`) is a layered registry of skill providers; `dsh-base` mounts it along with the filesystem provider and the model-facing `skill` tool. The model half therefore already worked before this package did anything — the model calls `skill` and the TUI draws an ordinary tool call. What was missing was the **human** half, which the registry names but does not implement: every summary carries `invocation.userInvocable`, and nothing was reading it.
 
-A user-invocable skill is a `/` row. It is the only row on that surface that **starts a turn** — every other one changes view state or calls a plugin handler that returns text — so it is marked with `◆` ahead of its description, and the marker sits in the description rather than the name because the name is what Tab writes back into the buffer.
+A user-invocable skill is reached in two ways: chosen from the dedicated `/skill ` picker (§1.5.9), or typed directly as `/<name> [args]`. Skills are deliberately not rows of the `/` palette — a bundle can ship dozens of them, and the palette exists to keep the fixed command surface legible. Inside the picker a skill is the one row that **starts a turn** — every `/` command changes view state or calls a plugin handler that returns text — so it is marked with `◆` ahead of its description, and the marker sits in the description rather than the name because the name is what Tab writes back into the buffer.
 
-**Precedence is built-ins, then `ctx.commands`, then skills.** Built-ins already win against the registry, for the stated reason that advertising behaviour which cannot run is worse than omitting the row. Skills lose to both for an additional one: a skill is the only layer a user creates by dropping a file into a directory, so it is the layer that must not shadow anything by accident.
+**Precedence is built-ins, then `ctx.commands`, then skills.** Built-ins already win against the registry, for the stated reason that advertising behaviour which cannot run is worse than omitting the row. Skills lose to both for an additional one: a skill is the only layer a user creates by dropping a file into a directory, so it is the layer that must not shadow anything by accident. When skills left the `/` palette that rule moved rather than disappearing: the picker's row builder is handed every name both higher layers claim and drops its collisions — a skill called `clear` is unlisted in `/skill ` for the same reason it would never have run from `/`.
 
 **An invocation is two messages, and the split is not ours to choose.** `SkillInvocationSource` is a durable `MessageSourceMap` variant, documented as: the user's own words ride a plain user message, and the rendered skill body follows as injected `instructions`-form context carrying that source. So:
 
@@ -802,11 +827,11 @@ The body is `renderSkillContent`'s output and not our own wrapper, so the model 
 
 **Unknown is one outcome with four causes**: no registry mounted, a name outside the kebab-case grammar, a name no provider offers, and a name whose skill is model-only. They collapse because they produce one user-visible fact — nothing by that name is yours to run — and separating them would tell a user that a skill exists but is not theirs, which leaks the catalog the provider chose not to expose. A skill that *is* listed but whose body will not load is distinct (`The review skill could not be loaded`), because the user did name something real and can go look at it.
 
-**Matching a submitted line is exact**: no prefix, no case folding. The palette is where a partial name gets completed; once a line is submitted, running something the user did not name is worse than saying the name is unknown. The catalog is re-read on invocation rather than reusing the palette's copy — a skill is a file another process may have just rewritten, and `cd` moves which project roots are in view.
+**Matching a submitted line is exact**: no prefix, no case folding. The picker is where a partial name gets completed; once a line is submitted, running something the user did not name is worse than saying the name is unknown. The catalog is re-read on invocation rather than reusing the picker's copy — a skill is a file another process may have just rewritten, and `cd` moves which project roots are in view.
 
-**An incomplete catalog is dropped, not applied.** `snapshot()` reports `complete: false` while a provider is still starting up; the palette keeps its last good rows rather than flickering entries out of existence, and `skills/change` brings it back for another look.
+**An incomplete catalog is dropped, not applied.** `snapshot()` reports `complete: false` while a provider is still starting up; the picker keeps its last good rows rather than flickering entries out of existence, and `skills/change` brings it back for another look.
 
-**Not done.** No `/skills` listing. The palette *is* the listing, and a command that printed the same rows into the transcript would be a second surface to keep in sync with the first.
+**Not done.** No transcript listing. `/skill ` opens an interactive picker; a command that printed the same rows into the conversation would be a second surface to keep in sync with the first, and rows printed once at invocation time cannot track a changing catalog.
 
 ### 1.15 Hook runs
 
@@ -901,7 +926,7 @@ The policy list is written as `['ask', 'never'] as const satisfies readonly Appr
 
 ### 1.19 Vim keybinds
 
-`/keybinds vim` puts a modal keymap over the prompt editor. The whole design is one sentence: **insert mode *is* §1.6's table, unchanged.** Turning the setting on subtracts nothing — the palette, the `@` picker, history recall, bracketed paste, `Ctrl-A/E/W/U/K`, mouse reports and the OSC tails all keep working, because `applyVim` declines every key while the mode is `insert` and the existing handlers run exactly as they did.
+`/keybinds vim` puts a modal keymap over the prompt editor. The whole design is one sentence: **insert mode *is* §1.6's table, unchanged.** Turning the setting on subtracts nothing — the `/` palette, the `/skill` picker, the `@` picker, history recall, bracketed paste, `Ctrl-A/E/W/U/K`, mouse reports and the OSC tails all keep working, because every picker's key branches sit physically above the vim gate and `applyVim` declines every key while the mode is `insert` anyway, so the existing handlers run exactly as they did.
 
 **The keymap is a pure function, in `src/vim.ts`.** `applyVim(state, key, text, cursor) → VimResult` has no I/O, no React and no knowledge of Ink, for the same reason `state.ts` doesn't: a keymap is a decision table, and a decision table you can call in a `describe` block is one you can actually pin down. `Prompt.tsx` is the only adapter, and it does three things with the result — set the mode, set the text, move the caret.
 
@@ -911,7 +936,7 @@ The policy list is written as `['ask', 'never'] as const satisfies readonly Appr
 
 **An unknown key in normal mode is swallowed, never typed.** `dq` abandons the operator; `q` alone does nothing. The alternative — falling through to the text path — means a mistyped normal-mode key silently appends a letter to a prompt the user believes they are navigating, and they find out when they press Enter.
 
-**Esc is contested three ways, and turn-cancel has to stay reachable.** The order is: the palette or the `@` picker wins it first; then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
+**Esc is contested four ways, and turn-cancel has to stay reachable.** The order is: the `/` palette, the `/skill` picker or the `@` picker wins it first (in the precedence of §1.5.9, only one can be open); then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
 
 **The mode indicator costs zero rows and zero columns.** The prompt marker changes from `> ` to `N `, and it and the caret turn yellow. Not a `NORMAL` badge under the box: the root is a fixed-height frame and Yoga *overlaps* an overflowing subtree instead of scrolling it (§1.8), so a row that appears when a mode changes is a row that lands on top of the transcript. A width change would be as bad in the other direction — it re-folds every wrapped row in the buffer, which is a caret jump on a keystroke that was supposed to be free.
 

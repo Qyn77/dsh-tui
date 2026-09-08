@@ -137,6 +137,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
 | `/sessions` | List the stored sessions, with the id to resume one by |
+| `/skill` | Pick a user-invocable skill: `/skill ` opens a picker, `/skill <name> [args]` runs one |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide` |
 | `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`; bare reports which is on and changes nothing |
@@ -331,20 +332,28 @@ itself in the terminal; the chip is the confirmation.
 
 ### Running a skill
 
-If your assembly mounts skills, the ones marked as user-invocable show up in
-the `/` palette with a `◆` in front of their description:
+Skills stay out of the `/` palette — a bundle can ship dozens of them, and the
+palette is for the fixed command surface. To see what your assembly mounted,
+type `/skill ` (with the trailing space): a picker opens listing only
+user-invocable skills, each marked with a `◆`:
 
 ```
 /review    ◆ Read a diff and list what would break in production
 ```
 
-Type it like any other command, and add whatever the skill should work on:
+Walk it with `↑`/`↓`: `Tab` inserts `/<name> ` into the prompt so you can keep
+typing arguments, and `Enter` runs the highlighted skill immediately. The
+token after `/skill ` filters by prefix, so `/skill rev` narrows straight to
+it. `Esc` closes the list without losing what you typed.
+
+You can also name a skill directly, and add whatever it should work on:
 
 ```
 > /review the auth change
 ```
 
-The skill's instructions are handed to the model and the turn starts. Your own
+`/skill review the auth change` is exactly the same line once dispatched. The
+skill's instructions are handed to the model and the turn starts. Your own
 words stay your own message; the instructions are not folded into them. The
 transcript shows one dim row naming what ran:
 
@@ -353,9 +362,8 @@ transcript shows one dim row naming what ran:
 ```
 
 Built-in commands win a name collision, then plugin commands, then skills — so
-dropping a `clear` skill into a project cannot take `/clear` away from you.
-
-There is no `/skills` listing: the palette is the listing.
+a skill called `clear` neither appears in the picker nor can take `/clear`
+away from you. A bare `/skill` prints usage.
 
 ### Hook runs
 

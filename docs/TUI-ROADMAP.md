@@ -218,7 +218,9 @@ Priority features:
 - better error rendering — **done** in v0.2: network, model and tool errors get
   one uniform block in `red`
 - richer slash command discoverability — **done**: the `/` palette filters as
-  you type and `Tab` completes the highlighted name
+  you type and `Tab` completes the highlighted name; skills moved out of it
+  into the dedicated `/skill ` picker once a large catalog started drowning
+  the fixed commands (SPEC §1.5.9)
 - plugin status integration through dsh events and session metadata —
   **done**: `/plugins` lists package name and lifecycle phase, broken entries
   first, and `enable`/`disable` rewrite the loader config

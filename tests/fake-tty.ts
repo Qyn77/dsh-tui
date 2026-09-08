@@ -16,6 +16,7 @@ import { render } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
 import { Session } from '@deepseek-ai/dsh-session'
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
 import { App } from '../src/renderer.tsx'
 import type { Lang } from '../src/i18n.ts'
 import type { Appearance, ThemePref } from '../src/theme.ts'
@@ -225,6 +226,15 @@ export interface PaintOptions {
   /** Stand-in for `agent.cancel`. Defaults to a no-op. */
   cancel?: (cause: unknown) => void
   /**
+   * Skill names to mount a fake `skills` registry with. Every skill is
+   * user-invocable, describes itself as `does <name>`, and loads a body of
+   * `body of <name>` on `get()`. The default fixture includes `clear`, the
+   * built-in name a dropped-in skill must never shadow, so the precedence rule
+   * is exercised in every mount that opens the picker. Pass `[]` for a registry
+   * that discovered nothing.
+   */
+  skills?: readonly string[]
+  /**
    * Ink's `debug` render mode, on by default because it writes each frame as
    * one plain chunk and that is what makes `screen()` readable.
    *
@@ -241,11 +251,42 @@ export interface PaintOptions {
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 
+/** Default catalog for the fake registry; `clear` is the built-in-shadow case. */
+const DEFAULT_SKILLS = ['review', 'refresh', 'changelog', 'clear'] as const
+
+/** Build one user-invocable summary, the same shape the fs provider emits. */
+function skillSummary(name: string): SkillSummary {
+  return {
+    name,
+    description: `does ${name}`,
+    invocation: { modelInvocable: true, userInvocable: true },
+    source: 'project-dsh',
+    provider: 'fs',
+  }
+}
+
+/**
+ * A fake `ctx.skills` over a fixed name list: an immediately-complete
+ * `snapshot()` and a `get()` that loads a body for any name the snapshot
+ * advertised. Mirrors the `fakeCatalog` of skill-runner.spec.ts.
+ */
+function fakeSkills(names: readonly string[]) {
+  const skills = names.map(skillSummary)
+  return {
+    snapshot: () => Promise.resolve({ skills: [...skills], complete: true }),
+    get: (name: string): Promise<SkillDefinition | undefined> => {
+      const found = skills.find(s => s.name === name)
+      return Promise.resolve(found ? { ...found, content: `body of ${name}` } : undefined)
+    },
+  }
+}
+
 /** Mount the real `App` against a fake TTY of the given size. */
 export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
     appearance = 'dark', themePref = 'auto', keybinds = 'default', steer, followup, cancel,
+    skills = DEFAULT_SKILLS,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
@@ -253,6 +294,7 @@ export async function paintApp(
   const stdin = fakeTtyStdin()
   const ctx = new Context()
   ctx.provide('agentDefaultModel', { currentSelection: () => selection } as never)
+  ctx.provide('skills', fakeSkills(skills) as never)
   const session = seedSession(turns)
   // The double's status tracks the turn boundaries a test appends, rather
   // than sitting at 'idle' forever. `handleInterrupt` reads `agent.status`

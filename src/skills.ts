@@ -1,11 +1,15 @@
 /**
- * User-invocable skills, as `/` palette rows and as a name to resolve.
+ * User-invocable skills: as rows for the `/skill ` picker, as a `/skill` token
+ * in the buffer, and as a name to resolve.
  *
  * A skill is not a command, and the difference is the whole reason this module
  * exists separately from `commands.ts`. Every other `/` row either changes view
  * state or calls a plugin handler that hands back text; a skill row **starts a
  * turn** — it injects instructions and the model runs. That costs tokens and
- * takes time, so the palette marks skill rows rather than blending them in.
+ * takes time, so picker rows are marked with {@link SKILL_GLYPH} rather than
+ * blended in. Skills used to be rows in the `/` palette itself; they live
+ * behind `/skill ` now, because a long catalog drowned the commands the palette
+ * exists to offer.
  *
  * `@deepseek-ai/dsh-skill` owns discovery and precedence *within* the registry.
  * This module owns only the part the registry cannot know: how skills rank
@@ -45,7 +49,7 @@ export function userSkills(skills: readonly SkillSummary[]): SkillSummary[] {
 }
 
 /**
- * Map user-invocable skills into palette rows.
+ * Map user-invocable skills into `/skill ` picker rows.
  *
  * The description is the skill's own, prefixed with {@link SKILL_GLYPH} and
  * shown as written — same rule `registryCommands` follows for plugin
@@ -66,9 +70,12 @@ export function skillRows(skills: readonly SkillSummary[]): CommandMeta[] {
 /**
  * Drop skill rows whose name is already taken by a command.
  *
- * Precedence is built-ins, then the plugin registry, then skills. `allCommands`
- * already gives built-ins the win for a stated reason — advertising behaviour
- * that cannot run is worse than omitting the row — and skills lose to both for
+ * Precedence is built-ins, then the plugin registry, then skills. The caller
+ * (`useSkillCommands`) now passes both layers as `taken`, because skill rows no
+ * longer pass through `allCommands` — they left the `/` palette for the
+ * `/skill ` picker — so without this filter nothing else would give built-ins
+ * the win. That win exists for a stated reason — advertising behaviour that
+ * cannot run is worse than omitting the row — and skills lose to both for
  * an additional one: a skill is the only layer a user creates by dropping a
  * file into a directory. The layer that is easiest to add by accident should
  * be the layer that cannot shadow anything.
@@ -85,6 +92,81 @@ export function withoutShadowed(
 ): CommandMeta[] {
   const claimed = new Set(taken.map(c => c.name.toLowerCase()))
   return skills.filter(s => !claimed.has(s.name.toLowerCase()))
+}
+
+/** A `/skill <token>` query in the buffer: what it asks for, and what it occupies. */
+export interface SkillMention {
+  /** The token typed after `/skill `, which may be empty right after the space. */
+  query: string
+  /** Index the query token starts at — always 7, the position after `/skill `. */
+  start: number
+  /** Index one past the token's last character. */
+  end: number
+}
+
+/** The literal prefix the picker anchors on; {@link SkillMention.start} is its length. */
+const SKILL_PREFIX = '/skill '
+
+/**
+ * Find the `/skill ` query token the caret is in, if any.
+ *
+ * This is the `@` mention's rule (`mentionAt` in `file-mentions.ts`) with a
+ * command where the `@` was: the anchor has to sit at position 0 because
+ * commands start on the first line, the token runs to the next whitespace
+ * rather than to the caret (so completing mid-token replaces the whole
+ * thing), and a second token closes the picker — `/skill re view` is prose
+ * being typed for the chosen skill, not a longer filter.
+ *
+ * The separator is a literal space, never a newline: a line broken with
+ * `\`-Enter is a continuation, and commands do not continue.
+ * @param buffer - the prompt buffer.
+ * @param cursor - the caret's index into it.
+ * @returns the query token, or `undefined` when the caret is not in one.
+ */
+export function skillMentionAt(buffer: string, cursor: number): SkillMention | undefined {
+  const caret = Math.min(Math.max(0, cursor), buffer.length)
+  if (!buffer.startsWith(SKILL_PREFIX)) return undefined
+  let start = caret
+  while (start > SKILL_PREFIX.length && !/\s/.test(buffer[start - 1] ?? '')) start -= 1
+  if (start !== SKILL_PREFIX.length) return undefined
+  let end = caret
+  while (end < buffer.length && !/\s/.test(buffer[end] ?? '')) end += 1
+  return { query: buffer.slice(start, end), start, end }
+}
+
+/**
+ * Replace the `/skill <token>` query with the chosen skill row, leaving a space.
+ *
+ * Mirrors `applyMention`: the row already carries its leading `/`, and the
+ * trailing space closes the token so the picker disappears and the next
+ * keystroke is ordinary text — an argument for the skill, or Enter to run it.
+ * @returns the new buffer and where the caret should sit in it.
+ */
+export function applySkillMention(
+  buffer: string,
+  mention: SkillMention,
+  row: string,
+): { text: string; cursor: number } {
+  const head = `${row} `
+  return { text: head + buffer.slice(mention.end), cursor: head.length }
+}
+
+/**
+ * Filter picker rows by the typed token.
+ *
+ * Case-insensitive **prefix** match on the bare name, matching what
+ * `filterCommands` does for the `/` palette rather than the file picker's
+ * subsequence scoring: skill names are short kebab-case tokens, so a prefix
+ * is what a person typing one means. Rows arrive in registry order and leave
+ * in it; the floating palette itself does the windowing, so the list here is
+ * not capped.
+ * @param rows - the candidate rows, each named `/<skill>`.
+ * @param query - the token typed after `/skill `.
+ * @returns the matching rows, input order preserved.
+ */
+export function filterSkillRows(rows: readonly CommandMeta[], query: string): CommandMeta[] {
+  const wanted = query.toLowerCase()
+  return rows.filter(row => row.name.slice(1).toLowerCase().startsWith(wanted))
 }
 
 /**
@@ -117,7 +199,8 @@ export function parseSkillLine(line: string): { name: string; rest: string } | u
  * Find the summary a typed name resolves to, honouring invocation policy.
  *
  * Matching is exact after the leading `/` is stripped — no prefix matching and
- * no case folding. The palette is where a partial name gets completed; by the
+ * no case folding. The `/skill ` picker is where a partial name gets
+ * completed; by the
  * time a line is submitted, running something the user did not name is a
  * worse outcome than telling them the name is unknown.
  * @param skills - the catalog to search.

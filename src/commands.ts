@@ -78,6 +78,12 @@ export type CommandResult =
   | { kind: 'handled'; message?: string; failed?: boolean }
   | { kind: 'exit' }
   | { kind: 'unknown'; input: string }
+  /**
+   * `/skill <name> [args]`: the App routes the rewritten `input` (`/<name>
+   * [args]`) through the same skill fallback an unknown `/<name>` takes. This
+   * module never imports the skill registry, so it cannot resolve the name.
+   */
+  | { kind: 'skill'; input: string }
 
 /**
  * One entry in the slash-command registry. Both the palette and the
@@ -482,6 +488,21 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
 
     case '/sessions':
       return await listSessions(cmd, strings)
+
+    case '/skill': {
+      // Bare `/skill` cannot open the picker — dispatch means the line was
+      // submitted, and the picker lives in the buffer — so it prints how to
+      // reach it. With an argument it is an explicit invocation, rewritten to
+      // `/<name> [args]` and routed through the same skill fallback a typed
+      // `/<name>` takes. The name is deliberately not validated here: this
+      // module does not depend on the skill registry, and every failure
+      // (unknown, model-only, bad grammar, no registry) already collapses to
+      // the runner's ordinary unknown-command note.
+      const args = raw.trim().split(/\s+/).slice(1)
+      if (args.length === 0) return { kind: 'handled', message: strings.skillUsage }
+      const after = raw.trim().slice('/skill'.length).replace(/^\s+/, '')
+      return { kind: 'skill', input: `/${after}` }
+    }
 
     case '/resume': {
       const args = raw.trim().split(/\s+/).slice(1)

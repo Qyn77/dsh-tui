@@ -131,6 +131,7 @@ REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续�
 | `/verbose` | 让每段长输出多显示一些：`/verbose on`、`off`，不带参数则切换 |
 | `/plugins` | 列出本进程加载的插件，以及各自的生命周期状态；`/plugins enable\|disable <名字>` 开关某一个，并写回 loader 配置 |
 | `/sessions` | 列出已存的 session，以及接上其中一个要用的 id |
+| `/skill` | 挑选可由用户调用的 skill：`/skill ` 打开选择器，`/skill <名称> [参数]` 直接运行 |
 | `/resume` | 切到某个已存的 session：`/resume <id>`，或者 `/resume last` |
 | `/history` | 显示或隐藏接续 session 带来的已存历史：`/history show` 或 `hide` |
 | `/keybinds` | 选择输入框的键位：`/keybinds default` 或 `vim`；不带参数只报告当前是哪一种，不做切换 |
@@ -285,30 +286,34 @@ TUI 为此没有引入对 MCP 插件的任何依赖，它读的是命名约定�
 
 ### 跑一个 skill
 
-如果你的装配里挂了 skill，其中允许用户调用的那些会出现在 `/` 面板里，
-描述前面带一个 `◆`：
+skill 不混在 `/` 面板里——一个 bundle 可能带上几十个 skill，而面板是留给
+固定指令面的。想看你的装配挂了哪些，输入 `/skill `（带末尾空格）：会弹出一个
+只列「允许用户调用」的 skill 的选择器，每行前面带一个 `◆`：
 
 ```
 /review    ◆ Read a diff and list what would break in production
 ```
 
-像普通命令一样打它，后面跟上要干什么：
+用 `↑`/`↓` 挑选：`Tab` 把 `/<名称> ` 插进输入框，可以接着打参数；`Enter`
+立刻执行高亮的 skill。`/skill ` 后面打的一个词会按前缀过滤，所以
+`/skill rev` 直接缩到它。`Esc` 关闭列表但不丢你打的字。
+
+也可以直接打出名字，后面跟上要干什么：
 
 ```
 > /review 看看鉴权那块改动
 ```
 
-skill 的指令会交给模型，然后开始一轮对话。你自己写的话还是你自己的消息，
-不会被揉进指令里。transcript 里只会多一行暗色的说明，告诉你跑的是哪个：
+`/skill review 看看鉴权那块改动` 在派发后就是同一行。skill 的指令会交给模型，
+然后开始一轮对话。你自己写的话还是你自己的消息，不会被揉进指令里。
+transcript 里只会多一行暗色的说明，告诉你跑的是哪个：
 
 ```
 ⤷ 技能 review
 ```
 
-名字撞车时内置命令最大，其次是插件命令，最后才是 skill——所以在项目里放一个
-叫 `clear` 的 skill，拿不走你的 `/clear`。
-
-没有 `/skills` 列表：面板本身就是列表。
+名字撞车时内置命令最大，其次是插件命令，最后才是 skill——所以一个叫 `clear`
+的 skill 既不会出现在选择器里，也拿不走你的 `/clear`。裸 `/skill` 会打印用法。
 
 ### hook 执行记录
 

@@ -923,6 +923,32 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/skill', () => {
+    it('prints usage for a bare line rather than claiming to have run anything', async () => {
+      // The picker lives in the buffer; a submitted bare line has no picker
+      // to open, so it points the reader at one.
+      const { cmd } = makeCommand()
+      const result = await dispatch('/skill', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).not.toBe(true)
+        expect(result.message).toContain('/skill')
+      }
+    })
+
+    it('routes `/skill <name> args` as `/<name> args`', async () => {
+      const { cmd } = makeCommand()
+      const result = await dispatch('/skill review the auth change', cmd)
+      expect(result).toEqual({ kind: 'skill', input: '/review the auth change' })
+    })
+
+    it('keeps the prose spacing after the one separator it removes', async () => {
+      const { cmd } = makeCommand()
+      const result = await dispatch('/skill\treview  the diff', cmd)
+      expect(result).toEqual({ kind: 'skill', input: '/review  the diff' })
+    })
+  })
+
   describe('/keybinds', () => {
     it('reads without writing when bare, unlike /history', async () => {
       // Deliberately not a toggle. These two states change what every
@@ -1331,7 +1357,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/approval', '/clear', '/context', '/copy', '/exit', '/help', '/history', '/keybinds', '/language',
-      '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme',
+      '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
       '/usage', '/verbose',
     ])
   })
@@ -1386,7 +1412,8 @@ describe('filterCommands', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/keybinds',
         '/language',
-        '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
+        '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
+        '/usage', '/verbose',
       ])
     })
 

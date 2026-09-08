@@ -22,6 +22,13 @@
  * highlighted name, Enter runs an exact match (otherwise completes),
  * Esc clears the buffer.
  *
+ * Two more lists share that one component. Typing `/skill ` opens the
+ * skill picker — user-invocable skills used to be rows in the `/`
+ * palette and live behind this token now — where Tab inserts `/<name>`
+ * and Enter runs the highlighted one. An `@` opens the file picker, the
+ * same shape with paths. Only one of the three is ever open, in that
+ * precedence: `/` palette, skill picker, file picker.
+ *
  * ↑/↓ are shared with the conversation viewport, and Ink dispatches a
  * keystroke to *every* `useInput` handler — there is no bubbling to stop. So
  * ownership is decided here and reported upward through
@@ -59,6 +66,11 @@ import {
   wrapBuffer,
 } from '../prompt-layout.ts'
 import { applyMention, mentionAt } from '../file-mentions.ts'
+import {
+  applySkillMention,
+  filterSkillRows,
+  skillMentionAt,
+} from '../skills.ts'
 import { INITIAL_VIM, applyVim, type KeybindPref, type VimState } from '../vim.ts'
 import { useFileMentions } from '../hooks/useFileMentions.ts'
 import { SlashPalette } from './SlashPalette.tsx'
@@ -99,8 +111,8 @@ export interface PromptProps {
    */
   onFilledChange?: (filled: boolean) => void
   /**
-   * Report whether `Esc` currently belongs to the prompt — the palette or the
-   * file picker is open and Esc dismisses it. The App cancels the running turn
+   * Report whether `Esc` currently belongs to the prompt — one of the three
+   * floating lists is open and Esc dismisses it. The App cancels the running turn
    * on Esc, and since the prompt now takes input *during* a turn (§1.6) the two
    * meanings can be live at the same moment; without this the one press would
    * dismiss the palette and kill the turn. Optional, like the arrow claim.
@@ -108,7 +120,7 @@ export interface PromptProps {
   onEscClaimChange?: (claimed: boolean) => void
   /**
    * Report how many rows the floating list above the prompt currently
-   * occupies — `0` when neither the palette nor the file picker is open.
+   * occupies — `0` when none of the three floating lists is open.
    *
    * The App subtracts it from the banner's height budget. On an empty session
    * the banner is the tallest thing in the frame and the palette opens *above*
@@ -125,6 +137,13 @@ export interface PromptProps {
    * rendered without it advertises the built-in table only.
    */
   extraCommands?: readonly CommandMeta[]
+  /**
+   * User-invocable skills for the `/skill ` picker. Deliberately separate
+   * from {@link extraCommands}: skills do not appear in the `/` palette, and
+   * the App already resolved the built-in/plugin shadowing before handing
+   * these down. Optional: a prompt rendered without it has no picker.
+   */
+  skillCommands?: readonly CommandMeta[]
   /**
    * Which keymap the prompt runs — see `/keybinds` and `src/vim.ts`. Optional
    * and defaulting to `default`, so a prompt rendered without it is the
@@ -184,6 +203,7 @@ export const Prompt: FC<PromptProps> = ({
   onEscClaimChange,
   onOverlayRowsChange,
   extraCommands,
+  skillCommands,
   keybinds = 'default',
 }) => {
   const { stdout } = useStdout()
@@ -213,6 +233,10 @@ export const Prompt: FC<PromptProps> = ({
   // it stays dismissed while they finish typing that token and comes back on
   // the next one, which is what Esc means everywhere else in this prompt.
   const [dismissed, setDismissed] = useState<number | null>(null)
+  // Whether the `/skill ` picker was dismissed for the current token. A
+  // boolean rather than another position key: the anchor is the constant
+  // `/skill `, so the token — not its offset — is the unit it forgets by.
+  const [skillDismissed, setSkillDismissed] = useState(false)
   // Modal editing, when the user has asked for it. `INITIAL_VIM` starts in
   // insert, so switching keybinds on mid-session does not swallow the next
   // thing typed — normal mode is a place you go, not a place you land.
@@ -232,12 +256,33 @@ export const Prompt: FC<PromptProps> = ({
   // `paletteWindowRows`. Ink re-renders the tree on resize, so this tracks.
   const paletteRows = paletteWindowRows(stdout?.rows ?? 24)
 
-  // The `@` picker. Suppressed while the `/` palette is open so the two can
-  // never both claim ↑/↓ or Tab — `/` wins because it is anchored to the first
-  // character and a mention is not, which makes it the more deliberate of the
-  // two. The picker's index rides on `paletteIndex` for the same reason only
-  // one of them is ever open.
-  const mention = palette.length === 0 ? mentionAt(value, cursorIndex) : undefined
+  // The `/skill ` picker, between the `/` palette and the `@` picker in
+  // precedence: suppressed while the palette is open, and it suppresses the
+  // file mention so the two can never both claim ↑/↓ or Tab. Its index rides
+  // on `paletteIndex` for the same reason only one list is ever open.
+  //
+  // There is deliberately no "scanning" row: skill rows arrive in a prop, and
+  // before the first complete catalog exists the list is simply absent —
+  // unlike a directory walk, nothing is in flight from the user's keystroke.
+  const skillMention = palette.length === 0 ? skillMentionAt(value, cursorIndex) : undefined
+  const skillPickRows = skillMention === undefined
+    ? []
+    : filterSkillRows(skillCommands ?? [], skillMention.query)
+  const safeSkillIndex = clampPaletteIndex(paletteIndex, skillPickRows)
+  const skillTokenActive = skillMention !== undefined
+  const pickingSkill = skillTokenActive
+    && !skillDismissed
+    && skillPickRows.length > 0
+  useEffect(() => {
+    if (!skillTokenActive) setSkillDismissed(false)
+  }, [skillTokenActive])
+
+  // The `@` picker. Suppressed while either list above it is open. `/` wins
+  // because it is anchored to the first character and a mention is not, which
+  // makes it the more deliberate of the two.
+  const mention = palette.length === 0 && skillMention === undefined
+    ? mentionAt(value, cursorIndex)
+    : undefined
   const files = useFileMentions(mention?.query)
   const fileRows = files.paths.map(path => ({ name: path, description: '' }))
   const safeFileIndex = clampPaletteIndex(paletteIndex, fileRows)
@@ -263,7 +308,8 @@ export const Prompt: FC<PromptProps> = ({
   })
 
   // ↑/↓ are shared with the log; tell the App which of us owns them.
-  const claimsArrows = active && (palette.length > 0 || picking || rows.length > 1)
+  const claimsArrows = active
+    && (palette.length > 0 || pickingSkill || picking || rows.length > 1)
   useEffect(() => {
     onArrowClaimChange?.(claimsArrows)
   }, [claimsArrows, onArrowClaimChange])
@@ -278,6 +324,7 @@ export const Prompt: FC<PromptProps> = ({
   // even when there is.
   const claimsEsc = active && (
     palette.length > 0
+    || (pickingSkill && skillMention !== undefined)
     || (picking && mention !== undefined)
     || (vimOn && vim.mode === 'insert' && value !== '')
   )
@@ -290,9 +337,11 @@ export const Prompt: FC<PromptProps> = ({
   // only things in the frame and the banner is much the taller.
   const overlayShown = palette.length > 0
     ? Math.min(palette.length, paletteRows)
-    : picking
-      ? Math.min(Math.max(fileRows.length, 1), paletteRows)
-      : 0
+    : pickingSkill
+      ? Math.min(skillPickRows.length, paletteRows)
+      : picking
+        ? Math.min(Math.max(fileRows.length, 1), paletteRows)
+        : 0
   const overlayRows = overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS
   useEffect(() => {
     onOverlayRowsChange?.(overlayRows)
@@ -392,6 +441,37 @@ export const Prompt: FC<PromptProps> = ({
     // does: the next thing a user does after sending is type, and making them
     // press `i` first would tax every message to make one keystroke available.
     setVim(v => (v.mode === 'normal' ? { ...v, mode: 'insert', pending: '' } : v))
+  }
+
+  /**
+   * Put a line on its way and reset everything a submission owns: buffer,
+   * caret, scroll, both pickers' dismiss markers, history walk and vim mode.
+   * The single tail of every Enter path — palette, skill picker, plain line —
+   * so a new entry point cannot quietly forget one of the resets.
+   */
+  const submit = (submitted: string): void => {
+    setValue('')
+    setCursorIndex(0)
+    setScrollTop(0)
+    setDismissed(null)
+    setSkillDismissed(false)
+    rememberSubmission(submitted)
+    onSubmit(submitted)
+  }
+
+  /**
+   * Write the highlighted skill row into the buffer in place of `/skill …`,
+   * leaving the trailing space that closes the picker. Tab's answer.
+   */
+  const completeSkill = (): boolean => {
+    if (skillMention === undefined) return false
+    const chosen = skillPickRows[safeSkillIndex]
+    if (chosen === undefined) return false
+    const next = applySkillMention(value, skillMention, chosen.name)
+    setValue(next.text)
+    setCursorIndex(next.cursor)
+    setPaletteIndex(0)
+    return true
   }
 
   /**
@@ -495,6 +575,11 @@ export const Prompt: FC<PromptProps> = ({
           setCursorIndex(0)
           setPaletteIndex(0)
           setScrollTop(0)
+        } else if (pickingSkill && skillMention !== undefined) {
+          // Same bargain as the file picker: dismiss the list for this token,
+          // keep the `/skill rev` the user has typed.
+          setSkillDismissed(true)
+          setPaletteIndex(0)
         } else if (picking && mention !== undefined) {
           // The buffer is a sentence the user is writing, not a command they
           // mistyped: dismiss the list, keep the words.
@@ -531,6 +616,11 @@ export const Prompt: FC<PromptProps> = ({
         }
         return
       }
+      // Tab in the skill picker inserts `/<name> ` so arguments can follow.
+      if (key.tab && pickingSkill) {
+        completeSkill()
+        return
+      }
       // Tab in a mention inserts the highlighted path. Same keystroke, same
       // meaning: finish what I have started typing.
       if (key.tab && picking) {
@@ -545,6 +635,10 @@ export const Prompt: FC<PromptProps> = ({
           setPaletteIndex(i => clampPaletteIndex(i - 1, palette))
           return
         }
+        if (pickingSkill) {
+          setPaletteIndex(i => clampPaletteIndex(i - 1, skillPickRows))
+          return
+        }
         if (picking) {
           setPaletteIndex(i => clampPaletteIndex(i - 1, fileRows))
           return
@@ -555,6 +649,10 @@ export const Prompt: FC<PromptProps> = ({
       if (key.downArrow) {
         if (palette.length > 0) {
           setPaletteIndex(i => clampPaletteIndex(i + 1, palette))
+          return
+        }
+        if (pickingSkill) {
+          setPaletteIndex(i => clampPaletteIndex(i + 1, skillPickRows))
           return
         }
         if (picking) {
@@ -588,14 +686,18 @@ export const Prompt: FC<PromptProps> = ({
         // against the registry's `name` so case is normalized.
         if (palette.length > 0) {
           const normalized = value.toLowerCase()
+          // The one exact match that must not run: a bare `/skill` only
+          // prints usage, while the row's whole job is to open the picker.
+          // Completing to `/skill ` does that on the next render.
+          if (normalized === '/skill') {
+            setValue('/skill ')
+            setCursorIndex(8)
+            setPaletteIndex(0)
+            return
+          }
           const exact = palette.find(c => c.name === normalized)
           if (exact) {
-            setValue('')
-            setCursorIndex(0)
-            setPaletteIndex(0)
-            setScrollTop(0)
-            rememberSubmission(exact.name)
-            onSubmit(exact.name)
+            submit(exact.name)
             return
           }
           // Otherwise, complete the highlighted name into the buffer
@@ -609,18 +711,22 @@ export const Prompt: FC<PromptProps> = ({
           }
           return
         }
-        // Enter in an open picker inserts the path rather than sending the
-        // line, matching the `/` palette above: the visible list is what the
-        // key acts on. Sending takes a second Enter, by which time the picker
-        // is closed.
+        // Enter in the skill picker RUNS the highlighted skill — unlike the
+        // file picker, whose rows are prose and only get inserted. The chosen
+        // name is submitted bare; Tab is the path for adding arguments first.
+        if (pickingSkill) {
+          const chosen = skillPickRows[safeSkillIndex]
+          if (chosen) {
+            submit(chosen.name)
+            return
+          }
+        }
+        // Enter in an open file picker inserts the path rather than sending
+        // the line, matching the `/` palette above: the visible list is what
+        // the key acts on. Sending takes a second Enter, by which time the
+        // picker is closed.
         if (picking && completeMention()) return
-        const submitted = value
-        setValue('')
-        setCursorIndex(0)
-        setScrollTop(0)
-        setDismissed(null)
-        rememberSubmission(submitted)
-        onSubmit(submitted)
+        submit(value)
         return
       }
       if (key.leftArrow) {
@@ -686,6 +792,16 @@ export const Prompt: FC<PromptProps> = ({
       {palette.length > 0 ? (
         <Box marginBottom={1}>
           <SlashPalette commands={palette} selected={safePaletteIndex} maxRows={paletteRows} />
+        </Box>
+      ) : null}
+      {pickingSkill ? (
+        <Box marginBottom={1}>
+          <SlashPalette
+            commands={skillPickRows}
+            selected={safeSkillIndex}
+            hint={strings.palette.skillHint}
+            maxRows={paletteRows}
+          />
         </Box>
       ) : null}
       {picking ? (

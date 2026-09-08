@@ -73,6 +73,7 @@ export const COMMAND_NAMES = [
   '/plugins',
   '/quit',
   '/sessions',
+  '/skill',
   '/resume',
   '/status',
   '/theme',
@@ -126,6 +127,8 @@ export interface Catalog {
     hint: string
     /** The same legend for the `@` file picker, which has nothing to run. */
     fileHint: string
+    /** The legend for the `/skill ` picker, whose rows run a turn. */
+    skillHint: string
     /** Shown instead of rows while the first directory scan is in flight. */
     scanning: string
     /** Appended to the hint when the window hides rows. */
@@ -358,6 +361,8 @@ export interface Catalog {
     noPersistence: string
     /** `/resume` with no argument: what it wants and where to find it. */
     resumeUsage: string
+    /** Bare `/skill`: how to open the picker and how to run one directly. */
+    skillUsage: string
     /** `/resume` after the switch, naming the session now on screen. */
     resumeSwitched: (id: string) => string
     /** `/resume` after the switch, when the resumed history is not drawn. */
@@ -472,6 +477,7 @@ const EN: Catalog = {
   palette: {
     hint: '↑↓ navigate · Tab complete · Enter run · Esc dismiss',
     fileHint: '↑↓ navigate · Tab or Enter insert path · Esc dismiss',
+    skillHint: '↑↓ navigate · Tab insert /<name> · Enter run · Esc dismiss',
     scanning: 'scanning files…',
     more: count => ` · +${count} more`,
   },
@@ -562,6 +568,7 @@ const EN: Catalog = {
     '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
     '/quit': 'Alias for /exit',
     '/sessions': 'List stored sessions and how to continue one',
+    '/skill': 'Pick a user-invocable skill — /skill opens a picker, /skill <name> [args] runs one',
     '/resume': 'Continue a stored session: /resume <id>, or /resume last',
     '/status': 'Print the current model and session id',
     '/theme': 'Choose the background the colors assume: /theme auto, dark, or light',
@@ -606,6 +613,7 @@ const EN: Catalog = {
     noStoredSessions: 'No stored sessions yet — this is the first one.',
     noPersistence: 'No session persistence in this assembly, so nothing is stored to list.',
     resumeUsage: 'Usage: /resume <id>, or /resume last for the newest. Run /sessions for the ids.',
+    skillUsage: 'Usage: type /skill followed by a space to pick from the list, or /skill <name> [args] to run one. Typing /<name> directly works too.',
     resumeSwitched: id => `Resumed ${id}. The session you left is still stored — /sessions lists it.`,
     resumeSwitchedHidden: id => `Resumed ${id}, history hidden — the model still reads it. /history show draws it. The session you left is still stored — /sessions lists it.`,
     resumeCurrent: id => `Already in ${id} — nothing to switch to.`,
@@ -718,6 +726,7 @@ const ZH: Catalog = {
   palette: {
     hint: '↑↓ 选择 · Tab 补全 · Enter 执行 · Esc 关闭',
     fileHint: '↑↓ 选择 · Tab 或 Enter 插入路径 · Esc 关闭',
+    skillHint: '↑↓ 选择 · Tab 插入 /<名称> · Enter 执行 · Esc 关闭',
     scanning: '正在扫描文件…',
     more: count => ` · 还有 ${count} 条`,
   },
@@ -803,6 +812,7 @@ const ZH: Catalog = {
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
     '/sessions': '列出已存的 session，以及怎么接上其中一个',
+    '/skill': '挑选可由用户调用的 skill——/skill 打开选择器，/skill <名称> [参数] 直接运行',
     '/resume': '接上一个已存的 session：/resume <id>，或者 /resume last',
     '/status': '打印当前模型和 session id',
     '/theme': '选择配色假定的背景：/theme auto、dark 或 light',
@@ -847,6 +857,7 @@ const ZH: Catalog = {
     noStoredSessions: '还没有存下任何 session —— 这是第一个。',
     noPersistence: '当前装配没有 session 持久化，也就没有可列的东西。',
     resumeUsage: '用法：/resume <id>，或者 /resume last 接上最新的那个。id 用 /sessions 看。',
+    skillUsage: '用法：输入 /skill 加空格，从列表里挑选；也可以用 /skill <名称> [参数] 直接运行。直接打 /<名称> 同样可以。',
     resumeSwitched: id => `已经接上 ${id}。你刚才那个 session 还存着——/sessions 里能看到。`,
     resumeSwitchedHidden: id => `已经接上 ${id}，历史没有画出来——模型还是读得到的。/history show 可以画出来。你刚才那个 session 还存着——/sessions 里能看到。`,
     resumeCurrent: id => `已经在 ${id} 里了——没什么可切的。`,

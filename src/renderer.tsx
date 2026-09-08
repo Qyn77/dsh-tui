@@ -29,7 +29,7 @@ import { attachImages, classifyModalities, refusalText } from './attach-runner.t
 import { resolveSkill, skillFailureText, viewingScope } from './skill-runner.ts'
 import { useSkillCommands } from './hooks/useSkillCommands.ts'
 import { service } from './services.ts'
-import { dispatch } from './commands.ts'
+import { commands, dispatch } from './commands.ts'
 import { handleCancel, handleInterrupt } from './interrupt.ts'
 import { catalog, type Lang } from './i18n.ts'
 import { LanguageProvider } from './hooks/useStrings.tsx'
@@ -162,13 +162,6 @@ export const App: FC<AppProps> = ({
   const [historyPref, setHistoryPref] = useState<HistoryPref>(initialHistoryPref)
   const { state, resetView, appendEntry } = useSessionEvents(ctx, agent, { history: historyPref })
   const registryRows = useRegistryCommands(ctx, agent)
-  const skillRowsForPalette = useSkillCommands(ctx, agent, registryRows)
-  // Registry rows first: they outrank skills on a name collision, and
-  // `filterCommands` keeps the first of a duplicate pair.
-  const extraCommands = useMemo(
-    () => [...registryRows, ...skillRowsForPalette],
-    [registryRows, skillRowsForPalette],
-  )
   const approvals = useApprovalRequests(ctx, agent)
   // Appended once, in an effect rather than as a seeded entry, because the view
   // is seeded by replaying the session's durable log and a boot notice is not
@@ -195,6 +188,14 @@ export const App: FC<AppProps> = ({
   // `/language` changes it mid-session and every framed string has to follow.
   const [lang, setLang] = useState<Lang>(initialLang)
   const strings = catalog(lang)
+  // Skills no longer ride along in the `/` palette: they feed the `/skill `
+  // picker as a separate prop. Shadowing therefore can't happen in
+  // `filterCommands` anymore, so both higher layers' names are claimed here.
+  const claimedCommands = useMemo(
+    () => [...commands(lang), ...registryRows],
+    [lang, registryRows],
+  )
+  const skillRowsForPicker = useSkillCommands(ctx, agent, claimedCommands)
   // `!` escapes. Declared here because both the interrupt handler and the
   // submit handler need it, and it is the owner of the working directory.
   const shell = useShell({ agent, appendEntry, strings })
@@ -586,6 +587,11 @@ export const App: FC<AppProps> = ({
             // the layer a user creates by dropping a file into a directory is
             // the one that must not shadow anything.
             void runSkill(result.input)
+          } else if (result.kind === 'skill') {
+            // `/skill <name> [args]` rewrites to the same line the direct
+            // `/<name>` fallback takes, so both invocations share one path —
+            // one inject/followup ordering and one set of failure notes.
+            void runSkill(result.input)
           }
           // 'exit' is handled inside dispatch by calling appExit; nothing more
           // to do here.
@@ -811,7 +817,8 @@ export const App: FC<AppProps> = ({
           onEscClaimChange={setPromptClaimsEsc}
           keybinds={keybindPref}
           onOverlayRowsChange={setPromptOverlayRows}
-          extraCommands={extraCommands}
+          extraCommands={registryRows}
+          skillCommands={skillRowsForPicker}
         />
       </Box>
     </AppProviders>
