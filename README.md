@@ -125,13 +125,14 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `Enter` | Send the current input as a user message to the model — while a turn is running it steers that turn instead of queuing a new one |
 | `/help` | Print available slash commands |
 | `/clear` | Clear the visible chat (the session log is unchanged) |
-| `/status` | Print the current model and session id |
+| `/status` | Print the current model, session id, and effective permission preset |
 | `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it |
 | `/context` | Print the context window, this session's token spend, and how full the context is now |
 | `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/mcp` | List the connected MCP servers and the tools each one registered |
 | `/approval` | Show this session's approval policy; `/approval ask` or `never` switches it |
+| `/permission` | Plugin command: switch a bundled sandbox + approval preset (`read-only`, `workspace-write`, `danger-full-access`) |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
 | `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
@@ -516,6 +517,31 @@ for rather than looking arbitrary:
 Policy rows are never yellow, including `never`. A stricter setting is not a
 warning — it is the setting you chose. One that a delegation chose for you is
 marked as such.
+
+### Permission presets
+
+Approval policy is one knob; what the sandbox lets a tool touch is the other.
+Permission presets bundle both, and the plugin command `/permission <preset>`
+switches them together:
+
+| Preset | Sandbox | Approvals |
+|---|---|---|
+| `read-only` | nothing writable | ask |
+| `workspace-write` | the workspace (default) | ask |
+| `danger-full-access` | everything, no sandbox | never asked |
+
+`/permission` is provided by the harness plugin rather than by the TUI, so it
+works wherever the plugin is loaded even though it is not a built-in command.
+
+The effective preset is always visible: a chip on the StatusBar's run-state row
+and a `permissions:` line in `/status`. Every preset is gray except
+`danger-full-access`, which is **bold red** — it removes both gates at once, so
+a glance at the chrome settles whether this shell has them. Preset words are
+shown verbatim and are not translated.
+
+Booting with `DSH_PERMISSION_MODE=danger-full-access` in the environment starts
+straight in that preset; the red chip is how you confirm a shell came up that
+way.
 
 ### Vim keybinds
 

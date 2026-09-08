@@ -353,6 +353,15 @@ unbuilt either:
   events are log-only, so before this the answer you gave vanished with the
   card. See SPEC §1.18.
 
+- **Permission presets surfaced.** *Shipped.* The question "ask / auto-approve
+  / full access?" turned out to need no third approval policy:
+  `@deepseek-ai/dsh-permission-presets` already bundles the approval knob with
+  the sandbox knob and ships `/permission <preset>`. The TUI now reads the
+  plugin's synchronous `permissions` session projection (types copied locally,
+  no new dependency) and shows the effective preset word on the StatusBar and
+  in `/status`, with `danger-full-access` in bold red. No projection service,
+  no chip — the feature ships dark. See SPEC §1.18.
+
 - **Vim keybinds.** *Shipped as `/keybinds vim`.* The last item on the v1.0
   list, and the one whose title was half wrong: it read "Vim / Emacs keybind
   toggle", but the default keymap already *is* the emacs/readline one, so there

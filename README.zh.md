@@ -119,13 +119,14 @@ REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续�
 | `Enter` | 把当前输入作为用户消息发给模型 |
 | `/help` | 打印可用的斜杠命令 |
 | `/clear` | 清空可见的聊天区（session log 不变） |
-| `/status` | 打印当前模型和 session id |
+| `/status` | 打印当前模型、session id 和生效中的权限预设 |
 | `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换 |
 | `/context` | 打印上下文窗口、本次 session 的 token 开销，以及当前上下文占用了多少 |
 | `/usage` | 按轮次拆开本次 session 的 token 开销 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
 | `/mcp` | 列出已连接的 MCP 服务器，以及各自注册的工具 |
 | `/approval` | 查看这条 session 的审批策略；`/approval ask` 或 `never` 切换 |
+| `/permission` | 插件命令：切换「沙箱 + 审批」打包预设（`read-only`、`workspace-write`、`danger-full-access`） |
 | `/theme` | 选择配色假定的背景：`/theme auto`、`dark` 或 `light` |
 | `/copy` | 把最新一条回复复制到剪贴板；`/copy code` 取最新的代码块 |
 | `/verbose` | 让每段长输出多显示一些：`/verbose on`、`off`，不带参数则切换 |
@@ -447,6 +448,26 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 
 策略行永远不是黄色，`never` 也一样。更严的策略不是警告，它就是你选的设置。如果是委派
 替你选的，那一行会标出来。
+
+### 权限预设
+
+审批策略是一个旋钮，沙箱允许工具碰什么是另一个。权限预设把两者打包，插件命令
+`/permission <preset>` 一次切两个：
+
+| 预设 | 沙箱 | 审批 |
+|---|---|---|
+| `read-only` | 只读，什么都不能写 | 询问 |
+| `workspace-write` | 工作区可写（默认） | 询问 |
+| `danger-full-access` | 全开，无沙箱 | 一律不问 |
+
+`/permission` 由 harness 插件提供，不是 TUI 的内置命令，所以只要挂了插件的装配都能用。
+
+当前生效的预设始终可见：StatusBar 状态行上有一个 chip，`/status` 里也有一行
+`permissions:`。除了 `danger-full-access` 是**红色加粗**，其余预设都是灰色——它同时撤掉
+了两道闸门，所以扫一眼边框就能确认这个 shell 还有没有防护。预设词按原文显示，不翻译。
+
+在环境里设置 `DSH_PERMISSION_MODE=danger-full-access` 会直接以该预设启动；那个红 chip
+就是确认 shell 是不是这样起来的办法。
 
 ### vim 键位
 

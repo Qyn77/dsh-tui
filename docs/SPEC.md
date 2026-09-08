@@ -24,7 +24,7 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **Banner / StatusBar** — the top zone. The session opens with the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. In a real TTY the banner is part of the alternate-screen frame and is redrawn with the settled resize; non-TTY tests use Ink's `<Static>` for deterministic output. The compact **StatusBar** takes over as the live header as soon as there is a message to head, in two rows: the top row is identity — whale glyph, `dsh`, and the model in `green` — and the bottom row is run state — session id, the status indicator, and the token counts as `↑ <in> · ↓ <out>` (arrows rather than translated labels: one column each, and no language to maintain). `/clear` empties the view and prints a fresh banner.
+- **Banner / StatusBar** — the top zone. The session opens with the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. In a real TTY the banner is part of the alternate-screen frame and is redrawn with the settled resize; non-TTY tests use Ink's `<Static>` for deterministic output. The compact **StatusBar** takes over as the live header as soon as there is a message to head, in two rows: the top row is identity — whale glyph, `dsh`, and the model in `green` — and the bottom row is run state — session id, the status indicator, the token counts as `↑ <in> · ↓ <out>` (arrows rather than translated labels: one column each, and no language to maintain), and, when a permission projection is mounted, the effective permission preset word verbatim — gray normally, bold red for `danger-full-access` (§1.18). The chip is absent, not blanked, in an assembly without the projection service. `/clear` empties the view and prints a fresh banner.
 
   **Three width tiers**, chosen by `bannerTier(columns)`:
 
@@ -203,6 +203,8 @@ The palette is theme-aware, and almost entirely by *not* being theme-aware. Near
 | Tool result | `gray` dim | The `⎿` row under a call — or the same dim, inline after the status glyph, when the whole result is one line that fits beside the summary (`inlineResultText`). |
 | Run state — idle | `gray` | StatusBar status glyph. |
 | Run state — running | `yellow` | StatusBar status glyph. |
+| Permission preset | `gray` | The preset word on the StatusBar row; verbatim deployment data, never translated (§1.18). |
+| Permission preset — danger | `red` bold | The same chip when the word is `danger-full-access`. The one policy stance a user must be able to see at a glance — open sandbox and no prompts — so the word itself is the warning, in the color that already means "refused/errored". |
 | Streaming | `yellow` | `· streaming` suffix on the assistant block. |
 | Compaction | `cyan` dim | `⤷ compacting…` lines. |
 | Command echo | `cyan` | `⤷ /help` — the command line the user ran, echoed in the log. Same `cyan` as the palette's command names. |
@@ -245,7 +247,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `Enter` | Send the current input as a user message. |
 | `/help` | Print the list of available slash commands. |
 | `/clear` | Clear the visible chat. The session log is unchanged. Prints nothing — see below. |
-| `/status` | Print the current model and session id. |
+| `/status` | Print the current model and session id, plus the effective permission preset when a projection is mounted (§1.18). |
 | `/plugins` | List the plugins this host loaded, and how each one is doing. `/plugins enable\|disable <name>` switches one. |
 | `/usage` | Break this session's token spend out turn by turn. |
 | `/theme` | Choose the background the colors assume: `/theme auto\|dark\|light`. Bare `/theme` reports the current setting and, under `auto`, what the terminal answered. |
@@ -269,7 +271,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/skill`, `/resume`, `/mcp`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. `/resume` used to be listed here as future work and now ships (§1.5.8). A name neither this table nor that registry holds is tried once more as a user-invocable skill (§1.14) before it is called unknown — three layers, in that order. Skills are the one layer that does **not** appear in the `/` palette: they get the dedicated `/skill ` picker of §1.5.9, and direct `/<name>` typing still reaches them. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/skill`, `/resume`, `/mcp`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback`, `/goal` and `/permission <preset>` there, so those work without this package naming them (the preset's effects on the chrome are specified in §1.18). `/resume` used to be listed here as future work and now ships (§1.5.8). A name neither this table nor that registry holds is tried once more as a user-invocable skill (§1.14) before it is called unknown — three layers, in that order. Skills are the one layer that does **not** appear in the `/` palette: they get the dedicated `/skill ` picker of §1.5.9, and direct `/<name>` typing still reaches them. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -921,6 +923,17 @@ This costs no dependency. `@deepseek-ai/dsh-tool-workflow` is not a peer and sho
 `/approval` with no argument prints the session's override, or says the deployment default applies; `/approval ask` and `/approval never` switch it. The command validates the word before it reaches the service, so a typo'd `/approval nver` is refused rather than silently doing nothing that the user would read as a switch.
 
 The policy list is written as `['ask', 'never'] as const satisfies readonly ApprovalPolicy[]` rather than by importing the runtime `APPROVAL_POLICIES`. That keeps the dependency type-only — the command still works in an assembly that never loaded the package, where it reports that there is no approval service — while making a third policy added upstream a **build error here** instead of a value the palette quietly cannot offer.
+
+#### Permission presets
+
+The approval policy is one knob; the sandbox mode (`read-only` / `workspace-write` / `danger-full-access`) is the other, and nobody should have to set them by hand in the one combination that is dangerous. `@deepseek-ai/dsh-permission-presets` bundles the two into named presets and ships the plugin command **`/permission <preset>`**, recording `permission/preset` alongside the `sandbox/mode` and `approval/policy` knob events. The dsh-base table is `read-only` (read-only + ask), `workspace-write` (workspace-write + ask, the default) and `danger-full-access` (danger-full-access + never — with the sandbox open the prompts have nothing left to gate, which is why "auto-approve" is not a third approval policy).
+
+The TUI surfaces the *effective* preset rather than the two knobs separately. `dsh-session-projection` exposes a synchronous `permissions` projection that folds all three events into one `PermissionSelect { currentValue, options }`; `src/permissions.ts` reads it off `ctx.get('sessionProjections')` with the types declared locally (the same dark-dependency stance as plan mode, hooks and MCP — neither package is installed), shape-narrows the payload, and treats anything missing, malformed or throwing as "no service". Two surfaces show it:
+
+- the **StatusBar chip** on the run-state row (§1.1), which re-reads on any of the three knob events for *this* session — its own `session/event` subscription, because the chip is chrome, not reducer state, and two of those events are not renderable log entries; and
+- a **`permissions: <word>` line in `/status`**, absent in assemblies without the projection, where the command stays two lines.
+
+Preset words are deployment-configured table keys, so they are shown **verbatim, never translated**, exactly like plugin command names. `danger-full-access` is the one key that earns treatment: bold red on the chip. It is a chosen setting, not an error — but it is the one setting that removes both gates at once, and a glance at the chrome must be able to settle whether this shell has them. `DSH_PERMISSION_MODE=danger-full-access` in the environment boots straight into it, which is also why the warning cannot depend on having watched a `/permission` switch happen this session.
 
 ---
 

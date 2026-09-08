@@ -3,11 +3,11 @@
  *
  *   ╭──────────────────────────────────────────────────────────╮
  *   │ ▄█▀▀█▄ dsh · deepseek-official/deepseek-v4-flash           │
- *   │ tui-652d · ⏵ idle · ↑ 8,558 · ↓ 198                        │
+ *   │ tui-652d · ⏵ idle · ↑ 8,558 · ↓ 198 · workspace-write      │
  *   ╰──────────────────────────────────────────────────────────╯
  *
  *   top    = who is answering      (brand + model)
- *   bottom = what the run is doing (session + status + tokens)
+ *   bottom = what the run is doing (session + status + tokens + preset)
  *
  * The old two-column form spent its first content columns on translated
  * labels (`session:` / `in:` / `out:`) whose only job was to name numbers the
@@ -28,10 +28,11 @@ import React, { type FC } from 'react'
 import { Box, Text, useStdout } from 'ink'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import type { UiState } from '../types.ts'
+import type { PermissionPresetSelect, UiState } from '../types.ts'
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 import { totalUsage } from '../usage.ts'
+import { isDangerPreset } from '../permissions.ts'
 
 /** Props for {@link StatusBar}. */
 export interface StatusBarProps {
@@ -45,6 +46,13 @@ export interface StatusBarProps {
   spinnerFrame: number
   /** Whole seconds since the most recent `running` transition. */
   elapsedSeconds: number
+  /**
+   * Effective permission preset from the `permissions` projection, when one
+   * is mounted. The word is deployment-configured data (a preset table key),
+   * shown verbatim like a plugin command name; `danger-full-access` is the
+   * one key that earns color. Absent without the service.
+   */
+  preset?: PermissionPresetSelect | undefined
 }
 
 /**
@@ -85,7 +93,14 @@ export function fitModelName(provider: string, model: string, maxWidth: number):
   return `…${model.slice(-(maxWidth - 1))}`
 }
 
-export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spinnerFrame, elapsedSeconds }) => {
+export const StatusBar: FC<StatusBarProps> = ({
+  selection,
+  sessionId,
+  state,
+  spinnerFrame,
+  elapsedSeconds,
+  preset,
+}) => {
   const { stdout } = useStdout()
   const strings = useStrings()
   // Ink does not surface the column count when stdout is piped, so
@@ -94,6 +109,13 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
   const columns = stdout?.columns ?? 80
   const usage = totalUsage(state)
   const isRunning = state.status === 'running'
+  // The permission preset rides the same chrome row as the token counts. It
+  // is absent without a projection service; the open-sandbox/never-ask table
+  // key is the one value a user must be able to see at a glance, so it goes
+  // bold red where every other chip is gray. The word itself is the
+  // deployment's configured table key, never translated — same rule as a
+  // plugin command name.
+  const danger = preset !== undefined && isDangerPreset(preset)
   // The running indicator is `⠋ working · 3s` (spinner + label +
   // elapsed-seconds counter). The glyph is a single frame from
   // `SPINNER_FRAMES` driven by the App's `useRunningClock`; the
@@ -125,6 +147,14 @@ export const StatusBar: FC<StatusBarProps> = ({ selection, sessionId, state, spi
         <Text>{usage.input.toLocaleString()}</Text>
         <Text color="gray"> · ↓ </Text>
         <Text>{usage.output.toLocaleString()}</Text>
+        {preset !== undefined ? (
+          <>
+            <Text color="gray"> · </Text>
+            <Text color={danger ? 'red' : 'gray'} bold={danger} wrap="truncate-end">
+              {preset.currentValue}
+            </Text>
+          </>
+        ) : null}
       </Box>
     </Box>
   )

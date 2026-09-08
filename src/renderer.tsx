@@ -28,6 +28,7 @@ import { parseShellInput } from './shell.ts'
 import { attachImages, classifyModalities, refusalText } from './attach-runner.ts'
 import { resolveSkill, skillFailureText, viewingScope } from './skill-runner.ts'
 import { useSkillCommands } from './hooks/useSkillCommands.ts'
+import { usePermissionPreset } from './hooks/usePermissionPreset.ts'
 import { service } from './services.ts'
 import { commands, dispatch } from './commands.ts'
 import { handleCancel, handleInterrupt } from './interrupt.ts'
@@ -162,6 +163,7 @@ export const App: FC<AppProps> = ({
   const [historyPref, setHistoryPref] = useState<HistoryPref>(initialHistoryPref)
   const { state, resetView, appendEntry } = useSessionEvents(ctx, agent, { history: historyPref })
   const registryRows = useRegistryCommands(ctx, agent)
+  const permissionPreset = usePermissionPreset(ctx, agent)
   const approvals = useApprovalRequests(ctx, agent)
   // Appended once, in an effect rather than as a seeded entry, because the view
   // is seeded by replaying the session's durable log and a boot notice is not
@@ -756,6 +758,7 @@ export const App: FC<AppProps> = ({
             state={state}
             spinnerFrame={spinnerFrame}
             elapsedSeconds={elapsedSeconds}
+            preset={permissionPreset}
           />
         )}
         <MessageList

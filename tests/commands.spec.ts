@@ -139,6 +139,25 @@ describe('slash command dispatch', () => {
     }
   })
 
+  it('names the effective permission preset on /status when a projection is mounted', async () => {
+    const { cmd } = makeCommand()
+    cmd.ctx.provide('sessionProjections', {
+      snapshot: () => ({
+        values: {
+          permissions: {
+            currentValue: 'danger-full-access',
+            options: [{ value: 'danger-full-access', name: 'Danger: full access' }],
+          },
+        },
+      }),
+    } as never)
+    const result = await dispatch('/status', cmd)
+    expect(result.kind).toBe('handled')
+    if (result.kind === 'handled') {
+      expect(result.message).toContain('permissions: danger-full-access')
+    }
+  })
+
   it('asks the launcher to exit for /exit and /quit (case + trailing whitespace)', async () => {
     const { cmd, reset: resetA } = makeCommand()
     expect((await dispatch('/exit', cmd)).kind).toBe('exit')

@@ -31,6 +31,7 @@ import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { HistoryPref, UiState } from './types.ts'
 import { isHistoryPref } from './types.ts'
 import { appExit, service } from './services.ts'
+import { readPermissionPreset } from './permissions.ts'
 import {
   COMMAND_NAMES,
   catalog,
@@ -480,9 +481,13 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
     case '/status': {
       const selection = service(cmd.ctx, 'agentDefaultModel')?.currentSelection()
       const model = selection ? `${selection.provider}/${selection.model}` : strings.unknown
+      // The permission line is omitted entirely when no projection service is
+      // mounted, so an assembly without dsh-permission-presets sees the same
+      // two-line report it always did.
+      const preset = readPermissionPreset(cmd.ctx, cmd.agent.session)?.currentValue
       return {
         kind: 'handled',
-        message: strings.status(model, cmd.agent.id),
+        message: strings.status(model, cmd.agent.id, preset),
       }
     }
 

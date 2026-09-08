@@ -457,6 +457,59 @@ export type HistoryPref = 'show' | 'hide'
 export const HISTORY_PREFS: readonly HistoryPref[] = ['show', 'hide']
 
 /**
+ * One switchable permission preset, as the `permissions` projection advertises
+ * it. Mirrors `PresetOption` in `@deepseek-ai/dsh-permission-presets/types` at
+ * `0.1.0-rc.7` — that package and `dsh-session-projection` are deliberately
+ * not dependencies (the StatusBar chip ships dark and draws nothing in an
+ * assembly that mounts neither, the same stance §1.15 takes for hooks), so the
+ * vocabulary is copied rather than imported. A drift shows up as a field the
+ * view reads and no emitter sets, which the optional/unknown handling below
+ * already covers.
+ */
+export interface PermissionPresetOption {
+  /** Stable option value: the preset table key, or `custom`. */
+  readonly value: string
+  /** The display label a deployment configured. */
+  readonly name: string
+  /** One deployment-written sentence on what the value means. */
+  readonly description?: string
+}
+
+/**
+ * The `permissions` projection value: every switchable preset in table order
+ * (plus a current-only `custom` option when the two knobs match no table row)
+ * and the effective current value. A preset bundles the two independent knobs
+ * — a sandbox mode and an approval policy; `danger-full-access` is the dsh-base
+ * table key for sandbox-open / approval-never, i.e. the "do not ask, run
+ * anything" stance.
+ */
+export interface PermissionPresetSelect {
+  /** Switchable presets, plus `custom` exactly while it is current. */
+  readonly options: readonly PermissionPresetOption[]
+  /** The effective current value: a preset table key, or `custom`. */
+  readonly currentValue: string
+}
+
+/**
+ * The slice of `ctx.sessionProjections` this package reads. The real service's
+ * `snapshot()` returns one consistent cut over every registered projection for
+ * one session; only the `permissions` key is typed here.
+ */
+export interface PermissionProjectionReader {
+  snapshot(session: unknown): {
+    readonly values: { readonly permissions?: unknown }
+  }
+}
+
+/**
+ * The dsh-base preset-table key that means the sandbox is open and approval
+ * never prompts. Written as data the deployment configured rather than an
+ * enum: another assembly's table may name it differently, in which case its
+ * chip simply renders without the danger treatment.
+ */
+export const DANGER_PRESET = 'danger-full-access'
+
+/**
  * Narrow an unknown value to a {@link HistoryPref}.
  * @param value - anything, typically read out of `~/.dsh/tui.json`.
  */

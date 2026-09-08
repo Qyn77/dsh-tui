@@ -339,8 +339,8 @@ export interface Catalog {
     unknownCommand: string
     /** A slash command typed while a turn is running, which steers instead. */
     busyCommand: string
-    /** `/status`. */
-    status: (model: string, session: string) => string
+    /** `/status`; `preset` is the effective permission-preset word, omitted when no projection is mounted. */
+    status: (model: string, session: string, preset?: string) => string
     /** `/context`. */
     context: (report: ContextReport) => string
     /** Heading above the `/usage` table, given the number of turns. */
@@ -581,7 +581,8 @@ const EN: Catalog = {
     unknown: 'unknown',
     unknownCommand: 'unknown command — /help lists them',
     busyCommand: 'commands wait for the turn to finish — Esc or Ctrl-C stops it, or type without the / to steer',
-    status: (model, session) => `model: ${model}\nsession: ${session}`,
+    status: (model, session, preset) =>
+      `model: ${model}\nsession: ${session}${preset === undefined ? '' : `\npermissions: ${preset}`}`,
     context: (report) => {
       const lines = [
         `model: ${report.model}`,
@@ -825,7 +826,8 @@ const ZH: Catalog = {
     unknown: '未知',
     unknownCommand: '未知命令 —— /help 可以列出全部',
     busyCommand: '命令要等这一轮结束 —— Esc 或 Ctrl-C 可以中止，或者去掉 / 直接插话',
-    status: (model, session) => `模型：${model}\n会话：${session}`,
+    status: (model, session, preset) =>
+      `模型：${model}\n会话：${session}${preset === undefined ? '' : `\n权限：${preset}`}`,
     context: (report) => {
       const lines = [
         `模型：${report.model}`,

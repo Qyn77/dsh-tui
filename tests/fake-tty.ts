@@ -235,6 +235,14 @@ export interface PaintOptions {
    */
   skills?: readonly string[]
   /**
+   * Effective permission-preset word to mount a fake `sessionProjections`
+   * service for. The registry's `permissions` snapshot reports it as current
+   * alongside the three dsh-base table keys, the same way
+   * `dsh-permission-presets` presents them. Omitted entirely when no value is
+   * given — most mounts have no projection service and must draw no chip.
+   */
+  preset?: string
+  /**
    * Ink's `debug` render mode, on by default because it writes each frame as
    * one plain chunk and that is what makes `screen()` readable.
    *
@@ -250,6 +258,25 @@ export interface PaintOptions {
 }
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
+
+/**
+ * A fake `ctx.sessionProjections` with only the `permissions` unit, mirroring
+ * dsh-permission-presets' dsh-base table. Every snapshot is a fresh object
+ * with the same contents, as the real registry returns a fresh cut per read.
+ */
+function fakeProjections(preset: string) {
+  const select = {
+    currentValue: preset,
+    options: [
+      { value: 'read-only', name: 'Read-only' },
+      { value: 'workspace-write', name: 'Workspace write' },
+      { value: 'danger-full-access', name: 'Danger: full access' },
+    ],
+  }
+  return {
+    snapshot: () => ({ asOfSeq: 0, values: { permissions: select } }),
+  }
+}
 
 /** Default catalog for the fake registry; `clear` is the built-in-shadow case. */
 const DEFAULT_SKILLS = ['review', 'refresh', 'changelog', 'clear'] as const
@@ -286,7 +313,7 @@ export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
     appearance = 'dark', themePref = 'auto', keybinds = 'default', steer, followup, cancel,
-    skills = DEFAULT_SKILLS,
+    skills = DEFAULT_SKILLS, preset,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
@@ -295,6 +322,9 @@ export async function paintApp(
   const ctx = new Context()
   ctx.provide('agentDefaultModel', { currentSelection: () => selection } as never)
   ctx.provide('skills', fakeSkills(skills) as never)
+  if (preset !== undefined) {
+    ctx.provide('sessionProjections', fakeProjections(preset) as never)
+  }
   const session = seedSession(turns)
   // The double's status tracks the turn boundaries a test appends, rather
   // than sitting at 'idle' forever. `handleInterrupt` reads `agent.status`
