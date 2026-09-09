@@ -243,6 +243,14 @@ export interface PaintOptions {
    */
   preset?: string
   /**
+   * Plugin command descriptors to mount a fake `ctx.commands` registry with.
+   * Each descriptor answers `list()`; its optional handler receives the raw
+   * line `/permission` submits and its returned text becomes the command's
+   * output. Omitted entirely in most mounts — no registry means plugin names
+   * fall through to `unknown`.
+   */
+  registryCommands?: ReadonlyArray<{ name: string; description?: string; handler?: (raw: string) => string }>
+  /**
    * Ink's `debug` render mode, on by default because it writes each frame as
    * one plain chunk and that is what makes `screen()` readable.
    *
@@ -313,7 +321,7 @@ export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
     appearance = 'dark', themePref = 'auto', keybinds = 'default', steer, followup, cancel,
-    skills = DEFAULT_SKILLS, preset,
+    skills = DEFAULT_SKILLS, preset, registryCommands: pluginCommands,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
@@ -324,6 +332,22 @@ export async function paintApp(
   ctx.provide('skills', fakeSkills(skills) as never)
   if (preset !== undefined) {
     ctx.provide('sessionProjections', fakeProjections(preset) as never)
+  }
+  if (pluginCommands !== undefined) {
+    ctx.provide('commands', {
+      list: () => pluginCommands.map(({ name, description = '' }) => ({ name, description })),
+      // The runtime parses the name off the raw line itself; a line that
+      // matches no descriptor comes back `undefined` so dispatch calls it
+      // unknown. The fake mirrors that for the one name it knows.
+      execute: (_agent: unknown, raw: string) => {
+        const descriptor = pluginCommands.find(c => raw === `/${c.name}` || raw.startsWith(`/${c.name} `))
+        if (descriptor === undefined || descriptor.handler === undefined) return Promise.resolve(undefined)
+        return Promise.resolve({
+          descriptor,
+          result: { kind: 'success', text: descriptor.handler(raw) },
+        })
+      },
+    } as never)
   }
   const session = seedSession(turns)
   // The double's status tracks the turn boundaries a test appends, rather

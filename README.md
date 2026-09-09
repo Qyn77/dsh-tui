@@ -132,7 +132,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
 | `/mcp` | List the connected MCP servers and the tools each one registered |
 | `/approval` | Show this session's approval policy; `/approval ask` or `never` switches it |
-| `/permission` | Plugin command: switch a bundled sandbox + approval preset (`read-only`, `workspace-write`, `danger-full-access`) |
+| `/permission` | Plugin command: pick a bundled sandbox + approval preset — `/permission ` opens a picker, or type `read-only` / `workspace-write` / `danger-full-access` directly |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
 | `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
@@ -521,8 +521,10 @@ marked as such.
 ### Permission presets
 
 Approval policy is one knob; what the sandbox lets a tool touch is the other.
-Permission presets bundle both, and the plugin command `/permission <preset>`
-switches them together:
+Permission presets bundle both. Type `/permission ` (with the trailing space)
+and a picker floats over the choices, ticking the one in force; `↑`/`↓` move,
+`Enter` switches, `Tab` just fills the line. The same words also work typed
+straight at the plugin command, `/permission <preset>`:
 
 | Preset | Sandbox | Approvals |
 |---|---|---|
@@ -531,7 +533,9 @@ switches them together:
 | `danger-full-access` | everything, no sandbox | never asked |
 
 `/permission` is provided by the harness plugin rather than by the TUI, so it
-works wherever the plugin is loaded even though it is not a built-in command.
+works wherever the plugin is loaded even though it is not a built-in command;
+the picker reads its choices from the preset projection and stays absent
+without it.
 
 The effective preset is always visible: a chip on the StatusBar's run-state row
 and a `permissions:` line in `/status`. Every preset is gray except

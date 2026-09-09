@@ -126,7 +126,7 @@ REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续�
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
 | `/mcp` | 列出已连接的 MCP 服务器，以及各自注册的工具 |
 | `/approval` | 查看这条 session 的审批策略；`/approval ask` 或 `never` 切换 |
-| `/permission` | 插件命令：切换「沙箱 + 审批」打包预设（`read-only`、`workspace-write`、`danger-full-access`） |
+| `/permission` | 插件命令：选择「沙箱 + 审批」打包预设——`/permission ` 打开选择器，也可直接打 `read-only` / `workspace-write` / `danger-full-access` |
 | `/theme` | 选择配色假定的背景：`/theme auto`、`dark` 或 `light` |
 | `/copy` | 把最新一条回复复制到剪贴板；`/copy code` 取最新的代码块 |
 | `/verbose` | 让每段长输出多显示一些：`/verbose on`、`off`，不带参数则切换 |
@@ -451,8 +451,10 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 
 ### 权限预设
 
-审批策略是一个旋钮，沙箱允许工具碰什么是另一个。权限预设把两者打包，插件命令
-`/permission <preset>` 一次切两个：
+审批策略是一个旋钮，沙箱允许工具碰什么是另一个。权限预设把两者打包。输入
+`/permission `（带末尾空格）会弹出选择窗口，当前生效的那个前面带 `✓`：`↑`/`↓`
+选择，`Enter` 直接切换，`Tab` 只填入命令行不执行。这些词也可以直接打给插件命令
+`/permission <preset>`：
 
 | 预设 | 沙箱 | 审批 |
 |---|---|---|
@@ -460,7 +462,8 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 | `workspace-write` | 工作区可写（默认） | 询问 |
 | `danger-full-access` | 全开，无沙箱 | 一律不问 |
 
-`/permission` 由 harness 插件提供，不是 TUI 的内置命令，所以只要挂了插件的装配都能用。
+`/permission` 由 harness 插件提供，不是 TUI 的内置命令，只要挂了插件的装配都能用；
+选择器的选项读自预设 projection，没挂 projection 时选择器不出现。
 
 当前生效的预设始终可见：StatusBar 状态行上有一个 chip，`/status` 里也有一行
 `permissions:`。除了 `danger-full-access` 是**红色加粗**，其余预设都是灰色——它同时撤掉

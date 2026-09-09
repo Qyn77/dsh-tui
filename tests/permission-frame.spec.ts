@@ -8,8 +8,20 @@
  * @module @deepseek-ai/dsh-tui/tests/permission-frame.spec
  */
 
-import { describe, expect, it } from 'vitest'
-import { paintApp } from './fake-tty.ts'
+import { describe, expect, it, vi } from 'vitest'
+import { ESC, paintApp } from './fake-tty.ts'
+
+/** A plugin `/permission` command that records the raw line it received. */
+function permissionRegistry(run: (raw: string) => void) {
+  return [{
+    name: 'permission',
+    description: 'switch the permission preset',
+    handler: (raw: string) => {
+      run(raw)
+      return `switched: ${raw}`
+    },
+  }]
+}
 
 /**
  * Replace the fake registry's cut, the way a `/permission` switch would. A
@@ -94,5 +106,126 @@ describe('permission preset chip', () => {
     painted.unmount()
 
     expect(screen).not.toContain('permissions:')
+  })
+})
+
+describe('the /permission picker', () => {
+  it('opens on `/permission ` and lists every advertised preset with the live one marked', async () => {
+    const painted = await paintApp({ preset: 'workspace-write' })
+    await painted.send('/permission ')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('read-only')
+    expect(screen).toContain('workspace-write')
+    expect(screen).toContain('danger-full-access')
+    // The projection's display names are the descriptions; the current value
+    // carries the check mark.
+    expect(screen).toContain('✓ Workspace write')
+    expect(screen).not.toContain('✓ Read-only')
+    expect(screen).toContain('Enter switch')
+  })
+
+  it('filters by the preset token being typed', async () => {
+    const painted = await paintApp({ preset: 'workspace-write' })
+    await painted.send('/permission dan')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('danger-full-access')
+    expect(screen).not.toContain('workspace-write')
+    expect(screen).not.toContain('read-only')
+  })
+
+  it('stays closed when no projection advertises presets', async () => {
+    const painted = await paintApp({
+      registryCommands: permissionRegistry(() => {}),
+    })
+    await painted.send('/permission ')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).not.toContain('Enter switch')
+    expect(screen).not.toContain('Danger: full access')
+  })
+
+  it('submits /permission <value> to the plugin command on Enter', async () => {
+    const ran = vi.fn()
+    const painted = await paintApp({
+      preset: 'workspace-write',
+      registryCommands: permissionRegistry(ran),
+    })
+    await painted.send('/permission dan')
+    await painted.send('\r')
+    await painted.settle(50)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(ran).toHaveBeenCalledTimes(1)
+    expect(ran).toHaveBeenCalledWith('/permission danger-full-access')
+    // The echo and the fake plugin's output both reach the log.
+    expect(screen).toContain('/permission danger-full-access')
+    expect(screen).toContain('switched: /permission danger-full-access')
+  })
+
+  it('fills the line on Tab without sending, and Enter then dispatches it', async () => {
+    const ran = vi.fn()
+    const painted = await paintApp({
+      preset: 'workspace-write',
+      registryCommands: permissionRegistry(ran),
+    })
+    await painted.send('/permission dan')
+    await painted.send('\t')
+    const filled = painted.screen()
+    // Trailing space closes the picker; nothing has run yet.
+    expect(filled).toContain('/permission danger-full-access ')
+    expect(filled).not.toContain('Enter switch')
+    expect(ran).not.toHaveBeenCalled()
+    await painted.send('\r')
+    await painted.settle(50)
+    painted.unmount()
+
+    expect(ran).toHaveBeenCalledTimes(1)
+    expect(ran).toHaveBeenCalledWith('/permission danger-full-access')
+  })
+
+  it('dismisses once on Esc without losing the token', async () => {
+    const painted = await paintApp({ preset: 'workspace-write' })
+    await painted.send('/permission dan')
+    await painted.send(ESC)
+    const dismissed = painted.screen()
+    expect(dismissed).not.toContain('Enter switch')
+    expect(dismissed).toContain('/permission dan')
+    painted.unmount()
+  })
+
+  it('opens when bare /permission is chosen from the / palette on Enter', async () => {
+    const painted = await paintApp({
+      preset: 'workspace-write',
+      registryCommands: permissionRegistry(() => {}),
+    })
+    await painted.send('/permission')
+    await painted.send('\r')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // The special case completes to `/permission ` instead of dispatching the
+    // bare command, so the plugin's own usage answer never runs.
+    expect(screen).toContain('/permission ')
+    expect(screen).toContain('Enter switch')
+  })
+
+  it('does not intercept bare /permission Enter without advertised presets', async () => {
+    const ran = vi.fn()
+    const painted = await paintApp({
+      registryCommands: permissionRegistry(ran),
+    })
+    await painted.send('/permission')
+    await painted.send('\r')
+    await painted.settle(50)
+    painted.unmount()
+
+    // No projection: the bare line belongs to the plugin, which answers it.
+    expect(ran).toHaveBeenCalledWith('/permission')
   })
 })

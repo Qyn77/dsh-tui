@@ -271,7 +271,7 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/skill`, `/resume`, `/mcp`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback`, `/goal` and `/permission <preset>` there, so those work without this package naming them (the preset's effects on the chrome are specified in §1.18). `/resume` used to be listed here as future work and now ships (§1.5.8). A name neither this table nor that registry holds is tried once more as a user-invocable skill (§1.14) before it is called unknown — three layers, in that order. Skills are the one layer that does **not** appear in the `/` palette: they get the dedicated `/skill ` picker of §1.5.9, and direct `/<name>` typing still reaches them. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/skill`, `/resume`, `/mcp`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback`, `/goal` and `/permission <preset>` there, so those work without this package naming them (the preset's picker lives in §1.5.10 and its effects on the chrome in §1.18). `/resume` used to be listed here as future work and now ships (§1.5.8). A name neither this table nor that registry holds is tried once more as a user-invocable skill (§1.14) before it is called unknown — three layers, in that order. Skills are the one layer that does **not** appear in the `/` palette: they get the dedicated `/skill ` picker of §1.5.9, and direct `/<name>` typing still reaches them. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
@@ -281,7 +281,7 @@ When the buffer starts with `/` and contains no space yet, a `round` cyan-border
 |---|---|
 | `↑` / `↓` | Move the selection (clamped to the filtered list). |
 | `Tab` | Replace the buffer with the highlighted name + trailing space. |
-| `Enter` | If the buffer is an exact command name, dispatch it. Otherwise, complete the highlighted name into the buffer (same as `Tab`). `/skill` is the one exception: Enter on it completes to `/skill ` and opens the skill picker rather than dispatching the bare command. |
+| `Enter` | If the buffer is an exact command name, dispatch it. Otherwise, complete the highlighted name into the buffer (same as `Tab`). `/skill` is the one unconditional exception: Enter on it completes to `/skill ` and opens the skill picker rather than dispatching the bare command. `/permission` gets the same treatment only while presets are advertised (§1.5.10) — otherwise the bare line belongs to the plugin itself. |
 | `Esc` | Clear the buffer. |
 | Any other key | Standard buffer editing. |
 
@@ -426,11 +426,25 @@ Skills are the most numerous, most accidental layer of the `/` surface — a bun
 
 The token after `/skill ` filters by case-insensitive **prefix** on the bare name, in registry order. The picker anchors to position 0 and to one token exactly: `/skillx` does not open it, a second token (a second space) closes it, and a `/skill ` on a continuation line does not open it — commands begin on line 0. The hint row reads `↑↓ navigate · Tab insert /<name> · Enter run · Esc dismiss` and the same height windowing as the `/` palette applies (§1.5.1), since this is the other subtree whose height is driven by data.
 
-**The three lists are mutually exclusive, in one precedence order: the `/` palette, then the skill picker, then the `@` file picker.** Only one may own `↑`/`↓`/`Tab`/`Esc` at a time, and Ink offers no way to stop a keystroke (§1.6), so the exclusivity is structural: while the buffer matches a `/` token the two mentions are not even derived. The skill picker outranks the `@` mention for the same reason the `/` palette does — it is anchored at the first character.
+**The floating lists are mutually exclusive, in one precedence order: the `/` palette, then the skill picker, then the `/permission ` picker (§1.5.10), then the `@` file picker.** Only one may own `↑`/`↓`/`Tab`/`Esc` at a time, and Ink offers no way to stop a keystroke (§1.6), so the exclusivity is structural: while the buffer matches a higher anchor the lower mentions are not even derived. The two command pickers outrank the `@` mention for the same reason the `/` palette does — they are anchored at the first character.
 
-**Bare `/skill` prints usage; `/skill <name> [args]` rewrites and runs.** The dispatcher turns `/skill review the auth` into `/review the auth` and hands the rewritten line to the *same* runner the unknown-name fallback uses (§1.14), so the explicit form and direct typing share one inject/followup ordering and one set of failure notes. There is exactly one Enter exception in the `/` palette (§1.5.1): with `/skill` highlighted it completes to `/skill ` and opens this picker instead of dispatching the bare command — the picker is what the key was reaching for. Enter on a dismissed picker submits the literal buffer, so `/skill review` after `Esc` still runs `review`.
+**Bare `/skill` prints usage; `/skill <name> [args]` rewrites and runs.** The dispatcher turns `/skill review the auth` into `/review the auth` and hands the rewritten line to the *same* runner the unknown-name fallback uses (§1.14), so the explicit form and direct typing share one inject/followup ordering and one set of failure notes. There is one unconditional Enter exception in the `/` palette (§1.5.1): with `/skill` highlighted it completes to `/skill ` and opens this picker instead of dispatching the bare command — the picker is what the key was reaching for. `/permission` gets the same treatment only while a projection advertises presets (§1.5.10). Enter on a dismissed picker submits the literal buffer, so `/skill review` after `Esc` still runs `review`.
 
 **There is no "scanning" placeholder.** Skill rows arrive as a prop from an asynchronous catalog read (§1.14); until the first complete listing lands the picker simply shows nothing, unlike the `@` picker whose one-time directory walk names itself while in flight. The catalog is already mounted before the prompt is interactive, so a placeholder would almost always paint an empty box and vanish a frame later.
+
+#### 1.5.10 The `/permission` picker
+
+Typing `/permission ` (with the trailing space) opens a picker over the preset words the `permissions` projection advertises, the same shape and windowing as the skill picker. The resemblance is mechanical only: a skill row *is* the command, while a preset row is an **argument** to the plugin-provided `/permission` command. The row name is the bare table key (`workspace-write`), shown verbatim like every preset word (§1.18); the description is the projection's display name, and the preset currently in force carries a leading `✓` so the list answers "what am I on" before it answers "what can I pick".
+
+| Key | Effect |
+|---|---|
+| `↑` / `↓` | Move the selection. |
+| token typing | Case-insensitive prefix filter on the bare value; a second space closes the picker. |
+| `Tab` | Fill the buffer with `/permission <value> ` and close the list; the line is not sent. |
+| `Enter` | Submit `/permission <value>` immediately — the plugin command switches the preset, the chip follows via its knob-event subscription. |
+| `Esc` | Dismiss once for this token, keeping `/permission dan` on screen; Enter then submits the literal buffer. |
+
+The picker has **no rows without a mounted projection**: it is the same dark-feature contract as the StatusBar chip. That also settles the one naming collision — `/permission` is a plugin command, not a built-in. While presets are advertised, bare `/permission` + `Enter` in the `/` palette completes to `/permission ` and opens this picker (the one conditional exception in §1.5.1); without them, the bare line is dispatched to the plugin untouched, so the command's own usage answer stays reachable in an assembly that provides the command but no projection. Direct typing is never intercepted at all: `/permission read-only` submitted by hand goes through the ordinary plugin-registry path exactly as it did before this picker existed.
 
 ### 1.6 Keyboard bindings
 
@@ -462,6 +476,10 @@ its way to someone else.
 | `Enter` | `/skill` picker | Run the highlighted skill |
 | `Esc` | `/skill` picker | Dismiss the list once, keep the buffer |
 | `↑` / `↓` | `/skill` picker | Move picker selection |
+| `Tab` | `/permission` picker | Fill `/permission <value> `, keep editing |
+| `Enter` | `/permission` picker | Submit `/permission <value>` to the plugin command |
+| `Esc` | `/permission` picker | Dismiss the list once, keep the buffer |
+| `↑` / `↓` | `/permission` picker | Move picker selection |
 | `Tab` / `Enter` | `@` file picker | Insert the highlighted path |
 | `Esc` | `@` file picker | Dismiss the list, keep the buffer |
 | `↑` / `↓` | `@` file picker | Move picker selection |
@@ -930,6 +948,7 @@ The approval policy is one knob; the sandbox mode (`read-only` / `workspace-writ
 
 The TUI surfaces the *effective* preset rather than the two knobs separately. `dsh-session-projection` exposes a synchronous `permissions` projection that folds all three events into one `PermissionSelect { currentValue, options }`; `src/permissions.ts` reads it off `ctx.get('sessionProjections')` with the types declared locally (the same dark-dependency stance as plan mode, hooks and MCP — neither package is installed), shape-narrows the payload, and treats anything missing, malformed or throwing as "no service". Two surfaces show it:
 
+- the **`/permission ` picker** (§1.5.10): typing the command name and a space floats the advertised presets, with the current one ticked, and `Enter` submits `/permission <value>` to the plugin command — choosing a mode without memorising its word;
 - the **StatusBar chip** on the run-state row (§1.1), which re-reads on any of the three knob events for *this* session — its own `session/event` subscription, because the chip is chrome, not reducer state, and two of those events are not renderable log entries; and
 - a **`permissions: <word>` line in `/status`**, absent in assemblies without the projection, where the command stays two lines.
 
@@ -949,7 +968,7 @@ Preset words are deployment-configured table keys, so they are shown **verbatim,
 
 **An unknown key in normal mode is swallowed, never typed.** `dq` abandons the operator; `q` alone does nothing. The alternative — falling through to the text path — means a mistyped normal-mode key silently appends a letter to a prompt the user believes they are navigating, and they find out when they press Enter.
 
-**Esc is contested four ways, and turn-cancel has to stay reachable.** The order is: the `/` palette, the `/skill` picker or the `@` picker wins it first (in the precedence of §1.5.9, only one can be open); then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
+**Esc is contested five ways, and turn-cancel has to stay reachable.** The order is: the `/` palette, the `/skill` picker, the `/permission` picker, or the `@` picker wins it first (in the precedence of §1.5.9–§1.5.10, only one can be open); then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
 
 **The mode indicator costs zero rows and zero columns.** The prompt marker changes from `> ` to `N `, and it and the caret turn yellow. Not a `NORMAL` badge under the box: the root is a fixed-height frame and Yoga *overlaps* an overflowing subtree instead of scrolling it (§1.8), so a row that appears when a mode changes is a row that lands on top of the transcript. A width change would be as bad in the other direction — it re-folds every wrapped row in the buffer, which is a caret jump on a keystroke that was supposed to be free.
 

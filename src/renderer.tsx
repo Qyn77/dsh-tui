@@ -29,6 +29,7 @@ import { attachImages, classifyModalities, refusalText } from './attach-runner.t
 import { resolveSkill, skillFailureText, viewingScope } from './skill-runner.ts'
 import { useSkillCommands } from './hooks/useSkillCommands.ts'
 import { usePermissionPreset } from './hooks/usePermissionPreset.ts'
+import { permissionRows } from './permission-picker.ts'
 import { service } from './services.ts'
 import { commands, dispatch } from './commands.ts'
 import { handleCancel, handleInterrupt } from './interrupt.ts'
@@ -198,6 +199,13 @@ export const App: FC<AppProps> = ({
     [lang, registryRows],
   )
   const skillRowsForPicker = useSkillCommands(ctx, agent, claimedCommands)
+  // Presets for the `/permission ` picker. Same projection value as the
+  // StatusBar chip: no service mounted means an empty list, which means no
+  // picker and the plugin command's own bare-command answer stays reachable.
+  const permissionRowsForPicker = useMemo(
+    () => permissionPreset === undefined ? [] : permissionRows(permissionPreset),
+    [permissionPreset],
+  )
   // `!` escapes. Declared here because both the interrupt handler and the
   // submit handler need it, and it is the owner of the working directory.
   const shell = useShell({ agent, appendEntry, strings })
@@ -822,6 +830,7 @@ export const App: FC<AppProps> = ({
           onOverlayRowsChange={setPromptOverlayRows}
           extraCommands={registryRows}
           skillCommands={skillRowsForPicker}
+          permissionCommands={permissionRowsForPicker}
         />
       </Box>
     </AppProviders>

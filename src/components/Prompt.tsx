@@ -22,12 +22,15 @@
  * highlighted name, Enter runs an exact match (otherwise completes),
  * Esc clears the buffer.
  *
- * Two more lists share that one component. Typing `/skill ` opens the
+ * Three more lists share that one component. Typing `/skill ` opens the
  * skill picker — user-invocable skills used to be rows in the `/`
  * palette and live behind this token now — where Tab inserts `/<name>`
- * and Enter runs the highlighted one. An `@` opens the file picker, the
- * same shape with paths. Only one of the three is ever open, in that
- * precedence: `/` palette, skill picker, file picker.
+ * and Enter runs the highlighted one. `/permission ` opens the preset
+ * picker, whose rows are the projection's advertised presets and whose
+ * Enter submits `/permission <value>` to the plugin command. An `@`
+ * opens the file picker, the same shape with paths. Only one of the
+ * four is ever open, in that precedence: `/` palette, skill picker,
+ * permission picker, file picker.
  *
  * ↑/↓ are shared with the conversation viewport, and Ink dispatches a
  * keystroke to *every* `useInput` handler — there is no bubbling to stop. So
@@ -71,6 +74,13 @@ import {
   filterSkillRows,
   skillMentionAt,
 } from '../skills.ts'
+import {
+  PERMISSION_PREFIX,
+  applyPermissionMention,
+  filterPermissionRows,
+  permissionCommandLine,
+  permissionMentionAt,
+} from '../permission-picker.ts'
 import { INITIAL_VIM, applyVim, type KeybindPref, type VimState } from '../vim.ts'
 import { useFileMentions } from '../hooks/useFileMentions.ts'
 import { SlashPalette } from './SlashPalette.tsx'
@@ -145,6 +155,13 @@ export interface PromptProps {
    */
   skillCommands?: readonly CommandMeta[]
   /**
+   * Presets for the `/permission ` picker, bare values with display names.
+   * The App builds them from the `permissions` session projection; with no
+   * projection mounted the list stays empty, so typing `/permission ` is
+   * ordinary text and bare `/permission` reaches the plugin's own usage.
+   */
+  permissionCommands?: readonly CommandMeta[]
+  /**
    * Which keymap the prompt runs — see `/keybinds` and `src/vim.ts`. Optional
    * and defaulting to `default`, so a prompt rendered without it is the
    * readline editor it has always been.
@@ -204,6 +221,7 @@ export const Prompt: FC<PromptProps> = ({
   onOverlayRowsChange,
   extraCommands,
   skillCommands,
+  permissionCommands,
   keybinds = 'default',
 }) => {
   const { stdout } = useStdout()
@@ -277,10 +295,33 @@ export const Prompt: FC<PromptProps> = ({
     if (!skillTokenActive) setSkillDismissed(false)
   }, [skillTokenActive])
 
-  // The `@` picker. Suppressed while either list above it is open. `/` wins
+  // The `/permission ` picker, third in precedence: suppressed while the
+  // palette or the skill picker is open, and it suppresses the file mention.
+  // Its rows come from the session projection via a prop, the same prop
+  // contract the skill picker uses; an empty prop means no projection, which
+  // means no picker.
+  const [permissionDismissed, setPermissionDismissed] = useState(false)
+  const permissionMention = palette.length === 0 && skillMention === undefined
+    ? permissionMentionAt(value, cursorIndex)
+    : undefined
+  const permissionPickRows = permissionMention === undefined
+    ? []
+    : filterPermissionRows(permissionCommands ?? [], permissionMention.query)
+  const safePermissionIndex = clampPaletteIndex(paletteIndex, permissionPickRows)
+  const permissionTokenActive = permissionMention !== undefined
+  const pickingPermission = permissionTokenActive
+    && !permissionDismissed
+    && permissionPickRows.length > 0
+  useEffect(() => {
+    if (!permissionTokenActive) setPermissionDismissed(false)
+  }, [permissionTokenActive])
+
+  // The `@` picker. Suppressed while any list above it is open. `/` wins
   // because it is anchored to the first character and a mention is not, which
   // makes it the more deliberate of the two.
-  const mention = palette.length === 0 && skillMention === undefined
+  const mention = palette.length === 0
+      && skillMention === undefined
+      && permissionMention === undefined
     ? mentionAt(value, cursorIndex)
     : undefined
   const files = useFileMentions(mention?.query)
@@ -309,7 +350,7 @@ export const Prompt: FC<PromptProps> = ({
 
   // ↑/↓ are shared with the log; tell the App which of us owns them.
   const claimsArrows = active
-    && (palette.length > 0 || pickingSkill || picking || rows.length > 1)
+    && (palette.length > 0 || pickingSkill || pickingPermission || picking || rows.length > 1)
   useEffect(() => {
     onArrowClaimChange?.(claimsArrows)
   }, [claimsArrows, onArrowClaimChange])
@@ -325,6 +366,7 @@ export const Prompt: FC<PromptProps> = ({
   const claimsEsc = active && (
     palette.length > 0
     || (pickingSkill && skillMention !== undefined)
+    || (pickingPermission && permissionMention !== undefined)
     || (picking && mention !== undefined)
     || (vimOn && vim.mode === 'insert' && value !== '')
   )
@@ -339,9 +381,11 @@ export const Prompt: FC<PromptProps> = ({
     ? Math.min(palette.length, paletteRows)
     : pickingSkill
       ? Math.min(skillPickRows.length, paletteRows)
-      : picking
-        ? Math.min(Math.max(fileRows.length, 1), paletteRows)
-        : 0
+      : pickingPermission
+        ? Math.min(permissionPickRows.length, paletteRows)
+        : picking
+          ? Math.min(Math.max(fileRows.length, 1), paletteRows)
+          : 0
   const overlayRows = overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS
   useEffect(() => {
     onOverlayRowsChange?.(overlayRows)
@@ -455,6 +499,7 @@ export const Prompt: FC<PromptProps> = ({
     setScrollTop(0)
     setDismissed(null)
     setSkillDismissed(false)
+    setPermissionDismissed(false)
     rememberSubmission(submitted)
     onSubmit(submitted)
   }
@@ -468,6 +513,22 @@ export const Prompt: FC<PromptProps> = ({
     const chosen = skillPickRows[safeSkillIndex]
     if (chosen === undefined) return false
     const next = applySkillMention(value, skillMention, chosen.name)
+    setValue(next.text)
+    setCursorIndex(next.cursor)
+    setPaletteIndex(0)
+    return true
+  }
+
+  /**
+   * Fill `/permission …` with the highlighted preset, leaving the trailing
+   * space that closes the picker. Tab's answer — the line is not sent, so the
+   * chosen word can be read before Enter dispatches the plugin command.
+   */
+  const completePermission = (): boolean => {
+    if (permissionMention === undefined) return false
+    const chosen = permissionPickRows[safePermissionIndex]
+    if (chosen === undefined) return false
+    const next = applyPermissionMention(value, permissionMention, chosen.name)
     setValue(next.text)
     setCursorIndex(next.cursor)
     setPaletteIndex(0)
@@ -580,6 +641,10 @@ export const Prompt: FC<PromptProps> = ({
           // keep the `/skill rev` the user has typed.
           setSkillDismissed(true)
           setPaletteIndex(0)
+        } else if (pickingPermission && permissionMention !== undefined) {
+          // Dismiss once, keep `/permission dan` on screen.
+          setPermissionDismissed(true)
+          setPaletteIndex(0)
         } else if (picking && mention !== undefined) {
           // The buffer is a sentence the user is writing, not a command they
           // mistyped: dismiss the list, keep the words.
@@ -621,6 +686,11 @@ export const Prompt: FC<PromptProps> = ({
         completeSkill()
         return
       }
+      // Tab in the preset picker fills `/permission <value> ` without sending.
+      if (key.tab && pickingPermission) {
+        completePermission()
+        return
+      }
       // Tab in a mention inserts the highlighted path. Same keystroke, same
       // meaning: finish what I have started typing.
       if (key.tab && picking) {
@@ -639,6 +709,10 @@ export const Prompt: FC<PromptProps> = ({
           setPaletteIndex(i => clampPaletteIndex(i - 1, skillPickRows))
           return
         }
+        if (pickingPermission) {
+          setPaletteIndex(i => clampPaletteIndex(i - 1, permissionPickRows))
+          return
+        }
         if (picking) {
           setPaletteIndex(i => clampPaletteIndex(i - 1, fileRows))
           return
@@ -653,6 +727,10 @@ export const Prompt: FC<PromptProps> = ({
         }
         if (pickingSkill) {
           setPaletteIndex(i => clampPaletteIndex(i + 1, skillPickRows))
+          return
+        }
+        if (pickingPermission) {
+          setPaletteIndex(i => clampPaletteIndex(i + 1, permissionPickRows))
           return
         }
         if (picking) {
@@ -695,6 +773,15 @@ export const Prompt: FC<PromptProps> = ({
             setPaletteIndex(0)
             return
           }
+          // Same bargain for `/permission`, but only when this build has
+          // advertised presets to pick: with no projection mounted, the bare
+          // command belongs to the plugin, whose own usage answer must run.
+          if (normalized === '/permission' && (permissionCommands?.length ?? 0) > 0) {
+            setValue(PERMISSION_PREFIX)
+            setCursorIndex(PERMISSION_PREFIX.length)
+            setPaletteIndex(0)
+            return
+          }
           const exact = palette.find(c => c.name === normalized)
           if (exact) {
             submit(exact.name)
@@ -718,6 +805,16 @@ export const Prompt: FC<PromptProps> = ({
           const chosen = skillPickRows[safeSkillIndex]
           if (chosen) {
             submit(chosen.name)
+            return
+          }
+        }
+        // Enter in the preset picker SWITCHES: submit the full line to the
+        // plugin command. Tab is the path for reviewing the completed line
+        // first; a second Enter sends nothing the picker did not already name.
+        if (pickingPermission) {
+          const chosen = permissionPickRows[safePermissionIndex]
+          if (chosen) {
+            submit(permissionCommandLine(chosen.name))
             return
           }
         }
@@ -800,6 +897,16 @@ export const Prompt: FC<PromptProps> = ({
             commands={skillPickRows}
             selected={safeSkillIndex}
             hint={strings.palette.skillHint}
+            maxRows={paletteRows}
+          />
+        </Box>
+      ) : null}
+      {pickingPermission ? (
+        <Box marginBottom={1}>
+          <SlashPalette
+            commands={permissionPickRows}
+            selected={safePermissionIndex}
+            hint={strings.palette.permissionHint}
             maxRows={paletteRows}
           />
         </Box>
