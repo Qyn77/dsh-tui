@@ -126,7 +126,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `/help` | Print available slash commands |
 | `/clear` | Clear the visible chat (the session log is unchanged) |
 | `/status` | Print the current model, session id, and effective permission preset |
-| `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it |
+| `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it. Typing `/model ` opens a picker over the current provider's models — pick one directly instead of guessing names |
 | `/context` | Print the context window, this session's token spend, and how full the context is now |
 | `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |

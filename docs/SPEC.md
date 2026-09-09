@@ -281,7 +281,7 @@ When the buffer starts with `/` and contains no space yet, a `round` cyan-border
 |---|---|
 | `↑` / `↓` | Move the selection (clamped to the filtered list). |
 | `Tab` | Replace the buffer with the highlighted name + trailing space. |
-| `Enter` | If the buffer is an exact command name, dispatch it. Otherwise, complete the highlighted name into the buffer (same as `Tab`). `/skill` is the one unconditional exception: Enter on it completes to `/skill ` and opens the skill picker rather than dispatching the bare command. `/permission` gets the same treatment only while presets are advertised (§1.5.10) — otherwise the bare line belongs to the plugin itself. |
+| `Enter` | If the buffer is an exact command name, dispatch it. Otherwise, complete the highlighted name into the buffer (same as `Tab`). `/skill` is the one unconditional exception: Enter on it completes to `/skill ` and opens the skill picker rather than dispatching the bare command. `/permission` (§1.5.10) and `/model` (§1.5.11) get the same treatment only while their pickers have rows — otherwise the bare line belongs to the plugin's own answer and to `/model`'s usage text respectively. |
 | `Esc` | Clear the buffer. |
 | Any other key | Standard buffer editing. |
 
@@ -426,7 +426,7 @@ Skills are the most numerous, most accidental layer of the `/` surface — a bun
 
 The token after `/skill ` filters by case-insensitive **prefix** on the bare name, in registry order. The picker anchors to position 0 and to one token exactly: `/skillx` does not open it, a second token (a second space) closes it, and a `/skill ` on a continuation line does not open it — commands begin on line 0. The hint row reads `↑↓ navigate · Tab insert /<name> · Enter run · Esc dismiss` and the same height windowing as the `/` palette applies (§1.5.1), since this is the other subtree whose height is driven by data.
 
-**The floating lists are mutually exclusive, in one precedence order: the `/` palette, then the skill picker, then the `/permission ` picker (§1.5.10), then the `@` file picker.** Only one may own `↑`/`↓`/`Tab`/`Esc` at a time, and Ink offers no way to stop a keystroke (§1.6), so the exclusivity is structural: while the buffer matches a higher anchor the lower mentions are not even derived. The two command pickers outrank the `@` mention for the same reason the `/` palette does — they are anchored at the first character.
+**The floating lists are mutually exclusive, in one precedence order: the `/` palette, then the skill picker, then the `/permission ` picker (§1.5.10), then the `/model ` picker (§1.5.11), then the `@` file picker.** Only one may own `↑`/`↓`/`Tab`/`Esc` at a time, and Ink offers no way to stop a keystroke (§1.6), so the exclusivity is structural: while the buffer matches a higher anchor the lower mentions are not even derived. The command pickers outrank the `@` mention for the same reason the `/` palette does — they are anchored at the first character.
 
 **Bare `/skill` prints usage; `/skill <name> [args]` rewrites and runs.** The dispatcher turns `/skill review the auth` into `/review the auth` and hands the rewritten line to the *same* runner the unknown-name fallback uses (§1.14), so the explicit form and direct typing share one inject/followup ordering and one set of failure notes. There is one unconditional Enter exception in the `/` palette (§1.5.1): with `/skill` highlighted it completes to `/skill ` and opens this picker instead of dispatching the bare command — the picker is what the key was reaching for. `/permission` gets the same treatment only while a projection advertises presets (§1.5.10). Enter on a dismissed picker submits the literal buffer, so `/skill review` after `Esc` still runs `review`.
 
@@ -447,6 +447,20 @@ Typing `/permission ` (with the trailing space) opens a picker over the preset w
 The picker has **no rows without a mounted projection**: it is the same dark-feature contract as the StatusBar chip. That also settles the one naming collision — `/permission` is a plugin command, not a built-in. While presets are advertised, bare `/permission` + `Enter` in the `/` palette completes to `/permission ` and opens this picker (the one conditional exception in §1.5.1); without them, the bare line is dispatched to the plugin untouched, so the command's own usage answer stays reachable in an assembly that provides the command but no projection. Direct typing is never intercepted at all: `/permission read-only` submitted by hand goes through the ordinary plugin-registry path exactly as it did before this picker existed.
 
 **`Tab` / `Shift+Tab` on an empty prompt cycle the preset**, forward and back through the advertised table, wrapping at both ends. Eligibility is positional: the branch sits below every completion branch, so an open list outranks the cycle, and so does any text in the buffer — Tab keeps its editing meaning there. The cycle submits the same `/permission <value>` line the picker's Enter sends, rather than calling the plugin out-of-band: the switch therefore keeps its audit trail (command echo plus the plugin's answer), the running-turn busy-check applies, and the chip follows through its knob-event subscription. A `currentValue` outside the advertised options (`custom`) has no position to step from; forward enters the table at its first row and backward at its last. No advertised presets means the callback is not mounted and Tab does what it always did.
+
+#### 1.5.11 The `/model` picker
+
+Typing `/model ` (with the trailing space) opens a picker over the **current provider's** model catalogue, fetched through `llm.listModels(provider)` — the same shape and windowing as the other command pickers, and the first whose rows need provider I/O: they arrive asynchronously, the way the skill catalog's do, and a failed refresh keeps the previous rows rather than emptying the picker. The row name is the **bare model id** (`deepseek-v4`), because a bare id is what `/model` accepts against the current provider; the description is the provider's own display name, and the model the session is on carries a leading `✓`. Crossing providers stays a typed `/model <provider>/<id>` line, which the dispatch has always taken — one round-trip answers the common case (switching model within the provider the session is already talking to).
+
+| Key | Effect |
+|---|---|
+| `↑` / `↓` | Move the selection. |
+| token typing | Case-insensitive prefix filter on the bare id; a second space closes the picker. |
+| `Tab` | Fill the buffer with `/model <id> ` and close the list; the line is not sent. |
+| `Enter` | Submit `/model <id>` immediately — the ordinary dispatch switches both the live routing ref and the persisted selection, and the StatusBar follows because the selection is state (§3.3.1). |
+| `Esc` | Dismiss once for this token, keeping `/model deep` on screen. |
+
+No `llm` service, no selection or a catalogue that has not answered means no rows, which means no picker — the same dark-feature contract as the other two. While rows exist, bare `/model` + `Enter` in the `/` palette completes to `/model ` and opens the picker; without them it dispatches the bare command, whose usage answer (current model, `/context` pointer) stays reachable. The catalogue is re-read when the provider changes and on `llm/adapters-updated`; the ✓ marking is a memo over the catalogue, so a switch re-marks without re-fetching.
 
 ### 1.6 Keyboard bindings
 
@@ -482,6 +496,10 @@ its way to someone else.
 | `Enter` | `/permission` picker | Submit `/permission <value>` to the plugin command |
 | `Esc` | `/permission` picker | Dismiss the list once, keep the buffer |
 | `↑` / `↓` | `/permission` picker | Move picker selection |
+| `Tab` | `/model` picker | Fill `/model <id> `, keep editing |
+| `Enter` | `/model` picker | Submit `/model <id>` through the ordinary dispatch |
+| `Esc` | `/model` picker | Dismiss the list once, keep the buffer |
+| `↑` / `↓` | `/model` picker | Move picker selection |
 | `Tab` / `Shift+Tab` | Prompt (empty buffer, nothing floating, presets advertised) | Cycle the permission preset (§1.5.10) |
 | `Tab` / `Enter` | `@` file picker | Insert the highlighted path |
 | `Esc` | `@` file picker | Dismiss the list, keep the buffer |
@@ -971,7 +989,7 @@ Preset words are deployment-configured table keys, so they are shown **verbatim,
 
 **An unknown key in normal mode is swallowed, never typed.** `dq` abandons the operator; `q` alone does nothing. The alternative — falling through to the text path — means a mistyped normal-mode key silently appends a letter to a prompt the user believes they are navigating, and they find out when they press Enter.
 
-**Esc is contested five ways, and turn-cancel has to stay reachable.** The order is: the `/` palette, the `/skill` picker, the `/permission` picker, or the `@` picker wins it first (in the precedence of §1.5.9–§1.5.10, only one can be open); then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
+**Esc is contested six ways, and turn-cancel has to stay reachable.** The order is: the `/` palette, the `/skill` picker, the `/permission` picker, the `/model` picker, or the `@` picker wins it first (in the precedence of §1.5.9–§1.5.11, only one can be open); then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
 
 **The mode indicator costs zero rows and zero columns.** The prompt marker changes from `> ` to `N `, and it and the caret turn yellow. Not a `NORMAL` badge under the box: the root is a fixed-height frame and Yoga *overlaps* an overflowing subtree instead of scrolling it (§1.8), so a row that appears when a mode changes is a row that lands on top of the transcript. A width change would be as bad in the other direction — it re-folds every wrapped row in the buffer, which is a caret jump on a keystroke that was supposed to be free.
 

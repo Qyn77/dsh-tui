@@ -21,6 +21,7 @@
 
 import { isSkillName, isUserInvocable, type SkillSummary } from '@deepseek-ai/dsh-skill'
 import type { CommandMeta } from './commands.ts'
+import { anchoredTokenAt } from './prompt-editing.ts'
 
 /**
  * Marks a palette row as a skill. Prefixes the description rather than the
@@ -110,28 +111,16 @@ const SKILL_PREFIX = '/skill '
 /**
  * Find the `/skill ` query token the caret is in, if any.
  *
- * This is the `@` mention's rule (`mentionAt` in `file-mentions.ts`) with a
- * command where the `@` was: the anchor has to sit at position 0 because
- * commands start on the first line, the token runs to the next whitespace
- * rather than to the caret (so completing mid-token replaces the whole
- * thing), and a second token closes the picker — `/skill re view` is prose
- * being typed for the chosen skill, not a longer filter.
- *
- * The separator is a literal space, never a newline: a line broken with
- * `\`-Enter is a continuation, and commands do not continue.
+ * The grammar is the shared command-anchored one (`anchoredTokenAt`): anchor
+ * at position 0, one token exactly, a second token closes the picker —
+ * `/skill re view` is prose being typed for the chosen skill, not a longer
+ * filter.
  * @param buffer - the prompt buffer.
  * @param cursor - the caret's index into it.
  * @returns the query token, or `undefined` when the caret is not in one.
  */
 export function skillMentionAt(buffer: string, cursor: number): SkillMention | undefined {
-  const caret = Math.min(Math.max(0, cursor), buffer.length)
-  if (!buffer.startsWith(SKILL_PREFIX)) return undefined
-  let start = caret
-  while (start > SKILL_PREFIX.length && !/\s/.test(buffer[start - 1] ?? '')) start -= 1
-  if (start !== SKILL_PREFIX.length) return undefined
-  let end = caret
-  while (end < buffer.length && !/\s/.test(buffer[end] ?? '')) end += 1
-  return { query: buffer.slice(start, end), start, end }
+  return anchoredTokenAt(buffer, cursor, SKILL_PREFIX)
 }
 
 /**

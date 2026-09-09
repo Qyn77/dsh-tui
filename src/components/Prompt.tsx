@@ -27,10 +27,12 @@
  * palette and live behind this token now — where Tab inserts `/<name>`
  * and Enter runs the highlighted one. `/permission ` opens the preset
  * picker, whose rows are the projection's advertised presets and whose
- * Enter submits `/permission <value>` to the plugin command. An `@`
- * opens the file picker, the same shape with paths. Only one of the
- * four is ever open, in that precedence: `/` palette, skill picker,
- * permission picker, file picker.
+ * Enter submits `/permission <value>` to the plugin command. `/model `
+ * opens the model picker, whose rows are the current provider's
+ * catalogue and whose Enter submits `/model <id>` through the ordinary
+ * dispatch. An `@` opens the file picker, the same shape with paths.
+ * Only one of the five is ever open, in that precedence: `/` palette,
+ * skill picker, permission picker, model picker, file picker.
  *
  * ↑/↓ are shared with the conversation viewport, and Ink dispatches a
  * keystroke to *every* `useInput` handler — there is no bubbling to stop. So
@@ -81,6 +83,13 @@ import {
   permissionCommandLine,
   permissionMentionAt,
 } from '../permission-picker.ts'
+import {
+  MODEL_PREFIX,
+  applyModelMention,
+  filterModelRows,
+  modelCommandLine,
+  modelMentionAt,
+} from '../model-picker.ts'
 import { INITIAL_VIM, applyVim, type KeybindPref, type VimState } from '../vim.ts'
 import { useFileMentions } from '../hooks/useFileMentions.ts'
 import { SlashPalette } from './SlashPalette.tsx'
@@ -170,6 +179,13 @@ export interface PromptProps {
    */
   onCyclePermission?: (direction: 1 | -1) => void
   /**
+   * Models for the `/model ` picker: the current provider's catalogue, bare
+   * ids with display names, the live one marked. The App resolves them from
+   * `ctx.llm` (see `useModelCommands`); absent or empty means no picker, and
+   * bare `/model` keeps the dispatch that prints usage.
+   */
+  modelCommands?: readonly CommandMeta[]
+  /**
    * Which keymap the prompt runs — see `/keybinds` and `src/vim.ts`. Optional
    * and defaulting to `default`, so a prompt rendered without it is the
    * readline editor it has always been.
@@ -231,6 +247,7 @@ export const Prompt: FC<PromptProps> = ({
   skillCommands,
   permissionCommands,
   onCyclePermission,
+  modelCommands,
   keybinds = 'default',
 }) => {
   const { stdout } = useStdout()
@@ -325,12 +342,34 @@ export const Prompt: FC<PromptProps> = ({
     if (!permissionTokenActive) setPermissionDismissed(false)
   }, [permissionTokenActive])
 
+  // The `/model ` picker, fourth in precedence. Rows come from the provider's
+  // catalogue via a prop; an empty prop means no llm service, no selection or
+  // a listing that has not answered — all of which mean no picker.
+  const [modelDismissed, setModelDismissed] = useState(false)
+  const modelMention = palette.length === 0
+      && skillMention === undefined
+      && permissionMention === undefined
+    ? modelMentionAt(value, cursorIndex)
+    : undefined
+  const modelPickRows = modelMention === undefined
+    ? []
+    : filterModelRows(modelCommands ?? [], modelMention.query)
+  const safeModelIndex = clampPaletteIndex(paletteIndex, modelPickRows)
+  const modelTokenActive = modelMention !== undefined
+  const pickingModel = modelTokenActive
+    && !modelDismissed
+    && modelPickRows.length > 0
+  useEffect(() => {
+    if (!modelTokenActive) setModelDismissed(false)
+  }, [modelTokenActive])
+
   // The `@` picker. Suppressed while any list above it is open. `/` wins
   // because it is anchored to the first character and a mention is not, which
   // makes it the more deliberate of the two.
   const mention = palette.length === 0
       && skillMention === undefined
       && permissionMention === undefined
+      && modelMention === undefined
     ? mentionAt(value, cursorIndex)
     : undefined
   const files = useFileMentions(mention?.query)
@@ -359,7 +398,12 @@ export const Prompt: FC<PromptProps> = ({
 
   // ↑/↓ are shared with the log; tell the App which of us owns them.
   const claimsArrows = active
-    && (palette.length > 0 || pickingSkill || pickingPermission || picking || rows.length > 1)
+    && (palette.length > 0
+      || pickingSkill
+      || pickingPermission
+      || pickingModel
+      || picking
+      || rows.length > 1)
   useEffect(() => {
     onArrowClaimChange?.(claimsArrows)
   }, [claimsArrows, onArrowClaimChange])
@@ -376,6 +420,7 @@ export const Prompt: FC<PromptProps> = ({
     palette.length > 0
     || (pickingSkill && skillMention !== undefined)
     || (pickingPermission && permissionMention !== undefined)
+    || (pickingModel && modelMention !== undefined)
     || (picking && mention !== undefined)
     || (vimOn && vim.mode === 'insert' && value !== '')
   )
@@ -392,9 +437,11 @@ export const Prompt: FC<PromptProps> = ({
       ? Math.min(skillPickRows.length, paletteRows)
       : pickingPermission
         ? Math.min(permissionPickRows.length, paletteRows)
-        : picking
-          ? Math.min(Math.max(fileRows.length, 1), paletteRows)
-          : 0
+        : pickingModel
+          ? Math.min(modelPickRows.length, paletteRows)
+          : picking
+            ? Math.min(Math.max(fileRows.length, 1), paletteRows)
+            : 0
   const overlayRows = overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS
   useEffect(() => {
     onOverlayRowsChange?.(overlayRows)
@@ -509,6 +556,7 @@ export const Prompt: FC<PromptProps> = ({
     setDismissed(null)
     setSkillDismissed(false)
     setPermissionDismissed(false)
+    setModelDismissed(false)
     rememberSubmission(submitted)
     onSubmit(submitted)
   }
@@ -538,6 +586,22 @@ export const Prompt: FC<PromptProps> = ({
     const chosen = permissionPickRows[safePermissionIndex]
     if (chosen === undefined) return false
     const next = applyPermissionMention(value, permissionMention, chosen.name)
+    setValue(next.text)
+    setCursorIndex(next.cursor)
+    setPaletteIndex(0)
+    return true
+  }
+
+  /**
+   * Fill `/model …` with the highlighted model, leaving the trailing space
+   * that closes the picker. Tab's answer — the line is not sent, so the
+   * choice can be read before Enter dispatches the switch.
+   */
+  const completeModel = (): boolean => {
+    if (modelMention === undefined) return false
+    const chosen = modelPickRows[safeModelIndex]
+    if (chosen === undefined) return false
+    const next = applyModelMention(value, modelMention, chosen.name)
     setValue(next.text)
     setCursorIndex(next.cursor)
     setPaletteIndex(0)
@@ -654,6 +718,10 @@ export const Prompt: FC<PromptProps> = ({
           // Dismiss once, keep `/permission dan` on screen.
           setPermissionDismissed(true)
           setPaletteIndex(0)
+        } else if (pickingModel && modelMention !== undefined) {
+          // Dismiss once, keep `/model deep` on screen.
+          setModelDismissed(true)
+          setPaletteIndex(0)
         } else if (picking && mention !== undefined) {
           // The buffer is a sentence the user is writing, not a command they
           // mistyped: dismiss the list, keep the words.
@@ -700,6 +768,11 @@ export const Prompt: FC<PromptProps> = ({
         completePermission()
         return
       }
+      // Tab in the model picker fills `/model <id> ` without sending.
+      if (key.tab && pickingModel) {
+        completeModel()
+        return
+      }
       // Tab in a mention inserts the highlighted path. Same keystroke, same
       // meaning: finish what I have started typing.
       if (key.tab && picking) {
@@ -721,6 +794,7 @@ export const Prompt: FC<PromptProps> = ({
         && palette.length === 0
         && !pickingSkill
         && !pickingPermission
+        && !pickingModel
         && !picking
       ) {
         onCyclePermission(key.shift ? -1 : 1)
@@ -742,6 +816,10 @@ export const Prompt: FC<PromptProps> = ({
           setPaletteIndex(i => clampPaletteIndex(i - 1, permissionPickRows))
           return
         }
+        if (pickingModel) {
+          setPaletteIndex(i => clampPaletteIndex(i - 1, modelPickRows))
+          return
+        }
         if (picking) {
           setPaletteIndex(i => clampPaletteIndex(i - 1, fileRows))
           return
@@ -760,6 +838,10 @@ export const Prompt: FC<PromptProps> = ({
         }
         if (pickingPermission) {
           setPaletteIndex(i => clampPaletteIndex(i + 1, permissionPickRows))
+          return
+        }
+        if (pickingModel) {
+          setPaletteIndex(i => clampPaletteIndex(i + 1, modelPickRows))
           return
         }
         if (picking) {
@@ -811,6 +893,15 @@ export const Prompt: FC<PromptProps> = ({
             setPaletteIndex(0)
             return
           }
+          // Same, for `/model`, and for the same reason: with a catalogue in
+          // hand the picker is what the key was reaching for; without one the
+          // bare command's usage answer must still run.
+          if (normalized === '/model' && (modelCommands?.length ?? 0) > 0) {
+            setValue(MODEL_PREFIX)
+            setCursorIndex(MODEL_PREFIX.length)
+            setPaletteIndex(0)
+            return
+          }
           const exact = palette.find(c => c.name === normalized)
           if (exact) {
             submit(exact.name)
@@ -844,6 +935,16 @@ export const Prompt: FC<PromptProps> = ({
           const chosen = permissionPickRows[safePermissionIndex]
           if (chosen) {
             submit(permissionCommandLine(chosen.name))
+            return
+          }
+        }
+        // Enter in the model picker SWITCHES: submit `/model <id>` through the
+        // ordinary dispatch, so the switch keeps its echo, its validation and
+        // its busy-check. Tab is the path for reviewing the completed line.
+        if (pickingModel) {
+          const chosen = modelPickRows[safeModelIndex]
+          if (chosen) {
+            submit(modelCommandLine(chosen.name))
             return
           }
         }
@@ -936,6 +1037,16 @@ export const Prompt: FC<PromptProps> = ({
             commands={permissionPickRows}
             selected={safePermissionIndex}
             hint={strings.palette.permissionHint}
+            maxRows={paletteRows}
+          />
+        </Box>
+      ) : null}
+      {pickingModel ? (
+        <Box marginBottom={1}>
+          <SlashPalette
+            commands={modelPickRows}
+            selected={safeModelIndex}
+            hint={strings.palette.modelHint}
             maxRows={paletteRows}
           />
         </Box>

@@ -109,3 +109,45 @@ export function pushHistory(history: readonly string[], entry: string): string[]
   if (history[history.length - 1] === entry) return [...history]
   return [...history, entry]
 }
+
+/** A `<command> <token>` query the caret sits in: what it asks, what it occupies. */
+export interface AnchoredToken {
+  /** The token typed after the anchor, which may be empty right after the space. */
+  query: string
+  /** Index the token starts at — always `anchor.length`. */
+  start: number
+  /** Index one past the token's last character. */
+  end: number
+}
+
+/**
+ * Find the single token after a literal `anchor` at position 0, if the caret
+ * is in it.
+ *
+ * This is the grammar every command-anchored picker shares (`/skill `,
+ * `/permission `, `/model `): the anchor sits at position 0 because commands
+ * start on the first line, the token runs to the next whitespace rather than
+ * to the caret (so completing mid-token replaces the whole thing), and a
+ * second token closes the picker — the words after the choice are arguments
+ * for it, not a longer filter. The separator test is `/\s/`-wide rather than
+ * a literal space so a `\`-Enter continuation, which is not a command, does
+ * not keep a picker open on the second line.
+ * @param buffer - the prompt buffer.
+ * @param cursor - the caret's index into it.
+ * @param anchor - the literal `command + space` the picker is anchored on.
+ * @returns the token query, or `undefined` when the caret is not in one.
+ */
+export function anchoredTokenAt(
+  buffer: string,
+  cursor: number,
+  anchor: string,
+): AnchoredToken | undefined {
+  const caret = clamp(cursor, buffer)
+  if (!buffer.startsWith(anchor)) return undefined
+  let start = caret
+  while (start > anchor.length && !isSpaceAt(buffer, start - 1)) start -= 1
+  if (start !== anchor.length) return undefined
+  let end = caret
+  while (end < buffer.length && !isSpaceAt(buffer, end)) end += 1
+  return { query: buffer.slice(start, end), start, end }
+}

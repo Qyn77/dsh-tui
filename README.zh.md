@@ -120,7 +120,7 @@ REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续�
 | `/help` | 打印可用的斜杠命令 |
 | `/clear` | 清空可见的聊天区（session log 不变） |
 | `/status` | 打印当前模型、session id 和生效中的权限预设 |
-| `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换 |
+| `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换。输入 `/model `（带空格）会弹出当前 provider 的模型选择器，直接选而不必猜名字 |
 | `/context` | 打印上下文窗口、本次 session 的 token 开销，以及当前上下文占用了多少 |
 | `/usage` | 按轮次拆开本次 session 的 token 开销 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |

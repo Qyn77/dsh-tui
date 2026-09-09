@@ -251,6 +251,14 @@ export interface PaintOptions {
    */
   registryCommands?: ReadonlyArray<{ name: string; description?: string; handler?: (raw: string) => string }>
   /**
+   * Model ids to mount a fake `llm` service with, advertised to the current
+   * provider's `listModels()` in the given order, each describing itself as
+   * `name of <id>`. Omitted by default — most mounts have no llm service,
+   * which is one of the two states the `/model ` picker must degrade from
+   * (the other is an empty catalogue, `models: []`).
+   */
+  models?: readonly string[]
+  /**
    * Ink's `debug` render mode, on by default because it writes each frame as
    * one plain chunk and that is what makes `screen()` readable.
    *
@@ -321,14 +329,33 @@ export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
     appearance = 'dark', themePref = 'auto', keybinds = 'default', steer, followup, cancel,
-    skills = DEFAULT_SKILLS, preset, registryCommands: pluginCommands,
+    skills = DEFAULT_SKILLS, preset, registryCommands: pluginCommands, models,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
   stdout.isTTY = tty
   const stdin = fakeTtyStdin()
   const ctx = new Context()
-  ctx.provide('agentDefaultModel', { currentSelection: () => selection } as never)
+  // Per-mount copy: `saveSelection` mutates it, and the module-level default
+  // is shared by every test in a file.
+  const current = { ...selection }
+  ctx.provide('agentDefaultModel', {
+    // A fresh object per read: the App holds the selection in state and
+    // `refreshSelection` re-reads it, so returning the same mutated reference
+    // would leave a switch invisible to React's identity check.
+    currentSelection: () => ({ ...current }),
+    saveSelection: (next: { provider: string; model: string }) => {
+      current.provider = next.provider
+      current.model = next.model
+    },
+  } as never)
+  if (models !== undefined) {
+    ctx.provide('llm', {
+      listModels: (provider: string) => Promise.resolve(
+        models.map(id => ({ provider, id, name: `name of ${id}` })),
+      ),
+    } as never)
+  }
   ctx.provide('skills', fakeSkills(skills) as never)
   if (preset !== undefined) {
     ctx.provide('sessionProjections', fakeProjections(preset) as never)

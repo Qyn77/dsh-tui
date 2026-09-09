@@ -289,7 +289,8 @@ Definition of done:
 Priority features:
 
 - richer model switching and plan mode context — **partly done**: `/model`
-  switches routes and the plan-mode line is drawn from `plan/mode`. The command
+  switches routes, `/model ` opens a picker over the provider's catalogue, and
+  the plan-mode line is drawn from `plan/mode`. The command
   that enters plan mode belongs to `@deepseek-ai/dsh-plan-mode` and arrives
   through the `ctx.commands` fallback
 - better overall chat ergonomics

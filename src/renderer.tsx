@@ -30,6 +30,7 @@ import { resolveSkill, skillFailureText, viewingScope } from './skill-runner.ts'
 import { useSkillCommands } from './hooks/useSkillCommands.ts'
 import { usePermissionPreset } from './hooks/usePermissionPreset.ts'
 import { permissionRows } from './permission-picker.ts'
+import { useModelCommands } from './hooks/useModelCommands.ts'
 import { service } from './services.ts'
 import { commands, dispatch } from './commands.ts'
 import { handleCancel, handleInterrupt } from './interrupt.ts'
@@ -206,6 +207,10 @@ export const App: FC<AppProps> = ({
     () => permissionPreset === undefined ? [] : permissionRows(permissionPreset),
     [permissionPreset],
   )
+  // The current provider's catalogue for the `/model ` picker. Async like the
+  // skill catalog, scoped like the selection: no llm service or no selection
+  // means an empty list, which means no picker.
+  const modelRowsForPicker = useModelCommands(ctx, selection)
   // `!` escapes. Declared here because both the interrupt handler and the
   // submit handler need it, and it is the owner of the working directory.
   const shell = useShell({ agent, appendEntry, strings })
@@ -860,6 +865,7 @@ export const App: FC<AppProps> = ({
           skillCommands={skillRowsForPicker}
           permissionCommands={permissionRowsForPicker}
           onCyclePermission={permissionRowsForPicker.length > 1 ? cyclePermission : undefined}
+          modelCommands={modelRowsForPicker}
         />
       </Box>
     </AppProviders>

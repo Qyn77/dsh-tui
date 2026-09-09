@@ -15,6 +15,7 @@
 
 import type { CommandMeta } from './commands.ts'
 import type { PermissionPresetSelect } from './types.ts'
+import { anchoredTokenAt } from './prompt-editing.ts'
 
 /**
  * Marks the row that is currently in force. The skill picker marks its rows
@@ -59,11 +60,10 @@ export function permissionRows(select: PermissionPresetSelect): CommandMeta[] {
 /**
  * Find the `/permission ` query token the caret is in, if any.
  *
- * Same grammar as `skillMentionAt`: the anchor sits at position 0, the token
- * runs to the next whitespace rather than to the caret, and a second token
- * closes the picker — `/permission read only` is an already-chosen line being
- * edited, not a two-word filter. The separator is a literal space, never a
- * newline: a `\`-Enter continuation is not a command.
+ * The grammar is the shared command-anchored one (`anchoredTokenAt`): anchor
+ * at position 0, one token exactly, a second token closes the picker —
+ * `/permission read only` is an already-chosen line being edited, not a
+ * two-word filter.
  * @param buffer - the prompt buffer.
  * @param cursor - the caret's index into it.
  * @returns the query token, or `undefined` when the caret is not in one.
@@ -72,14 +72,7 @@ export function permissionMentionAt(
   buffer: string,
   cursor: number,
 ): PermissionMention | undefined {
-  const caret = Math.min(Math.max(0, cursor), buffer.length)
-  if (!buffer.startsWith(PERMISSION_PREFIX)) return undefined
-  let start = caret
-  while (start > PERMISSION_PREFIX.length && !/\s/.test(buffer[start - 1] ?? '')) start -= 1
-  if (start !== PERMISSION_PREFIX.length) return undefined
-  let end = caret
-  while (end < buffer.length && !/\s/.test(buffer[end] ?? '')) end += 1
-  return { query: buffer.slice(start, end), start, end }
+  return anchoredTokenAt(buffer, cursor, PERMISSION_PREFIX)
 }
 
 /**

@@ -131,6 +131,8 @@ export interface Catalog {
     skillHint: string
     /** The legend for the `/permission ` picker, whose rows switch a setting. */
     permissionHint: string
+    /** The legend for the `/model ` picker, whose rows switch the model. */
+    modelHint: string
     /** Shown instead of rows while the first directory scan is in flight. */
     scanning: string
     /** Appended to the hint when the window hides rows. */
@@ -481,6 +483,7 @@ const EN: Catalog = {
     fileHint: '↑↓ navigate · Tab or Enter insert path · Esc dismiss',
     skillHint: '↑↓ navigate · Tab insert /<name> · Enter run · Esc dismiss',
     permissionHint: '↑↓ navigate · Tab fill /permission <preset> · Enter switch · Esc dismiss',
+    modelHint: '↑↓ navigate · Tab fill /model <name> · Enter switch · Esc dismiss',
     scanning: 'scanning files…',
     more: count => ` · +${count} more`,
   },
@@ -732,6 +735,7 @@ const ZH: Catalog = {
     fileHint: '↑↓ 选择 · Tab 或 Enter 插入路径 · Esc 关闭',
     skillHint: '↑↓ 选择 · Tab 插入 /<名称> · Enter 执行 · Esc 关闭',
     permissionHint: '↑↓ 选择 · Tab 填入 /permission <预设> · Enter 切换 · Esc 关闭',
+    modelHint: '↑↓ 选择 · Tab 填入 /model <名称> · Enter 切换 · Esc 关闭',
     scanning: '正在扫描文件…',
     more: count => ` · 还有 ${count} 条`,
   },
