@@ -523,8 +523,12 @@ marked as such.
 Approval policy is one knob; what the sandbox lets a tool touch is the other.
 Permission presets bundle both. Type `/permission ` (with the trailing space)
 and a picker floats over the choices, ticking the one in force; `↑`/`↓` move,
-`Enter` switches, `Tab` just fills the line. The same words also work typed
-straight at the plugin command, `/permission <preset>`:
+`Enter` switches, `Tab` just fills the line. There is also a keystroke for the
+impatient: **`Tab` / `Shift+Tab` on an empty prompt** steps forward and back
+through the presets, wrapping around — the switch submits the same
+`/permission <value>` line and leaves the same trail in the log. The same
+words also work typed straight at the plugin command,
+`/permission <preset>`:
 
 | Preset | Sandbox | Approvals |
 |---|---|---|

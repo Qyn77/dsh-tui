@@ -361,8 +361,9 @@ unbuilt either:
   no new dependency) and shows the effective preset word on the StatusBar and
   in `/status`, with `danger-full-access` in bold red. `/permission ` also
   opens a skill-style picker (§1.5.10) that ticks the live preset and submits
-  the full line to the plugin command. No projection service, no chip and no
-  picker — the feature ships dark. See SPEC §1.18.
+  the full line to the plugin command, and `Tab`/`Shift+Tab` on an empty
+  prompt cycle the table the same way. No projection service, no chip, no
+  picker and no cycle — the feature ships dark. See SPEC §1.18.
 
 - **Vim keybinds.** *Shipped as `/keybinds vim`.* The last item on the v1.0
   list, and the one whose title was half wrong: it read "Vim / Emacs keybind

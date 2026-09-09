@@ -446,6 +446,8 @@ Typing `/permission ` (with the trailing space) opens a picker over the preset w
 
 The picker has **no rows without a mounted projection**: it is the same dark-feature contract as the StatusBar chip. That also settles the one naming collision — `/permission` is a plugin command, not a built-in. While presets are advertised, bare `/permission` + `Enter` in the `/` palette completes to `/permission ` and opens this picker (the one conditional exception in §1.5.1); without them, the bare line is dispatched to the plugin untouched, so the command's own usage answer stays reachable in an assembly that provides the command but no projection. Direct typing is never intercepted at all: `/permission read-only` submitted by hand goes through the ordinary plugin-registry path exactly as it did before this picker existed.
 
+**`Tab` / `Shift+Tab` on an empty prompt cycle the preset**, forward and back through the advertised table, wrapping at both ends. Eligibility is positional: the branch sits below every completion branch, so an open list outranks the cycle, and so does any text in the buffer — Tab keeps its editing meaning there. The cycle submits the same `/permission <value>` line the picker's Enter sends, rather than calling the plugin out-of-band: the switch therefore keeps its audit trail (command echo plus the plugin's answer), the running-turn busy-check applies, and the chip follows through its knob-event subscription. A `currentValue` outside the advertised options (`custom`) has no position to step from; forward enters the table at its first row and backward at its last. No advertised presets means the callback is not mounted and Tab does what it always did.
+
 ### 1.6 Keyboard bindings
 
 Ink hands every keystroke to *every* mounted `useInput` handler and offers no
@@ -480,6 +482,7 @@ its way to someone else.
 | `Enter` | `/permission` picker | Submit `/permission <value>` to the plugin command |
 | `Esc` | `/permission` picker | Dismiss the list once, keep the buffer |
 | `↑` / `↓` | `/permission` picker | Move picker selection |
+| `Tab` / `Shift+Tab` | Prompt (empty buffer, nothing floating, presets advertised) | Cycle the permission preset (§1.5.10) |
 | `Tab` / `Enter` | `@` file picker | Insert the highlighted path |
 | `Esc` | `@` file picker | Dismiss the list, keep the buffer |
 | `↑` / `↓` | `@` file picker | Move picker selection |

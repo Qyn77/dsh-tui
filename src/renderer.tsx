@@ -664,6 +664,34 @@ export const App: FC<AppProps> = ({
     ],
   )
 
+  /**
+   * Step through the advertised permission presets, wired to Tab / Shift+Tab
+   * on an empty prompt. The submitted line is the same `/permission <value>`
+   * the picker's Enter sends, deliberately: the switch keeps its audit trail
+   * (command echo plus the plugin's own answer), the busy-check applies, and
+   * the chip follows through its knob-event subscription.
+   *
+   * A `currentValue` outside the advertised options (`custom` — the knobs
+   * were set individually) has no position to step from; forward enters the
+   * table at its first row and backward at its last, so the key always lands
+   * somewhere the projection can name.
+   */
+  const cyclePermission = useCallback(
+    (direction: 1 | -1) => {
+      if (permissionPreset === undefined) return
+      const values = permissionPreset.options.map(option => option.value)
+      if (values.length < 2) return
+      const at = values.indexOf(permissionPreset.currentValue)
+      const stepped = at === -1
+        ? (direction === 1 ? 0 : values.length - 1)
+        : (at + direction + values.length) % values.length
+      const next = values[stepped]
+      if (next === undefined) return
+      onSubmit(`/permission ${next}`)
+    },
+    [permissionPreset, onSubmit],
+  )
+
   if (selection === undefined) {
     return (
       <AppProviders lang={lang} appearance={appearance}>
@@ -831,6 +859,7 @@ export const App: FC<AppProps> = ({
           extraCommands={registryRows}
           skillCommands={skillRowsForPicker}
           permissionCommands={permissionRowsForPicker}
+          onCyclePermission={permissionRowsForPicker.length > 1 ? cyclePermission : undefined}
         />
       </Box>
     </AppProviders>

@@ -229,3 +229,84 @@ describe('the /permission picker', () => {
     expect(ran).toHaveBeenCalledWith('/permission')
   })
 })
+
+describe('cycling presets from the empty prompt', () => {
+  it('Tab submits /permission <next> — the same line the picker would send', async () => {
+    const ran = vi.fn()
+    const painted = await paintApp({
+      preset: 'workspace-write',
+      registryCommands: permissionRegistry(ran),
+    })
+    await painted.send('\t')
+    await painted.settle(50)
+    const screen = painted.screen()
+    painted.unmount()
+
+    // read-only → workspace-write → danger-full-access, forward.
+    expect(ran).toHaveBeenCalledTimes(1)
+    expect(ran).toHaveBeenCalledWith('/permission danger-full-access')
+    // The switch keeps its audit trail: command echo plus plugin output.
+    expect(screen).toContain('/permission danger-full-access')
+    expect(screen).toContain('switched: /permission danger-full-access')
+  })
+
+  it('Shift+Tab steps backward through the table', async () => {
+    const ran = vi.fn()
+    const painted = await paintApp({
+      preset: 'workspace-write',
+      registryCommands: permissionRegistry(ran),
+    })
+    await painted.send(`${ESC}[Z`)
+    await painted.settle(50)
+    painted.unmount()
+
+    expect(ran).toHaveBeenCalledWith('/permission read-only')
+  })
+
+  it('wraps around at both ends of the table', async () => {
+    const ran = vi.fn()
+    const painted = await paintApp({
+      preset: 'danger-full-access',
+      registryCommands: permissionRegistry(ran),
+    })
+    await painted.send('\t')
+    await painted.settle(50)
+    painted.unmount()
+
+    expect(ran).toHaveBeenCalledWith('/permission read-only')
+  })
+
+  it('does not fire while the buffer holds text or a list is open', async () => {
+    const ran = vi.fn()
+    const painted = await paintApp({
+      preset: 'workspace-write',
+      registryCommands: permissionRegistry(ran),
+    })
+    // Text in the buffer: Tab is an editing key, not a shortcut.
+    await painted.send('hi')
+    await painted.send('\t')
+    // Ctrl-C abandons the line, the way a user would.
+    await painted.send('\x03')
+    // The permission picker open: Tab completes, it does not cycle.
+    await painted.send('/permission ')
+    await painted.send('\t')
+    await painted.settle(50)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(ran).not.toHaveBeenCalled()
+    expect(screen).toContain('/permission read-only ')
+  })
+
+  it('leaves Tab alone when no projection advertises presets', async () => {
+    const ran = vi.fn()
+    const painted = await paintApp({
+      registryCommands: permissionRegistry(ran),
+    })
+    await painted.send('\t')
+    await painted.settle(50)
+    painted.unmount()
+
+    expect(ran).not.toHaveBeenCalled()
+  })
+})

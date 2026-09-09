@@ -162,6 +162,14 @@ export interface PromptProps {
    */
   permissionCommands?: readonly CommandMeta[]
   /**
+   * Cycle the permission preset, wired to Tab / Shift+Tab while the buffer is
+   * empty and no list is floating — every other Tab meaning (completion in an
+   * open list) outranks it. The App owns the preset math and the dispatch; the
+   * prompt only decides when the key is free. Absent when no presets are
+   * advertised, so the key keeps its old behaviour there.
+   */
+  onCyclePermission?: (direction: 1 | -1) => void
+  /**
    * Which keymap the prompt runs — see `/keybinds` and `src/vim.ts`. Optional
    * and defaulting to `default`, so a prompt rendered without it is the
    * readline editor it has always been.
@@ -222,6 +230,7 @@ export const Prompt: FC<PromptProps> = ({
   extraCommands,
   skillCommands,
   permissionCommands,
+  onCyclePermission,
   keybinds = 'default',
 }) => {
   const { stdout } = useStdout()
@@ -695,6 +704,26 @@ export const Prompt: FC<PromptProps> = ({
       // meaning: finish what I have started typing.
       if (key.tab && picking) {
         completeMention()
+        return
+      }
+      // Tab / Shift+Tab on an empty buffer, with no list floating: cycle the
+      // permission preset, forward and back. Sitting below every completion
+      // branch above is the whole eligibility rule — an open list outranks the
+      // cycle, and so does any text in the buffer (where Tab is an editing
+      // key, not a shortcut). The guards on the lists are technically implied
+      // by `value === ''` (every one of them anchors on a non-empty prefix);
+      // they are spelled out so a future list that does not will inherit the
+      // right precedence for free.
+      if (
+        key.tab
+        && value === ''
+        && onCyclePermission !== undefined
+        && palette.length === 0
+        && !pickingSkill
+        && !pickingPermission
+        && !picking
+      ) {
+        onCyclePermission(key.shift ? -1 : 1)
         return
       }
       // ↑/↓ — the palette first, then row movement inside a buffer that
