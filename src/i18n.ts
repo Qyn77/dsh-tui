@@ -40,6 +40,7 @@
  */
 
 import type { PluginPhase } from './plugins.ts'
+import type { McpParseError } from './mcp-config.ts'
 import type { SessionLabels } from './sessions.ts'
 import type { UsageLabels } from './usage.ts'
 import { HISTORY_PREFS, type HistoryPref } from './types.ts'
@@ -391,6 +392,26 @@ export interface Catalog {
     mcpServer: (name: string, count: number) => string
     /** `/mcp` in an assembly with no tools service to read. */
     mcpNoTools: string
+    /** `/mcp add` with nothing pasted after it. */
+    mcpAddUsage: string
+    /** `/mcp add` when the pasted snippet cannot be read as a server config. */
+    mcpAddInvalid: (error: McpParseError) => string
+    /** `/mcp add` for a server the patch layer already configures. */
+    mcpAddDuplicate: (server: string) => string
+    /** `/mcp add` or `/mcp remove` when the patch layer could not be rewritten. */
+    mcpWriteFailed: (reason: string) => string
+    /** `/mcp add` once the server answered and its tools registered. */
+    mcpAdded: (server: string, count: number, path: string) => string
+    /** `/mcp add` when the row was written but the server has not answered yet. */
+    mcpAddPending: (servers: readonly string[], path: string) => string
+    /** `/mcp add` when a written row carries values that look like secrets. */
+    mcpAddSecret: (keys: readonly string[]) => string
+    /** `/mcp remove` with no server named. */
+    mcpRemoveUsage: string
+    /** `/mcp remove <server>` after the row was taken out. */
+    mcpRemoved: (server: string, path: string) => string
+    /** `/mcp remove <server>` for a server the patch layer does not configure. */
+    mcpRemoveMissing: (server: string) => string
     /** `/approval` with no argument: the session's override and how to change it. */
     approvalUsage: (policy: string) => string
     /** `/approval` with no argument when the session never switched. */
@@ -462,6 +483,63 @@ export interface Catalog {
     copySent: (target: 'reply' | 'code', bytes: number, truncatedAt?: number) => string
     /** `/copy` when the conversation holds no reply, or no code block. */
     copyNothing: (target: 'reply' | 'code') => string
+  }
+}
+
+/**
+ * Name the part of a pasted MCP snippet that could not be read, in English.
+ *
+ * Split out of the catalog entry because the shape is a switch over a union
+ * and reads as one, and because the exhaustiveness check earns its keep: a
+ * new refusal code added to `mcp-config.ts` fails to compile here and in
+ * {@link describeMcpParseErrorZh} until both languages describe it.
+ * @param error - the refusal from `parseMcpSnippet`.
+ * @returns the clause that completes "That is not a usable MCP server config:".
+ */
+function describeMcpParseErrorEn(error: McpParseError): string {
+  switch (error.code) {
+    case 'json':
+      return `it is not valid JSON (${error.detail}).`
+    case 'not-object':
+      return 'the top level has to be an object mapping server names to their configs.'
+    case 'empty':
+      return 'there is nothing in it — paste the config after the command.'
+    case 'missing-name':
+      return 'it is one server\'s config with no name around it. Wrap it: {"my-server": { … }}.'
+    case 'entry-not-object':
+      return `${error.server} maps to something that is not an object.`
+    case 'bad-name':
+      return `${error.server} is not a usable server name — letters, digits, dashes and underscores, up to 32 of them.`
+    case 'unknown-transport':
+      return `${error.server} declares neither a command (stdio) nor a url (HTTP).`
+    case 'bad-field':
+      return `${error.server}'s ${error.field} is not the shape it has to be.`
+  }
+}
+
+/**
+ * Name the part of a pasted MCP snippet that could not be read, in Chinese.
+ * @param error - the refusal from `parseMcpSnippet`.
+ * @returns the clause that completes the Chinese refusal sentence.
+ */
+function describeMcpParseErrorZh(error: McpParseError): string {
+  switch (error.code) {
+    case 'json':
+      return `它不是合法的 JSON（${error.detail}）。`
+    case 'not-object':
+      return '最外层得是一个对象，把服务器名映射到各自的配置。'
+    case 'empty':
+      return '里面什么都没有——把配置粘在命令后面。'
+    case 'missing-name':
+      return '这是某一个服务器的配置，外面没套名字。包一层：{"my-server": { … }}。'
+    case 'entry-not-object':
+      return `${error.server} 对应的不是一个对象。`
+    case 'bad-name':
+      return `${error.server} 不是可用的服务器名——只能是字母、数字、连字符和下划线，最多 32 个。`
+    case 'unknown-transport':
+      return `${error.server} 既没写 command（stdio），也没写 url（HTTP）。`
+    case 'bad-field':
+      return `${error.server} 的 ${error.field} 字段形状不对。`
   }
 }
 
@@ -569,7 +647,7 @@ const EN: Catalog = {
     '/history': 'Show or hide the resumed session\'s stored history: /history show or hide',
     '/keybinds': 'Choose the prompt editor: /keybinds vim or default',
     '/language': 'Switch the interface language: /language en or zh',
-    '/mcp': 'List connected MCP servers and their tools',
+    '/mcp': 'List connected MCP servers; /mcp add <config> and /mcp remove <server> configure them',
     '/model': 'Switch model: /model <name> or <provider>/<name>',
     '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
     '/quit': 'Alias for /exit',
@@ -630,9 +708,25 @@ const EN: Catalog = {
     noPlugins: 'The loader has no plugins to list.',
     noLoader: 'No plugin loader in this assembly — nothing to list.',
     mcpHeading: count => `MCP servers (${count}):`,
-    mcpNone: 'No MCP servers are connected. Add an \'@deepseek-ai/dsh-mcp-client\' row to a patch layer (a profile\'s cordis.patch.yml, or --patch on the command line) and its tools appear here — the README has the config table.',
+    mcpNone: 'No MCP servers are connected. Paste a server\'s config after /mcp add — the mcpServers block its README gives you — and it is written to your patch layer and connected without a restart.',
     mcpServer: (name, count) => `${name} — ${count} tool${count === 1 ? '' : 's'}`,
     mcpNoTools: 'No tool registry in this assembly — nothing to enumerate.',
+    mcpAddUsage:
+      'Usage: /mcp add <config> — paste the mcpServers block from a server\'s README (a multi-line paste is fine) and press Enter. Example: /mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}',
+    mcpAddInvalid: error => `That is not a usable MCP server config: ${describeMcpParseErrorEn(error)}`,
+    mcpAddDuplicate: server =>
+      `${server} is already in your patch layer. Take it out with /mcp remove ${server} before adding it again.`,
+    mcpWriteFailed: reason => `Could not write the patch layer: ${reason}`,
+    mcpAdded: (server, count, path) =>
+      `Connected to ${server} — ${count} tool${count === 1 ? '' : 's'}. Written to ${path}, so it comes back next launch.`,
+    mcpAddPending: (servers, path) =>
+      `Wrote ${servers.join(', ')} to ${path}. Still connecting — run /mcp in a moment to see the tools, and the launcher's log if they do not appear.`,
+    mcpAddSecret: keys =>
+      `Note: ${keys.join(', ')} went into that file in plaintext — the MCP bridge resolves no credential references. Write !!js process.env.NAME there instead to keep the value in your environment.`,
+    mcpRemoveUsage: 'Usage: /mcp remove <server> — the name /mcp lists it under.',
+    mcpRemoved: (server, path) => `Removed ${server} from ${path}.`,
+    mcpRemoveMissing: server =>
+      `Your patch layer configures no server named ${server}. A server added some other way has to be removed the same way.`,
     approvalUsage: policy =>
       `Approval policy: ${policy} (set for this session). /approval ask prompts you before a tool that needs authorising; /approval never rejects every such call without asking.`,
     approvalUsageDefault:
@@ -816,7 +910,7 @@ const ZH: Catalog = {
     '/history': '显示或隐藏接续 session 的已存历史：/history show 或 hide',
     '/keybinds': '选择提示框的编辑器：/keybinds vim 或 default',
     '/language': '切换界面语言：/language en 或 zh',
-    '/mcp': '列出已连接的 MCP 服务器及其工具',
+    '/mcp': '列出已连接的 MCP 服务器；/mcp add <配置> 和 /mcp remove <服务器> 用来增删',
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
@@ -877,9 +971,22 @@ const ZH: Catalog = {
     noPlugins: '加载器里没有可列出的插件。',
     noLoader: '当前装配没有插件加载器，无从列起。',
     mcpHeading: count => `MCP 服务器（${count}）：`,
-    mcpNone: '没有连接中的 MCP 服务器。在某个 patch 层（profile 的 cordis.patch.yml，或命令行的 --patch）里加一个 \'@deepseek-ai/dsh-mcp-client\' 插件行，它的工具就会出现在这里——配置表在 README 里。',
+    mcpNone: '没有连接中的 MCP 服务器。把服务器 README 里那段 mcpServers 配置粘在 /mcp add 后面，它会写进你的 patch 层并立即连上，不用重启。',
     mcpServer: (name, count) => `${name} —— ${count} 个工具`,
     mcpNoTools: '当前装配没有工具注册表，无从枚举。',
+    mcpAddUsage:
+      '用法：/mcp add <配置> —— 把服务器 README 给的那段 mcpServers 配置粘在后面（多行粘贴没问题），回车即可。例：/mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}',
+    mcpAddInvalid: error => `这段不是可用的 MCP 服务器配置：${describeMcpParseErrorZh(error)}`,
+    mcpAddDuplicate: server => `${server} 已经在你的 patch 层里了。先用 /mcp remove ${server} 移除，再重新添加。`,
+    mcpWriteFailed: reason => `写不了 patch 层：${reason}`,
+    mcpAdded: (server, count, path) => `已连上 ${server} —— ${count} 个工具。配置写入了 ${path}，下次启动还在。`,
+    mcpAddPending: (servers, path) =>
+      `已把 ${servers.join('、')} 写入 ${path}。还在连接中——过一会儿跑 /mcp 看工具；一直不出现就看启动器的日志。`,
+    mcpAddSecret: keys =>
+      `提示：${keys.join('、')} 是明文写进那个文件的——MCP 桥不做凭据引用解析。想把值留在环境变量里，就把那里改成 !!js process.env.NAME。`,
+    mcpRemoveUsage: '用法：/mcp remove <服务器> —— 名字就是 /mcp 里列出的那个。',
+    mcpRemoved: (server, path) => `已从 ${path} 移除 ${server}。`,
+    mcpRemoveMissing: server => `你的 patch 层里没有叫 ${server} 的服务器。用别的方式加进来的服务器，也得用那种方式移除。`,
     approvalUsage: policy =>
       `审批策略：${policy}（本 session 已设置）。/approval ask 会在需要授权的工具跑之前问你；/approval never 则一律直接拒绝、不问。`,
     approvalUsageDefault:

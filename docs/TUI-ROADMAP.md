@@ -317,6 +317,17 @@ denied, asked or halted. It cost no dependency at all: `src/types.ts` declares
 the payloads locally, as it already did for `compaction/*` and `plan/mode`. Like
 MCP it ships dark until a user inserts a bridge. See SPEC §1.15.
 
+MCP no longer ships dark either. `/mcp add` takes the `mcpServers` JSON block a
+server's README already gives the user, appends one `insert` row per server to
+`$DSH_HOME/cordis.patch.yml`, and the launcher's config watcher connects it
+without a restart — the TUI writes the file it is itself running out of, which
+a live-boot spike confirmed is safe. That closed the last hole in §1.12 and it
+too cost no harness change and no new peer, only a `yaml` dependency so the
+write does not eat the user's comments. What does still need harness work is
+credentials: the bridge resolves no credential references, so a key in a pasted
+snippet is written in plaintext and flagged rather than stored. See SPEC
+§1.12.1.
+
 Nothing on that list is unreachable, and as of this revision nothing on it is
 unbuilt either:
 

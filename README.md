@@ -130,7 +130,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `/context` | Print the context window, this session's token spend, and how full the context is now |
 | `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
-| `/mcp` | List the connected MCP servers and the tools each one registered |
+| `/mcp` | List the connected MCP servers and the tools each one registered; `/mcp add <json>` connects one from a pasted `mcpServers` block, `/mcp remove <server>` takes it back out |
 | `/approval` | Show this session's approval policy; `/approval ask` or `never` switches it |
 | `/permission` | Plugin command: pick a bundled sandbox + approval preset — `/permission ` opens a picker, or type `read-only` / `workspace-write` / `danger-full-access` directly |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
@@ -288,11 +288,39 @@ approving a built-in one — the arguments leave your machine for a process the
 app did not start.
 
 The TUI takes no dependency on the MCP plugin to do this; it reads the naming
-convention. Configuring servers is a bundle concern, one `insert` block per
-server in your own patch layer — `@deepseek-ai/dsh-mcp-client` under
-`plugins:` in a profile's `cordis.patch.yml` (or a `--patch` file on the
-command line), with the per-server `serverName`, `command`/`url`, and transport
-options as config keys.
+convention.
+
+#### Adding a server
+
+`/mcp add` takes the `mcpServers` block a server's README gives you — the same
+JSON Claude Desktop and Cursor read. Paste it after the command and press
+Enter; a multi-line paste is fine, and a code fence around it is stripped.
+
+```
+/mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}
+
+  Connected to filesystem — 11 tools. Written to /Users/you/.dsh/cordis.patch.yml,
+  so it comes back next launch.
+```
+
+The row goes into `$DSH_HOME/cordis.patch.yml` (`~/.dsh/cordis.patch.yml` by
+default), the machine-local patch layer every profile composes last. The
+launcher watches that file, so the server connects without a restart, and it is
+still there next time. Your comments and `!!js` expressions in that file
+survive the write.
+
+`/mcp remove <server>` takes a server back out, by the name `/mcp` lists it
+under — including a row you wrote by hand.
+
+Servers can still be configured the old way, one `insert` block per server in
+any patch layer, with the per-server `serverName`, `command`/`url` and
+transport options as config keys. `/mcp add` writes exactly that shape.
+
+**Credentials are written in plaintext.** The bridge resolves no credential
+references, so an API key in a pasted snippet lands in the patch file as
+written, and `/mcp add` tells you which variables it just wrote in the clear.
+To keep the value out of the file, put `!!js process.env.YOUR_VAR` there
+instead and export it in your shell.
 
 `/mcp` lists what that wiring produced: one header per connected server and the
 tools it registered, read fresh from the tool registry on every call. The

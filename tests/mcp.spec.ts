@@ -5,8 +5,8 @@
  * one call that has an effect (reading `ctx.tools`).
  */
 
-import { describe, expect, it } from 'vitest'
-import { describeMcpServers, formatMcpServers, type McpToolLike } from '../src/mcp.ts'
+import { describe, expect, it, vi } from 'vitest'
+import { describeMcpServers, formatMcpServers, waitForMcpServer, type McpToolLike } from '../src/mcp.ts'
 
 const tools = (...names: string[]): McpToolLike[] => names.map(name => ({ name }))
 
@@ -65,5 +65,61 @@ describe('formatMcpServers', () => {
     // Not a shape the bridge produces (a generation is all-or-nothing), but
     // the formatter is structural and must not assume the grouping's output.
     expect(formatMcpServers([{ name: 'ghost', tools: [] }], serverLine)).toBe('  ghost: 0')
+  })
+})
+
+describe('waitForMcpServer', () => {
+  /** A registry the test fills, with the listeners currently attached to it. */
+  function registry(): {
+    read: () => McpToolLike[]
+    subscribe: (listener: () => void) => () => void
+    connect: (server: string, count: number) => void
+    listeners: number
+  } {
+    const names: string[] = []
+    const listeners = new Set<() => void>()
+    return {
+      read: () => tools(...names),
+      subscribe: (listener) => {
+        listeners.add(listener)
+        return () => { listeners.delete(listener) }
+      },
+      connect: (server, count) => {
+        for (let index = 0; index < count; index += 1) names.push(`mcp__${server}__t${index}`)
+        for (const listener of [...listeners]) listener()
+      },
+      get listeners() { return listeners.size },
+    }
+  }
+
+  it('answers from the registry without subscribing when the server is already up', async () => {
+    const reg = registry()
+    reg.connect('fs', 2)
+    await expect(waitForMcpServer('fs', reg.read, reg.subscribe, 1000)).resolves.toBe(2)
+    expect(reg.listeners).toBe(0)
+  })
+
+  it('resolves on the change that brings the server in, and unsubscribes', async () => {
+    const reg = registry()
+    const pending = waitForMcpServer('fs', reg.read, reg.subscribe, 1000)
+    expect(reg.listeners).toBe(1)
+    reg.connect('other', 1)
+    expect(reg.listeners).toBe(1)
+    reg.connect('fs', 3)
+    await expect(pending).resolves.toBe(3)
+    expect(reg.listeners).toBe(0)
+  })
+
+  it('gives up at the deadline and leaves no listener behind', async () => {
+    vi.useFakeTimers()
+    try {
+      const reg = registry()
+      const pending = waitForMcpServer('fs', reg.read, reg.subscribe, 500)
+      await vi.advanceTimersByTimeAsync(501)
+      await expect(pending).resolves.toBeUndefined()
+      expect(reg.listeners).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

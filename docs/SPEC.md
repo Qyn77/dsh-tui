@@ -258,7 +258,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` for the newest. |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide`. |
 | `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`. Bare `/keybinds` reports which is in force and switches nothing — §1.19. |
-| `/mcp` | List the connected MCP servers and the tools each one registered, read fresh from `ctx.tools` — which is also all it can say: the plugin publishes no connection state, so an absent server is an absent row (§1.12). |
+| `/mcp` | List the connected MCP servers and the tools each one registered, read fresh from `ctx.tools`. `/mcp add <config>` writes a pasted server config into the user's patch layer and waits for it to connect; `/mcp remove <server>` takes it back out (§1.12). |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
 | `Ctrl-C` (buffer non-empty) | Clear the buffer. |
@@ -806,6 +806,26 @@ The split is conservative. Only the first `__` after the prefix is the server bo
 | Transcript | `⏺ github:create_issue(it broke)` | Two servers may each provide a `search`; the registered name is the only thing that tells them apart. `server:tool` says it in a third of the width of `mcp__server__tool`, with the part being scanned for at the end rather than behind two runs of underscores. |
 | Approval card | the same label, then a `yellow` row `via the github MCP server` | Approving a bridged tool is not the same decision as approving a built-in one, and `server:tool` alone does not say so. Drawn directly under the tool name and above the arguments, so a call with many arguments cannot push it out of view — and on its own row, because sharing the heading row let Ink break the tool name mid-word on a narrow card. |
 
+#### 1.12.1 Configuring a server from the TUI
+
+Listing servers answers "what can the model call"; it does not answer "how do I get one". Until `/mcp add`, the answer was to quit, find the right patch file, and hand-write a plugin row — which is not a thing a user of a terminal UI discovers, and is why the bridge shipped dark in every profile.
+
+**`/mcp add <config>` takes the block the user already has in their clipboard.** Every MCP server documents itself with the same `mcpServers` JSON that Claude Desktop and Cursor read, so that is the input: paste it after the command and press Enter. The bare `{"name": {…}}` map someone copied out of the middle of one works too, and a Markdown code fence around either is stripped. `mcp-config.ts` translates it to a `@deepseek-ai/dsh-mcp-client` row — `command` means stdio, `url` means Streamable HTTP, inferred from the fields rather than from a `type` whose spelling varies between the clients that publish these snippets.
+
+**There is no modal.** Bracketed paste is already decoded ahead of every key branch (§1.19), so a multi-line block lands in the prompt buffer with its newlines intact and submits once; `dispatch` takes the verb off the front and hands the rest over untokenised. A component that took over input for multi-line editing would be a first for this UI, and its height would be driven by the length of whatever was pasted — which in a fixed-height root means overlap, not scrolling (§3.9).
+
+**The row is written to `$DSH_HOME/cordis.patch.yml`, not created through the loader.** `loader.create()` mounts a plugin immediately, but the loader's root tree is in-memory and its `write()` is a documented no-op, so a live-only insert would vanish on exit. The home patch layer is composed last over every profile *and* is registered with the launcher's HMR config watcher: writing it recomposes the tree in place, which mounts the new row without restarting the rows that did not change — including the TUI's own. That the TUI survives writing the file it is running out of is the load-bearing fact here, and it is a property of the transactional re-apply, not an accident.
+
+This is also why the path resolution differs from `tui.json`'s: `/mcp add` honours `$DSH_HOME` because the patch layer is the harness' file, and a user who moved their harness home expects the command to follow it there.
+
+**The file belongs to the user, so every write goes through a YAML document tree**, never `parse` + `stringify`. Their comments and their `!!js` expressions round-trip; a header comment written above the first row would otherwise be removed along with that row, so it is moved to the element taking its place, or to the document, before the removal. The round trip is faithful, not byte-exact — a flow list written `[ mcp ]` comes back `[mcp]`. A layer that does not parse, or that is not the top-level list a patch layer must be, stops the command: rewriting it would destroy whatever the user was in the middle of writing.
+
+**Duplicates are judged by `serverName`, not by row id.** The bridge's namespace uniqueness is by name, so a row someone hand-wrote under `id: memory-engram` still owns `engram`, and adding a second row for it would start a plugin the bridge refuses. Reading the name out of the config is also what lets `/mcp remove` address a row this command did not write — the alternative is telling the user to go edit YAML, which is the thing the command exists to avoid.
+
+**Reporting waits, with a deadline.** The write is the durable half and does not depend on the server ever answering; the useful half is the tool count, which arrives only after the watcher recomposes, the bridge dials, and the tools register. So the command subscribes to `tools/change` and waits up to `MCP_CONNECT_TIMEOUT_MS`, reading the registry once first because a fast local server can be up before the wait begins. A timeout is not a failure: the answer says the row was written and where, and `/mcp` tells the truth a moment later.
+
+**Secrets are flagged, not refused.** The bridge resolves no credential references — its `env` is a plain string dict — so a key pasted in a snippet lands in the patch file as plaintext, and `~/.dsh/.credentials.yaml` cannot reach an MCP child process. That is a real choice a user may want to make, and not one they should make silently, so `/mcp add` names the variables it just wrote in the clear and points at `!!js process.env.NAME`. Wiring credential references into the bridge's `env` is the one part of this that needs a change on the harness side.
+
 ### 1.13 Attaching an image
 
 An image reaches the model as an `image` content block on the user's message, carrying a durable `ImageAttachmentRef` the attachment store issued. Nothing about that path involves a terminal image protocol; Kitty, iTerm2 and sixel draw rasters in a cell grid, which is a different feature this package does not have.
@@ -1073,7 +1093,9 @@ Still open: nothing — v0.3 is complete.
 
   A bridged call reads `github:create_issue(it broke)` in the transcript, and the approval card adds a yellow row naming the server, because approving a bridged tool is a different decision from approving a built-in one: the arguments leave the machine. See §1.12.
 
-  `/mcp` now ships (§1.5). What it reports is the *tool surface*, not the link: with no service and no events, "connected" can only be inferred from whether the tools are registered. *Configuring* a server remains a user patch layer (`insert` one `mcp-client` per server), which is not something a TUI user can discover; that is a bundle and documentation problem, and the README's MCP section is where the recipe lives.
+  `/mcp` now ships (§1.5). What it reports is the *tool surface*, not the link: with no service and no events, "connected" can only be inferred from whether the tools are registered.
+
+  *Configuring* a server used to be the remaining hole, and this list called it "a bundle and documentation problem". It was not: it was a missing command. `/mcp add` now takes the `mcpServers` block the user already has in their clipboard, writes it to the home patch layer, and the launcher's config watcher connects it without a restart — see §1.12.1. It cost no harness change and no new peer, only a `yaml` dependency to edit the user's file without eating their comments. What genuinely does need harness work is credentials: the bridge's `env` resolves no credential references, so a key in a pasted snippet is written in plaintext and flagged rather than stored.
 - **Agent skills.** *Shipped.* `@deepseek-ai/dsh-skill` publishes `0.1.0-rc.7` and `dsh-base` mounts the registry, the filesystem provider and the `skill` tool, all enabled — so the model half was already working and the human half was simply unclaimed. A user-invocable skill is now a `/` row that injects `renderSkillContent()`'s block and starts a turn; see §1.14. Nothing about it needed a version bump.
 - **Hooks visualization.** *Shipped.* This item spent its life saying the payloads were undefined because "no `dsh-hooks` package exists" — the third time this list wrote off a shipped capability that way, after MCP twice. `@deepseek-ai/dsh-hook-protocol` publishes `0.1.0-rc.7`, the pinned line, and declares both payloads in full.
 

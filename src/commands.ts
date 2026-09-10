@@ -67,7 +67,9 @@ import {
   resolvePlugin,
   type PluginRow,
 } from './plugins.ts'
-import { describeMcpServers, formatMcpServers } from './mcp.ts'
+import { describeMcpServers, formatMcpServers, waitForMcpServer } from './mcp.ts'
+import { parseMcpSnippet, secretEnvKeys } from './mcp-config.ts'
+import { addMcpRows, patchPath, removeMcpRow } from './mcp-patch.ts'
 
 /** What a command decided. */
 export type CommandResult =
@@ -257,6 +259,102 @@ async function togglePlugin(
     }
   }
   return { kind: 'handled', message: strings.pluginToggled(row.name, action.enable) }
+}
+
+/**
+ * How long `/mcp add` waits for a new server to answer before reporting the
+ * write on its own.
+ *
+ * Long enough for `npx` to fetch a package it has never run, short enough that
+ * a server which will never answer does not hold the prompt. A timeout is not
+ * a failure — the row is written either way, and `/mcp` tells the truth a
+ * moment later.
+ */
+export const MCP_CONNECT_TIMEOUT_MS = 15_000
+
+/**
+ * Add the servers a pasted snippet describes.
+ *
+ * Split out of `dispatch` for the same reason `togglePlugin` is: the arm is
+ * mostly refusals, and each one is a case where writing would have been worse
+ * than declining. The order matters — parse before touching the file, check
+ * for a duplicate before appending — so that a bad paste never leaves a
+ * half-written patch layer behind.
+ * @param cmd - the dispatch context.
+ * @param payload - everything after `/mcp add`.
+ * @param strings - the active catalog's output strings.
+ * @returns the transcript answer.
+ */
+async function addMcpServers(
+  cmd: CommandContext,
+  payload: string,
+  strings: Catalog['output'],
+): Promise<CommandResult> {
+  if (payload === '') return { kind: 'handled', message: strings.mcpAddUsage }
+  const parsed = parseMcpSnippet(payload)
+  if (parsed.kind === 'error') {
+    return { kind: 'handled', message: strings.mcpAddInvalid(parsed.error), failed: true }
+  }
+  const path = patchPath()
+  const written = addMcpRows(parsed.rows, path)
+  if (written.kind === 'duplicate') {
+    return { kind: 'handled', message: strings.mcpAddDuplicate(written.server), failed: true }
+  }
+  if (written.kind === 'failed') {
+    return { kind: 'handled', message: strings.mcpWriteFailed(written.reason), failed: true }
+  }
+  // From here the row is on disk and the launcher's watcher owns what happens
+  // next. Everything below only decides how much of it we managed to observe.
+  const tools = service(cmd.ctx, 'tools')
+  const counts = await Promise.all(parsed.rows.map(async (row) => {
+    if (tools === undefined) return undefined
+    return waitForMcpServer(
+      row.config.serverName,
+      () => tools.schemas(cmd.agent),
+      (listener) => {
+        const off = cmd.ctx.on('tools/change', listener)
+        return () => { off() }
+      },
+      MCP_CONNECT_TIMEOUT_MS,
+    )
+  }))
+
+  const lines: string[] = []
+  const pending: string[] = []
+  parsed.rows.forEach((row, index) => {
+    const count = counts[index]
+    if (count === undefined) pending.push(row.config.serverName)
+    else lines.push(strings.mcpAdded(row.config.serverName, count, path))
+  })
+  if (pending.length > 0) lines.push(strings.mcpAddPending(pending, path))
+  const secrets = parsed.rows.flatMap(row => secretEnvKeys(row.config))
+  if (secrets.length > 0) lines.push(strings.mcpAddSecret([...new Set(secrets)]))
+  return { kind: 'handled', message: lines.join('\n') }
+}
+
+/**
+ * Take one server out of the patch layer.
+ *
+ * Only rows this command could have written are addressable: the lookup is by
+ * the derived row id, so a server someone wired up in a bundle layer or with
+ * `--patch` reports as missing rather than being silently left in place after
+ * a success message.
+ * @param payload - everything after `/mcp remove`.
+ * @param strings - the active catalog's output strings.
+ * @returns the transcript answer.
+ */
+function removeMcpServer(payload: string, strings: Catalog['output']): CommandResult {
+  const server = payload.trim().split(/\s+/)[0] ?? ''
+  if (server === '') return { kind: 'handled', message: strings.mcpRemoveUsage }
+  const path = patchPath()
+  const result = removeMcpRow(server, path)
+  if (result.kind === 'missing') {
+    return { kind: 'handled', message: strings.mcpRemoveMissing(result.server), failed: true }
+  }
+  if (result.kind === 'failed') {
+    return { kind: 'handled', message: strings.mcpWriteFailed(result.reason), failed: true }
+  }
+  return { kind: 'handled', message: strings.mcpRemoved(server, path) }
 }
 
 /**
@@ -722,6 +820,15 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
     }
 
     case '/mcp': {
+      // `raw`, not the whitespace-split argv: an added config is a pasted
+      // JSON block whose newlines and spacing are part of it. The verb is the
+      // only thing this arm tokenises.
+      const action = /^\/mcp\s+(add|remove)\b([\s\S]*)$/i.exec(raw.trim())
+      if (action !== null) {
+        const payload = (action[2] ?? '').trim()
+        if ((action[1] ?? '').toLowerCase() === 'add') return await addMcpServers(cmd, payload, strings)
+        return removeMcpServer(payload, strings)
+      }
       // Read at dispatch time, like every other service-backed command: the
       // bridge re-syncs tool generations on reconnects, so a fresh read is
       // the only honest answer. The scope is the agent — a per-agent tool

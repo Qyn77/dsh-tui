@@ -124,7 +124,7 @@ REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续�
 | `/context` | 打印上下文窗口、本次 session 的 token 开销，以及当前上下文占用了多少 |
 | `/usage` | 按轮次拆开本次 session 的 token 开销 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
-| `/mcp` | 列出已连接的 MCP 服务器，以及各自注册的工具 |
+| `/mcp` | 列出已连接的 MCP 服务器，以及各自注册的工具；`/mcp add <json>` 从粘贴的 `mcpServers` 片段连一个，`/mcp remove <server>` 撤下来 |
 | `/approval` | 查看这条 session 的审批策略；`/approval ask` 或 `never` 切换 |
 | `/permission` | 插件命令：选择「沙箱 + 审批」打包预设——`/permission ` 打开选择器，也可直接打 `read-only` / `workspace-write` / `danger-full-access` |
 | `/theme` | 选择配色假定的背景：`/theme auto`、`dark` 或 `light` |
@@ -250,10 +250,32 @@ session 重来一遍。除此之外没有别的东西读这个文件——API ke
 这行存在的理由是：批准一个桥接工具和批准一个内置工具是两种决定——参数会离开你的机器，
 交给一个不是本程序启动的进程。
 
-TUI 为此没有引入对 MCP 插件的任何依赖，它读的是命名约定。配置 server 属于装配层的事，
-在你自己的 patch 层里一个 server 一个 `insert` 块——在 profile 的 `cordis.patch.yml`
-（或命令行的 `--patch` 文件）的 `plugins:` 下面加 `@deepseek-ai/dsh-mcp-client`，
-配置键是每个 server 的 `serverName`、`command`/`url`，以及传输选项。
+TUI 为此没有引入对 MCP 插件的任何依赖，它读的是命名约定。
+
+#### 添加一个 server
+
+`/mcp add` 收的就是各家 server 的 README 给你的那段 `mcpServers` JSON——跟 Claude
+Desktop、Cursor 读的是同一份。粘在命令后面回车即可；多行粘贴没问题，外面裹的代码围栏
+会被剥掉。
+
+```
+/mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}
+
+  已连接 filesystem —— 11 个工具。已写入 /Users/you/.dsh/cordis.patch.yml，下次启动仍在。
+```
+
+这一行落到 `$DSH_HOME/cordis.patch.yml`（默认 `~/.dsh/cordis.patch.yml`），也就是每个
+profile 最后叠上去的那层本机 patch。启动器盯着这个文件，所以不用重启就会连上，下次启动
+也还在。你在那个文件里的注释和 `!!js` 表达式不会被这次写入吃掉。
+
+`/mcp remove <server>` 把它撤下来，认的是 `/mcp` 列出来的那个名字——手写的行也能撤。
+
+老办法照旧可用：在任一 patch 层里一个 server 一个 `insert` 块，配置键是每个 server 的
+`serverName`、`command`/`url`，以及传输选项。`/mcp add` 写出来的就是这个形状。
+
+**凭据是明文写进去的。** 桥接不解析任何凭据引用，所以粘贴片段里的 API key 会原样落进
+patch 文件，`/mcp add` 会告诉你它刚刚明文写下了哪几个变量。想让值不进文件，就在那儿写
+`!!js process.env.YOUR_VAR`，然后在 shell 里导出。
 
 `/mcp` 列出的就是这份接线的成果：每个连接中的 server 一行表头，下面是它注册的工具，
 每次调用都从工具注册表现读。插件不发布连接状态，所以掉线的 server 表现为一个不存在的

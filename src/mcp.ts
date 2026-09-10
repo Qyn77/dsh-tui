@@ -69,6 +69,52 @@ export function describeMcpServers(schemas: readonly McpToolLike[]): McpServerRo
 }
 
 /**
+ * Wait for a freshly added server's tools to show up in the registry.
+ *
+ * `/mcp add` writes a file; the launcher's watcher recomposes the tree, the
+ * bridge dials the server, and only then do its tools register. That is
+ * seconds of nothing, so the command waits rather than reporting a write and
+ * leaving the user to poll `/mcp` — but it waits with a deadline, because a
+ * server that never answers must not hang the prompt.
+ *
+ * The registry is read once before subscribing: a fast local server can be up
+ * before this function is called, and an event that already fired is not
+ * coming again.
+ * @param serverName - the server to wait for.
+ * @param read - reads the visible tools, e.g. `() => tools.schemas(agent)`.
+ * @param subscribe - registers a `tools/change` listener, returning its disposer.
+ * @param timeoutMs - how long to wait before giving up.
+ * @returns the server's tool count, or undefined if it never appeared in time.
+ */
+export function waitForMcpServer(
+  serverName: string,
+  read: () => readonly McpToolLike[],
+  subscribe: (listener: () => void) => () => void,
+  timeoutMs: number,
+): Promise<number | undefined> {
+  const count = (): number | undefined =>
+    describeMcpServers(read()).find(row => row.name === serverName)?.tools.length
+  const now = count()
+  if (now !== undefined) return Promise.resolve(now)
+  return new Promise((resolve) => {
+    let off: (() => void) | undefined
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const settle = (value: number | undefined): void => {
+      if (timer !== undefined) clearTimeout(timer)
+      timer = undefined
+      off?.()
+      off = undefined
+      resolve(value)
+    }
+    timer = setTimeout(() => { settle(undefined) }, timeoutMs)
+    off = subscribe(() => {
+      const seen = count()
+      if (seen !== undefined) settle(seen)
+    })
+  })
+}
+
+/**
  * Lay the rows out for the transcript.
  *
  * One header line per server — the catalog's `mcpServer(name, count)` wording
