@@ -90,6 +90,14 @@ import {
   modelCommandLine,
   modelMentionAt,
 } from '../model-picker.ts'
+import {
+  MCP_ADD_PREFIX,
+  applyMcpMention,
+  filterMcpPresetRows,
+  mcpMentionAt,
+  mcpPresetCommandLine,
+  mcpPresetRows,
+} from '../mcp-picker.ts'
 import { INITIAL_VIM, applyVim, type KeybindPref, type VimState } from '../vim.ts'
 import { useFileMentions } from '../hooks/useFileMentions.ts'
 import { SlashPalette } from './SlashPalette.tsx'
@@ -363,6 +371,30 @@ export const Prompt: FC<PromptProps> = ({
     if (!modelTokenActive) setModelDismissed(false)
   }, [modelTokenActive])
 
+  // The `/mcp add ` picker, fifth in precedence. Its rows are the static
+  // preset catalog (`mcp-catalog.ts`) — no service to read, so the list is
+  // never empty and the picker always opens. A `{` at the head of the token
+  // means the user is pasting a config block, and `filterMcpPresetRows`
+  // returns nothing for it, so a paste is never claimed by the picker.
+  const [mcpDismissed, setMcpDismissed] = useState(false)
+  const mcpMention = palette.length === 0
+      && skillMention === undefined
+      && permissionMention === undefined
+      && modelMention === undefined
+    ? mcpMentionAt(value, cursorIndex)
+    : undefined
+  const mcpPickRows = mcpMention === undefined
+    ? []
+    : filterMcpPresetRows(mcpPresetRows(preset => strings.output.mcpPresets[preset.descriptionKey]), mcpMention.query)
+  const safeMcpIndex = clampPaletteIndex(paletteIndex, mcpPickRows)
+  const mcpTokenActive = mcpMention !== undefined
+  const pickingMcp = mcpTokenActive
+    && !mcpDismissed
+    && mcpPickRows.length > 0
+  useEffect(() => {
+    if (!mcpTokenActive) setMcpDismissed(false)
+  }, [mcpTokenActive])
+
   // The `@` picker. Suppressed while any list above it is open. `/` wins
   // because it is anchored to the first character and a mention is not, which
   // makes it the more deliberate of the two.
@@ -370,6 +402,7 @@ export const Prompt: FC<PromptProps> = ({
       && skillMention === undefined
       && permissionMention === undefined
       && modelMention === undefined
+      && mcpMention === undefined
     ? mentionAt(value, cursorIndex)
     : undefined
   const files = useFileMentions(mention?.query)
@@ -402,6 +435,7 @@ export const Prompt: FC<PromptProps> = ({
       || pickingSkill
       || pickingPermission
       || pickingModel
+      || pickingMcp
       || picking
       || rows.length > 1)
   useEffect(() => {
@@ -421,6 +455,7 @@ export const Prompt: FC<PromptProps> = ({
     || (pickingSkill && skillMention !== undefined)
     || (pickingPermission && permissionMention !== undefined)
     || (pickingModel && modelMention !== undefined)
+    || (pickingMcp && mcpMention !== undefined)
     || (picking && mention !== undefined)
     || (vimOn && vim.mode === 'insert' && value !== '')
   )
@@ -439,9 +474,11 @@ export const Prompt: FC<PromptProps> = ({
         ? Math.min(permissionPickRows.length, paletteRows)
         : pickingModel
           ? Math.min(modelPickRows.length, paletteRows)
-          : picking
-            ? Math.min(Math.max(fileRows.length, 1), paletteRows)
-            : 0
+          : pickingMcp
+            ? Math.min(mcpPickRows.length, paletteRows)
+            : picking
+              ? Math.min(Math.max(fileRows.length, 1), paletteRows)
+              : 0
   const overlayRows = overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS
   useEffect(() => {
     onOverlayRowsChange?.(overlayRows)
@@ -609,6 +646,22 @@ export const Prompt: FC<PromptProps> = ({
   }
 
   /**
+   * Fill `/mcp add …` with the highlighted preset, leaving the trailing space
+   * that closes the picker. Tab's answer — the line is not sent, so the choice
+   * can be read before Enter writes the row.
+   */
+  const completeMcp = (): boolean => {
+    if (mcpMention === undefined) return false
+    const chosen = mcpPickRows[safeMcpIndex]
+    if (chosen === undefined) return false
+    const next = applyMcpMention(value, mcpMention, chosen.name)
+    setValue(next.text)
+    setCursorIndex(next.cursor)
+    setPaletteIndex(0)
+    return true
+  }
+
+  /**
    * Offer one keystroke to normal mode. Returns whether it was consumed, so
    * every call site can fall through to the ordinary editing path unchanged —
    * which is the whole design: insert mode *is* that path.
@@ -722,6 +775,10 @@ export const Prompt: FC<PromptProps> = ({
           // Dismiss once, keep `/model deep` on screen.
           setModelDismissed(true)
           setPaletteIndex(0)
+        } else if (pickingMcp && mcpMention !== undefined) {
+          // Dismiss once, keep `/mcp add mem` on screen.
+          setMcpDismissed(true)
+          setPaletteIndex(0)
         } else if (picking && mention !== undefined) {
           // The buffer is a sentence the user is writing, not a command they
           // mistyped: dismiss the list, keep the words.
@@ -773,6 +830,11 @@ export const Prompt: FC<PromptProps> = ({
         completeModel()
         return
       }
+      // Tab in the preset picker fills `/mcp add <name> ` without sending.
+      if (key.tab && pickingMcp) {
+        completeMcp()
+        return
+      }
       // Tab in a mention inserts the highlighted path. Same keystroke, same
       // meaning: finish what I have started typing.
       if (key.tab && picking) {
@@ -795,6 +857,7 @@ export const Prompt: FC<PromptProps> = ({
         && !pickingSkill
         && !pickingPermission
         && !pickingModel
+        && !pickingMcp
         && !picking
       ) {
         onCyclePermission(key.shift ? -1 : 1)
@@ -820,6 +883,10 @@ export const Prompt: FC<PromptProps> = ({
           setPaletteIndex(i => clampPaletteIndex(i - 1, modelPickRows))
           return
         }
+        if (pickingMcp) {
+          setPaletteIndex(i => clampPaletteIndex(i - 1, mcpPickRows))
+          return
+        }
         if (picking) {
           setPaletteIndex(i => clampPaletteIndex(i - 1, fileRows))
           return
@@ -842,6 +909,10 @@ export const Prompt: FC<PromptProps> = ({
         }
         if (pickingModel) {
           setPaletteIndex(i => clampPaletteIndex(i + 1, modelPickRows))
+          return
+        }
+        if (pickingMcp) {
+          setPaletteIndex(i => clampPaletteIndex(i + 1, mcpPickRows))
           return
         }
         if (picking) {
@@ -948,6 +1019,27 @@ export const Prompt: FC<PromptProps> = ({
             return
           }
         }
+        // Enter in the preset picker WRITES: submit `/mcp add <name>` through
+        // the ordinary dispatch, so the row keeps its duplicate check, its
+        // connect-wait and its report. Tab is the path for reviewing first.
+        if (pickingMcp) {
+          const chosen = mcpPickRows[safeMcpIndex]
+          if (chosen) {
+            submit(mcpPresetCommandLine(chosen.name))
+            return
+          }
+        }
+        // `/mcp add` with no payload opens the picker — the same bargain
+        // `/skill` makes, except the catalog is static so it always has rows.
+        // The guard keeps an Esc-dismissed picker dismissed: the second Enter
+        // then submits and the dispatch's usage answer — which is where the
+        // paste path is documented — reaches the transcript.
+        if (value.trim().toLowerCase() === '/mcp add' && !(mcpTokenActive && mcpDismissed)) {
+          setValue(MCP_ADD_PREFIX)
+          setCursorIndex(MCP_ADD_PREFIX.length)
+          setPaletteIndex(0)
+          return
+        }
         // Enter in an open file picker inserts the path rather than sending
         // the line, matching the `/` palette above: the visible list is what
         // the key acts on. Sending takes a second Enter, by which time the
@@ -1047,6 +1139,16 @@ export const Prompt: FC<PromptProps> = ({
             commands={modelPickRows}
             selected={safeModelIndex}
             hint={strings.palette.modelHint}
+            maxRows={paletteRows}
+          />
+        </Box>
+      ) : null}
+      {pickingMcp ? (
+        <Box marginBottom={1}>
+          <SlashPalette
+            commands={mcpPickRows}
+            selected={safeMcpIndex}
+            hint={strings.palette.mcpHint}
             maxRows={paletteRows}
           />
         </Box>

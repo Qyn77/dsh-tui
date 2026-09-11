@@ -122,6 +122,27 @@ describe('/mcp add', () => {
     expect(patchText()).toContain('GITHUB_TOKEN')
   })
 
+  it('writes a catalog preset from its bare name', async () => {
+    const registry = makeRegistry()
+    registry.connect('memory', ['create_entities'])
+    const result = await dispatch('/mcp add memory', makeCommand(registry.ctx))
+    expect(result.kind === 'handled' && result.failed).toBeUndefined()
+    expect(result.kind === 'handled' && result.message).toContain('memory')
+    expect(patchText()).toContain('id: mcp-memory')
+    // The preset row is plain data: no quoted `!!js` literal leaked into it
+    // (the file's own header comment names the tag, so the check is scoped).
+    expect(patchText().split('\n').some(line => !line.startsWith('#') && line.includes('!!js'))).toBe(false)
+  })
+
+  it('refuses a second add of a preset the layer already configures', async () => {
+    const registry = makeRegistry()
+    registry.connect('memory', ['create_entities'])
+    await dispatch('/mcp add memory', makeCommand(registry.ctx))
+    const again = await dispatch('/mcp add memory', makeCommand(registry.ctx))
+    expect(again).toMatchObject({ kind: 'handled', failed: true })
+    expect(patchText().match(/id: mcp-memory/g)).toHaveLength(1)
+  })
+
   it('prints usage rather than writing when nothing was pasted', async () => {
     const result = await dispatch('/mcp add', makeCommand(makeRegistry().ctx))
     expect(result.kind === 'handled' && result.message).toContain('/mcp add')

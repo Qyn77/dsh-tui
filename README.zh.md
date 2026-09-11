@@ -254,9 +254,20 @@ TUI 为此没有引入对 MCP 插件的任何依赖，它读的是命名约定�
 
 #### 添加一个 server
 
-`/mcp add` 收的就是各家 server 的 README 给你的那段 `mcpServers` JSON——跟 Claude
-Desktop、Cursor 读的是同一份。粘在命令后面回车即可；多行粘贴没问题，外面裹的代码围栏
-会被剥掉。
+输入 `/mcp add` 直接回车，会打开一个常见预设服务器的选择器——记忆、多步推理、文档
+检索、浏览器，以及演示全部能力的 everything。选中一个再回车，这一行就写好了；不用粘贴，
+也不用配置。
+
+```
+/mcp add memory
+
+  已连接 memory —— 9 个工具。已写入 /Users/you/.dsh/cordis.patch.yml，下次启动仍在。
+```
+
+预设停在"需要做决定"的地方：要 API key 或要授权路径的 server 不进目录，因为预设必须
+敢在无人过目的情况下直接写入。那类服务器走粘贴：`/mcp add` 收的就是各家 server 的
+README 给你的那段 `mcpServers` JSON——跟 Claude Desktop、Cursor 读的是同一份。粘在
+命令后面回车即可；多行粘贴没问题，外面裹的代码围栏会被剥掉。
 
 ```
 /mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}

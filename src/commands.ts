@@ -68,8 +68,9 @@ import {
   type PluginRow,
 } from './plugins.ts'
 import { describeMcpServers, formatMcpServers, waitForMcpServer } from './mcp.ts'
-import { parseMcpSnippet, secretEnvKeys } from './mcp-config.ts'
+import { parseMcpSnippet, secretEnvKeys, type McpParseResult } from './mcp-config.ts'
 import { addMcpRows, patchPath, removeMcpRow } from './mcp-patch.ts'
+import { findPreset, presetRow } from './mcp-catalog.ts'
 
 /** What a command decided. */
 export type CommandResult =
@@ -291,7 +292,14 @@ async function addMcpServers(
   strings: Catalog['output'],
 ): Promise<CommandResult> {
   if (payload === '') return { kind: 'handled', message: strings.mcpAddUsage }
-  const parsed = parseMcpSnippet(payload)
+  // A single word that names a catalog preset is the picker's (or a typed
+  // `/mcp add memory`'s) answer: the row comes from `mcp-catalog.ts` rather
+  // than from a paste. Anything else — a brace, a multi-word block — goes to
+  // the snippet parser unchanged, so the paste path keeps its exact grammar.
+  const preset = findPreset(payload)
+  const parsed: McpParseResult = preset === undefined
+    ? parseMcpSnippet(payload)
+    : { kind: 'ok', rows: [presetRow(preset)] }
   if (parsed.kind === 'error') {
     return { kind: 'handled', message: strings.mcpAddInvalid(parsed.error), failed: true }
   }

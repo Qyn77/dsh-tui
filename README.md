@@ -130,7 +130,7 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `/context` | Print the context window, this session's token spend, and how full the context is now |
 | `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
-| `/mcp` | List the connected MCP servers and the tools each one registered; `/mcp add <json>` connects one from a pasted `mcpServers` block, `/mcp remove <server>` takes it back out |
+| `/mcp` | List the connected MCP servers and the tools each one registered; `/mcp add` opens a picker of common preset servers or connects one from a pasted `mcpServers` block, `/mcp remove <server>` takes it back out |
 | `/approval` | Show this session's approval policy; `/approval ask` or `never` switches it |
 | `/permission` | Plugin command: pick a bundled sandbox + approval preset — `/permission ` opens a picker, or type `read-only` / `workspace-write` / `danger-full-access` directly |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
@@ -292,9 +292,23 @@ convention.
 
 #### Adding a server
 
-`/mcp add` takes the `mcpServers` block a server's README gives you — the same
-JSON Claude Desktop and Cursor read. Paste it after the command and press
-Enter; a multi-line paste is fine, and a code fence around it is stripped.
+Type `/mcp add` and press Enter, and a picker of common preset servers opens —
+memory, sequential thinking, docs lookup, a browser, and the everything-demo.
+Pick one and Enter writes its row; nothing to paste and nothing to configure.
+
+```
+/mcp add memory
+
+  Connected to memory — 9 tools. Written to /Users/you/.dsh/cordis.patch.yml,
+  so it comes back next launch.
+```
+
+Presets stop where a decision would be needed: a server that wants an API key
+or a path to authorize is not in the catalog, because a preset must be safe to
+write unseen. For those, `/mcp add` takes the `mcpServers` block a server's
+README gives you — the same JSON Claude Desktop and Cursor read. Paste it after
+the command and press Enter; a multi-line paste is fine, and a code fence
+around it is stripped.
 
 ```
 /mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}

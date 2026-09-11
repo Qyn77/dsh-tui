@@ -41,6 +41,7 @@
 
 import type { PluginPhase } from './plugins.ts'
 import type { McpParseError } from './mcp-config.ts'
+import type { McpPresetKey } from './mcp-catalog.ts'
 import type { SessionLabels } from './sessions.ts'
 import type { UsageLabels } from './usage.ts'
 import { HISTORY_PREFS, type HistoryPref } from './types.ts'
@@ -134,6 +135,8 @@ export interface Catalog {
     permissionHint: string
     /** The legend for the `/model ` picker, whose rows switch the model. */
     modelHint: string
+    /** The legend for the `/mcp add ` picker, whose rows write a preset row. */
+    mcpHint: string
     /** Shown instead of rows while the first directory scan is in flight. */
     scanning: string
     /** Appended to the hint when the window hides rows. */
@@ -412,6 +415,8 @@ export interface Catalog {
     mcpRemoved: (server: string, path: string) => string
     /** `/mcp remove <server>` for a server the patch layer does not configure. */
     mcpRemoveMissing: (server: string) => string
+    /** One line per preset, for the `/mcp add ` picker's descriptions. */
+    mcpPresets: Record<McpPresetKey, string>
     /** `/approval` with no argument: the session's override and how to change it. */
     approvalUsage: (policy: string) => string
     /** `/approval` with no argument when the session never switched. */
@@ -562,6 +567,7 @@ const EN: Catalog = {
     skillHint: '↑↓ navigate · Tab insert /<name> · Enter run · Esc dismiss',
     permissionHint: '↑↓ navigate · Tab fill /permission <preset> · Enter switch · Esc dismiss',
     modelHint: '↑↓ navigate · Tab fill /model <name> · Enter switch · Esc dismiss',
+    mcpHint: '↑↓ navigate · Tab fill /mcp add <name> · Enter write · Esc dismiss',
     scanning: 'scanning files…',
     more: count => ` · +${count} more`,
   },
@@ -727,6 +733,13 @@ const EN: Catalog = {
     mcpRemoved: (server, path) => `Removed ${server} from ${path}.`,
     mcpRemoveMissing: server =>
       `Your patch layer configures no server named ${server}. A server added some other way has to be removed the same way.`,
+    mcpPresets: {
+      memory: 'knowledge-graph memory across sessions',
+      'sequential-thinking': 'multi-step reflective reasoning tool',
+      context7: 'up-to-date library docs and code examples',
+      playwright: 'drive a real browser: navigate, click, screenshot',
+      everything: 'reference server exercising every MCP feature',
+    },
     approvalUsage: policy =>
       `Approval policy: ${policy} (set for this session). /approval ask prompts you before a tool that needs authorising; /approval never rejects every such call without asking.`,
     approvalUsageDefault:
@@ -830,6 +843,7 @@ const ZH: Catalog = {
     skillHint: '↑↓ 选择 · Tab 插入 /<名称> · Enter 执行 · Esc 关闭',
     permissionHint: '↑↓ 选择 · Tab 填入 /permission <预设> · Enter 切换 · Esc 关闭',
     modelHint: '↑↓ 选择 · Tab 填入 /model <名称> · Enter 切换 · Esc 关闭',
+    mcpHint: '↑↓ 选择 · Tab 填入 /mcp add <名称> · Enter 写入 · Esc 关闭',
     scanning: '正在扫描文件…',
     more: count => ` · 还有 ${count} 条`,
   },
@@ -910,7 +924,7 @@ const ZH: Catalog = {
     '/history': '显示或隐藏接续 session 的已存历史：/history show 或 hide',
     '/keybinds': '选择提示框的编辑器：/keybinds vim 或 default',
     '/language': '切换界面语言：/language en 或 zh',
-    '/mcp': '列出已连接的 MCP 服务器；/mcp add <配置> 和 /mcp remove <服务器> 用来增删',
+    '/mcp': '列出已连接的 MCP 服务器；/mcp add 打开预设选择器或接受粘贴的配置，/mcp remove <服务器> 移除一个',
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
@@ -975,7 +989,7 @@ const ZH: Catalog = {
     mcpServer: (name, count) => `${name} —— ${count} 个工具`,
     mcpNoTools: '当前装配没有工具注册表，无从枚举。',
     mcpAddUsage:
-      '用法：/mcp add <配置> —— 把服务器 README 给的那段 mcpServers 配置粘在后面（多行粘贴没问题），回车即可。例：/mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}',
+      '用法：/mcp add —— 后面什么都不写会打开常见预设服务器的选择器；或者把服务器 README 里那段 mcpServers 配置粘在后面（多行粘贴没问题），回车即可。例：/mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}',
     mcpAddInvalid: error => `这段不是可用的 MCP 服务器配置：${describeMcpParseErrorZh(error)}`,
     mcpAddDuplicate: server => `${server} 已经在你的 patch 层里了。先用 /mcp remove ${server} 移除，再重新添加。`,
     mcpWriteFailed: reason => `写不了 patch 层：${reason}`,
@@ -987,6 +1001,13 @@ const ZH: Catalog = {
     mcpRemoveUsage: '用法：/mcp remove <服务器> —— 名字就是 /mcp 里列出的那个。',
     mcpRemoved: (server, path) => `已从 ${path} 移除 ${server}。`,
     mcpRemoveMissing: server => `你的 patch 层里没有叫 ${server} 的服务器。用别的方式加进来的服务器，也得用那种方式移除。`,
+    mcpPresets: {
+      memory: '跨 session 的知识图谱记忆',
+      'sequential-thinking': '多步反思式推理工具',
+      context7: '最新的库文档和代码示例',
+      playwright: '驱动真实浏览器：导航、点击、截图',
+      everything: '演示全部 MCP 能力的参考服务器',
+    },
     approvalUsage: policy =>
       `审批策略：${policy}（本 session 已设置）。/approval ask 会在需要授权的工具跑之前问你；/approval never 则一律直接拒绝、不问。`,
     approvalUsageDefault:
