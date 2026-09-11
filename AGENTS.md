@@ -42,6 +42,7 @@ docs/
 ├── SPEC.md                   design contract and visual rules
 ├── TUI-ROADMAP.md            product plan and milestone sequencing
 ├── PLUGIN-ADAPTATION.md      plugin compatibility contract
+├── HANDOFF.md                branch state + what's left before publish (delete on release)
 ├── lessons/                  closed bug notes and follow-up invariants
 cordis.patch.yml                patch applied on install
 ```
