@@ -151,7 +151,7 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 | Tool call | none | A marked line, not a block; see the gutter below. |
 | Code Mode sub-call | none | A `↳` row *inside* the `run_code` entry that dispatched it — §1.16. |
 | Workflow run | `⏺` | One entry per fan-out, with a `↳` row per child agent and a `⎿` close — §1.17. |
-| Approval audit | `⤷` | One row per question asked and answered, plus one per policy switch — §1.18. |
+| Approval audit | `⤷` | One row per question asked and answered, plus one per policy *switch* — not for the policy a session opens under, which is a construction seed rather than a change. §1.18. |
 | User message | `round` `blue` | The transcript's only marker of authorship. Same box as the prompt, deliberately: what the user typed and where they type it are one surface. |
 | Assistant message | none | Floats freely. |
 | Note / compaction / plan | none | Single lines, prefixed with `⤷`. |
@@ -974,6 +974,12 @@ This costs no dependency. `@deepseek-ai/dsh-tool-workflow` is not a peer and sho
 **Tone follows `hookTone`, for the fourth time.** `'allowed-once'` is the only grant the vocabulary defines and it is the only quiet outcome. `rejected`, `cancelled`, `unavailable` and **any word this build has never heard of** are notable/yellow. `unavailable` earns that weight on its own merits: it is the fail-closed default the service returns when no answerer was registered at all, which is a configuration fact the user needs, not a decision they made. Red is not used — a rejected call did not fail, it was refused, and that is the gate working.
 
 **A policy row is never yellow, including for `never`.** A stricter policy is not a warning; it is the setting the user or a delegation chose. The row exists so that a resumed session can account for behaviour — a run of tool calls silently refused — that would otherwise look arbitrary. `source: 'delegation'` is marked, because "you set this" and "something set this for you" are different facts about the same policy.
+
+**A policy row is a *switch*, and the log's first policy event is not one.** This shipped wrong and the failure was not in this section's own surface. `@deepseek-ai/dsh-permission-presets` seeds the knobs while constructing any session that carries none, so in every assembly that mounts it — which is every assembly this package ships in — the boot log already holds an `approval/policy` before the user has typed. Drawn as a row, that seed put entry number one on screen at boot, and the banner draws only while `state.entries` is empty (§1.1): the splash was gone from every launch, replaced by the StatusBar, over a row that said `approval policy · ask` and told the user nothing the preset chip was not already showing.
+
+So `onApprovalPolicy` keeps the policy in `UiState.approvalPolicy` and appends a row only when the event moves it. The discriminator has to be position, because for a runtime switch the payload has none: `dsh-user-approval` declares `source?: 'delegation'` and nothing else, so a construction seed and a `/approval` switch are byte-identical. Delegation is the one case the payload does mark and it draws wherever it lands, changed value or not. The cost is that a resumed session's first *stored* policy event is silent too — the right way to be wrong, since that is the value the session opened under rather than a change of it, and every switch after it still draws.
+
+The reason no test saw this is worth keeping: `seedSession` in `tests/fake-tty.ts` built sessions with an empty log, so the fixture disagreed with every real assembly about what a session looks like at boot. It now writes the three knob events first, which is what makes the banner assertions in `banner-frame.spec.ts` claims about a real launch.
 
 **Row budget: one row, plus the asker's reason when it gave one.** The header is drawn `truncate-end` and only the reason is charged by wrapping, exactly as a hook's stderr is (§1.15), so `approvalRows` matches what `MessageList` draws at every width. A policy row is unconditionally one row.
 

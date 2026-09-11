@@ -226,3 +226,24 @@ describe('the banner on a terminal the palette has to share', () => {
     tty.unmount()
   })
 })
+
+describe('the banner on a session that seeds its permission knobs', () => {
+  it('survives the boot log a presets assembly writes', async () => {
+    // The shipped regression, pinned. `dsh-permission-presets` appends
+    // `permission/preset`, `sandbox/mode` and `approval/policy` while
+    // constructing a session that carries none, so in every assembly that
+    // mounts it the log is non-empty before the user has typed. The banner
+    // draws only while `state.entries` is empty and the StatusBar takes over
+    // the moment it is not, so a single seeded row was enough to retire the
+    // splash on every launch — and the fixture, whose log started empty, could
+    // not see it. `seedSession` now writes those three events, which is what
+    // makes this assertion about the real boot rather than about a fixture.
+    const tty = await paintApp({ turns: 0, columns: 90, rows: 40 })
+    const screen = tty.screen()
+    tty.unmount()
+    expect(screen).toContain('探索未至之境')
+    // The other half of the same bug: the seeded policy is the value the
+    // session opened under, not a switch, so it draws no row either.
+    expect(screen).not.toContain('approval policy')
+  })
+})

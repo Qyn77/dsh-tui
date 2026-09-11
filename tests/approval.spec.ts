@@ -45,6 +45,16 @@ function policy(policy: string, source = 'command'): SessionEvent {
   return event('approval/policy', { policy, source })
 }
 
+/**
+ * The policy event `dsh-permission-presets` appends while constructing a
+ * session that carries none. Byte-identical to a switch — `dsh-user-approval`
+ * declares `source?: 'delegation'` and nothing else — which is why the reducer
+ * tells them apart by position and every switch test has to open with one.
+ */
+function seed(value = 'ask'): SessionEvent {
+  return event('approval/policy', { policy: value })
+}
+
 function turnEnd(kind: TurnEndReason['kind'] = 'completed'): SessionEvent {
   const reason = kind === 'error'
     ? { kind, error: { name: 'Error', code: 'boom' } }
@@ -58,6 +68,12 @@ function project(events: readonly SessionEvent[]): UiState {
 
 function approvalsOf(state: UiState): readonly ApprovalEntry[] {
   return state.entries.filter((e): e is ApprovalEntry => e.kind === 'approval')
+}
+
+function policyRows(state: UiState): readonly Extract<UiEntry, { kind: 'approval-policy' }>[] {
+  return state.entries.filter(
+    (e): e is Extract<UiEntry, { kind: 'approval-policy' }> => e.kind === 'approval-policy',
+  )
 }
 
 function only(state: UiState): ApprovalEntry {
@@ -124,11 +140,43 @@ describe('the approval projection', () => {
   )
 
   it('records a policy switch as its own row, tagged when it was delegated', () => {
-    const state = project([policy('never'), policy('ask', 'delegation')])
-    const rows = state.entries.filter(
-      (e): e is Extract<UiEntry, { kind: 'approval-policy' }> => e.kind === 'approval-policy',
-    )
+    // `seed()` first: the row is a *switch*, and the log's opening policy event
+    // is the value the session started at, not a switch to it.
+    const state = project([seed(), policy('never'), policy('ask', 'delegation')])
+    const rows = policyRows(state)
     expect(rows.map(r => [r.policy, r.delegated])).toEqual([['never', false], ['ask', true]])
+  })
+
+  it('draws no row for the policy a session opens under', () => {
+    // The regression this rule exists for. `dsh-permission-presets` appends
+    // `approval/policy` while constructing any session that carries none, so in
+    // an assembly that mounts it *every* boot log opens with a policy event.
+    // Drawing it put an entry on screen before the user had typed, and the
+    // splash banner draws only while there are no entries — so the seed retired
+    // the banner in exactly the assemblies that ship presets, while the fixture
+    // agent in `fake-tty.ts` (whose log starts empty) saw none of it.
+    expect(policyRows(project([seed()]))).toHaveLength(0)
+  })
+
+  it('adopts the seeded policy, so the first real switch still draws', () => {
+    expect(policyRows(project([seed('ask'), policy('never')])).map(r => r.policy)).toEqual(['never'])
+  })
+
+  it('says nothing when a policy event repeats the policy already in force', () => {
+    // Whole-value events, replayed: the emitter is free to restate the current
+    // policy, and a row per restatement would read as a switch that never
+    // happened.
+    expect(policyRows(project([seed('ask'), policy('ask'), policy('ask')]))).toHaveLength(0)
+  })
+
+  it('draws a delegated override wherever it lands, changed value or not', () => {
+    // `delegated` is not about the value — it says the policy was pushed in at
+    // delegation rather than chosen here, which is news whether or not the word
+    // moved. It is also the one thing the payload marks, and the presets seed
+    // never marks it, so it is exempt from the first-event rule above.
+    const rows = policyRows(project([seed('never'), policy('never', 'delegation')]))
+    expect(rows.map(r => [r.policy, r.delegated])).toEqual([['never', true]])
+    expect(policyRows(project([policy('ask', 'delegation')]))).toHaveLength(1)
   })
 })
 
@@ -174,7 +222,7 @@ describe('the approval row budget', () => {
   })
 
   it('charges a policy row exactly one row at any width', () => {
-    const state = project([policy('never')])
+    const state = project([seed(), policy('never')])
     const row = state.entries.find(e => e.kind === 'approval-policy')
     if (row === undefined) throw new Error('no policy row')
     expect(estimateEntryRows(row, 20)).toBe(estimateEntryRows(row, 120))

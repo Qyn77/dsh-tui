@@ -555,16 +555,41 @@ function onApprovalDecided(state: UiState, event: EventOf<'approval/decided'>): 
   return { ...state, entries: replaceAt(state.entries, found.index, next) }
 }
 
-/** Record a policy switch. The last one in the log is the session's override. */
+/**
+ * Record a policy switch. The last one in the log is the session's override.
+ *
+ * A *switch*, not the session's initial value: the first policy event a log
+ * carries is almost always `dsh-permission-presets` seeding the knobs at
+ * construction, and a row saying "approval policy · ask" before the user has
+ * typed anything is noise the chrome's preset chip already carries. Worse, it
+ * is an entry, and the splash banner draws only while there are none — so the
+ * seed silently retired the banner in every assembly that mounts presets.
+ *
+ * The discriminator is position, because for a runtime switch the payload has
+ * none: `dsh-user-approval` declares `source?: 'delegation'` and nothing more,
+ * so a seed and a `/approval` switch are identical on the wire. Delegation is
+ * the exception the payload *does* mark, and it draws wherever it lands. The
+ * cost is that a resumed session's first stored policy event is silent too.
+ * That is the right way to be wrong — it is the value the session opened under,
+ * which the chip shows, and every switch after it still draws.
+ */
 function onApprovalPolicy(state: UiState, event: EventOf<'approval/policy'>): UiState {
   const { policy, source } = event.data
+  const delegated = source === 'delegation'
+  // Delegation is the one thing the payload does say, and the presets seed
+  // never says it: an override pushed in at delegation is news at any position,
+  // changed value or not, because it says the policy was chosen elsewhere.
+  if (!delegated) {
+    // First policy event in the log: adopt it, draw nothing.
+    if (state.approvalPolicy === undefined) return { ...state, approvalPolicy: policy }
+    // Whole-value events are free to restate the policy already in force, and a
+    // row per restatement would read as a switch that never happened.
+    if (state.approvalPolicy === policy) return state
+  }
   return {
     ...state,
-    entries: append(state, {
-      kind: 'approval-policy',
-      policy,
-      delegated: source === 'delegation',
-    }),
+    approvalPolicy: policy,
+    entries: append(state, { kind: 'approval-policy', policy, delegated }),
   }
 }
 

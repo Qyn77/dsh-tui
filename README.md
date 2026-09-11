@@ -546,6 +546,10 @@ Policy rows are never yellow, including `never`. A stricter setting is not a
 warning — it is the setting you chose. One that a delegation chose for you is
 marked as such.
 
+Only a *switch* leaves a row. The policy your session starts on does not: the
+harness records it while building the session, nobody changed anything, and the
+preset in the status bar already says what it is.
+
 ### Permission presets
 
 Approval policy is one knob; what the sandbox lets a tool touch is the other.

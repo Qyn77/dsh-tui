@@ -411,6 +411,26 @@ export interface UiState {
   currentTurn: number
   /** Reason carried by the most recent `turn/end`. Projection only — nothing renders it. */
   lastReason?: TurnEndReason
+  /**
+   * The approval policy the log has established so far, or undefined before any
+   * `approval/policy` event has been seen.
+   *
+   * Projection only, and it exists to tell a *switch* from the session's
+   * *initial* value. `dsh-permission-presets` seeds the knobs at session
+   * construction — its `applyDefaults` appends `approval/policy` whenever the
+   * session carries none — so in any assembly that mounts it, every boot log
+   * opens with a policy event that nobody switched. Drawing a row for it put an
+   * entry on screen before the user had done anything, which also took the
+   * splash banner away: the banner draws only while `entries` is empty
+   * (`renderer.tsx`), so the seed made it unreachable in exactly the assemblies
+   * that ship presets, and none in the fixture-driven tests.
+   *
+   * The payload cannot answer this on its own — `dsh-user-approval` declares
+   * `source?: 'delegation'` and nothing else, so a construction seed and a
+   * runtime switch are byte-identical. Position in the log is the only signal,
+   * and this field is how the reducer keeps it.
+   */
+  approvalPolicy?: string
 }
 
 /**

@@ -101,9 +101,28 @@ export const strip = (frame: string): string =>
  * A test about *switching* sessions has to override it: the projection re-seeds
  * on a change of session id, so two sessions sharing one id would exercise the
  * unchanged path and prove the opposite of what such a test claims.
+ *
+ * Every session opens with the permission knobs `dsh-permission-presets` writes
+ * while constructing one that carries none, because in the assemblies this
+ * package actually ships in, every session does. The fixture used to start with
+ * an empty log, and that gap cost a shipped regression: `approval/policy` drew
+ * an entry, an entry at boot takes the splash banner away (`renderer.tsx` draws
+ * it only while there are none), and no test could see it because no test had
+ * the seed. Two of these three events are not in `isRenderable`; the third is
+ * handled in `onApprovalPolicy`.
  */
 export function seedSession(turns: number, id = 'tui-frame'): Session {
   const session = Session.create(id as never)
+  // `permission/preset` and `sandbox/mode` belong to a package this build does
+  // not depend on, so they are not in the typed event map. The cast widens the
+  // call rather than detaching the method: `Session.append` uses `this`, so a
+  // hoisted reference to it would seed nothing and fail 200 frame tests at once.
+  const write = (type: string, data: unknown): void => {
+    (session.append as (t: string, d: unknown) => void).call(session, type, data)
+  }
+  write('permission/preset', { preset: 'workspace-write' })
+  write('sandbox/mode', { mode: 'workspace-write' })
+  write('approval/policy', { policy: 'ask' })
   for (let turn = 1; turn <= turns; turn += 1) {
     session.append('turn/start', { turn })
     session.append('step/start', { turn, step: 1 })
