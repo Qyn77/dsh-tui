@@ -6,7 +6,7 @@
  * picker there is no async round-trip to wait out; the Enter case does write
  * a patch file, so `$DSH_HOME` points at a temp directory.
  *
- * @module @deepseek-ai/dsh-tui/tests/mcp-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/mcp-frame.spec
  */
 
 import { mkdtempSync, readFileSync } from 'node:fs'

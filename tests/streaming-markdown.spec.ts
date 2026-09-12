@@ -6,7 +6,7 @@
  * is stable across prefixes; what it cannot show is that the composed frame
  * carries a rendered heading instead of a literal `##`, and that sealing the
  * turn afterwards moves nothing.
- * @module @deepseek-ai/dsh-tui/tests/streaming-markdown.spec
+ * @module @qiao-qyn/dsh-tui/tests/streaming-markdown.spec
  */
 
 import { afterEach, describe, expect, it } from 'vitest'

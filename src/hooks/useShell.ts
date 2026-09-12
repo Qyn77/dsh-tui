@@ -10,7 +10,7 @@
  * `active` while `state.status === 'idle'`, so a `cd` cannot land in the middle
  * of a turn whose tool calls have already resolved paths against the old
  * directory.
- * @module @deepseek-ai/dsh-tui/hooks/useShell
+ * @module @qiao-qyn/dsh-tui/hooks/useShell
  */
 
 import { useCallback, useRef, useState } from 'react'

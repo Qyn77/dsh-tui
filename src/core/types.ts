@@ -2,7 +2,7 @@
  * UI-facing types for the dsh TUI bundle. These describe the rendering tree
  * derived from the live session log, not anything that crosses the agent
  * boundary — the model still sees the canonical `SessionEvent` stream.
- * @module @deepseek-ai/dsh-tui/core/types
+ * @module @qiao-qyn/dsh-tui/core/types
  */
 
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'

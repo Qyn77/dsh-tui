@@ -9,7 +9,7 @@
  * at a time, threading the grammar state, is indistinguishable from tokenizing
  * it whole. If that ever stopped being true the symptom would be subtly wrong
  * colors inside a block comment, which no other test would catch.
- * @module @deepseek-ai/dsh-tui/tests/highlight.spec
+ * @module @qiao-qyn/dsh-tui/tests/highlight.spec
  */
 
 import { describe, expect, it } from 'vitest'

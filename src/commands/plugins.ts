@@ -16,7 +16,7 @@
  * can be decided without touching the loader — what the words meant, which row
  * they name, and whether that row may be written at all — is decided here; the
  * command is left with the one call that has an effect.
- * @module @deepseek-ai/dsh-tui/commands/plugins
+ * @module @qiao-qyn/dsh-tui/commands/plugins
  */
 
 /** How a plugin is doing, from the loader's point of view. */
@@ -152,7 +152,7 @@ function phaseOf(entry: LoaderEntry): PluginPhase {
  * a fork republished under another name loses the guard; that is a worse fork
  * than a worse guard.
  */
-const SELF = '@deepseek-ai/dsh-tui'
+const SELF = '@qiao-qyn/dsh-tui'
 
 /** Whether toggling this entry from here is off the table, and why. */
 function lockOf(entry: LoaderEntry, name: string): PluginLock | undefined {

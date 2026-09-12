@@ -3,7 +3,7 @@
  * filling a choice, filtering rows, and turning the projection's options into
  * picker rows with the live value marked.
  *
- * @module @deepseek-ai/dsh-tui/tests/permission-picker.spec
+ * @module @qiao-qyn/dsh-tui/tests/permission-picker.spec
  */
 
 import { describe, expect, it } from 'vitest'

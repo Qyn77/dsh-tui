@@ -9,7 +9,7 @@
  * identical frame, so the interesting assertion is that a frame lands **after**
  * the clear. That is the same trap `resize.ts` documents, reached by a
  * keystroke instead of a window drag.
- * @module @deepseek-ai/dsh-tui/tests/redraw.spec
+ * @module @qiao-qyn/dsh-tui/tests/redraw.spec
  */
 
 import { describe, expect, it } from 'vitest'

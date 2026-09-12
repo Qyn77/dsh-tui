@@ -23,7 +23,7 @@
  * This file is the React half of the boundary `src/core/i18n.ts` defines; the
  * catalog itself imports neither React nor Ink, the same way `markdown.ts`
  * stays clear of `Markdown.tsx`.
- * @module @deepseek-ai/dsh-tui/hooks/useStrings
+ * @module @qiao-qyn/dsh-tui/hooks/useStrings
  */
 
 import React, { createContext, useContext, type FC, type ReactNode } from 'react'

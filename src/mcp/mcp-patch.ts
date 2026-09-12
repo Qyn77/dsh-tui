@@ -17,7 +17,7 @@
  * is deliberately unlike this package's own `tui.json` (SPEC §1.12): the patch
  * layer is the harness' file, and a user who moved their harness home expects
  * `/mcp add` to follow it there.
- * @module @deepseek-ai/dsh-tui/mcp/mcp-patch
+ * @module @qiao-qyn/dsh-tui/mcp/mcp-patch
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'

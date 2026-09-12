@@ -11,7 +11,7 @@
  * The service is optional — an assembly without `dsh-session-projection` or
  * without a registered `permissions` unit yields `undefined`, and the chrome
  * draws no chip rather than guessing a stance the deployment did not state.
- * @module @deepseek-ai/dsh-tui/hooks/usePermissionPreset
+ * @module @qiao-qyn/dsh-tui/hooks/usePermissionPreset
  */
 
 import { useEffect, useState } from 'react'

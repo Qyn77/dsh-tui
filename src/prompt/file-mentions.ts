@@ -12,7 +12,7 @@
  * Everything here except {@link listFiles} is pure, for the usual reason
  * (SPEC §3.4): the matching rules are the part most likely to be wrong, and
  * they are much cheaper to pin by calling them than by typing at a frame.
- * @module @deepseek-ai/dsh-tui/prompt/file-mentions
+ * @module @qiao-qyn/dsh-tui/prompt/file-mentions
  */
 
 import { readdir } from 'node:fs/promises'

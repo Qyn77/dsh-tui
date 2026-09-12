@@ -9,7 +9,7 @@
  *
  * What is pinned here is the pairing — by `id`, because several questions can
  * be in flight — and the tone rule: only an explicit grant is quiet.
- * @module @deepseek-ai/dsh-tui/tests/approval.spec
+ * @module @qiao-qyn/dsh-tui/tests/approval.spec
  */
 
 import { describe, expect, it } from 'vitest'

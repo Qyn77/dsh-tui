@@ -19,7 +19,7 @@
  *
  * Pure data plus one lookup: no disk, no i18n (descriptions are catalog keys,
  * translated in `i18n.ts` per rule 11), no React.
- * @module @deepseek-ai/dsh-tui/mcp/mcp-catalog
+ * @module @qiao-qyn/dsh-tui/mcp/mcp-catalog
  */
 
 import { type McpPatchRow, MCP_PLUGIN_NAME, SERVER_NAME_PATTERN, rowIdFor } from './mcp-config.ts'

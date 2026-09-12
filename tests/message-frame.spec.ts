@@ -7,7 +7,7 @@
  * is the transcript's only marker of authorship, and it is two rows plus four
  * columns that `estimateEntryRows` has to predict exactly or paging stops
  * being invertible.
- * @module @deepseek-ai/dsh-tui/tests/message-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/message-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

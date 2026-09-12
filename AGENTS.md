@@ -1,4 +1,4 @@
-# @deepseek-ai/dsh-tui
+# @qiao-qyn/dsh-tui
 
 A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Single Cordis bundle (`tui-runner`) mounted on `dsh-base`; replaces the default web UI with an Ink-based REPL. Same agent, same tools, same model — different room.
 

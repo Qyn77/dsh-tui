@@ -11,7 +11,7 @@
  * padding and summarisation are the parts worth asserting, and a test of them
  * should not have to mount a persistence backend. The command is left with the
  * IO.
- * @module @deepseek-ai/dsh-tui/commands/sessions
+ * @module @qiao-qyn/dsh-tui/commands/sessions
  */
 
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'

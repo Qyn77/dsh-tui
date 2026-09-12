@@ -11,7 +11,7 @@
  * `ESC` is built with `String.fromCharCode`, never written literally: a raw
  * escape byte in a source file is invisible in every diff and every review
  * that would otherwise catch it going missing.
- * @module @deepseek-ai/dsh-tui/tests/paste.spec
+ * @module @qiao-qyn/dsh-tui/tests/paste.spec
  */
 
 import { describe, expect, it } from 'vitest'

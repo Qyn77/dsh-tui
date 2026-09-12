@@ -12,7 +12,7 @@
  *
  * A real `Context` and a real `Session` are used throughout; only the `Agent`
  * is a double, because the hook touches exactly two of its members.
- * @module @deepseek-ai/dsh-tui/tests/session-events.spec
+ * @module @qiao-qyn/dsh-tui/tests/session-events.spec
  */
 
 import { describe, expect, it } from 'vitest'

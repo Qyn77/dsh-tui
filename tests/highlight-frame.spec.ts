@@ -6,7 +6,7 @@
  * block draws plain until its grammar loads and colored afterwards, so those two
  * renderings have to occupy the same rows and carry the same characters. If they
  * did not, every code block would jump a beat after it appeared.
- * @module @deepseek-ai/dsh-tui/tests/highlight-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/highlight-frame.spec
  */
 
 import { afterEach, describe, expect, it } from 'vitest'

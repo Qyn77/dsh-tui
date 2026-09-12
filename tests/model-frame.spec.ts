@@ -6,7 +6,7 @@
  * async, so every mount that opens the picker waits out the fake listing the
  * way the skill picker waits out its catalog.
  *
- * @module @deepseek-ai/dsh-tui/tests/model-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/model-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

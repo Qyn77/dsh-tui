@@ -32,7 +32,7 @@
  * line you are still composing. A build that shipped a half-working `u` would
  * be worse than one that never offered it, because the user would find out
  * which by losing a line.
- * @module @deepseek-ai/dsh-tui/prompt/vim
+ * @module @qiao-qyn/dsh-tui/prompt/vim
  */
 
 /** Which editor the prompt's keys currently mean. */

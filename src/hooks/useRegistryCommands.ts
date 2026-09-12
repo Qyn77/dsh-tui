@@ -10,7 +10,7 @@
  * The event is deliberately unfiltered by the runtime — a global or scoped
  * change may affect any view — so this re-reads the whole list rather than
  * trying to apply a delta.
- * @module @deepseek-ai/dsh-tui/hooks/useRegistryCommands
+ * @module @qiao-qyn/dsh-tui/hooks/useRegistryCommands
  */
 
 import { useEffect, useState } from 'react'

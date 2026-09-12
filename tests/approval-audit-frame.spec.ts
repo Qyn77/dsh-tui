@@ -7,7 +7,7 @@
  * audit trail rather than a warning banner — that a reason sits under the row
  * that quotes it, and that a question the turn ended on says "no decision"
  * instead of hanging on screen forever.
- * @module @deepseek-ai/dsh-tui/tests/approval-audit-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/approval-audit-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

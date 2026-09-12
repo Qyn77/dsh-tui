@@ -17,7 +17,7 @@
  * what lets a component rendered outside a provider — which is what several
  * unit-level tests do — keep drawing exactly what it drew, and why adding this
  * provider changed no existing test.
- * @module @deepseek-ai/dsh-tui/hooks/useTheme
+ * @module @qiao-qyn/dsh-tui/hooks/useTheme
  */
 
 import React, { createContext, useContext, type FC, type ReactNode } from 'react'

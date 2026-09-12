@@ -8,7 +8,7 @@
  * column are *derived from the same fold* rather than guessed alongside it.
  * A word-wrapping fold would break that, which is why the fold here is by
  * character.
- * @module @deepseek-ai/dsh-tui/prompt/prompt-layout
+ * @module @qiao-qyn/dsh-tui/prompt/prompt-layout
  */
 
 import { displayWidth } from '../core/width.ts'

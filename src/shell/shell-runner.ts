@@ -18,7 +18,7 @@
  *
  * The existing subprocess precedent in [environment.ts](./environment.ts) — an
  * explicit timeout, stdio never inherited — is followed rather than reinvented.
- * @module @deepseek-ai/dsh-tui/shell/shell-runner
+ * @module @qiao-qyn/dsh-tui/shell/shell-runner
  */
 
 import { spawn } from 'node:child_process'

@@ -9,7 +9,7 @@
  * - Ink hands one keystroke to *every* `useInput` handler with no way to
  *   stop it, so "↑ moved the caret" and "↑ also scrolled the log" both
  *   pass in isolation and only the frame shows the collision.
- * @module @deepseek-ai/dsh-tui/tests/prompt-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/prompt-frame.spec
  */
 
 import { describe, expect, it, vi } from 'vitest'

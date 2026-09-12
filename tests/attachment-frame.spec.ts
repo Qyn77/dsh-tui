@@ -6,7 +6,7 @@
  * are both pinned here. Its height is pinned too, in `scroll.spec.ts`: a chip
  * row that `estimateEntryRows` does not predict makes paging non-invertible,
  * which is the failure this repo has already paid for once.
- * @module @deepseek-ai/dsh-tui/tests/attachment-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/attachment-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

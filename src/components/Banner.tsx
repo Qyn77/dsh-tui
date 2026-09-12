@@ -28,7 +28,7 @@
  *
  * On terminals too narrow for the block wordmark it degrades to a
  * compact form that keeps every fact and drops only the decoration.
- * @module @deepseek-ai/dsh-tui/components/Banner
+ * @module @qiao-qyn/dsh-tui/components/Banner
  */
 
 import React, { type FC } from 'react'

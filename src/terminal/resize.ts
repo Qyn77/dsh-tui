@@ -30,7 +30,7 @@
  * storm, when the cached frame is still laid out for the old width — is what
  * makes a settled resize always end with pixels on screen.
  *
- * @module @deepseek-ai/dsh-tui/terminal/resize
+ * @module @qiao-qyn/dsh-tui/terminal/resize
  */
 
 /**

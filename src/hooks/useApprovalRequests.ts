@@ -23,7 +23,7 @@
  *
  * `'allowed-once'` is the only grant the vocabulary has. There is deliberately
  * no "always allow" here to build a UI for.
- * @module @deepseek-ai/dsh-tui/hooks/useApprovalRequests
+ * @module @qiao-qyn/dsh-tui/hooks/useApprovalRequests
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'

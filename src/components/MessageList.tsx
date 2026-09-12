@@ -26,7 +26,7 @@
  * alternate rows when a clipped box overflows that way (a 4-row viewport
  * over 8 rows of content renders rows 1, 3, 5, 7); the `column-reverse`
  * form is clean. See `docs/lessons/message-list-scroll.md`.
- * @module @deepseek-ai/dsh-tui/components/MessageList
+ * @module @qiao-qyn/dsh-tui/components/MessageList
  */
 
 import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'

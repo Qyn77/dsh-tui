@@ -15,7 +15,7 @@
  *
  * No `llm` service mounted, no selection, or a failed listing means no rows,
  * which means no picker — the same dark-feature stance as the other two.
- * @module @deepseek-ai/dsh-tui/pickers/model-picker
+ * @module @qiao-qyn/dsh-tui/pickers/model-picker
  */
 
 import type { LlmModelInfo } from '@deepseek-ai/dsh-llm'

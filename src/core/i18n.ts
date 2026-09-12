@@ -36,7 +36,7 @@
  * express that. Callers pass values; the catalog decides word order. Numbers
  * arrive pre-formatted, because how a token count is grouped is the caller's
  * policy, not a translation decision.
- * @module @deepseek-ai/dsh-tui/core/i18n
+ * @module @qiao-qyn/dsh-tui/core/i18n
  */
 
 import type { PluginPhase } from '../commands/plugins.ts'

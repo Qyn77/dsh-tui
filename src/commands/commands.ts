@@ -21,7 +21,7 @@
  * Commands that need async work (model listing, context resolution)
  * return a `Promise<CommandResult>` — the caller is responsible for
  * awaiting it. Synchronous commands still resolve immediately.
- * @module @deepseek-ai/dsh-tui/commands/commands
+ * @module @qiao-qyn/dsh-tui/commands/commands
  */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'

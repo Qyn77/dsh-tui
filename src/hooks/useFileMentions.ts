@@ -10,7 +10,7 @@
  * The cache is keyed by working directory because `!cd` moves it (SPEC §1.9),
  * and a picker still offering the old directory's files after a `cd` would be
  * offering paths that no longer resolve.
- * @module @deepseek-ai/dsh-tui/hooks/useFileMentions
+ * @module @qiao-qyn/dsh-tui/hooks/useFileMentions
  */
 
 import { useEffect, useRef, useState } from 'react'

@@ -28,7 +28,7 @@
  * If a future oxlint fixes that overload resolution, `service()` becomes pure
  * indirection and should be deleted in favour of calling `ctx.get` directly.
  * `appExit()` should not — reason 1 is permanent.
- * @module @deepseek-ai/dsh-tui/core/services
+ * @module @qiao-qyn/dsh-tui/core/services
  */
 
 import type { Context } from '@deepseek-ai/cordis'

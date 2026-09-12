@@ -7,7 +7,7 @@
  * row, a key handler compared against a string Ink never delivers, a box
  * that grows past its cap because Ink re-wrapped a row. All of those are
  * properties of the composed frame.
- * @module @deepseek-ai/dsh-tui/tests/fake-tty
+ * @module @qiao-qyn/dsh-tui/tests/fake-tty
  */
 
 import { EventEmitter } from 'node:events'

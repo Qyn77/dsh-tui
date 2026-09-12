@@ -8,7 +8,7 @@
  * The registry is a stand-in rather than a real `CommandRuntime`: the hook only
  * reads `list` and listens for `commands/change`, and a real runtime would drag
  * in the whole plugin-registration path to assert a mapping of two fields.
- * @module @deepseek-ai/dsh-tui/tests/registry-commands.spec
+ * @module @qiao-qyn/dsh-tui/tests/registry-commands.spec
  */
 
 import { describe, expect, it } from 'vitest'

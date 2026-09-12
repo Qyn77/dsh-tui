@@ -1,6 +1,6 @@
 # dsh-tui Specification
 
-> Authoritative design contract for `@deepseek-ai/dsh-tui`. Three parts:
+> Authoritative design contract for `@qiao-qyn/dsh-tui`. Three parts:
 >
 > 1. **Style** — what "Claude Code CLI style" means here, in concrete terms
 > 2. **Roadmap** — what we shipped, what we will ship
@@ -1488,7 +1488,7 @@ pnpm test && pnpm run typecheck && pnpm run build
 npm publish --access public
 ```
 
-After publish, the dsh-tui bundle becomes available as `@deepseek-ai/dsh-tui@0.1.0-rc.N+1`. The launcher reads `package.json#dsh.bundle.patch` to wire the bundle into profiles.
+After publish, the dsh-tui bundle becomes available as `@qiao-qyn/dsh-tui@0.1.0-rc.N+1`. The launcher reads `package.json#dsh.bundle.patch` to wire the bundle into profiles.
 
 ### 3.9 Git workflow
 

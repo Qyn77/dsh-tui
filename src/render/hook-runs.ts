@@ -4,7 +4,7 @@
  *
  * Named `hook-runs` and not `hooks` because `src/hooks/` is this package's
  * React hooks directory. Nothing here is React.
- * @module @deepseek-ai/dsh-tui/render/hook-runs
+ * @module @qiao-qyn/dsh-tui/render/hook-runs
  */
 
 import type { UiEntry } from '../core/types.ts'

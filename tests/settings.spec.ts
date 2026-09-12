@@ -6,7 +6,7 @@
  * `$HOME`, because the properties that matter — an unwritable home does not
  * throw, unknown keys survive a round trip — are properties of real filesystem
  * calls rather than of the parsing.
- * @module @deepseek-ai/dsh-tui/tests/settings
+ * @module @qiao-qyn/dsh-tui/tests/settings
  */
 
 import { afterEach, describe, expect, it } from 'vitest'

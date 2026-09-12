@@ -8,7 +8,7 @@
  * The parsing is split from the probing on purpose: `parseGitBranch`
  * and `formatRepoLabel` are pure and carry the tests, while
  * {@link readRepoLabel} is the single impure entry point.
- * @module @deepseek-ai/dsh-tui/terminal/environment
+ * @module @qiao-qyn/dsh-tui/terminal/environment
  */
 
 import { execFileSync } from 'node:child_process'

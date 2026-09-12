@@ -32,7 +32,7 @@
  * chunks out from under Ink's read loop and breaks typing altogether. The
  * emitter carries the identical chunk with none of that risk — it is what
  * Ink's own `useInput` consumes.
- * @module @deepseek-ai/dsh-tui/hooks/useMessageListScroll
+ * @module @qiao-qyn/dsh-tui/hooks/useMessageListScroll
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'

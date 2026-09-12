@@ -6,7 +6,7 @@
  * mounting a component or reading a file. A missing translation is caught here
  * as a failing test, which is the only thing standing between a new string and
  * an English sentence appearing in the middle of a Chinese screen.
- * @module @deepseek-ai/dsh-tui/tests/i18n
+ * @module @qiao-qyn/dsh-tui/tests/i18n
  */
 
 import { describe, expect, it } from 'vitest'

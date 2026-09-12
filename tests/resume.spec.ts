@@ -11,7 +11,7 @@
  * The persistence service is a stand-in: the resolver reads exactly `list()`,
  * and a real backend would drag a filesystem into a test about sorting by
  * `createdAt`.
- * @module @deepseek-ai/dsh-tui/tests/resume.spec
+ * @module @qiao-qyn/dsh-tui/tests/resume.spec
  */
 
 import { describe, expect, it } from 'vitest'

@@ -5,7 +5,7 @@
  * `session/event` subscription the TUI registers is a normal `ctx.on` whose
  * `off` is returned to React's effect cleanup. Nothing here would change
  * when this plugin unloads, so the package ships no checks.
- * @module @deepseek-ai/dsh-tui/invariant
+ * @module @qiao-qyn/dsh-tui/invariant
  */
 
 export const name = 'dsh-tui/invariant'

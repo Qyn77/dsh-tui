@@ -2,7 +2,7 @@
  * The Ink root component: composes the status bar, the message list, and
  * the prompt. Owns the live projection of the agent's session, the
  * dispatch of slash commands, and the Ctrl-C interrupt path.
- * @module @deepseek-ai/dsh-tui/renderer
+ * @module @qiao-qyn/dsh-tui/renderer
  */
 
 import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'

@@ -8,7 +8,7 @@
  * clips by row, so the two units never agreed and the newest messages fell
  * off the bottom of a clipped box where no key could reach them. Rows are
  * what the terminal has, so rows are what we count.
- * @module @deepseek-ai/dsh-tui/render/scroll
+ * @module @qiao-qyn/dsh-tui/render/scroll
  */
 
 import type { UiEntry } from '../core/types.ts'

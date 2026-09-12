@@ -2,7 +2,7 @@
  * Live subscription to the agent's session events, fed through the reducer.
  * Seeds from the durable log on first render, then keeps the projected view
  * in sync with each `session/event` arrival.
- * @module @deepseek-ai/dsh-tui/hooks/useSessionEvents
+ * @module @qiao-qyn/dsh-tui/hooks/useSessionEvents
  */
 
 import { useCallback, useEffect, useReducer, useRef } from 'react'

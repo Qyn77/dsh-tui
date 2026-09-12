@@ -18,7 +18,7 @@
  * All three are one token containing a space, and no single regex reads all
  * three without becoming unreadable. The scanner below is longer than a regex
  * and can be reasoned about a character at a time.
- * @module @deepseek-ai/dsh-tui/attachments/attachments
+ * @module @qiao-qyn/dsh-tui/attachments/attachments
  */
 
 import { basename, extname, isAbsolute, resolve } from 'node:path'

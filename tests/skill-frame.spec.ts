@@ -5,7 +5,7 @@
  * never wrote and cannot act on. `@deepseek-ai/dsh-skill` puts the skill's name
  * in the message source exactly so a transcript can say which skill ran
  * without sampling that markup, and this file pins that we do.
- * @module @deepseek-ai/dsh-tui/tests/skill-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/skill-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

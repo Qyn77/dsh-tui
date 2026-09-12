@@ -27,7 +27,7 @@
  *
  * The agent's "running" state is the source of truth for which branch
  * wins.
- * @module @deepseek-ai/dsh-tui/terminal/interrupt
+ * @module @qiao-qyn/dsh-tui/terminal/interrupt
  */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'

@@ -21,7 +21,7 @@
  * The palette does not own any state itself; the parent passes
  * `commands` and `selected` so the same index can drive the highlight
  * and any completion actions.
- * @module @deepseek-ai/dsh-tui/components/SlashPalette
+ * @module @qiao-qyn/dsh-tui/components/SlashPalette
  */
 
 import React, { type FC } from 'react'

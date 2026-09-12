@@ -10,7 +10,7 @@
  *
  * What these tests cannot cover is whether any particular real terminal answers
  * the query. That is a real-TTY check, per roadmap §7.
- * @module @deepseek-ai/dsh-tui/tests/theme.spec
+ * @module @qiao-qyn/dsh-tui/tests/theme.spec
  */
 
 import { describe, expect, it, vi } from 'vitest'

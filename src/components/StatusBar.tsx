@@ -21,7 +21,7 @@
  * same stance the SPEC takes for it (§1.1): autowrap is off for the app's
  * lifetime, so a row that measures at the width but renders wider clips into
  * the last column instead of wrapping, and the border stays legible.
- * @module @deepseek-ai/dsh-tui/components/StatusBar
+ * @module @qiao-qyn/dsh-tui/components/StatusBar
  */
 
 import React, { type FC } from 'react'

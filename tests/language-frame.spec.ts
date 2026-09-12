@@ -11,7 +11,7 @@
  * default is English regardless of what is in `~/.dsh/tui.json` (the App takes
  * the language as a prop; only `index.ts` reads the file), and the banner does
  * not retranslate in place, because `<Static>` means "already written".
- * @module @deepseek-ai/dsh-tui/tests/language-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/language-frame.spec
  */
 
 import { describe, expect, it, vi } from 'vitest'

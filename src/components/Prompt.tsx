@@ -41,7 +41,7 @@
  * more than one row, these keys belong to the prompt and the log's arrow
  * scrolling stands down. `PageUp`/`PageDown` and `Ctrl-B/F/U/D` always
  * belong to the log, so the keyboard never loses its way through history.
- * @module @deepseek-ai/dsh-tui/components/Prompt
+ * @module @qiao-qyn/dsh-tui/components/Prompt
  */
 
 import React, { useEffect, useRef, useState, type FC } from 'react'

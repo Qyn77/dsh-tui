@@ -2,7 +2,7 @@
  * Which way the terminal's background leans, and what changes when it leans
  * the other way.
  *
- * Split the way {@link module:@deepseek-ai/dsh-tui/highlight highlight.ts} and
+ * Split the way {@link module:@qiao-qyn/dsh-tui/render/highlight highlight.ts} and
  * `file-mentions.ts` split: everything a test needs to pin is pure, and the one
  * function that touches the terminal ({@link probeAppearance}) is kept in the
  * same file so the reader sees the whole feature instead of chasing a second
@@ -23,7 +23,7 @@
  * trip; one that does neither gets `dark`, which is what shipped and what most
  * terminals are. None of those paths can fail the boot, and `/theme` overrides
  * all three — which is also the escape hatch when the guess is wrong.
- * @module @deepseek-ai/dsh-tui/terminal/theme
+ * @module @qiao-qyn/dsh-tui/terminal/theme
  */
 
 /** Which way the terminal's background leans. */

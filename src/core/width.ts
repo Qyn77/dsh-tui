@@ -2,7 +2,7 @@
  * Terminal column arithmetic. Pure: no React, no Ink, no IO — the prompt's
  * line wrapping and the banner's centering both fold text against a column
  * budget, and both need the same answer to "how wide is this really?".
- * @module @deepseek-ai/dsh-tui/core/width
+ * @module @qiao-qyn/dsh-tui/core/width
  */
 
 /**

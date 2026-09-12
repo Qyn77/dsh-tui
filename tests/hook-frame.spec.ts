@@ -6,7 +6,7 @@
  * pins is which of them is worth the user's attention: a hook that let the turn
  * proceed is incidental, and a hook that stopped something is the only
  * explanation on screen for why a tool call did not run.
- * @module @deepseek-ai/dsh-tui/tests/hook-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/hook-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

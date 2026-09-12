@@ -10,7 +10,7 @@
  * back on the next `/theme`, which is the whole contract of a persisted
  * preference. Whether the resulting hex is legible on a real white background is
  * a real-TTY judgement, per roadmap §7.
- * @module @deepseek-ai/dsh-tui/tests/theme-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/theme-frame.spec
  */
 
 import { describe, expect, it, vi } from 'vitest'

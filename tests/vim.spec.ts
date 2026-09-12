@@ -10,7 +10,7 @@
  * The caret convention is load-bearing throughout and is asserted here rather
  * than assumed: this prompt draws a bar *between* two characters, so `$`, `e`
  * and the end of a `dw` all name the position *after* a character, not on it.
- * @module @deepseek-ai/dsh-tui/tests/vim.spec
+ * @module @qiao-qyn/dsh-tui/tests/vim.spec
  */
 
 import { describe, expect, it } from 'vitest'

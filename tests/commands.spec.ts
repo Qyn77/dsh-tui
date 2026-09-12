@@ -379,7 +379,7 @@ describe('slash command dispatch', () => {
 
       it('refuses to switch off the interface running the command', async () => {
         const self = {
-          id: 'tui', disabled: false, options: { name: '@deepseek-ai/dsh-tui' }, fiber: { state: 2 },
+          id: 'tui', disabled: false, options: { name: '@qiao-qyn/dsh-tui' }, fiber: { state: 2 },
         }
         const result = await dispatch('/plugins disable dsh-tui', withLoader([self]))
         if (result.kind !== 'handled') throw new Error('unreachable')

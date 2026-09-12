@@ -3,7 +3,7 @@
  * the live route marked, anchored query tokens, fill, filter, and the
  * submitted line.
  *
- * @module @deepseek-ai/dsh-tui/tests/model-picker.spec
+ * @module @qiao-qyn/dsh-tui/tests/model-picker.spec
  */
 
 import { describe, expect, it } from 'vitest'

@@ -8,7 +8,7 @@
  * the next command starts back where it began. A working-directory concept
  * therefore has to live on this side of the spawn, which is why a parser that
  * only ever splits strings has a `cd` case at all.
- * @module @deepseek-ai/dsh-tui/shell/shell
+ * @module @qiao-qyn/dsh-tui/shell/shell
  */
 
 import { isAbsolute, resolve } from 'node:path'

@@ -9,7 +9,7 @@
  * unreachable. Both sides read their width and their one-line summaries from
  * here, so `estimateEntryRows` counts the same strings `MessageList` renders
  * rather than a second guess at them.
- * @module @deepseek-ai/dsh-tui/render/message-layout
+ * @module @qiao-qyn/dsh-tui/render/message-layout
  */
 
 import type { ContentBlock, ToolResultMessage } from '@deepseek-ai/dsh-llm'

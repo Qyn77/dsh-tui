@@ -11,7 +11,7 @@
  *
  * The rows are described here rather than in the command so the ordering and
  * the marking can be tested by calling them (SPEC §3.4).
- * @module @deepseek-ai/dsh-tui/commands/providers
+ * @module @qiao-qyn/dsh-tui/commands/providers
  */
 
 /** One registered provider route, as `/provider` reports it. */

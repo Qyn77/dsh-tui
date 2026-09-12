@@ -12,7 +12,7 @@
  * every later file in the run. That is the one way this suite can break code it
  * is not testing, so the restore is an `afterEach`, not a line at the end of a
  * case.
- * @module @deepseek-ai/dsh-tui/tests/shell-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/shell-frame.spec
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'

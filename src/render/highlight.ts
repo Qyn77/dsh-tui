@@ -21,7 +21,7 @@
  * template literal — `tests/highlight.spec.ts` pins that equality against real
  * Shiki, because it is the assumption the cache is built on and the failure
  * mode if it broke would be silently wrong colors rather than a crash.
- * @module @deepseek-ai/dsh-tui/render/highlight
+ * @module @qiao-qyn/dsh-tui/render/highlight
  */
 
 /**

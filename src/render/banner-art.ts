@@ -18,7 +18,7 @@
  * beside the component that renders it, the way `prompt-editing.ts` sits beside
  * `Prompt.tsx`. Everything here is callable from a unit test without mounting
  * anything, which is how `tests/banner.spec.ts` reads it.
- * @module @deepseek-ai/dsh-tui/render/banner-art
+ * @module @qiao-qyn/dsh-tui/render/banner-art
  */
 
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'

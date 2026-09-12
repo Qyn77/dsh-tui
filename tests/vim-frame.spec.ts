@@ -9,7 +9,7 @@
  * - Esc has to reach the right owner among the palette, normal mode and the
  *   App's turn-cancel, and
  * - turning the setting off has to give the plain editor back, whole.
- * @module @deepseek-ai/dsh-tui/tests/vim-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/vim-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

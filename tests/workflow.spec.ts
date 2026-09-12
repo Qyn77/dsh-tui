@@ -11,7 +11,7 @@
  * What is pinned here is the pairing and the row budget: runs may overlap, so
  * `runId` identifies one and `seq` identifies a member inside it, and neither
  * recency nor array position may stand in for either.
- * @module @deepseek-ai/dsh-tui/tests/workflow.spec
+ * @module @qiao-qyn/dsh-tui/tests/workflow.spec
  */
 
 import { describe, expect, it } from 'vitest'

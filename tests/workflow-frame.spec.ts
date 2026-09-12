@@ -7,7 +7,7 @@
  * header with no blank row prising them apart, that a run the user interrupted
  * says so instead of leaving agents spinning, and that a thirty-agent fan-out
  * does not push the frame past the height Ink erases.
- * @module @deepseek-ai/dsh-tui/tests/workflow-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/workflow-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

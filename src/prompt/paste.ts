@@ -37,7 +37,7 @@
  * cannot fix the split-chunk submission above: a lone `\r` with no
  * surrounding marker is genuinely indistinguishable from Enter, and pretending
  * otherwise would break the Enter key to protect a paste.
- * @module @deepseek-ai/dsh-tui/prompt/paste
+ * @module @qiao-qyn/dsh-tui/prompt/paste
  */
 
 // Built rather than written literally, same rule as `src/commands/clipboard.ts`: a raw

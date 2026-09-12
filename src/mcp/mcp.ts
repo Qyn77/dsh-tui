@@ -11,7 +11,7 @@
  *
  * The rows are described here rather than in the command so the grouping and
  * the ordering can be tested by calling them (SPEC §3.4).
- * @module @deepseek-ai/dsh-tui/mcp/mcp
+ * @module @qiao-qyn/dsh-tui/mcp/mcp
  */
 
 /**

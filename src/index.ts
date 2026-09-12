@@ -2,7 +2,7 @@
  * The TUI runner Cordis plugin. It waits for the Loader to settle, creates
  * one long-lived Agent, and renders the Ink application. The Ink app drives
  * the conversation; the runner owns the process-lifetime promise.
- * @module @deepseek-ai/dsh-tui
+ * @module @qiao-qyn/dsh-tui
  */
 
 import { randomUUID } from 'node:crypto'

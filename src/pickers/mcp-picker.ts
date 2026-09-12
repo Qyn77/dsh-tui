@@ -14,7 +14,7 @@
  * static list in `mcp-catalog.ts`, so the rows always exist and the picker
  * always opens. That is deliberate — there is no service whose absence should
  * darken it.
- * @module @deepseek-ai/dsh-tui/pickers/mcp-picker
+ * @module @qiao-qyn/dsh-tui/pickers/mcp-picker
  */
 
 import type { CommandMeta } from '../commands/commands.ts'

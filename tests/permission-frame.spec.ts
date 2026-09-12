@@ -5,7 +5,7 @@
  * asserted — chalk's level is 0 under vitest, so the red danger treatment is
  * judged in `pnpm tty-check`; what the frame pins is the word being there.
  *
- * @module @deepseek-ai/dsh-tui/tests/permission-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/permission-frame.spec
  */
 
 import { describe, expect, it, vi } from 'vitest'

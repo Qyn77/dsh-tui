@@ -13,7 +13,7 @@
  * empty store, and an id that is not there all mean "start fresh, and say why".
  * A resume that silently became a new session would be the worst outcome — the
  * user would type into an empty terminal believing their history was behind it.
- * @module @deepseek-ai/dsh-tui/commands/resume
+ * @module @qiao-qyn/dsh-tui/commands/resume
  */
 
 import type { Context } from '@deepseek-ai/cordis'

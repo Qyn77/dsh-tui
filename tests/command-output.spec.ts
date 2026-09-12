@@ -6,7 +6,7 @@
  * entirely in where the App put it: `process.stderr`, inside the alternate
  * screen, on the same rows Ink was driving. Only a rendered frame can tell the
  * two apart, so every assertion here reads the composed screen.
- * @module @deepseek-ai/dsh-tui/tests/command-output
+ * @module @qiao-qyn/dsh-tui/tests/command-output
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'

@@ -34,7 +34,7 @@
  *     on top of the old one. The trailing-edge clear remains necessary because
  *     Ink's final resize render runs as part of the same event storm.
  *
- * @module @deepseek-ai/dsh-tui/hooks/useResizeRepaint
+ * @module @qiao-qyn/dsh-tui/hooks/useResizeRepaint
  */
 
 import { useEffect } from 'react'

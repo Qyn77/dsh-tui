@@ -13,7 +13,7 @@
  * shape-checked read off the service store. An assembly that mounts neither
  * simply has no chip, which is also the honest answer it would give any other
  * client.
- * @module @deepseek-ai/dsh-tui/commands/permissions
+ * @module @qiao-qyn/dsh-tui/commands/permissions
  */
 
 import type { Context } from '@deepseek-ai/cordis'

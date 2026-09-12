@@ -21,7 +21,7 @@
  * `~/.dsh/.env`. That mode exists because `.env` holds an API key; an interface
  * language is not a secret, and copying the mode onto a file that does not need
  * it teaches the wrong lesson about which files do.
- * @module @deepseek-ai/dsh-tui/terminal/settings
+ * @module @qiao-qyn/dsh-tui/terminal/settings
  */
 
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'

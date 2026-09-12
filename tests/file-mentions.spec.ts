@@ -5,7 +5,7 @@
  * The trigger rule is the part worth pinning hardest. A picker that opens on
  * every `@` fires on email addresses and npm scopes mid-sentence, and a picker
  * that steals ↑/↓ when the user is writing prose is worse than no picker.
- * @module @deepseek-ai/dsh-tui/tests/file-mentions.spec
+ * @module @qiao-qyn/dsh-tui/tests/file-mentions.spec
  */
 
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'

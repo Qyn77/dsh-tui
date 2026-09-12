@@ -10,7 +10,7 @@
  * relevant surface is exactly the waterfall's `(req, next)` contract, including
  * the terminal `next` that yields `'unavailable'` when nobody claims — which is
  * what the service really passes.
- * @module @deepseek-ai/dsh-tui/tests/approval-requests.spec
+ * @module @qiao-qyn/dsh-tui/tests/approval-requests.spec
  */
 
 import { describe, expect, it } from 'vitest'

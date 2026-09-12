@@ -16,7 +16,7 @@
  * against the TUI's own commands, which skills a human may invoke at all, and
  * what a row looks like. Everything here is pure — reading `ctx.skills` and
  * building messages is `skill-runner.ts`.
- * @module @deepseek-ai/dsh-tui/pickers/skills
+ * @module @qiao-qyn/dsh-tui/pickers/skills
  */
 
 import { isSkillName, isUserInvocable, type SkillSummary } from '@deepseek-ai/dsh-skill'

@@ -20,7 +20,7 @@
  * `y` and `n` are the whole vocabulary: `'allowed-once'` is the only grant the
  * approval service defines, so there is no "always" to offer. Esc rejects,
  * matching the prompt's "Esc dismisses" habit.
- * @module @deepseek-ai/dsh-tui/components/ApprovalPrompt
+ * @module @qiao-qyn/dsh-tui/components/ApprovalPrompt
  */
 
 import React, { type FC } from 'react'

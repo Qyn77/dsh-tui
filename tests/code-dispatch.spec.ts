@@ -11,7 +11,7 @@
  * What is pinned here is the placement rather than the wording: a sub-call
  * hangs inside its parent entry, so it costs one row and cannot be mistaken by
  * `tool/result` for the call it should be closing.
- * @module @deepseek-ai/dsh-tui/tests/code-dispatch.spec
+ * @module @qiao-qyn/dsh-tui/tests/code-dispatch.spec
  */
 
 import { describe, expect, it } from 'vitest'

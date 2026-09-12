@@ -16,7 +16,7 @@
  * cannot hold back the rows of a fast one; each route's slice of the
  * catalogue is replaced as a unit, and a route that disappears on
  * `llm/adapters-updated` has its slice dropped on the next refresh.
- * @module @deepseek-ai/dsh-tui/hooks/useModelCommands
+ * @module @qiao-qyn/dsh-tui/hooks/useModelCommands
  */
 
 import { useEffect, useMemo, useState } from 'react'

@@ -22,7 +22,7 @@
  * A caret index arriving from outside is clamped rather than trusted: these
  * run on every keystroke, and an out-of-range index from rapid input should
  * cost the user nothing.
- * @module @deepseek-ai/dsh-tui/prompt/prompt-editing
+ * @module @qiao-qyn/dsh-tui/prompt/prompt-editing
  */
 
 /** Clamp a caret index into `[0, text.length]`. */

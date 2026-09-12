@@ -13,7 +13,7 @@
  * fence, unbalanced delimiter), we return the raw text as a single
  * `paragraph` so the UI never goes blank. The TUI is a conversation
  * surface, not a validator.
- * @module @deepseek-ai/dsh-tui/render/markdown
+ * @module @qiao-qyn/dsh-tui/render/markdown
  */
 
 import { marked, type MarkedToken, type Token } from 'marked'

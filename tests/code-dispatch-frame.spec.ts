@@ -6,7 +6,7 @@
  * inside it. Two things can only be seen here: that the sub-call rows sit under
  * the `run_code` row without a blank row prising them apart, and that a program
  * with many dispatches does not push the frame past the height Ink erases.
- * @module @deepseek-ai/dsh-tui/tests/code-dispatch-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/code-dispatch-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

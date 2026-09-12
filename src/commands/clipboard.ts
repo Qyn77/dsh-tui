@@ -19,7 +19,7 @@
  * `probeAppearance` in `theme.ts` gets away with that only because it runs
  * before Ink mounts; there is no equivalent window once a session is up, and a
  * reply arriving after mount is typed into the prompt as garbage.
- * @module @deepseek-ai/dsh-tui/commands/clipboard
+ * @module @qiao-qyn/dsh-tui/commands/clipboard
  */
 
 import { parseMarkdown } from '../render/markdown.ts'

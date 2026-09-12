@@ -1,7 +1,7 @@
 /**
  * Pure mechanics of `/provider`: the live-route lookup and the row layout.
  *
- * @module @deepseek-ai/dsh-tui/tests/providers.spec
+ * @module @qiao-qyn/dsh-tui/tests/providers.spec
  */
 
 import { describe, expect, it } from 'vitest'

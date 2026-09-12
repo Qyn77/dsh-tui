@@ -154,7 +154,7 @@ describe('describePlugins locks', () => {
   })
 
   it('locks this package, which is the UI running the command', () => {
-    const rows = describePlugins([entry('@deepseek-ai/dsh-tui')])
+    const rows = describePlugins([entry('@qiao-qyn/dsh-tui')])
     expect(rows[0]?.lock).toBe('self')
   })
 

@@ -4,7 +4,7 @@
  * Ink's first frame and the alternate screen erases anything on stderr from
  * there. So the property under test is not the string but its survival: it has
  * to reach a frame, and it has to reach it once.
- * @module @deepseek-ai/dsh-tui/tests/boot-notice.spec
+ * @module @qiao-qyn/dsh-tui/tests/boot-notice.spec
  */
 
 import { describe, expect, it } from 'vitest'

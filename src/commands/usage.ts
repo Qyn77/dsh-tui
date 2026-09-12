@@ -12,7 +12,7 @@
  *
  * They were the same number for one turn, which is exactly long enough for the
  * mistake to look right in a test.
- * @module @deepseek-ai/dsh-tui/commands/usage
+ * @module @qiao-qyn/dsh-tui/commands/usage
  */
 
 import type { UiState } from '../core/types.ts'

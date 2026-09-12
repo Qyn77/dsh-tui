@@ -15,7 +15,7 @@
  *
  * The renderer never throws. A malformed inline stream falls back to
  * a plain text node so the chat surface never goes blank.
- * @module @deepseek-ai/dsh-tui/components/Markdown
+ * @module @qiao-qyn/dsh-tui/components/Markdown
  */
 
 import React, { useMemo, type ReactNode } from 'react'

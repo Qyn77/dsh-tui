@@ -4,7 +4,7 @@
  * named on it, and that a keystroke maps to the outcome the approval service
  * defines. The second is the part worth a real terminal — a handler compared
  * against a string Ink never delivers passes any unit test and fails in use.
- * @module @deepseek-ai/dsh-tui/tests/approval-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/approval-frame.spec
  */
 
 import { describe, expect, it } from 'vitest'

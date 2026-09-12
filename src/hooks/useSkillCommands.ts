@@ -12,7 +12,7 @@
  * So an incomplete listing is dropped, not applied. The picker keeps what it
  * last knew until a complete one arrives, and `skills/change` brings it back
  * for another look.
- * @module @deepseek-ai/dsh-tui/hooks/useSkillCommands
+ * @module @qiao-qyn/dsh-tui/hooks/useSkillCommands
  */
 
 import { useEffect, useState } from 'react'

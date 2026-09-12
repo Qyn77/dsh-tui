@@ -20,7 +20,7 @@
  *
  * Everything is injected, so the tests drive it with neither a real store nor a
  * real directory.
- * @module @deepseek-ai/dsh-tui/attachments/attach-runner
+ * @module @qiao-qyn/dsh-tui/attachments/attach-runner
  */
 
 import type {

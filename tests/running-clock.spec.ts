@@ -17,7 +17,7 @@
  * component re-renders at the tick rate regardless, and the gate only avoids a
  * redundant state write. There is no observable behaviour to assert. Writing a
  * test that appeared to cover it would be worse than admitting the gap.
- * @module @deepseek-ai/dsh-tui/tests/running-clock.spec
+ * @module @qiao-qyn/dsh-tui/tests/running-clock.spec
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

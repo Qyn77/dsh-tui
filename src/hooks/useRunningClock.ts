@@ -15,7 +15,7 @@
  * tick rate no matter what this counter does. What the gate actually avoids is
  * a redundant state write per tick. It is kept because that is still the
  * correct thing to do, not because it buys a frame.
- * @module @deepseek-ai/dsh-tui/hooks/useRunningClock
+ * @module @qiao-qyn/dsh-tui/hooks/useRunningClock
  */
 
 import { useEffect, useState } from 'react'

@@ -16,7 +16,7 @@
  * The body itself is `renderSkillContent()`, verbatim. Building our own wrapper
  * would give the model a different shape on the `/` path than the `skill` tool
  * gives it on the model path, for no gain.
- * @module @deepseek-ai/dsh-tui/pickers/skill-runner
+ * @module @qiao-qyn/dsh-tui/pickers/skill-runner
  */
 
 import {

@@ -3,7 +3,7 @@
  * `prompt-frame.spec.ts` prove the keystrokes reach these; this file proves
  * the arithmetic, including the boundaries a frame test would need a
  * contrived buffer to reach.
- * @module @deepseek-ai/dsh-tui/tests/prompt-editing.spec
+ * @module @qiao-qyn/dsh-tui/tests/prompt-editing.spec
  */
 
 import { describe, expect, it } from 'vitest'

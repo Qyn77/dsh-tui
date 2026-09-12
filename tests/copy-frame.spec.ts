@@ -12,7 +12,7 @@
  * Both halves are asserted together on purpose. A written sequence with no log
  * line is a command that looks like it did nothing; a log line with no sequence
  * is one that lied.
- * @module @deepseek-ai/dsh-tui/tests/copy-frame.spec
+ * @module @qiao-qyn/dsh-tui/tests/copy-frame.spec
  */
 
 import { describe, expect, it, vi } from 'vitest'

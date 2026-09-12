@@ -12,7 +12,7 @@
  * theme's colors until the new theme's tokenizer arrives instead of dropping
  * back to plain first. Both readings cost the same number of rows; one of them
  * flashes.
- * @module @deepseek-ai/dsh-tui/hooks/useCodeHighlight
+ * @module @qiao-qyn/dsh-tui/hooks/useCodeHighlight
  */
 
 import { useEffect, useMemo, useState } from 'react'

@@ -12,7 +12,7 @@
  * Refusals are returned as codes rather than sentences. The catalog turns them
  * into both languages, and a test can assert *which* refusal happened without
  * pinning the wording (rule 11).
- * @module @deepseek-ai/dsh-tui/mcp/mcp-config
+ * @module @qiao-qyn/dsh-tui/mcp/mcp-config
  */
 
 /** The plugin every added row mounts. */

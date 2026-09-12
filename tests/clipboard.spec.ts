@@ -7,7 +7,7 @@
  * terminals implement — the base64 against known values rather than against
  * another `Buffer.from` call, and the tmux passthrough's escape doubling, which
  * is the difference between working and silently doing nothing under tmux.
- * @module @deepseek-ai/dsh-tui/tests/clipboard.spec
+ * @module @qiao-qyn/dsh-tui/tests/clipboard.spec
  */
 
 import { describe, expect, it } from 'vitest'

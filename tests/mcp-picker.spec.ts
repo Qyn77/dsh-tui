@@ -3,7 +3,7 @@
  * guard, row mapping through a description lookup, fill, filter, and the
  * submitted line.
  *
- * @module @deepseek-ai/dsh-tui/tests/mcp-picker.spec
+ * @module @qiao-qyn/dsh-tui/tests/mcp-picker.spec
  */
 
 import { describe, expect, it } from 'vitest'

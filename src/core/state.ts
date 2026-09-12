@@ -1,7 +1,7 @@
 /**
  * Pure reducer for session events → UI state. Kept side-effect free so it is
  * trivial to test without booting a Cordis tree.
- * @module @deepseek-ai/dsh-tui/core/state
+ * @module @qiao-qyn/dsh-tui/core/state
  */
 
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'

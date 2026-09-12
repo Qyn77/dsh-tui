@@ -27,7 +27,7 @@
  * Nothing here is a test. Three of the five checks end in a question only a
  * human looking at the screen can answer, and the script says so rather than
  * printing a green tick it has not earned.
- * @module @deepseek-ai/dsh-tui/scripts/tty-check
+ * @module @qiao-qyn/dsh-tui/scripts/tty-check
  */
 
 import { BRAND_BLUE } from '../src/render/banner-art.ts'

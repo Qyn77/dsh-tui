@@ -10,7 +10,7 @@
  * command nor its vocabulary — the `permissions` session projection advertises
  * the options, and without that service the picker has no rows at all, the
  * same dark-feature stance the StatusBar chip takes in `permissions.ts`.
- * @module @deepseek-ai/dsh-tui/pickers/permission-picker
+ * @module @qiao-qyn/dsh-tui/pickers/permission-picker
  */
 
 import type { CommandMeta } from '../commands/commands.ts'
