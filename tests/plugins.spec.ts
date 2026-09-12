@@ -14,7 +14,7 @@ import {
   resolvePlugin,
   type LoaderEntry,
   type PluginPhase,
-} from '../src/plugins.ts'
+} from '../src/commands/plugins.ts'
 
 /** The numbers cordis's non-runtime `FiberState` const enum uses. */
 const PENDING = 0

@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { MCP_PRESETS, findPreset, presetRow } from '../src/mcp-catalog.ts'
-import { SERVER_NAME_PATTERN, secretEnvKeys } from '../src/mcp-config.ts'
+import { MCP_PRESETS, findPreset, presetRow } from '../src/mcp/mcp-catalog.ts'
+import { SERVER_NAME_PATTERN, secretEnvKeys } from '../src/mcp/mcp-config.ts'
 
 describe('MCP_PRESETS', () => {
   it('names every entry the way the bridge accepts', () => {

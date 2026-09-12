@@ -49,20 +49,20 @@ describe('a run_code program in the transcript', () => {
   it('names every tool the program called, under the call that ran it', async () => {
     const painted = await paintApp({ rows: 40 })
     await program(painted, [
-      { name: 'Read', path: 'src/scroll.ts' },
-      { name: 'Grep', path: 'src/state.ts' },
+      { name: 'Read', path: 'src/render/scroll.ts' },
+      { name: 'Grep', path: 'src/core/state.ts' },
     ])
     const screen = painted.screen()
     painted.unmount()
 
     expect(screen).toContain('run_code')
-    expect(screen).toContain('Read(src/scroll.ts)')
-    expect(screen).toContain('Grep(src/state.ts)')
+    expect(screen).toContain('Read(src/render/scroll.ts)')
+    expect(screen).toContain('Grep(src/core/state.ts)')
   })
 
   it('keeps the sub-calls welded to their parent, with no blank row between', async () => {
     const painted = await paintApp({ rows: 40 })
-    await program(painted, [{ name: 'Read', path: 'src/scroll.ts' }])
+    await program(painted, [{ name: 'Read', path: 'src/render/scroll.ts' }])
     const lines = painted.screen().split('\n')
     painted.unmount()
 
@@ -70,19 +70,19 @@ describe('a run_code program in the transcript', () => {
     expect(parent).toBeGreaterThan(-1)
     // The very next row, not one after a separating margin — a sub-call is
     // part of the entry, not an entry of its own.
-    expect(lines[parent + 1]).toContain('Read(src/scroll.ts)')
+    expect(lines[parent + 1]).toContain('Read(src/render/scroll.ts)')
   })
 
   it('spends one row on a sub-call however much it printed', async () => {
     const painted = await paintApp({ rows: 40 })
     await program(painted, [
-      { name: 'Read', path: 'src/scroll.ts', text: 'line\n'.repeat(200) },
+      { name: 'Read', path: 'src/render/scroll.ts', text: 'line\n'.repeat(200) },
     ])
     const lines = painted.screen().split('\n')
     painted.unmount()
 
     const parent = lines.findIndex(line => line.includes('run_code'))
-    expect(lines[parent + 1]).toContain('Read(src/scroll.ts)')
+    expect(lines[parent + 1]).toContain('Read(src/render/scroll.ts)')
     // Nothing of the output leaked onto a row of its own.
     expect(lines[parent + 2]).not.toContain('line')
   })

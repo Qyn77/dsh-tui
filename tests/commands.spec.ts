@@ -9,12 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands.ts'
-import { catalog } from '../src/i18n.ts'
-import type { UiState } from '../src/types.ts'
-import { OSC52_MAX_BYTES, osc52 } from '../src/clipboard.ts'
-import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/message-layout.ts'
-import { MAX_SESSION_ROWS } from '../src/sessions.ts'
+import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands/commands.ts'
+import { catalog } from '../src/core/i18n.ts'
+import type { UiState } from '../src/core/types.ts'
+import { OSC52_MAX_BYTES, osc52 } from '../src/commands/clipboard.ts'
+import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/render/message-layout.ts'
+import { MAX_SESSION_ROWS } from '../src/commands/sessions.ts'
 
 interface Stand {
   ctx: Context

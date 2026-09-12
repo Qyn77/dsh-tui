@@ -20,7 +20,7 @@ import {
   readSettings,
   settingsPath,
   writeSettings,
-} from '../src/settings.ts'
+} from '../src/terminal/settings.ts'
 
 /** Temp homes created by a test, removed afterwards. */
 const homes: string[] = []

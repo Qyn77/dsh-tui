@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { tmpdir } from 'node:os'
-import { runShellCommand } from '../src/shell-runner.ts'
+import { runShellCommand } from '../src/shell/shell-runner.ts'
 
 /** A command that runs the given JS in a child Node, quoted for either shell. */
 function node(source: string): string {

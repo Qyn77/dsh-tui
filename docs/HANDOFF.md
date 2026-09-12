@@ -16,7 +16,7 @@ is published — delete it then.
 - **Version** `0.1.0-rc.7`, lockstep with the whole `dsh-*` peer family (rule 5).
 - **Gate** green as of `5f0d31a`: `pnpm typecheck` clean, **1310 tests**
   passing, `pnpm lint` at exactly the two pre-existing baseline errors in
-  `src/message-layout.ts:181` (`no-non-null-assertion`,
+  `src/render/message-layout.ts:181` (`no-non-null-assertion`,
   `no-unnecessary-type-assertion`). Those two are the baseline — if you see a
   third, it is yours.
 - **Published** never. `npm view @deepseek-ai/dsh-tui` is a 404, while
@@ -132,7 +132,7 @@ Read `AGENTS.md` first — it is 98 lines and its 13 rules are the ones a PR get
 rejected for. The four that catch people most often on this codebase:
 
 - **8** — docs land in the same commit as the code. Stale docs are bugs.
-- **11** — every on-screen string in `src/i18n.ts`, both languages, and anything
+- **11** — every on-screen string in `src/core/i18n.ts`, both languages, and anything
   padded or centred is measured with `displayWidth` (a CJK glyph is two columns).
 - **12** — a new `UiEntry` kind is measured in `scroll.ts` and drawn in
   `MessageList.tsx` in the same change, row for row, or paging stops being

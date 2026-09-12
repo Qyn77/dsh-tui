@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { isRenderable, userMessageText } from '../src/types.ts'
+import { isRenderable, userMessageText } from '../src/core/types.ts'
 import { apply, Config, internals, name } from '../src/index.ts'
 
 describe('tui plugin shape', () => {

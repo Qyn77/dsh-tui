@@ -13,8 +13,8 @@ import {
   summarizeLog,
   type SessionLabels,
   type SessionRow,
-} from '../src/sessions.ts'
-import { displayWidth } from '../src/width.ts'
+} from '../src/commands/sessions.ts'
+import { displayWidth } from '../src/core/width.ts'
 
 /** A `user/message` event carrying `text`, from the human unless told otherwise. */
 function said(text: string, kind = 'user'): SessionEvent {

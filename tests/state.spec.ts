@@ -10,7 +10,7 @@ import {
   createToolResultMessage,
   createUserMessage,
 } from '@deepseek-ai/dsh-llm'
-import { initialState, isRuntimeContext, reduce, replay } from '../src/state.ts'
+import { initialState, isRuntimeContext, reduce, replay } from '../src/core/state.ts'
 
 function makeSession(): Session {
   return Session.create('tui-test' as never)
@@ -327,7 +327,7 @@ describe('tui state reducer', () => {
 
 describe('plan mode', () => {
   // `plan/mode` comes from `@deepseek-ai/dsh-plan-mode`, which this package
-  // does not depend on: `src/types.ts` declares the payload locally so the TUI
+  // does not depend on: `src/core/types.ts` declares the payload locally so the TUI
   // compiles and renders in an assembly that never mounts it. That makes these
   // the only check that the projection matches the shape it declared — there is
   // no upstream type to catch a drift for us.

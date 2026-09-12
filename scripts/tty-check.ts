@@ -9,10 +9,10 @@
  *
  * Everything in `tests/` runs with no TTY and with chalk's color level pinned to
  * 0, so four shipped features are covered by tests that can only see their
- * *arithmetic*: the OSC 11 background probe (`src/theme.ts`), the OSC 52
- * clipboard write (`src/clipboard.ts`), whether the colors chosen from those
- * two are legible on a real background (`src/highlight.ts`, the brand tints),
- * and whether a hook run's two weights (`src/hook-runs.ts`) are actually
+ * *arithmetic*: the OSC 11 background probe (`src/terminal/theme.ts`), the OSC 52
+ * clipboard write (`src/commands/clipboard.ts`), whether the colors chosen from those
+ * two are legible on a real background (`src/render/highlight.ts`, the brand tints),
+ * and whether a hook run's two weights (`src/render/hook-runs.ts`) are actually
  * telling apart on screen. `docs/TUI-ROADMAP.md` §7 makes "it works in a real
  * TTY" an acceptance rule, and this script is how that rule gets discharged for
  * those four.
@@ -30,11 +30,11 @@
  * @module @deepseek-ai/dsh-tui/scripts/tty-check
  */
 
-import { BRAND_BLUE } from '../src/banner-art.ts'
-import { createLineCache, highlightLang, loadTokenizer, type CodeLine } from '../src/highlight.ts'
-import { hookTone, type HookEntry } from '../src/hook-runs.ts'
-import { multiplexerFromEnv, osc52 } from '../src/clipboard.ts'
-import { NOTE_GLYPH } from '../src/message-layout.ts'
+import { BRAND_BLUE } from '../src/render/banner-art.ts'
+import { createLineCache, highlightLang, loadTokenizer, type CodeLine } from '../src/render/highlight.ts'
+import { hookTone, type HookEntry } from '../src/render/hook-runs.ts'
+import { multiplexerFromEnv, osc52 } from '../src/commands/clipboard.ts'
+import { NOTE_GLYPH } from '../src/render/message-layout.ts'
 import {
   BRAND_TINT_ON_DARK,
   BRAND_TINT_ON_LIGHT,
@@ -46,10 +46,10 @@ import {
   probeAppearance,
   OSC11_QUERY,
   type Appearance,
-} from '../src/theme.ts'
+} from '../src/terminal/theme.ts'
 
 // Written as escapes, never as literal control bytes — same rule as
-// `src/clipboard.ts`, where a raw ESC in source is invisible in every diff and
+// `src/commands/clipboard.ts`, where a raw ESC in source is invisible in every diff and
 // every review that would otherwise catch it going missing.
 const ESC = '\u001B'
 const BEL = '\u0007'

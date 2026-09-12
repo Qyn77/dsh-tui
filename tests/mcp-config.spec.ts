@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { MCP_PLUGIN_NAME, parseMcpSnippet, rowIdFor, secretEnvKeys } from '../src/mcp-config.ts'
+import { MCP_PLUGIN_NAME, parseMcpSnippet, rowIdFor, secretEnvKeys } from '../src/mcp/mcp-config.ts'
 
 const CLAUDE_DESKTOP = JSON.stringify({
   mcpServers: {

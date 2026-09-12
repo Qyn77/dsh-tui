@@ -16,15 +16,15 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { paintApp } from './fake-tty.ts'
-import { catalog } from '../src/i18n.ts'
+import { catalog } from '../src/core/i18n.ts'
 
 // `/language` persists the choice, and this suite runs `/language` for real. The
 // write is stubbed so a test run never touches the developer's own
 // `~/.dsh/tui.json` — the file's contents are `settings.spec.ts`'s subject,
 // against temp homes; what this suite is about is the repaint. Everything else
 // in `settings.ts` keeps its real implementation.
-vi.mock('../src/settings.ts', async importOriginal => ({
-  ...await importOriginal<typeof import('../src/settings.ts')>(),
+vi.mock('../src/terminal/settings.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/terminal/settings.ts')>(),
   writeSettings: vi.fn(() => true),
 }))
 
@@ -87,7 +87,7 @@ describe('interface language', () => {
 
     for (const row of rows) {
       // `displayWidth` is the same measure the layout code budgets against.
-      const { displayWidth } = await import('../src/width.ts')
+      const { displayWidth } = await import('../src/core/width.ts')
       expect(displayWidth(row)).toBeLessThanOrEqual(columns)
     }
   })

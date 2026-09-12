@@ -20,14 +20,14 @@
  * frame-level tests in `tests/` asserting English without having to know this
  * module exists.
  *
- * This file is the React half of the boundary `src/i18n.ts` defines; the
+ * This file is the React half of the boundary `src/core/i18n.ts` defines; the
  * catalog itself imports neither React nor Ink, the same way `markdown.ts`
  * stays clear of `Markdown.tsx`.
  * @module @deepseek-ai/dsh-tui/hooks/useStrings
  */
 
 import React, { createContext, useContext, type FC, type ReactNode } from 'react'
-import { catalog, type Catalog, type Lang } from '../i18n.ts'
+import { catalog, type Catalog, type Lang } from '../core/i18n.ts'
 
 /** The active language. English when no provider is above the consumer. */
 const LanguageContext = createContext<Lang>('en')

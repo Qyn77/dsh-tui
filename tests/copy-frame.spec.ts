@@ -17,8 +17,8 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { paintApp, type Painted } from './fake-tty.ts'
-import { catalog } from '../src/i18n.ts'
-import { osc52 } from '../src/clipboard.ts'
+import { catalog } from '../src/core/i18n.ts'
+import { osc52 } from '../src/commands/clipboard.ts'
 
 const strings = catalog('en').output
 

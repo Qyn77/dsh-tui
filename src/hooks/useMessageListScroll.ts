@@ -44,7 +44,7 @@ import {
   pageDelta,
   parseNavKey,
   parseWheelDelta,
-} from '../scroll.ts'
+} from '../render/scroll.ts'
 
 /** Scroll position and the geometry channel the MessageList reports on. */
 export interface MessageListScroll {

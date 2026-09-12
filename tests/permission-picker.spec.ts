@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { PermissionPresetSelect } from '../src/types.ts'
+import type { PermissionPresetSelect } from '../src/core/types.ts'
 import {
   CURRENT_PRESET_GLYPH,
   applyPermissionMention,
@@ -15,7 +15,7 @@ import {
   permissionCommandLine,
   permissionMentionAt,
   permissionRows,
-} from '../src/permission-picker.ts'
+} from '../src/pickers/permission-picker.ts'
 
 const rows = [
   { name: 'read-only', description: 'Read-only' },

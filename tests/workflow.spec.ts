@@ -16,10 +16,10 @@
 
 import { describe, expect, it } from 'vitest'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
-import type { UiEntry, UiState, WorkflowMember } from '../src/types.ts'
-import { replay } from '../src/state.ts'
-import { estimateEntryRows } from '../src/scroll.ts'
-import { workflowMemberTone, workflowRows, type WorkflowEntry } from '../src/message-layout.ts'
+import type { UiEntry, UiState, WorkflowMember } from '../src/core/types.ts'
+import { replay } from '../src/core/state.ts'
+import { estimateEntryRows } from '../src/render/scroll.ts'
+import { workflowMemberTone, workflowRows, type WorkflowEntry } from '../src/render/message-layout.ts'
 
 const RUN = 'run-1'
 

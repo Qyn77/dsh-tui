@@ -1,5 +1,5 @@
 /**
- * Ink renderer for the markdown AST produced by `src/markdown.ts`.
+ * Ink renderer for the markdown AST produced by `src/render/markdown.ts`.
  * Pure projection: given a list of blocks, returns a React subtree.
  *
  * Visual style (matches the conventions in `docs/SPEC.md`):
@@ -20,7 +20,7 @@
 
 import React, { useMemo, type ReactNode } from 'react'
 import { Box, Text } from 'ink'
-import { applyHangingIndent, parseMarkdown, type BlockNode, type InlineNode } from '../markdown.ts'
+import { applyHangingIndent, parseMarkdown, type BlockNode, type InlineNode } from '../render/markdown.ts'
 import { useCodeHighlight } from '../hooks/useCodeHighlight.ts'
 
 /** Props for the {@link Markdown} component. */
@@ -255,4 +255,4 @@ function InlineNodeRow({ node }: { node: InlineNode }): ReactNode {
 // Re-export the AST types so consumers (tests, future virtualized
 // variants) can render a pre-parsed tree without re-importing from
 // `markdown.ts`.
-export type { BlockNode, InlineNode } from '../markdown.ts'
+export type { BlockNode, InlineNode } from '../render/markdown.ts'

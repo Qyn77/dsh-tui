@@ -9,8 +9,8 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { MCP_PLUGIN_NAME, type McpPatchRow } from '../src/mcp-config.ts'
-import { addMcpRows, dshHome, listPatchedServers, patchPath, PATCH_FILE, removeMcpRow } from '../src/mcp-patch.ts'
+import { MCP_PLUGIN_NAME, type McpPatchRow } from '../src/mcp/mcp-config.ts'
+import { addMcpRows, dshHome, listPatchedServers, patchPath, PATCH_FILE, removeMcpRow } from '../src/mcp/mcp-patch.ts'
 
 const home = (): string => mkdtempSync(join(tmpdir(), 'dsh-tui-mcp-'))
 

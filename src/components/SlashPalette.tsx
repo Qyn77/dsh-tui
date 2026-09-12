@@ -26,8 +26,8 @@
 
 import React, { type FC } from 'react'
 import { Box, Text } from 'ink'
-import type { CommandMeta } from '../commands.ts'
-import { MAX_PALETTE_ROWS, visibleStart } from '../prompt-layout.ts'
+import type { CommandMeta } from '../commands/commands.ts'
+import { MAX_PALETTE_ROWS, visibleStart } from '../prompt/prompt-layout.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link SlashPalette}. */

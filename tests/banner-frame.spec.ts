@@ -24,7 +24,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { paintApp, strip } from './fake-tty.ts'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { Banner } from '../src/components/Banner.tsx'
-import { displayWidth } from '../src/width.ts'
+import { displayWidth } from '../src/core/width.ts'
 import { App } from '../src/renderer.tsx'
 
 /**

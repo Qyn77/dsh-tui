@@ -18,10 +18,10 @@
 import { useEffect, useState } from 'react'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Context } from '@deepseek-ai/cordis'
-import { listSkills, viewingScope } from '../skill-runner.ts'
-import { skillRows, withoutShadowed } from '../skills.ts'
-import { service } from '../services.ts'
-import type { CommandMeta } from '../commands.ts'
+import { listSkills, viewingScope } from '../pickers/skill-runner.ts'
+import { skillRows, withoutShadowed } from '../pickers/skills.ts'
+import { service } from '../core/services.ts'
+import type { CommandMeta } from '../commands/commands.ts'
 
 /** Whether two row lists describe the same surface. Same reasoning as `useRegistryCommands`. */
 function sameRows(a: readonly CommandMeta[], b: readonly CommandMeta[]): boolean {

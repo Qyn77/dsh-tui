@@ -81,7 +81,7 @@ but to stop depending on Ink's choice. `useStdout().write` (Ink's
 `writeToStdout`) clears log-update's frame, writes the payload, and re-emits
 the cached frame *unconditionally*. It is reachable only from inside the tree,
 so the App publishes it into a ref (`AppProps.repaint`) that the owner in
-`src/resize.ts` borrows. Ordering is the whole trick: during the storm that
+`src/terminal/resize.ts` borrows. Ordering is the whole trick: during the storm that
 writer would replay a frame laid out for the old width — which is what the
 first attempt got wrong — so it runs once, after the settled rerender.
 

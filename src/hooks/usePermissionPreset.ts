@@ -17,8 +17,8 @@
 import { useEffect, useState } from 'react'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Context } from '@deepseek-ai/cordis'
-import { PERMISSION_EVENTS, readPermissionPreset } from '../permissions.ts'
-import type { PermissionPresetSelect } from '../types.ts'
+import { PERMISSION_EVENTS, readPermissionPreset } from '../commands/permissions.ts'
+import type { PermissionPresetSelect } from '../core/types.ts'
 
 /**
  * Whether two reads describe the same chip. The registry builds a fresh

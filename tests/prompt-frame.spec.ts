@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_PROMPT_ROWS } from '../src/prompt-layout.ts'
+import { MAX_PROMPT_ROWS } from '../src/prompt/prompt-layout.ts'
 import { ESC, paintApp } from './fake-tty.ts'
 
 /**
@@ -612,7 +612,7 @@ describe('the @ file picker', () => {
     const screen = painted.screen()
     painted.unmount()
 
-    expect(screen).toContain('src/prompt-layout.ts')
+    expect(screen).toContain('src/prompt/prompt-layout.ts')
     expect(screen).toContain('Tab or Enter insert path')
   })
 
@@ -624,7 +624,7 @@ describe('the @ file picker', () => {
     const screen = painted.screen()
     painted.unmount()
 
-    expect(promptBox(screen).join('\n')).toContain('read @src/prompt-layout.ts ▌')
+    expect(promptBox(screen).join('\n')).toContain('read @src/prompt/prompt-layout.ts ▌')
     // The trailing space closed the token, so the list is gone.
     expect(screen).not.toContain('Tab or Enter insert path')
   })

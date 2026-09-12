@@ -17,10 +17,10 @@
 import { describe, expect, it } from 'vitest'
 import type { CallId, ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
-import type { SubCall, UiEntry, UiState } from '../src/types.ts'
-import { replay } from '../src/state.ts'
-import { estimateEntryRows } from '../src/scroll.ts'
-import { subCallErrorLine, subCallRows } from '../src/message-layout.ts'
+import type { SubCall, UiEntry, UiState } from '../src/core/types.ts'
+import { replay } from '../src/core/state.ts'
+import { estimateEntryRows } from '../src/render/scroll.ts'
+import { subCallErrorLine, subCallRows } from '../src/render/message-layout.ts'
 
 const PARENT = 'call-1' as CallId
 const SUB = 'call-1:code:1' as CallId
@@ -52,7 +52,7 @@ function start(over: Partial<{
     parentCallId: over.parentCallId ?? PARENT,
     subCallId: over.subCallId ?? SUB,
     name: over.name ?? 'Read',
-    arguments: over.args ?? { file_path: 'src/scroll.ts' },
+    arguments: over.args ?? { file_path: 'src/render/scroll.ts' },
   })
 }
 
@@ -67,7 +67,7 @@ function settle(over: Partial<{
     parentCallId: PARENT,
     subCallId: over.subCallId ?? SUB,
     name: over.name ?? 'Read',
-    arguments: { file_path: 'src/scroll.ts' },
+    arguments: { file_path: 'src/render/scroll.ts' },
     isError: over.isError ?? false,
     content: over.content ?? [{ type: 'text', text: '545 lines' }],
   })
@@ -109,7 +109,7 @@ describe('a Code Mode sub-call', () => {
 
     // `tool/call` carries a JSON string and a dispatch carries the parsed
     // value; the layout layer only ever sees the string form.
-    expect(subCallsOf(state)[0]?.args).toBe('{"file_path":"src/scroll.ts"}')
+    expect(subCallsOf(state)[0]?.args).toBe('{"file_path":"src/render/scroll.ts"}')
   })
 
   it('keeps the parent the one running tool, so tool/result still closes it', () => {
@@ -172,7 +172,7 @@ describe('the rows a sub-call is charged', () => {
   const sub = (over: Partial<SubCall> = {}): SubCall => ({
     subCallId: SUB,
     name: 'Read',
-    args: '{"file_path":"src/scroll.ts"}',
+    args: '{"file_path":"src/render/scroll.ts"}',
     status: 'ok',
     ...over,
   })

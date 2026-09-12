@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { CallId, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
-import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/message-layout.ts'
+import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/render/message-layout.ts'
 import {
   clampOffset,
   estimateEntryRows,
@@ -25,8 +25,8 @@ import {
   parseNavKey,
   parseWheelDelta,
   windowStart,
-} from '../src/scroll.ts'
-import type { UiEntry } from '../src/types.ts'
+} from '../src/render/scroll.ts'
+import type { UiEntry } from '../src/core/types.ts'
 
 /** Built rather than quoted, so the byte is visible in the source. */
 const ESC = String.fromCharCode(27)

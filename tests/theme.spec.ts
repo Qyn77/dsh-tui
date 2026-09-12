@@ -24,7 +24,7 @@ import {
   parseOsc11,
   probeAppearance,
   type ProbeStdin,
-} from '../src/theme.ts'
+} from '../src/terminal/theme.ts'
 
 /** Wrap a reply body in `OSC 11 ; … BEL`, the way most terminals send it. */
 function reply(body: string): string {

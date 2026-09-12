@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ESC, paintApp } from './fake-tty.ts'
-import { PATCH_FILE } from '../src/mcp-patch.ts'
+import { PATCH_FILE } from '../src/mcp/mcp-patch.ts'
 
 let home: string
 

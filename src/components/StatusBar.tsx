@@ -28,11 +28,11 @@ import React, { type FC } from 'react'
 import { Box, Text, useStdout } from 'ink'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import type { PermissionPresetSelect, UiState } from '../types.ts'
+import type { PermissionPresetSelect, UiState } from '../core/types.ts'
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
-import { totalUsage } from '../usage.ts'
-import { isDangerPreset } from '../permissions.ts'
+import { totalUsage } from '../commands/usage.ts'
+import { isDangerPreset } from '../commands/permissions.ts'
 
 /** Props for {@link StatusBar}. */
 export interface StatusBarProps {

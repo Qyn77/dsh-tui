@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { describeMcpServers, formatMcpServers, waitForMcpServer, type McpToolLike } from '../src/mcp.ts'
+import { describeMcpServers, formatMcpServers, waitForMcpServer, type McpToolLike } from '../src/mcp/mcp.ts'
 
 const tools = (...names: string[]): McpToolLike[] => names.map(name => ({ name }))
 

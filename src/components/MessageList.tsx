@@ -31,12 +31,12 @@
 
 import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
-import type { SubCall, UiEntry, UiState, WorkflowMember } from '../types.ts'
-import { userMessageImages, userMessageText } from '../types.ts'
-import { windowStart } from '../scroll.ts'
-import { hookStderr, hookTone } from '../hook-runs.ts'
+import type { SubCall, UiEntry, UiState, WorkflowMember } from '../core/types.ts'
+import { userMessageImages, userMessageText } from '../core/types.ts'
+import { windowStart } from '../render/scroll.ts'
+import { hookStderr, hookTone } from '../render/hook-runs.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
-import type { Catalog } from '../i18n.ts'
+import type { Catalog } from '../core/i18n.ts'
 import {
   ASSISTANT_GLYPH,
   ATTACHMENT_GLYPH,
@@ -64,8 +64,8 @@ import {
   type ApprovalEntry,
   type OutputPreview,
   type WorkflowEntry,
-} from '../message-layout.ts'
-import { SHELL_TIMEOUT_MS } from '../shell.ts'
+} from '../render/message-layout.ts'
+import { SHELL_TIMEOUT_MS } from '../shell/shell.ts'
 import { Markdown } from './Markdown.tsx'
 
 /** Props for {@link MessageList}. */

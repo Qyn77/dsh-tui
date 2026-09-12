@@ -14,7 +14,7 @@ import {
   modelCommandLine,
   modelMentionAt,
   modelRows,
-} from '../src/model-picker.ts'
+} from '../src/pickers/model-picker.ts'
 
 const catalogue: readonly LlmModelInfo[] = [
   { provider: 'deepseek-official', id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },

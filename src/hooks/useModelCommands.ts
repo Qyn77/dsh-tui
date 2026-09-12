@@ -20,9 +20,9 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { LlmModelInfo } from '@deepseek-ai/dsh-llm'
-import { service } from '../services.ts'
-import { modelRows } from '../model-picker.ts'
-import type { CommandMeta } from '../commands.ts'
+import { service } from '../core/services.ts'
+import { modelRows } from '../pickers/model-picker.ts'
+import type { CommandMeta } from '../commands/commands.ts'
 
 /** Whether two model lists describe the same catalogue. */
 function sameCatalogue(a: readonly LlmModelInfo[], b: readonly LlmModelInfo[]): boolean {

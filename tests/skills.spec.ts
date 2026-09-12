@@ -17,8 +17,8 @@ import {
   SKILL_GLYPH,
   userSkills,
   withoutShadowed,
-} from '../src/skills.ts'
-import type { CommandMeta } from '../src/commands.ts'
+} from '../src/pickers/skills.ts'
+import type { CommandMeta } from '../src/commands/commands.ts'
 
 /** A summary with the invocation policy spelled out, since that is what is under test. */
 function summary(

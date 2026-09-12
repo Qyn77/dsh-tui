@@ -11,8 +11,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import { dispatch, MCP_CONNECT_TIMEOUT_MS, type CommandContext } from '../src/commands.ts'
-import { PATCH_FILE } from '../src/mcp-patch.ts'
+import { dispatch, MCP_CONNECT_TIMEOUT_MS, type CommandContext } from '../src/commands/commands.ts'
+import { PATCH_FILE } from '../src/mcp/mcp-patch.ts'
 
 const FILESYSTEM = '{"mcpServers":{"filesystem":{"command":"npx","args":["-y","server-fs","/tmp"]}}}'
 

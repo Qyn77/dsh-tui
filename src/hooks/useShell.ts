@@ -17,10 +17,10 @@ import { useCallback, useRef, useState } from 'react'
 import { homedir } from 'node:os'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { Catalog } from '../i18n.ts'
-import type { UiEntry } from '../types.ts'
-import { SHELL_SOURCE_PLUGIN, parseCd, resolveCd, type ShellEscape } from '../shell.ts'
-import { runShellCommand } from '../shell-runner.ts'
+import type { Catalog } from '../core/i18n.ts'
+import type { UiEntry } from '../core/types.ts'
+import { SHELL_SOURCE_PLUGIN, parseCd, resolveCd, type ShellEscape } from '../shell/shell.ts'
+import { runShellCommand } from '../shell/shell-runner.ts'
 
 /** What the hook needs from the App. */
 export interface UseShellDeps {

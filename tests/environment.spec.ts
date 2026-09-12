@@ -12,7 +12,7 @@ import {
   formatRepoLabel,
   readRepoLabel,
   VERSION,
-} from '../src/environment.ts'
+} from '../src/terminal/environment.ts'
 
 /** A realistic porcelain-v2 header block for a clean checkout. */
 const CLEAN = [

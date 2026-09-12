@@ -23,7 +23,7 @@ import {
   loadTokenizer,
   type CodeLine,
   type LineTokenizer,
-} from '../highlight.ts'
+} from '../render/highlight.ts'
 
 /**
  * Highlighted lines for one code block, or `undefined` while there is nothing

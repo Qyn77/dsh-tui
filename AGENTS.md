@@ -18,20 +18,57 @@ This file is the brief orientation for AI coding agents working in this repo (Cl
 src/
 ├── index.ts                  Cordis plugin entry — side effects
 ├── renderer.tsx              Ink root — wires state + components
-├── state.ts                  Pure reducer: SessionEvent → UiState      [test-first]
-├── types.ts                  UiEntry, UiState, declaration-merged events
-├── commands.ts               /help /clear /status /language /exit /quit [test-first]
-├── environment.ts            Version + git branch probing (memoized)   [test-first]
-├── i18n.ts                   Pure bilingual string catalog (en + zh)   [test-first]
-├── settings.ts               Read/write ~/.dsh/tui.json (language)     [test-first]
-├── shell.ts                  Pure `!` parsing, `cd` rules, clamping    [test-first]
-├── shell-runner.ts           The only spawner: one `!` command         [test-first]
 ├── invariant.ts              Type companion for dsh-invariants (no runtime)
-├── markdown.ts               Pure markdown → UI AST (no React, no Ink) [test-first]
-├── scroll.ts                 Pure scroll math + input parsing            [test-first]
-├── resize.ts                 The one owner of real-TTY resize repainting  [test-first]
-├── prompt-layout.ts          Pure input fold, caret, window, scrollbar    [test-first]
-├── width.ts                  Pure display width (CJK counts as two)       [test-first]
+├── core/                     Shared kernel
+│   ├── types.ts              UiEntry, UiState, declaration-merged events
+│   ├── state.ts              Pure reducer: SessionEvent → UiState      [test-first]
+│   ├── services.ts           Typed optional-service reads off the context
+│   ├── i18n.ts               Pure bilingual string catalog (en + zh)   [test-first]
+│   └── width.ts              Pure display width (CJK counts as two)       [test-first]
+├── prompt/                   The input line
+│   ├── prompt-editing.ts     Pure buffer edits — beside Prompt.tsx
+│   ├── prompt-layout.ts      Pure input fold, caret, window, scrollbar    [test-first]
+│   ├── paste.ts              Bracketed-paste decoding                    [test-first]
+│   ├── vim.ts                Pure vim keymap state machine               [test-first]
+│   └── file-mentions.ts      `@` mention parsing + path ranking, the walk [test-first]
+├── pickers/                  The command-anchored picker family
+│   ├── skills.ts             Skill rows, precedence, name parsing        [test-first]
+│   ├── skill-runner.ts       Reads ctx.skills; builds an invocation's two messages
+│   ├── model-picker.ts       /model rows and mentions                    [test-first]
+│   ├── permission-picker.ts  /permission rows and mentions               [test-first]
+│   └── mcp-picker.ts         /mcp add rows and mentions                  [test-first]
+├── mcp/                      MCP servers
+│   ├── mcp.ts                Registry reads, /mcp layout, connect-wait   [test-first]
+│   ├── mcp-config.ts         Paste → row translation                     [test-first]
+│   ├── mcp-patch.ts          The patch-layer reader/writer               [test-first]
+│   └── mcp-catalog.ts        The static /mcp add preset catalog          [test-first]
+├── shell/                    `!` escapes
+│   ├── shell.ts              Pure `!` parsing, `cd` rules, clamping      [test-first]
+│   └── shell-runner.ts       The only spawner: one `!` command           [test-first]
+├── attachments/              Image attachments
+│   ├── attachments.ts        Pure image-path detection in a line         [test-first]
+│   └── attach-runner.ts      The one reader/committer of image bytes     [test-first]
+├── commands/                 Slash-command dispatch and its backends
+│   ├── commands.ts           /help /clear /status /language /exit /quit [test-first]
+│   ├── plugins.ts            /plugins classification + table             [test-first]
+│   ├── sessions.ts           /sessions listing                           [test-first]
+│   ├── usage.ts              /usage + /context reports                   [test-first]
+│   ├── permissions.ts        The permission-projection read              [test-first]
+│   ├── clipboard.ts          OSC 52 + what /copy selects                 [test-first]
+│   └── resume.ts             --resume planning                           [test-first]
+├── render/                   Transcript rendering
+│   ├── markdown.ts           Pure markdown → UI AST (no React, no Ink) [test-first]
+│   ├── highlight.ts          Token shaping + line cache, the Shiki load  [test-first]
+│   ├── message-layout.ts     Pure message-list layout arithmetic         [test-first]
+│   ├── scroll.ts             Pure scroll math + input parsing            [test-first]
+│   ├── hook-runs.ts          Pure hook-decision vocabulary               [test-first]
+│   └── banner-art.ts         Pure banner art + text — beside Banner.tsx  [test-first]
+├── terminal/                 The machine this runs on
+│   ├── theme.ts              Appearance arithmetic + the one probe       [test-first]
+│   ├── settings.ts           Read/write ~/.dsh/tui.json (language)       [test-first]
+│   ├── environment.ts        Version + git branch probing (memoized)     [test-first]
+│   ├── resize.ts             The one owner of real-TTY resize repainting  [test-first]
+│   └── interrupt.ts          Ctrl-C / abort plumbing                     [test-first]
 ├── hooks/useSessionEvents.ts Replay log + live subscribe
 ├── hooks/useMessageListScroll.ts Scroll math + bindings
 ├── hooks/useShell.ts         Runs `!`; only caller of process.chdir    [test-first]
@@ -58,8 +95,8 @@ cordis.patch.yml                patch applied on install
 7. **No `process.exit` outside `commands.ts` and `index.ts`, and no `process.chdir` outside `hooks/useShell.ts`.** Every other file must be unit-testable; rely on `ctx.appExit` or the Ink `waitUntilExit` promise.
 8. **Docs track code in the same PR.** When you change anything under `src/`, update the matching section of `README.md`, `README.zh.md`, or [docs/SPEC.md](docs/SPEC.md) in the same commit. New event type → `state.ts` cases + `docs/SPEC.md` Part 3 reducer contract. New slash command → `commands.ts` + `tests/commands.spec.ts` + the slash-command table in both READMEs. New platform behavior → `README.md` "Use it" / "Develop it" sections. New color, glyph, or layout rule → `docs/SPEC.md` Part 1. The spec is the source of truth — stale docs are bugs.
 9. **The TUI is not a general plugin host.** It renders dsh state and session events. If a plugin wants to appear here, it must integrate with dsh's runtime/event model; the core agent loop still lives in dsh and must remain functional even when the UI is extended.
-10. **Markdown rendering is two files, one boundary.** `src/markdown.ts` is the pure AST and may not import React or Ink. `src/components/Markdown.tsx` is the Ink renderer. Streaming assistant chunks stay as raw text; the block re-renders as markdown only on the `assistant/message` finalization event — do not re-parse on every chunk. The visual mapping lives in `docs/SPEC.md` §1.9.
-11. **Every on-screen string lives in `src/i18n.ts`, in both languages.** Components read them through `useStrings()`; a literal in a component is a bug. English is the source of truth (`EN` is typed as `Catalog`, so a missing English string does not compile) and `tests/i18n.spec.ts` fails when the Chinese side has not caught up. Anything padded, centred, or truncated is measured with `displayWidth` from `src/width.ts` — a CJK glyph is two columns wide, and counting characters is how a row ends up wider than its own frame. Untranslated by design: brand art, key names (`Tab`, `Esc`, `Enter`), plugin-supplied descriptions, and identifiers a plugin chose. `/language` switches the chrome only — it never tells the model what language to answer in. See `docs/SPEC.md` §3.10.
+10. **Markdown rendering is two files, one boundary.** `src/render/markdown.ts` is the pure AST and may not import React or Ink. `src/components/Markdown.tsx` is the Ink renderer. Streaming assistant chunks stay as raw text; the block re-renders as markdown only on the `assistant/message` finalization event — do not re-parse on every chunk. The visual mapping lives in `docs/SPEC.md` §1.9.
+11. **Every on-screen string lives in `src/core/i18n.ts`, in both languages.** Components read them through `useStrings()`; a literal in a component is a bug. English is the source of truth (`EN` is typed as `Catalog`, so a missing English string does not compile) and `tests/i18n.spec.ts` fails when the Chinese side has not caught up. Anything padded, centred, or truncated is measured with `displayWidth` from `src/core/width.ts` — a CJK glyph is two columns wide, and counting characters is how a row ends up wider than its own frame. Untranslated by design: brand art, key names (`Tab`, `Esc`, `Enter`), plugin-supplied descriptions, and identifiers a plugin chose. `/language` switches the chrome only — it never tells the model what language to answer in. See `docs/SPEC.md` §3.10.
 12. **A new `UiEntry` kind is measured and drawn in the same change.** `scroll.ts`'s `estimateEntryRows` must agree with what `components/MessageList.tsx` actually draws, row for row — paging is only invertible while they do. Both switches end in `const _exhaustive: never`, so the compiler will demand the case; what it cannot demand is that the count is *right*. If a row's text depends on the language or on the terminal width, draw it `wrap="truncate"` so the count stays language- and width-independent, and pin it in `tests/scroll.spec.ts`. This is the trap `(+N more)` fell into — see `docs/SPEC.md` §3.10.
 13. **`!` escapes are the user's own shell, and are not approved.** The approval seam exists to gate what the *model* does; a human who typed `!rm` already has a terminal. Shell output reaches the model only through `!!` — except a working-directory change, which is always injected because it silently redefines every relative path afterwards. `stdio` for a `!` child is `['ignore', 'pipe', 'pipe']`: never `inherit`, because Ink owns the screen and raw-mode stdin, and never a live stdin, because a command waiting on input would wait forever. See `docs/SPEC.md` Part 4.
 

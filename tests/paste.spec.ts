@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { readPaste } from '../src/paste.ts'
+import { readPaste } from '../src/prompt/paste.ts'
 import { ESC } from './fake-tty.ts'
 
 const CR = String.fromCharCode(13)

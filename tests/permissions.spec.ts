@@ -7,8 +7,8 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { DANGER_PRESET, type PermissionPresetSelect } from '../src/types.ts'
-import { PERMISSION_EVENTS, isDangerPreset, readPermissionPreset } from '../src/permissions.ts'
+import { DANGER_PRESET, type PermissionPresetSelect } from '../src/core/types.ts'
+import { PERMISSION_EVENTS, isDangerPreset, readPermissionPreset } from '../src/commands/permissions.ts'
 
 /** A select with the dsh-base table, current at `value`. */
 function select(value: string): PermissionPresetSelect {

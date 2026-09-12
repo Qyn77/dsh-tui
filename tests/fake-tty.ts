@@ -18,9 +18,9 @@ import { Session } from '@deepseek-ai/dsh-session'
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
 import { App } from '../src/renderer.tsx'
-import type { Lang } from '../src/i18n.ts'
-import type { Appearance, ThemePref } from '../src/theme.ts'
-import type { KeybindPref } from '../src/vim.ts'
+import type { Lang } from '../src/core/i18n.ts'
+import type { Appearance, ThemePref } from '../src/terminal/theme.ts'
+import type { KeybindPref } from '../src/prompt/vim.ts'
 
 /** Built, never quoted: an invisible ESC byte in source is unreviewable. */
 export const ESC = String.fromCharCode(27)

@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { applyHangingIndent, looksLikeMarkdown, parseMarkdown, stripIndentOutsideFences, stripLeadingIndent, type BlockNode, type InlineNode } from '../src/markdown.ts'
+import { applyHangingIndent, looksLikeMarkdown, parseMarkdown, stripIndentOutsideFences, stripLeadingIndent, type BlockNode, type InlineNode } from '../src/render/markdown.ts'
 
 /** Flatten an inline AST into one string for shape assertions. */
 function inlineToText(nodes: readonly InlineNode[]): string {

@@ -450,8 +450,8 @@ reaches for are dispatched from inside it. On screen that stays one entry — th
 
 ```
 ⏺ run_code(…)
-  ↳ read_file({"file_path":"src/scroll.ts"}) ✓ 84 lines
-  ↳ write_file({"file_path":"src/scroll.ts"}) ✓
+  ↳ read_file({"file_path":"src/render/scroll.ts"}) ✓ 84 lines
+  ↳ write_file({"file_path":"src/render/scroll.ts"}) ✓
   ⎿ done
 ```
 
@@ -841,7 +841,7 @@ tests/                       vitest specs for state, commands, apply()
 
 ### How the view works
 
-The Ink tree is a **pure projection** of the Agent's session log. The reducer in [`src/state.ts`](src/state.ts) maps each `SessionEvent` to a `UiEntry` (user, assistant, tool call, compaction, plan, note). `useSessionEvents` ([`src/hooks/useSessionEvents.ts`](src/hooks/useSessionEvents.ts)) seeds from the durable log on first render, then keeps the view in sync with each `session/event` arrival. Adding a new event type means: (1) add the type to `SessionEventMap` if it isn't already, (2) add a case in the reducer, (3) render the new entry in `MessageList`.
+The Ink tree is a **pure projection** of the Agent's session log. The reducer in [`src/core/state.ts`](src/core/state.ts) maps each `SessionEvent` to a `UiEntry` (user, assistant, tool call, compaction, plan, note). `useSessionEvents` ([`src/hooks/useSessionEvents.ts`](src/hooks/useSessionEvents.ts)) seeds from the durable log on first render, then keeps the view in sync with each `session/event` arrival. Adding a new event type means: (1) add the type to `SessionEventMap` if it isn't already, (2) add a case in the reducer, (3) render the new entry in `MessageList`.
 
 ## Publish it
 
@@ -858,7 +858,7 @@ The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump th
 
 ## Known limitations
 
-- **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
+- **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
 - **Switching sessions ends the turn you are in.** Every slash command is refused while a turn is running — `/resume` included; cancel with Esc first. There is no way to keep two sessions open side by side.
 - **Long tool output is previewed, not expandable.** The first 8 lines are shown with a `… +N lines` marker; there is no `show more` affordance, because reaching one would need a selection model the app deliberately does not have.
 - **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.

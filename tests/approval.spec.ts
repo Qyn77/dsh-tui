@@ -14,10 +14,10 @@
 
 import { describe, expect, it } from 'vitest'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
-import type { UiEntry, UiState } from '../src/types.ts'
-import { replay } from '../src/state.ts'
-import { estimateEntryRows } from '../src/scroll.ts'
-import { approvalRows, approvalTone, type ApprovalEntry } from '../src/message-layout.ts'
+import type { UiEntry, UiState } from '../src/core/types.ts'
+import { replay } from '../src/core/state.ts'
+import { estimateEntryRows } from '../src/render/scroll.ts'
+import { approvalRows, approvalTone, type ApprovalEntry } from '../src/render/message-layout.ts'
 
 const ID = 'ask-1'
 

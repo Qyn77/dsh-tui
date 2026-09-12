@@ -1,7 +1,7 @@
 /**
  * The modal keymap.
  *
- * `src/vim.ts` is a pure state machine, which is the whole reason it is a
+ * `src/prompt/vim.ts` is a pure state machine, which is the whole reason it is a
  * separate module: the interesting claims about modal editing are about what a
  * key *does to text*, and none of them need a frame. What the frame has to
  * answer — that a letter in normal mode is never typed, and that Esc reaches
@@ -27,7 +27,7 @@ import {
   prevWordStart,
   wordEnd,
   type VimState,
-} from '../src/vim.ts'
+} from '../src/prompt/vim.ts'
 
 const NORMAL: VimState = { mode: 'normal', pending: '', register: '' }
 

@@ -5,7 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { ImageAttachmentLimits, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import { attachImages, classifyModalities, type AttachDeps, type ImageStore } from '../src/attach-runner.ts'
+import { attachImages, classifyModalities, type AttachDeps, type ImageStore } from '../src/attachments/attach-runner.ts'
 
 const LIMITS: ImageAttachmentLimits = {
   maxImageBytes: 1_000,

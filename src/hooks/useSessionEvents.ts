@@ -8,8 +8,8 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { isRenderable, type HistoryPref, type UiEntry, type UiState } from '../types.ts'
-import { initialState, reduce } from '../state.ts'
+import { isRenderable, type HistoryPref, type UiEntry, type UiState } from '../core/types.ts'
+import { initialState, reduce } from '../core/state.ts'
 
 /**
  * What can change the projected view.

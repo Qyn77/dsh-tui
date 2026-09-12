@@ -7,14 +7,14 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { MCP_PRESETS, type McpPreset } from '../src/mcp-catalog.ts'
+import { MCP_PRESETS, type McpPreset } from '../src/mcp/mcp-catalog.ts'
 import {
   applyMcpMention,
   filterMcpPresetRows,
   mcpMentionAt,
   mcpPresetCommandLine,
   mcpPresetRows,
-} from '../src/mcp-picker.ts'
+} from '../src/pickers/mcp-picker.ts'
 
 const describePreset = (preset: McpPreset): string => `desc ${preset.name}`
 const rows = mcpPresetRows(describePreset)

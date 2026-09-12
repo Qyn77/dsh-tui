@@ -21,7 +21,7 @@
  */
 
 import React, { createContext, useContext, type FC, type ReactNode } from 'react'
-import { palette, type Appearance, type Palette } from '../theme.ts'
+import { palette, type Appearance, type Palette } from '../terminal/theme.ts'
 
 /** The terminal's appearance. Dark when no provider is above the consumer. */
 const AppearanceContext = createContext<Appearance>('dark')

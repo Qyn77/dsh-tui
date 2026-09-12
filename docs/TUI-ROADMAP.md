@@ -207,7 +207,7 @@ Definition of done:
 Priority features:
 
 - richer tool result rendering — **done**: a tool call is one line,
-  `Read(src/scroll.ts) ✓`, with its result previewed beneath and capped at 8
+  `Read(src/render/scroll.ts) ✓`, with its result previewed beneath and capped at 8
   lines behind a translated `… +N lines` marker. The `round`-bordered card it
   replaced cost four rows of frame before any content
 - clearer agent state transitions — **done**: `useRunningClock` drives one
@@ -313,7 +313,7 @@ recollection, and not a remembered version number.
 Hooks is no longer on this list because it shipped. `dsh-hook-protocol@0.1.0-rc.7`
 declares `hook/invoked` and `hook/result` in full, and a run now draws as one
 row paired on `handlerId` — dim when the hook changed nothing, yellow when it
-denied, asked or halted. It cost no dependency at all: `src/types.ts` declares
+denied, asked or halted. It cost no dependency at all: `src/core/types.ts` declares
 the payloads locally, as it already did for `compaction/*` and `plan/mode`. Like
 MCP it ships dark until a user inserts a bridge. See SPEC §1.15.
 
@@ -381,7 +381,7 @@ unbuilt either:
   list, and the one whose title was half wrong: it read "Vim / Emacs keybind
   toggle", but the default keymap already *is* the emacs/readline one, so there
   were only ever two states to toggle between. The vim half is a pure keymap
-  (`src/vim.ts`) layered over that table — insert mode is the existing editor
+  (`src/prompt/vim.ts`) layered over that table — insert mode is the existing editor
   byte for byte, so nothing that already worked in the prompt had to be
   reimplemented behind a flag. Motions `h j k l 0 ^ $ w b e gg G`, inserts
   `i a I A o O`, edits `x D C dd cc` and `d`/`c` with a motion, `p`/`P`. No
@@ -389,7 +389,7 @@ unbuilt either:
   from `>` to `N`, which costs no row and no column — the fixed-height frame
   overlaps anything that grows. See SPEC §1.19.
 
-`plan/mode` is the precedent for declaring a payload locally — `src/types.ts`
+`plan/mode` is the precedent for declaring a payload locally — `src/core/types.ts`
 declares that one itself — but it works there only because
 `{ enabled: boolean }` is a shape one can be certain of without the emitter.
 Where the emitter is already a peer, as with `dsh-tools`, importing its types
@@ -469,7 +469,7 @@ These are not the right next steps unless they are required by a concrete user s
 That last one is load-bearing and gets cited from outside this document, so it
 is spelled out rather than left implied by "broad app-level state machines".
 SPEC §1.2 states the same refusal, `/copy <n>` was dropped because of it
-(SPEC §1.5.5, `src/clipboard.ts`), and the v0.4 truncation item shipped as a
+(SPEC §1.5.5, `src/commands/clipboard.ts`), and the v0.4 truncation item shipped as a
 global `/verbose` switch rather than a per-entry `▾ show more` precisely to
 stay on this side of it. Reversing it is a deliberate decision to make here first, not
 something to discover halfway into implementing an affordance.

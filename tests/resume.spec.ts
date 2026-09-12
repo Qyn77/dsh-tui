@@ -17,7 +17,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { SessionId, type SessionHeader } from '@deepseek-ai/dsh-session'
-import { LATEST, planResume, requestFromEnv } from '../src/resume.ts'
+import { LATEST, planResume, requestFromEnv } from '../src/commands/resume.ts'
 
 function header(id: string, createdAt: number): SessionHeader {
   return { version: 1, id: SessionId(id), createdAt }

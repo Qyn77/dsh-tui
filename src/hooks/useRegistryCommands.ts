@@ -16,7 +16,7 @@
 import { useEffect, useState } from 'react'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Context } from '@deepseek-ai/cordis'
-import { registryCommands, type CommandMeta } from '../commands.ts'
+import { registryCommands, type CommandMeta } from '../commands/commands.ts'
 
 /**
  * Whether two command lists describe the same surface. `registryCommands`

@@ -47,9 +47,9 @@
 import React, { useEffect, useRef, useState, type FC } from 'react'
 import { Box, Text, measureElement, useInput, useStdout, type DOMElement } from 'ink'
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
-import { filterCommands, type CommandMeta } from '../commands.ts'
-import { isMouseReport, isOscTail } from '../scroll.ts'
-import { readPaste } from '../paste.ts'
+import { filterCommands, type CommandMeta } from '../commands/commands.ts'
+import { isMouseReport, isOscTail } from '../render/scroll.ts'
+import { readPaste } from '../prompt/paste.ts'
 import {
   deleteToEnd,
   deleteToStart,
@@ -59,7 +59,7 @@ import {
   removeCharBeforeCursor,
   wordEndAfter,
   wordStartBefore,
-} from '../prompt-editing.ts'
+} from '../prompt/prompt-editing.ts'
 import {
   MAX_PROMPT_ROWS,
   PALETTE_CHROME_ROWS,
@@ -69,27 +69,27 @@ import {
   scrollbarColumn,
   visibleStart,
   wrapBuffer,
-} from '../prompt-layout.ts'
-import { applyMention, mentionAt } from '../file-mentions.ts'
+} from '../prompt/prompt-layout.ts'
+import { applyMention, mentionAt } from '../prompt/file-mentions.ts'
 import {
   applySkillMention,
   filterSkillRows,
   skillMentionAt,
-} from '../skills.ts'
+} from '../pickers/skills.ts'
 import {
   PERMISSION_PREFIX,
   applyPermissionMention,
   filterPermissionRows,
   permissionCommandLine,
   permissionMentionAt,
-} from '../permission-picker.ts'
+} from '../pickers/permission-picker.ts'
 import {
   MODEL_PREFIX,
   applyModelMention,
   filterModelRows,
   modelCommandLine,
   modelMentionAt,
-} from '../model-picker.ts'
+} from '../pickers/model-picker.ts'
 import {
   MCP_ADD_PREFIX,
   applyMcpMention,
@@ -97,8 +97,8 @@ import {
   mcpMentionAt,
   mcpPresetCommandLine,
   mcpPresetRows,
-} from '../mcp-picker.ts'
-import { INITIAL_VIM, applyVim, type KeybindPref, type VimState } from '../vim.ts'
+} from '../pickers/mcp-picker.ts'
+import { INITIAL_VIM, applyVim, type KeybindPref, type VimState } from '../prompt/vim.ts'
 import { useFileMentions } from '../hooks/useFileMentions.ts'
 import { SlashPalette } from './SlashPalette.tsx'
 import { useLang, useStrings } from '../hooks/useStrings.tsx'
@@ -194,7 +194,7 @@ export interface PromptProps {
    */
   modelCommands?: readonly CommandMeta[]
   /**
-   * Which keymap the prompt runs — see `/keybinds` and `src/vim.ts`. Optional
+   * Which keymap the prompt runs — see `/keybinds` and `src/prompt/vim.ts`. Optional
    * and defaulting to `default`, so a prompt rendered without it is the
    * readline editor it has always been.
    */
@@ -218,7 +218,7 @@ const CHROME_COLUMNS = 8
  * re-exported here for the callers that imported them from this module
  * before they moved.
  */
-export { insertTextAtCursor, removeCharBeforeCursor } from '../prompt-editing.ts'
+export { insertTextAtCursor, removeCharBeforeCursor } from '../prompt/prompt-editing.ts'
 
 /**
  * The buffer is in "palette mode" when it starts with `/` and has no
@@ -695,7 +695,7 @@ export const Prompt: FC<PromptProps> = ({
       // bracketed paste Ink has already labelled some bytes `return`, `tab`
       // or `backspace` — a pasted newline is the same byte as Enter — so any
       // dispatch that ran before this point would act on a keystroke the user
-      // never made. See `src/paste.ts`.
+      // never made. See `src/prompt/paste.ts`.
       const paste = readPaste(input, pasting.current)
       if (paste.bracketed) {
         pasting.current = paste.open

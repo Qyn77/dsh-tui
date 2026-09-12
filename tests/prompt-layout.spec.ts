@@ -20,7 +20,7 @@ import {
   scrollbarColumn,
   visibleStart,
   wrapBuffer,
-} from '../src/prompt-layout.ts'
+} from '../src/prompt/prompt-layout.ts'
 
 /** Just the text of each row — the shape most assertions care about. */
 const texts = (value: string, width: number): string[] =>
