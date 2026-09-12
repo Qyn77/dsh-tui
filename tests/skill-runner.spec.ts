@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { renderSkillContent, type SkillDefinition, type SkillSummary } from '@deepseek-ai/dsh-skill'
-import { listSkills, resolveSkill, type SkillCatalog, type SkillDeps } from '../src/skill-runner.ts'
+import { listSkills, resolveSkill, type SkillCatalog, type SkillDeps } from '../src/pickers/skill-runner.ts'
 
 function summary(
   name: string,

@@ -51,7 +51,7 @@ renders wide, because no frame row can ever occupy more physical rows than
 the string has lines.
 
 The alternative — measuring the ambiguous set as double-width in
-`src/width.ts` — fixes our own arithmetic but not Ink's internal layout, and
+`src/core/width.ts` — fixes our own arithmetic but not Ink's internal layout, and
 Ink pads every box row to its full width, so the border would still land past
 the margin. Detection (a CPR cursor-position probe at boot) would tell us
 which metric the terminal uses, but cannot change Ink's layout engine, so the

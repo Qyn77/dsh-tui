@@ -1,5 +1,5 @@
 /**
- * Track the user-invocable skill catalog for the `/` palette.
+ * Track the user-invocable skill catalog for the `/skill ` picker.
  *
  * Sibling of `useRegistryCommands`, with two differences that are the whole
  * reason it is a separate hook. Discovery is **asynchronous** — a provider may
@@ -7,9 +7,9 @@
  * frame that asked for them. And discovery can come back **incomplete**, which
  * the registry reports rather than hiding: a provider that has not finished
  * starting up yields a partial catalog, and replacing good rows with a partial
- * set would make the palette flicker items out of existence.
+ * set would make the picker flicker items out of existence.
  *
- * So an incomplete listing is dropped, not applied. The palette keeps what it
+ * So an incomplete listing is dropped, not applied. The picker keeps what it
  * last knew until a complete one arrives, and `skills/change` brings it back
  * for another look.
  * @module @deepseek-ai/dsh-tui/hooks/useSkillCommands
@@ -18,10 +18,10 @@
 import { useEffect, useState } from 'react'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Context } from '@deepseek-ai/cordis'
-import { listSkills, viewingScope } from '../skill-runner.ts'
-import { skillRows, withoutShadowed } from '../skills.ts'
-import { service } from '../services.ts'
-import type { CommandMeta } from '../commands.ts'
+import { listSkills, viewingScope } from '../pickers/skill-runner.ts'
+import { skillRows, withoutShadowed } from '../pickers/skills.ts'
+import { service } from '../core/services.ts'
+import type { CommandMeta } from '../commands/commands.ts'
 
 /** Whether two row lists describe the same surface. Same reasoning as `useRegistryCommands`. */
 function sameRows(a: readonly CommandMeta[], b: readonly CommandMeta[]): boolean {
@@ -31,15 +31,17 @@ function sameRows(a: readonly CommandMeta[], b: readonly CommandMeta[]): boolean
 
 /**
  * Subscribe to the skill registry and return its user-invocable skills as
- * palette rows, minus any whose name a plugin command already holds.
+ * `/skill ` picker rows, minus any whose name is already taken.
  *
- * Built-ins are not passed in: `filterCommands` already gives them the win
- * over everything in `extraCommands`, so shadowing them here would be a second
- * copy of a rule that is already enforced downstream.
+ * `taken` is every name both higher layers claim — built-ins *and* plugin
+ * commands. Skills used to ride along in `extraCommands`, where
+ * `filterCommands` gave built-ins the win downstream; they now render in their
+ * own picker, so this filter is the one place that precedence is enforced.
+ * Callers must memoize `taken` — it is an effect dependency.
  * @param ctx - the context to read `ctx.skills` from.
  * @param agent - the invoking agent; its scope selects which layers are in view.
- * @param taken - plugin command rows, which outrank skills on a name collision.
- * @returns skill rows for the palette; empty when no registry is mounted.
+ * @param taken - built-in and plugin command rows, which outrank skills on collision.
+ * @returns skill rows for the picker; empty when no registry is mounted.
  */
 export function useSkillCommands(
   ctx: Context,

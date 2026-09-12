@@ -18,7 +18,7 @@ import {
   mentionAt,
   rankPaths,
   scorePath,
-} from '../src/file-mentions.ts'
+} from '../src/prompt/file-mentions.ts'
 
 describe('mentionAt', () => {
   it('finds a mention the caret is typing at the end of', () => {
@@ -58,9 +58,9 @@ describe('applyMention', () => {
   it('replaces the token and leaves a trailing space', () => {
     const buffer = 'read @src/pro'
     const mention = mentionAt(buffer, buffer.length)!
-    expect(applyMention(buffer, mention, 'src/prompt-layout.ts')).toEqual({
-      text: 'read @src/prompt-layout.ts ',
-      cursor: 27,
+    expect(applyMention(buffer, mention, 'src/prompt/prompt-layout.ts')).toEqual({
+      text: 'read @src/prompt/prompt-layout.ts ',
+      cursor: 34,
     })
   })
 
@@ -90,30 +90,30 @@ describe('scorePath', () => {
   })
 
   it('prefers a contiguous run over scattered letters', () => {
-    const run = scorePath('src/scroll.ts', 'scr')!
+    const run = scorePath('src/render/scroll.ts', 'scr')!
     const scattered = scorePath('s/c/r.ts', 'scr')!
     expect(run).toBeGreaterThan(scattered)
   })
 })
 
 describe('rankPaths', () => {
-  const paths = ['src/scroll.ts', 'src/state.ts', 'tests/scroll.spec.ts']
+  const paths = ['src/render/scroll.ts', 'src/core/state.ts', 'tests/scroll.spec.ts']
 
   it('returns the shallower file first when nothing else separates them', () => {
     // Listing order carries the breadth-first walk's depth information, so a
     // tie is broken towards the file the user is more likely to mean.
-    expect(rankPaths(paths, 'scroll', 5)[0]).toBe('src/scroll.ts')
+    expect(rankPaths(paths, 'scroll', 5)[0]).toBe('src/render/scroll.ts')
   })
 
   it('spends the query on the filename before the directories', () => {
     // The failure this pins: a leftmost-first scan matches `s`, `c`, `r`
     // against three directory names and calls that a better hit than the
     // filename the user is plainly typing.
-    expect(rankPaths(['s/c/r.ts', 'src/scroll.ts'], 'scr', 5)[0]).toBe('src/scroll.ts')
+    expect(rankPaths(['s/c/r.ts', 'src/render/scroll.ts'], 'scr', 5)[0]).toBe('src/render/scroll.ts')
   })
 
   it('drops non-matches entirely', () => {
-    expect(rankPaths(paths, 'state', 5)).toEqual(['src/state.ts'])
+    expect(rankPaths(paths, 'state', 5)).toEqual(['src/core/state.ts'])
   })
 
   it('hands back the whole list for an empty query', () => {

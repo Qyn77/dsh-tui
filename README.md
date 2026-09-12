@@ -125,19 +125,23 @@ In the REPL: type a message and press **Enter** to send; keep typing while the m
 | `Enter` | Send the current input as a user message to the model — while a turn is running it steers that turn instead of queuing a new one |
 | `/help` | Print available slash commands |
 | `/clear` | Clear the visible chat (the session log is unchanged) |
-| `/status` | Print the current model and session id |
-| `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it |
+| `/status` | Print the current model, session id, and effective permission preset |
+| `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it. Typing `/model ` opens a picker over the current provider's models — pick one directly instead of guessing names |
 | `/context` | Print the context window, this session's token spend, and how full the context is now |
 | `/usage` | Break this session's token spend out turn by turn |
 | `/language` | Switch the interface language: `/language en` or `/language zh` |
-| `/mcp` | List the connected MCP servers and the tools each one registered |
+| `/mcp` | List the connected MCP servers and the tools each one registered; `/mcp add` opens a picker of common preset servers or connects one from a pasted `mcpServers` block, `/mcp remove <server>` takes it back out |
+| `/approval` | Show this session's approval policy; `/approval ask` or `never` switches it |
+| `/permission` | Plugin command: pick a bundled sandbox + approval preset — `/permission ` opens a picker, or type `read-only` / `workspace-write` / `danger-full-access` directly |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
 | `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
 | `/sessions` | List the stored sessions, with the id to resume one by |
+| `/skill` | Pick a user-invocable skill: `/skill ` opens a picker, `/skill <name> [args]` runs one |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide` |
+| `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`; bare reports which is on and changes nothing |
 | `/exit`, `/quit` | Leave the REPL |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
@@ -284,11 +288,53 @@ approving a built-in one — the arguments leave your machine for a process the
 app did not start.
 
 The TUI takes no dependency on the MCP plugin to do this; it reads the naming
-convention. Configuring servers is a bundle concern, one `insert` block per
-server in your own patch layer — `@deepseek-ai/dsh-mcp-client` under
-`plugins:` in a profile's `cordis.patch.yml` (or a `--patch` file on the
-command line), with the per-server `serverName`, `command`/`url`, and transport
-options as config keys.
+convention.
+
+#### Adding a server
+
+Type `/mcp add` and press Enter, and a picker of common preset servers opens —
+memory, sequential thinking, docs lookup, a browser, and the everything-demo.
+Pick one and Enter writes its row; nothing to paste and nothing to configure.
+
+```
+/mcp add memory
+
+  Connected to memory — 9 tools. Written to /Users/you/.dsh/cordis.patch.yml,
+  so it comes back next launch.
+```
+
+Presets stop where a decision would be needed: a server that wants an API key
+or a path to authorize is not in the catalog, because a preset must be safe to
+write unseen. For those, `/mcp add` takes the `mcpServers` block a server's
+README gives you — the same JSON Claude Desktop and Cursor read. Paste it after
+the command and press Enter; a multi-line paste is fine, and a code fence
+around it is stripped.
+
+```
+/mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}
+
+  Connected to filesystem — 11 tools. Written to /Users/you/.dsh/cordis.patch.yml,
+  so it comes back next launch.
+```
+
+The row goes into `$DSH_HOME/cordis.patch.yml` (`~/.dsh/cordis.patch.yml` by
+default), the machine-local patch layer every profile composes last. The
+launcher watches that file, so the server connects without a restart, and it is
+still there next time. Your comments and `!!js` expressions in that file
+survive the write.
+
+`/mcp remove <server>` takes a server back out, by the name `/mcp` lists it
+under — including a row you wrote by hand.
+
+Servers can still be configured the old way, one `insert` block per server in
+any patch layer, with the per-server `serverName`, `command`/`url` and
+transport options as config keys. `/mcp add` writes exactly that shape.
+
+**Credentials are written in plaintext.** The bridge resolves no credential
+references, so an API key in a pasted snippet lands in the patch file as
+written, and `/mcp add` tells you which variables it just wrote in the clear.
+To keep the value out of the file, put `!!js process.env.YOUR_VAR` there
+instead and export it in your shell.
 
 `/mcp` lists what that wiring produced: one header per connected server and the
 tools it registered, read fresh from the tool registry on every call. The
@@ -329,20 +375,28 @@ itself in the terminal; the chip is the confirmation.
 
 ### Running a skill
 
-If your assembly mounts skills, the ones marked as user-invocable show up in
-the `/` palette with a `◆` in front of their description:
+Skills stay out of the `/` palette — a bundle can ship dozens of them, and the
+palette is for the fixed command surface. To see what your assembly mounted,
+type `/skill ` (with the trailing space): a picker opens listing only
+user-invocable skills, each marked with a `◆`:
 
 ```
 /review    ◆ Read a diff and list what would break in production
 ```
 
-Type it like any other command, and add whatever the skill should work on:
+Walk it with `↑`/`↓`: `Tab` inserts `/<name> ` into the prompt so you can keep
+typing arguments, and `Enter` runs the highlighted skill immediately. The
+token after `/skill ` filters by prefix, so `/skill rev` narrows straight to
+it. `Esc` closes the list without losing what you typed.
+
+You can also name a skill directly, and add whatever it should work on:
 
 ```
 > /review the auth change
 ```
 
-The skill's instructions are handed to the model and the turn starts. Your own
+`/skill review the auth change` is exactly the same line once dispatched. The
+skill's instructions are handed to the model and the turn starts. Your own
 words stay your own message; the instructions are not folded into them. The
 transcript shows one dim row naming what ran:
 
@@ -351,9 +405,8 @@ transcript shows one dim row naming what ran:
 ```
 
 Built-in commands win a name collision, then plugin commands, then skills — so
-dropping a `clear` skill into a project cannot take `/clear` away from you.
-
-There is no `/skills` listing: the palette is the listing.
+a skill called `clear` neither appears in the picker nor can take `/clear`
+away from you. A bare `/skill` prints usage.
 
 ### Hook runs
 
@@ -387,6 +440,206 @@ words, untranslated, so you can match the row against the file you wrote.
 As with MCP, the TUI takes no dependency on any hook package — it renders the
 events if they show up and draws nothing if they do not. Configuring a bridge is
 a bundle concern, an `insert` block in your own patch layer.
+
+### Code Mode sub-calls
+
+With `DSH_TOOLS_MODE=code`, the model stops emitting one tool call per action and
+writes a small program instead. The program runs in a worker, and the tools it
+reaches for are dispatched from inside it. On screen that stays one entry — the
+`run_code` call — with a line per dispatch nested under it:
+
+```
+⏺ run_code(…)
+  ↳ read_file({"file_path":"src/render/scroll.ts"}) ✓ 84 lines
+  ↳ write_file({"file_path":"src/render/scroll.ts"}) ✓
+  ⎿ done
+```
+
+Each dispatch is exactly one row no matter how much it returned, and a failure
+adds a second row with the reason — the same two-line shape a denied hook gets,
+for the same reason: the thing that went wrong is the thing you need to read.
+
+```
+  ↳ read_file({"file_path":"nope.ts"}) ✗
+    ⎿ ENOENT: no such file
+```
+
+A program that dispatches thirty tools costs thirty rows, and that bound is what
+makes the transcript still scrollable — sub-calls are drawn inside the parent
+entry rather than as entries of their own, so they carry no blank line between
+them and cannot be confused with the next real tool call.
+
+A dispatch still running when the turn ends inherits the parent's fate: `⊘` if
+you interrupted, `✓` if the turn completed. Nothing is left spinning.
+
+This is on when `code-runtime` is mounted and `DSH_TOOLS_MODE=code` is set; with
+the default tool mode you will never see a `↳` row.
+
+### Workflow runs
+
+If your assembly mounts `@deepseek-ai/dsh-tool-workflow`, the model can fan one
+turn out into several child agents. The run draws as a single entry, with a row
+per agent under it:
+
+```
+⏺ workflow review-changes
+  ↳ review:bugs · Review · completed
+  ↳ review:perf · Review · failed
+  ↳ verify:auth · Verify · running…
+```
+
+and gains a closing row once the run itself is over:
+
+```
+  ⎿ completed · 3 agents
+```
+
+Each agent is one row. The child agents are running whole conversations of their
+own, in their own sessions, and none of that is drawn here — thirty agents each
+showing their work would bury the conversation that started them.
+
+The outcome is printed in the workflow tool's own word, not translated and not
+mapped to a symbol. Only `completed` is quiet; everything else is yellow,
+including an outcome this version has never heard of. Yellow rather than red:
+an agent that was cancelled did not fail.
+
+If you interrupt the turn, the run closes as `no result` and any agent still
+going says `no outcome` rather than spinning forever. Neither invents a word the
+workflow never reported.
+
+Sub-agents proper (`@deepseek-ai/dsh-subagent`) look different, and the reason
+is worth knowing: a delegation writes its record into the *child's* session log,
+not yours. From this transcript a sub-agent is the tool call you can already
+see. The workflow tool is the one that reports back into the session you are
+watching.
+
+### Approvals, and what survives them
+
+When a tool call needs your authorisation, a card appears beside the prompt
+listing the call's arguments; `y` allows it once, `n` refuses it, `Esc` walks
+away. That card is live — it is gone the moment you answer.
+
+What stays is a row in the transcript:
+
+```
+⤷ approval · shell · allowed-once
+⤷ approval · write · rejected
+  writes outside the workspace
+```
+
+This matters more than it looks. Nothing about the question reaches the model,
+and the card cannot outlive the turn, so if the transcript did not record the
+answer then resuming the session an hour later would show a tool that never ran
+with nothing on screen saying you were the one who stopped it.
+
+A granted call is quiet. Anything else is yellow — refused, cancelled,
+`unavailable`, and any outcome this version has never heard of. `unavailable`
+is worth recognising: it is what you get when nothing was there to ask, which
+is a configuration problem rather than a decision you made. Yellow rather than
+red, because a refused call did not fail; that is the gate doing its job.
+
+If the turn ends while a question is still on screen, the row says `no
+decision` rather than leaving a question hanging.
+
+Use `/approval` to see which policy this session is on:
+
+```
+/approval          # what is in force, and how to change it
+/approval ask      # ask before a call that needs authorising
+/approval never    # refuse every such call without asking
+```
+
+A switch leaves its own row, so a run of silently refused calls is accounted
+for rather than looking arbitrary:
+
+```
+⤷ approval policy · never
+```
+
+Policy rows are never yellow, including `never`. A stricter setting is not a
+warning — it is the setting you chose. One that a delegation chose for you is
+marked as such.
+
+Only a *switch* leaves a row. The policy your session starts on does not: the
+harness records it while building the session, nobody changed anything, and the
+preset in the status bar already says what it is.
+
+### Permission presets
+
+Approval policy is one knob; what the sandbox lets a tool touch is the other.
+Permission presets bundle both. Type `/permission ` (with the trailing space)
+and a picker floats over the choices, ticking the one in force; `↑`/`↓` move,
+`Enter` switches, `Tab` just fills the line. There is also a keystroke for the
+impatient: **`Tab` / `Shift+Tab` on an empty prompt** steps forward and back
+through the presets, wrapping around — the switch submits the same
+`/permission <value>` line and leaves the same trail in the log. The same
+words also work typed straight at the plugin command,
+`/permission <preset>`:
+
+| Preset | Sandbox | Approvals |
+|---|---|---|
+| `read-only` | nothing writable | ask |
+| `workspace-write` | the workspace (default) | ask |
+| `danger-full-access` | everything, no sandbox | never asked |
+
+`/permission` is provided by the harness plugin rather than by the TUI, so it
+works wherever the plugin is loaded even though it is not a built-in command;
+the picker reads its choices from the preset projection and stays absent
+without it.
+
+The effective preset is always visible: a chip on the StatusBar's run-state row
+and a `permissions:` line in `/status`. Every preset is gray except
+`danger-full-access`, which is **bold red** — it removes both gates at once, so
+a glance at the chrome settles whether this shell has them. Preset words are
+shown verbatim and are not translated.
+
+Booting with `DSH_PERMISSION_MODE=danger-full-access` in the environment starts
+straight in that preset; the red chip is how you confirm a shell came up that
+way.
+
+### Vim keybinds
+
+`/keybinds vim` puts a normal mode over the prompt. `/keybinds default` takes
+it back off, and a bare `/keybinds` tells you which one is on without switching
+it — a command you typed to check something should not change it.
+
+Insert mode is the editor you already had. Every readline binding, the `/`
+palette, the `@` picker, history recall, paste: all unchanged. Turning vim on
+adds a mode and takes nothing away.
+
+`Esc` leaves insert mode. You can tell you are in normal mode because the
+prompt marker changes:
+
+```
+> what does this do?      ← insert
+N what does this do?      ← normal
+```
+
+That is the whole indicator, on purpose. A `NORMAL` badge would need a row, and
+the frame is a fixed height — a row that appears when the mode changes is a row
+drawn on top of the transcript.
+
+What works:
+
+| | |
+|---|---|
+| Move | `h` `j` `k` `l` `0` `^` `$` `w` `b` `e` `gg` `G` |
+| Insert | `i` `a` `I` `A` `o` `O` |
+| Delete / change | `x` `D` `C` `dd` `cc`, and `d` or `c` with any motion |
+| Paste | `p` `P` — the last thing you deleted |
+
+Words are split on whitespace, not on punctuation, so `~/.dsh/.env` is one
+`w`. Most of what you type into a prompt is paths and flags, and vim's usual
+word rules would make `w` crawl through them a character at a time.
+
+What does not: counts (`3w`), visual mode, and undo. Undo is the deliberate
+one — an undo that covered `dd` but not `Ctrl-W` would be worse than none.
+
+`Esc` still cancels a running turn. In normal mode it is not claimed by the
+editor, so it falls through the way it always did; in insert mode it goes to
+normal first, and a second one cancels. The `/` palette wins it before either.
+
+The setting is saved to `~/.dsh/tui.json`.
 
 ### Seeing more of a long output
 
@@ -588,7 +841,7 @@ tests/                       vitest specs for state, commands, apply()
 
 ### How the view works
 
-The Ink tree is a **pure projection** of the Agent's session log. The reducer in [`src/state.ts`](src/state.ts) maps each `SessionEvent` to a `UiEntry` (user, assistant, tool call, compaction, plan, note). `useSessionEvents` ([`src/hooks/useSessionEvents.ts`](src/hooks/useSessionEvents.ts)) seeds from the durable log on first render, then keeps the view in sync with each `session/event` arrival. Adding a new event type means: (1) add the type to `SessionEventMap` if it isn't already, (2) add a case in the reducer, (3) render the new entry in `MessageList`.
+The Ink tree is a **pure projection** of the Agent's session log. The reducer in [`src/core/state.ts`](src/core/state.ts) maps each `SessionEvent` to a `UiEntry` (user, assistant, tool call, compaction, plan, note). `useSessionEvents` ([`src/hooks/useSessionEvents.ts`](src/hooks/useSessionEvents.ts)) seeds from the durable log on first render, then keeps the view in sync with each `session/event` arrival. Adding a new event type means: (1) add the type to `SessionEventMap` if it isn't already, (2) add a case in the reducer, (3) render the new entry in `MessageList`.
 
 ## Publish it
 
@@ -605,7 +858,7 @@ The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump th
 
 ## Known limitations
 
-- **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
+- **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
 - **Switching sessions ends the turn you are in.** Every slash command is refused while a turn is running — `/resume` included; cancel with Esc first. There is no way to keep two sessions open side by side.
 - **Long tool output is previewed, not expandable.** The first 8 lines are shown with a `… +N lines` marker; there is no `show more` affordance, because reaching one would need a selection model the app deliberately does not have.
 - **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.

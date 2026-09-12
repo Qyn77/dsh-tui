@@ -24,7 +24,7 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **Banner / StatusBar** — the top zone. The session opens with the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. In a real TTY the banner is part of the alternate-screen frame and is redrawn with the settled resize; non-TTY tests use Ink's `<Static>` for deterministic output. The compact **StatusBar** takes over as the live header as soon as there is a message to head, in two rows: the top row is identity — whale glyph, `dsh`, and the model in `green` — and the bottom row is run state — session id, the status indicator, and the token counts as `↑ <in> · ↓ <out>` (arrows rather than translated labels: one column each, and no language to maintain). `/clear` empties the view and prints a fresh banner.
+- **Banner / StatusBar** — the top zone. The session opens with the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. In a real TTY the banner is part of the alternate-screen frame and is redrawn with the settled resize; non-TTY tests use Ink's `<Static>` for deterministic output. The compact **StatusBar** takes over as the live header as soon as there is a message to head, in two rows: the top row is identity — whale glyph, `dsh`, and the model in `green` — and the bottom row is run state — session id, the status indicator, the token counts as `↑ <in> · ↓ <out>` (arrows rather than translated labels: one column each, and no language to maintain), and, when a permission projection is mounted, the effective permission preset word verbatim — gray normally, bold red for `danger-full-access` (§1.18). The chip is absent, not blanked, in an assembly without the projection service. `/clear` empties the view and prints a fresh banner.
 
   **Three width tiers**, chosen by `bannerTier(columns)`:
 
@@ -50,8 +50,8 @@ Each zone has a fixed role and stays in that role forever:
   3. **Both columns pin an explicit `width` and stay shrinkable.** Pinning is what makes the art land at its designed size; a flex column with no width takes it from its widest child, and a squeeze then re-wrapped the meta text onto extra rows and slid every row below it (the observed failure was `tui-132fee32 ·` and `v0.1.0-rc.7` on two lines, the path line pushed out of the frame, the model name clipped mid-word). But pinning the width and *also* setting `flexShrink={0}` was the wrong cure: it converted a squeeze into an **overflow**, which is strictly worse (rule 7). Rule 4 already fixes the row count, so the columns are free to shrink and clip.
   4. **Every `<Text>` in the banner sets `wrap="truncate"`.** The tier arithmetic should mean nothing ever overflows, but a banner whose row count depends on that arithmetic being right is a banner that shatters when it isn't. Truncation makes the height fixed by construction: the worst case is a clipped tail at the right edge, never a reflow.
   5. **Centering CJK text requires `displayWidth`, not `.length`.** The slogan is Chinese, so every character occupies two terminal columns. `centerText` measures in display columns and floors an odd remainder, so the text leans left rather than off the edge; a string wider than the field is returned unpadded instead of pushed negative. It centers on the *sprite's* width, not the column's, so it sits under the whale's midline.
-  6. **The version is injected at build time, not read at runtime.** `tsdown.config.ts` defines `__DSH_TUI_VERSION__` from `package.json#version`, and `src/environment.ts` guards the identifier with `typeof` so dev and vitest runs fall back to `dev` instead of a `ReferenceError`. The banner can therefore never print a version that disagrees with the package.
-  7. **The banner and live frame must share one resize owner, and no rendered line may ever exceed the terminal width.** Ink erases the previous dynamic frame with `eraseLines(<logical line count>)`; a line wider than the terminal is wrapped by the terminal into two *physical* rows, so the count comes up short and the erase leaves the excess on screen. A terminal can also reflow rows already drawn while Ink still tracks logical rows. The real TTY therefore uses the alternate screen and handles resize outside React (`src/resize.ts`, installed by `index.ts`): remove Ink's eager listener, debounce the storm, call `instance.clear()`, clear the alternate screen, call `instance.rerender()` once, and then force the settled frame out through Ink's own `useStdout().write`. That last step is not belt-and-braces: Ink drops a render whose output string equals the frame it last wrote, and `instance.clear()` does not reset that cached string — so after we erase the screen ourselves, a resize that lands on an identical frame (a height-only drag, or a drag that ends where it began) would leave the terminal blank until the next keystroke. The Banner is dynamic in the real TTY so the selected width tier is redrawn as a unit; fake/non-TTY tests retain `<Static>` to pin output deterministically. `tests/banner-frame.spec.ts` and `tests/frame-erase.spec.ts` pin the width and reflow invariants. "Wider than the terminal" includes *exactly as wide as* the terminal, which is why the live frame reserves the last column. The width side has a second, layout-invisible author: East-Asian *ambiguous* characters (`·`, the braille spinner, `⏵`, `▌`) count as one column to the layout and as two in the terminals many CJK users run, so a full-bleed chrome row can exceed the terminal width while measuring as exactly at it — the wrapped row desynchronises `eraseLines` and leaves a stable top-of-frame residue. The runner therefore also disables autowrap (`?7l`, restored on every exit path): a too-wide row then clips into the last column instead of wrapping, and since a chrome row's final glyph is its right border, the row still reads intact. See [the ambiguous-width lesson](lessons/ambiguous-width-smear.md). See [the resize lesson](lessons/resize-reflow.md) for the failed approaches and diagnostic sequence.
+  6. **The version is injected at build time, not read at runtime.** `tsdown.config.ts` defines `__DSH_TUI_VERSION__` from `package.json#version`, and `src/terminal/environment.ts` guards the identifier with `typeof` so dev and vitest runs fall back to `dev` instead of a `ReferenceError`. The banner can therefore never print a version that disagrees with the package.
+  7. **The banner and live frame must share one resize owner, and no rendered line may ever exceed the terminal width.** Ink erases the previous dynamic frame with `eraseLines(<logical line count>)`; a line wider than the terminal is wrapped by the terminal into two *physical* rows, so the count comes up short and the erase leaves the excess on screen. A terminal can also reflow rows already drawn while Ink still tracks logical rows. The real TTY therefore uses the alternate screen and handles resize outside React (`src/terminal/resize.ts`, installed by `index.ts`): remove Ink's eager listener, debounce the storm, call `instance.clear()`, clear the alternate screen, call `instance.rerender()` once, and then force the settled frame out through Ink's own `useStdout().write`. That last step is not belt-and-braces: Ink drops a render whose output string equals the frame it last wrote, and `instance.clear()` does not reset that cached string — so after we erase the screen ourselves, a resize that lands on an identical frame (a height-only drag, or a drag that ends where it began) would leave the terminal blank until the next keystroke. The Banner is dynamic in the real TTY so the selected width tier is redrawn as a unit; fake/non-TTY tests retain `<Static>` to pin output deterministically. `tests/banner-frame.spec.ts` and `tests/frame-erase.spec.ts` pin the width and reflow invariants. "Wider than the terminal" includes *exactly as wide as* the terminal, which is why the live frame reserves the last column. The width side has a second, layout-invisible author: East-Asian *ambiguous* characters (`·`, the braille spinner, `⏵`, `▌`) count as one column to the layout and as two in the terminals many CJK users run, so a full-bleed chrome row can exceed the terminal width while measuring as exactly at it — the wrapped row desynchronises `eraseLines` and leaves a stable top-of-frame residue. The runner therefore also disables autowrap (`?7l`, restored on every exit path): a too-wide row then clips into the last column instead of wrapping, and since a chrome row's final glyph is its right border, the row still reads intact. See [the ambiguous-width lesson](lessons/ambiguous-width-smear.md). See [the resize lesson](lessons/resize-reflow.md) for the failed approaches and diagnostic sequence.
 
      Testing this needs a **fake TTY stdin**, not just a fake stdout. On a pipe, Ink's `useInput` throws from a passive effect; that abort leaves React's pending state unapplied, including the update `<Static>` uses to mark its items as written — so the banner looks re-emitted on every resize and the component gets blamed for a harness artifact.
 
@@ -135,7 +135,7 @@ Each zone has a fixed role and stays in that role forever:
 
 Sizing against the viewport is not enough on its own: two zones that each fit can still overflow *together*. The banner and the palette sit at opposite ends of a frame neither can measure, so they negotiate through the App the same way the shared keys do (§1.6) — the prompt reports the floating list's height upward, the App subtracts it from the banner's budget. Any future pair with the same shape owes the same negotiation rather than a second independent cap.
 
-**A settled resize repaints the screen.** Terminals may reflow rows already drawn while Ink still tracks logical rows, so cursor-relative erasure cannot be made reliable during a resize storm. The real TTY uses the alternate screen and one owner for resize (`src/resize.ts`): after 120ms of quiet it calls `instance.clear()`, clears the alternate screen, calls `instance.rerender()` exactly once — a rerender rather than a relayout, because `frameHeight` is computed from `stdout.rows` during render — and then repaints through Ink's `useStdout().write`, which re-emits the frame whether or not Ink considers it changed. `tests/resize-repaint.spec.ts` pins the blank-screen cases. The primary screen and shell scrollback are restored on exit. See [the resize lesson](lessons/resize-reflow.md).
+**A settled resize repaints the screen.** Terminals may reflow rows already drawn while Ink still tracks logical rows, so cursor-relative erasure cannot be made reliable during a resize storm. The real TTY uses the alternate screen and one owner for resize (`src/terminal/resize.ts`): after 120ms of quiet it calls `instance.clear()`, clears the alternate screen, calls `instance.rerender()` exactly once — a rerender rather than a relayout, because `frameHeight` is computed from `stdout.rows` during render — and then repaints through Ink's `useStdout().write`, which re-emits the frame whether or not Ink considers it changed. `tests/resize-repaint.spec.ts` pins the blank-screen cases. The primary screen and shell scrollback are restored on exit. See [the resize lesson](lessons/resize-reflow.md).
 
 `tests/frame-erase.spec.ts` pins both halves by replaying a real six-step drag through a small terminal emulator, under both wrap readings **and** with reflow on and off. All four must end with exactly one prompt on screen, and the surviving row must be a whole one. Without the reserved column the immediate-wrap readings leak; without the repaint the reflowing readings end with six prompt rows, which is the reported bug reproduced. Counting the placeholder rather than the `╭` border is deliberate: under reflow a debris row and the frame drawn beneath it can arrive as one copied line, so borders undercount. The file also measures the StatusBar — the live frame's other framed child, and the one doing its own width arithmetic — from 120 columns down to 20.
 
@@ -149,6 +149,9 @@ No modal overlays. No sidebars. No tabs in v0.x. The whole screen is the chat. T
 | StatusBar | `round` `#4D6BFE` | Persistent chrome in the same brand blue as the banner above it. |
 | Prompt | `round` (`╭─╮│╰─╯`) | Affordance for an empty input. Cyan when it takes input, gray when it does not (a `!` command, a pending approval). A running turn leaves it cyan — the line steers, §1.6. |
 | Tool call | none | A marked line, not a block; see the gutter below. |
+| Code Mode sub-call | none | A `↳` row *inside* the `run_code` entry that dispatched it — §1.16. |
+| Workflow run | `⏺` | One entry per fan-out, with a `↳` row per child agent and a `⎿` close — §1.17. |
+| Approval audit | `⤷` | One row per question asked and answered, plus one per policy *switch* — not for the policy a session opens under, which is a construction seed rather than a change. §1.18. |
 | User message | `round` `blue` | The transcript's only marker of authorship. Same box as the prompt, deliberately: what the user typed and where they type it are one surface. |
 | Assistant message | none | Floats freely. |
 | Note / compaction / plan | none | Single lines, prefixed with `⤷`. |
@@ -163,7 +166,7 @@ Only the user's side is framed. An assistant turn renders as markdown and a fenc
 
 **The conversation is a glyph gutter.** Every entry renders as a fixed two-cell marker column beside a body column, the frame around a user message included — the box sits in the body column and the `>` stays in the gutter, so the conversation's left edge is one column for every entry kind: `⏺` for an assistant turn or a tool call, `>` for a user line, `⎿` for a tool's outcome hanging under its call, `⤷` for a lifecycle note. The two-column form is what gives wrapped text a hanging indent — a long turn continues under the body, never back under the marker — and it keeps the conversation's left edge on one column regardless of what an entry is. Entries are separated by a single blank row, applied as a top margin so a tool's outcome stays welded to the call above it. One outcome never reaches the gutter at all: a tool result that is a single line, fully shown, and short enough to share the call's row is drawn dim right after the status glyph (`⏺ bash(pnpm test) ✓ 34 passed`), the predicate living in `inlineResultText` where `scroll.ts` and the renderer read the same one.
 
-A tool call is **one line**, `Read(src/scroll.ts) ✓`, with a preview of its result hanging beneath. It was a `round`-bordered card through rc.7: four rows of frame before any content, and two columns of extra indent for everything inside it. A transcript is mostly tool calls, so their per-entry overhead is what decides how much conversation fits on screen — the card cost more than it explained. Which argument becomes the subject in `Name(subject)` is chosen by convention (`file_path`, `command`, `pattern`, …) rather than by tool name, because this package does not own the tool registry and cannot enumerate it.
+A tool call is **one line**, `Read(src/render/scroll.ts) ✓`, with a preview of its result hanging beneath. It was a `round`-bordered card through rc.7: four rows of frame before any content, and two columns of extra indent for everything inside it. A transcript is mostly tool calls, so their per-entry overhead is what decides how much conversation fits on screen — the card cost more than it explained. Which argument becomes the subject in `Name(subject)` is chosen by convention (`file_path`, `command`, `pattern`, …) rather than by tool name, because this package does not own the tool registry and cannot enumerate it.
 
 **Output is previewed, at most `PREVIEW_MAX_LINES` (8) rows.** The result of a tool call and the captured output of a `!` escape are drawn the same way: blank lines dropped, the first 8 remaining lines shown at their own indentation, and a `… +N lines` marker when anything was withheld. One line collapsed to one line was too little to read — a diff or a file listing said nothing — and a shell command that printed a large file used to be painted in full, which pushed the prompt and everything above it off the top. Both failures are the same missing cap.
 
@@ -175,7 +178,7 @@ The raised budget is a bigger cap, not the absence of one. `windowStart` keeps a
 
 One known cost: toggling while scrolled into history moves the text under you. The offset counts rows from the bottom, and expanding adds rows below your position as well as above it. Holding position would need the per-entry anchor this design is avoiding.
 
-The glyphs, the gutter width, the columns the user message's frame takes (`USER_FRAME_COLUMNS`), the one-line summaries, and the preview arithmetic live in [`src/message-layout.ts`](./../src/message-layout.ts) as pure functions, and `src/scroll.ts` reads them to estimate how many rows an entry costs. That sharing is load-bearing: the estimate decides how much history stays mounted, and an estimate that *over*-counts stops the mount short of the offset the user is scrolling to, which puts the oldest entries out of reach. The frame is the current example of why the constants are shared rather than written twice — it costs two rows *and* narrows the text that wraps inside it, and an estimate that charged the rows but not the columns would under-count every message long enough to wrap.
+The glyphs, the gutter width, the columns the user message's frame takes (`USER_FRAME_COLUMNS`), the one-line summaries, and the preview arithmetic live in [`src/render/message-layout.ts`](./../src/render/message-layout.ts) as pure functions, and `src/render/scroll.ts` reads them to estimate how many rows an entry costs. That sharing is load-bearing: the estimate decides how much history stays mounted, and an estimate that *over*-counts stops the mount short of the offset the user is scrolling to, which puts the oldest entries out of reach. The frame is the current example of why the constants are shared rather than written twice — it costs two rows *and* narrows the text that wraps inside it, and an estimate that charged the rows but not the columns would under-count every message long enough to wrap.
 
 **The prompt cursor.** Ink hides the terminal cursor while in raw mode, so the Prompt renders its own. A stable `▌` (LEFT HALF BLOCK, `cyan` bold) sits at the end of the input whenever the prompt is active. During a running turn the cursor disappears, so a locked prompt never visually invites input. The placeholder switches to `… working` in the same step.
 
@@ -200,12 +203,14 @@ The palette is theme-aware, and almost entirely by *not* being theme-aware. Near
 | Tool result | `gray` dim | The `⎿` row under a call — or the same dim, inline after the status glyph, when the whole result is one line that fits beside the summary (`inlineResultText`). |
 | Run state — idle | `gray` | StatusBar status glyph. |
 | Run state — running | `yellow` | StatusBar status glyph. |
+| Permission preset | `gray` | The preset word on the StatusBar row; verbatim deployment data, never translated (§1.18). |
+| Permission preset — danger | `red` bold | The same chip when the word is `danger-full-access`. The one policy stance a user must be able to see at a glance — open sandbox and no prompts — so the word itself is the warning, in the color that already means "refused/errored". |
 | Streaming | `yellow` | `· streaming` suffix on the assistant block. |
 | Compaction | `cyan` dim | `⤷ compacting…` lines. |
 | Command echo | `cyan` | `⤷ /help` — the command line the user ran, echoed in the log. Same `cyan` as the palette's command names. |
 | Command output | default fg | The command's own text under the echo. Never dimmed: it is content the user explicitly asked for, and `gray dim` makes the `/help` table hard to read on a light terminal. |
 | Command failed | `red` | Both rows of an unknown command. |
-| Plan mode on | `yellow` | `⤷ plan mode on`. Emitted by `@deepseek-ai/dsh-plan-mode`; `src/types.ts` declares the payload locally so the TUI builds and draws it without depending on that plugin. |
+| Plan mode on | `yellow` | `⤷ plan mode on`. Emitted by `@deepseek-ai/dsh-plan-mode`; `src/core/types.ts` declares the payload locally so the TUI builds and draws it without depending on that plugin. |
 | Plan mode off | `gray` | `⤷ plan mode off`. |
 | Task list header | `cyan` dim | `⤷ todos · 1/3 done`. Same `cyan` as a compaction note: both are the runtime telling the user where it is, not content. |
 | Attachment chip | `cyan` dim | `⧉ shot.png · 1440×900 · 284 KB`. Cyan and dim like the other runtime-state rows: the chip reports what the message carries, and must not compete with the words the user wrote beside it. |
@@ -242,16 +247,18 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `Enter` | Send the current input as a user message. |
 | `/help` | Print the list of available slash commands. |
 | `/clear` | Clear the visible chat. The session log is unchanged. Prints nothing — see below. |
-| `/status` | Print the current model and session id. |
+| `/status` | Print the current model and session id, plus the effective permission preset when a projection is mounted (§1.18). |
 | `/plugins` | List the plugins this host loaded, and how each one is doing. `/plugins enable\|disable <name>` switches one. |
 | `/usage` | Break this session's token spend out turn by turn. |
 | `/theme` | Choose the background the colors assume: `/theme auto\|dark\|light`. Bare `/theme` reports the current setting and, under `auto`, what the terminal answered. |
 | `/copy` | Send the newest reply to the system clipboard over OSC 52. `/copy code` sends the newest fenced block instead. |
 | `/verbose` | Raise the preview budget from 8 lines to 200 for every entry at once. Bare toggles; `on`/`off` set it. |
 | `/sessions` | List the stored sessions, newest first, with the id to resume one by. |
+| `/skill` | Pick a user-invocable skill from its own list: `/skill ` opens the picker (§1.5.9), `/skill <name> [args]` runs one. Bare `/skill` prints usage. |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` for the newest. |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide`. |
-| `/mcp` | List the connected MCP servers and the tools each one registered, read fresh from `ctx.tools` — which is also all it can say: the plugin publishes no connection state, so an absent server is an absent row (§1.12). |
+| `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`. Bare `/keybinds` reports which is in force and switches nothing — §1.19. |
+| `/mcp` | List the connected MCP servers and the tools each one registered, read fresh from `ctx.tools`. `/mcp add <config>` writes a pasted server config into the user's patch layer and waits for it to connect; `/mcp remove <server>` takes it back out (§1.12). |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
 | `Ctrl-C` (buffer non-empty) | Clear the buffer. |
@@ -264,27 +271,27 @@ Slash commands are case-sensitive (`/exit`, not `/Exit`). A line is a slash comm
 
 A command that has no output prints nothing at all. `/clear` is the case that matters: an entry saying "View cleared." would leave the log one entry long, which contradicts what the user just watched happen *and* suppresses the banner, since the banner renders only on an empty log.
 
-Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/resume`, `/mcp`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback` and `/goal` there, so those work without this package naming them. `/resume` used to be listed here as future work and now ships (§1.5.8). A name neither this table nor that registry holds is tried once more as a user-invocable skill (§1.14) before it is called unknown — three layers, in that order. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
+Shipped beyond the v0.1 five: `/language`, `/model <name>`, `/context`, `/plugins`, `/usage`, `/theme`, `/copy`, `/verbose`, `/sessions`, `/skill`, `/resume`, `/mcp`. A name this table does not own falls through to `ctx.commands`, the registry where plugins mount their own — `dsh-base` puts `/compact`, `/feedback`, `/goal` and `/permission <preset>` there, so those work without this package naming them (the preset's picker lives in §1.5.10 and its effects on the chrome in §1.18). `/resume` used to be listed here as future work and now ships (§1.5.8). A name neither this table nor that registry holds is tried once more as a user-invocable skill (§1.14) before it is called unknown — three layers, in that order. Skills are the one layer that does **not** appear in the `/` palette: they get the dedicated `/skill ` picker of §1.5.9, and direct `/<name>` typing still reaches them. `/cost` used to be on this list and has been removed: no peer reports a price, so see §3.3.2 rather than reinstating it.
 
 #### 1.5.1 Slash palette
 
-When the buffer starts with `/` and contains no space yet, a `round` cyan-bordered palette floats above the prompt showing the commands whose names start with the buffer (case-insensitive). The first row is selected by default.
+When the buffer starts with `/` and contains no space yet, a `round` cyan-bordered palette floats above the prompt showing the commands whose names start with the buffer (case-insensitive). The list is the built-in table and the plugin registry only; user-invocable skills are deliberately not rows here (§1.5.9). The first row is selected by default.
 
 | Key | Effect |
 |---|---|
 | `↑` / `↓` | Move the selection (clamped to the filtered list). |
 | `Tab` | Replace the buffer with the highlighted name + trailing space. |
-| `Enter` | If the buffer is an exact command name, dispatch it. Otherwise, complete the highlighted name into the buffer (same as `Tab`). |
+| `Enter` | If the buffer is an exact command name, dispatch it. Otherwise, complete the highlighted name into the buffer (same as `Tab`). `/skill` is the one unconditional exception: Enter on it completes to `/skill ` and opens the skill picker rather than dispatching the bare command. `/permission` (§1.5.10) and `/model` (§1.5.11) get the same treatment only while their pickers have rows — otherwise the bare line belongs to the plugin's own answer and to `/model`'s usage text respectively. |
 | `Esc` | Clear the buffer. |
 | Any other key | Standard buffer editing. |
 
 The palette disappears as soon as the buffer contains a space (the user is typing arguments, not a command) or as soon as the buffer stops matching any registered command. The selected row is rendered with an inverted `cyan` background so it is unmistakable which command `Tab` / `Enter` will act on. The bottom of the palette shows the key hint `↑↓ navigate · Tab complete · Enter run · Esc dismiss` so the user does not have to memorize the bindings.
 
-Both the palette and `/help` read from a single `COMMANDS` registry in `src/commands.ts`; adding a new command is a one-line change there plus one case in `dispatch`.
+Both the palette and `/help` read from a single `COMMANDS` registry in `src/commands/commands.ts`; adding a new command is a one-line change there plus one case in `dispatch`.
 
 **The list is windowed, and the window is sized from the terminal's height.** At most `paletteWindowRows(stdout.rows)` rows are drawn — eight on any terminal with room for eight, fewer on a short one, never zero. The window follows the selection: it sits at the top until `↓` walks past its bottom edge, then moves a row at a time. Whatever is off-screen is counted next to the key hint (`· +7 more`), so the list never silently omits a command. The `@` picker (§1.5.2) draws through the same component and gets the same treatment.
 
-This is a rendering constraint, not a taste one. The App's root box has a **fixed** `stdout.rows - 3` height (§1.1, so Ink stays on log-update's incremental path), and Yoga does not scroll a subtree that overflows a fixed height — it lays the surplus rows on top of the rows already there. With fifteen built-in commands and a 24-row terminal, an uncapped palette needed twenty rows and got twenty-one for the *whole frame*: two commands printed onto one line, the StatusBar's identity row buried under its token row, the prompt box's top border overwritten by its own content. On screen that reads as duplicated, half-drawn debris that survives every subsequent frame — Ink erases `eraseLines(<logical line count>)`, and the count it holds is not the number of physical rows an overlapping layout put there — and disappears the moment a resize forces a full repaint. The palette is the one subtree whose height is driven by *data* rather than by the viewport, so it is the one that has to yield. See `paletteWindowRows` in `src/prompt-layout.ts` and the frame tests in `tests/prompt-frame.spec.ts`.
+This is a rendering constraint, not a taste one. The App's root box has a **fixed** `stdout.rows - 3` height (§1.1, so Ink stays on log-update's incremental path), and Yoga does not scroll a subtree that overflows a fixed height — it lays the surplus rows on top of the rows already there. With fifteen built-in commands and a 24-row terminal, an uncapped palette needed twenty rows and got twenty-one for the *whole frame*: two commands printed onto one line, the StatusBar's identity row buried under its token row, the prompt box's top border overwritten by its own content. On screen that reads as duplicated, half-drawn debris that survives every subsequent frame — Ink erases `eraseLines(<logical line count>)`, and the count it holds is not the number of physical rows an overlapping layout put there — and disappears the moment a resize forces a full repaint. The palette is the one subtree whose height is driven by *data* rather than by the viewport, so it is the one that has to yield. See `paletteWindowRows` in `src/prompt/prompt-layout.ts` and the frame tests in `tests/prompt-frame.spec.ts`.
 
 **Every row is padded to the same name column, and the description is the half that truncates.** The name column is `max(name length) + 2` across the *visible* slice, so scrolling cannot leave descriptions indented for a name that has gone off-screen. Two details are load-bearing rather than tidy:
 
@@ -297,13 +304,13 @@ An `@` that opens a word turns the token under the caret into a mention, and the
 
 Three decisions are worth stating, because each has a tempting alternative.
 
-**A mention is completion, not attachment.** Inserting `@src/prompt-layout.ts` puts that text in the message and nothing else: no file contents are read, inlined, or attached. What to feed a model is prompt assembly, which belongs to the harness — a text box that silently expanded one token into eight thousand tokens of file would be making that decision on the harness's behalf, invisibly, and would blow a context window with no way for the user to see it coming. The model has file tools; the picker's job is to hand it a path that resolves on the first try.
+**A mention is completion, not attachment.** Inserting `@src/prompt/prompt-layout.ts` puts that text in the message and nothing else: no file contents are read, inlined, or attached. What to feed a model is prompt assembly, which belongs to the harness — a text box that silently expanded one token into eight thousand tokens of file would be making that decision on the harness's behalf, invisibly, and would blow a context window with no way for the user to see it coming. The model has file tools; the picker's job is to hand it a path that resolves on the first try.
 
 **The `@` has to open a word.** `qiao@example.com`, `react@18`, `@types/node` in prose — a picker that fired on every `@` would appear, steal `↑`/`↓`, and change what `Enter` means, in the middle of an ordinary sentence. Requiring whitespace (or the start of the buffer) before the `@` costs nothing a real mention wants.
 
 **The directory is walked once per mention session, not per keystroke.** The obvious shape — scan on each new query — makes a repo-sized walk race itself between `@s` and `@sr`, and the answers can arrive out of order. `useFileMentions` walks once, caches by working directory (so `!cd` invalidates it, per §1.9), and filters in memory afterwards, which also means every keystroke after the first is synchronous. The walk is breadth-first and capped at `MAX_SCANNED_FILES`, so what a cap throws away is the deepest files — the least likely to be meant. While the first walk is in flight the box says so rather than staying invisible, which would read as "the key did nothing".
 
-Ranking (`scorePath`) is a case-insensitive subsequence match with two bonuses: a character matched immediately after the previous one, and a character matched inside the basename. The basename is also scanned as a candidate in its own right and the better of the two attempts wins — without that, a leftmost-first scan spends `scr` on three directory initials and ranks `s/c/r.ts` above `src/scroll.ts`.
+Ranking (`scorePath`) is a case-insensitive subsequence match with two bonuses: a character matched immediately after the previous one, and a character matched inside the basename. The basename is also scanned as a candidate in its own right and the better of the two attempts wins — without that, a leftmost-first scan spends `scr` on three directory initials and ranks `s/c/r.ts` above `src/render/scroll.ts`.
 
 The `/` palette wins when both could open: it is anchored to the first character of the buffer, which makes it the more deliberate of the two, and only one of them may own `↑`/`↓` at a time. Both draw through the same `SlashPalette` component — a file row simply has no description — because two bordered lists with the same selection idiom would drift apart on the first visual change made to either.
 
@@ -405,6 +412,56 @@ What it copies is the reply's **markdown source**, not the terminal's rendering 
 
 **Every refusal leaves the user where they were.** A request that resolves to nothing does not start a fresh session the way a boot does; a target equal to the current session says so; a load failure says the session is intact. See §3.3.1 for the mechanics and for why the running-turn check is depth rather than the main guard.
 
+#### 1.5.9 The `/skill` picker
+
+Skills are the most numerous, most accidental layer of the `/` surface — a bundle drops a directory of them in — so they no longer share the `/` palette with the twenty built-ins and the plugin registry. They get a command of their own: typing `/skill ` (with the trailing space) opens a second floating list, drawn through the same `SlashPalette` component, which contains **only** user-invocable skills. The skill glyph `◆` therefore appears in exactly one frame: this one.
+
+| Key | Effect |
+|---|---|
+| `↑` / `↓` | Move the selection (clamped to the filtered list). |
+| `Tab` | Replace the buffer with `/<name> ` and close the picker — arguments can follow, so the skill is not necessarily run yet. |
+| `Enter` | Submit the highlighted name immediately as `/<name>`: the skill runs with no arguments. |
+| `Esc` | Dismiss the list once while keeping the buffer; a second meaningful change to the token forgets the dismissal. |
+| Any other key | Standard buffer editing; the token filters the list. |
+
+The token after `/skill ` filters by case-insensitive **prefix** on the bare name, in registry order. The picker anchors to position 0 and to one token exactly: `/skillx` does not open it, a second token (a second space) closes it, and a `/skill ` on a continuation line does not open it — commands begin on line 0. The hint row reads `↑↓ navigate · Tab insert /<name> · Enter run · Esc dismiss` and the same height windowing as the `/` palette applies (§1.5.1), since this is the other subtree whose height is driven by data.
+
+**The floating lists are mutually exclusive, in one precedence order: the `/` palette, then the skill picker, then the `/permission ` picker (§1.5.10), then the `/model ` picker (§1.5.11), then the `/mcp add ` picker (§1.12.1), then the `@` file picker.** Only one may own `↑`/`↓`/`Tab`/`Esc` at a time, and Ink offers no way to stop a keystroke (§1.6), so the exclusivity is structural: while the buffer matches a higher anchor the lower mentions are not even derived. The command pickers outrank the `@` mention for the same reason the `/` palette does — they are anchored at the first character.
+
+**Bare `/skill` prints usage; `/skill <name> [args]` rewrites and runs.** The dispatcher turns `/skill review the auth` into `/review the auth` and hands the rewritten line to the *same* runner the unknown-name fallback uses (§1.14), so the explicit form and direct typing share one inject/followup ordering and one set of failure notes. There is one unconditional Enter exception in the `/` palette (§1.5.1): with `/skill` highlighted it completes to `/skill ` and opens this picker instead of dispatching the bare command — the picker is what the key was reaching for. `/permission` gets the same treatment only while a projection advertises presets (§1.5.10). Enter on a dismissed picker submits the literal buffer, so `/skill review` after `Esc` still runs `review`.
+
+**There is no "scanning" placeholder.** Skill rows arrive as a prop from an asynchronous catalog read (§1.14); until the first complete listing lands the picker simply shows nothing, unlike the `@` picker whose one-time directory walk names itself while in flight. The catalog is already mounted before the prompt is interactive, so a placeholder would almost always paint an empty box and vanish a frame later.
+
+#### 1.5.10 The `/permission` picker
+
+Typing `/permission ` (with the trailing space) opens a picker over the preset words the `permissions` projection advertises, the same shape and windowing as the skill picker. The resemblance is mechanical only: a skill row *is* the command, while a preset row is an **argument** to the plugin-provided `/permission` command. The row name is the bare table key (`workspace-write`), shown verbatim like every preset word (§1.18); the description is the projection's display name, and the preset currently in force carries a leading `✓` so the list answers "what am I on" before it answers "what can I pick".
+
+| Key | Effect |
+|---|---|
+| `↑` / `↓` | Move the selection. |
+| token typing | Case-insensitive prefix filter on the bare value; a second space closes the picker. |
+| `Tab` | Fill the buffer with `/permission <value> ` and close the list; the line is not sent. |
+| `Enter` | Submit `/permission <value>` immediately — the plugin command switches the preset, the chip follows via its knob-event subscription. |
+| `Esc` | Dismiss once for this token, keeping `/permission dan` on screen; Enter then submits the literal buffer. |
+
+The picker has **no rows without a mounted projection**: it is the same dark-feature contract as the StatusBar chip. That also settles the one naming collision — `/permission` is a plugin command, not a built-in. While presets are advertised, bare `/permission` + `Enter` in the `/` palette completes to `/permission ` and opens this picker (the one conditional exception in §1.5.1); without them, the bare line is dispatched to the plugin untouched, so the command's own usage answer stays reachable in an assembly that provides the command but no projection. Direct typing is never intercepted at all: `/permission read-only` submitted by hand goes through the ordinary plugin-registry path exactly as it did before this picker existed.
+
+**`Tab` / `Shift+Tab` on an empty prompt cycle the preset**, forward and back through the advertised table, wrapping at both ends. Eligibility is positional: the branch sits below every completion branch, so an open list outranks the cycle, and so does any text in the buffer — Tab keeps its editing meaning there. The cycle submits the same `/permission <value>` line the picker's Enter sends, rather than calling the plugin out-of-band: the switch therefore keeps its audit trail (command echo plus the plugin's answer), the running-turn busy-check applies, and the chip follows through its knob-event subscription. A `currentValue` outside the advertised options (`custom`) has no position to step from; forward enters the table at its first row and backward at its last. No advertised presets means the callback is not mounted and Tab does what it always did.
+
+#### 1.5.11 The `/model` picker
+
+Typing `/model ` (with the trailing space) opens a picker over the **current provider's** model catalogue, fetched through `llm.listModels(provider)` — the same shape and windowing as the other command pickers, and the first whose rows need provider I/O: they arrive asynchronously, the way the skill catalog's do, and a failed refresh keeps the previous rows rather than emptying the picker. The row name is the **bare model id** (`deepseek-v4`), because a bare id is what `/model` accepts against the current provider; the description is the provider's own display name, and the model the session is on carries a leading `✓`. Crossing providers stays a typed `/model <provider>/<id>` line, which the dispatch has always taken — one round-trip answers the common case (switching model within the provider the session is already talking to).
+
+| Key | Effect |
+|---|---|
+| `↑` / `↓` | Move the selection. |
+| token typing | Case-insensitive prefix filter on the bare id; a second space closes the picker. |
+| `Tab` | Fill the buffer with `/model <id> ` and close the list; the line is not sent. |
+| `Enter` | Submit `/model <id>` immediately — the ordinary dispatch switches both the live routing ref and the persisted selection, and the StatusBar follows because the selection is state (§3.3.1). |
+| `Esc` | Dismiss once for this token, keeping `/model deep` on screen. |
+
+No `llm` service, no selection or a catalogue that has not answered means no rows, which means no picker — the same dark-feature contract as the other two. While rows exist, bare `/model` + `Enter` in the `/` palette completes to `/model ` and opens the picker; without them it dispatches the bare command, whose usage answer (current model, `/context` pointer) stays reachable. The catalogue is re-read when the provider changes and on `llm/adapters-updated`; the ✓ marking is a memo over the catalogue, so a switch re-marks without re-fetching.
+
 ### 1.6 Keyboard bindings
 
 Ink hands every keystroke to *every* mounted `useInput` handler and offers no
@@ -431,6 +488,19 @@ its way to someone else.
 | `Tab` | Slash palette | Complete the highlighted command |
 | `Esc` | Slash palette | Dismiss palette and clear buffer |
 | `↑` / `↓` | Slash palette | Move palette selection |
+| `Tab` | `/skill` picker | Insert `/<name> `, keep editing |
+| `Enter` | `/skill` picker | Run the highlighted skill |
+| `Esc` | `/skill` picker | Dismiss the list once, keep the buffer |
+| `↑` / `↓` | `/skill` picker | Move picker selection |
+| `Tab` | `/permission` picker | Fill `/permission <value> `, keep editing |
+| `Enter` | `/permission` picker | Submit `/permission <value>` to the plugin command |
+| `Esc` | `/permission` picker | Dismiss the list once, keep the buffer |
+| `↑` / `↓` | `/permission` picker | Move picker selection |
+| `Tab` | `/model` picker | Fill `/model <id> `, keep editing |
+| `Enter` | `/model` picker | Submit `/model <id>` through the ordinary dispatch |
+| `Esc` | `/model` picker | Dismiss the list once, keep the buffer |
+| `↑` / `↓` | `/model` picker | Move picker selection |
+| `Tab` / `Shift+Tab` | Prompt (empty buffer, nothing floating, presets advertised) | Cycle the permission preset (§1.5.10) |
 | `Tab` / `Enter` | `@` file picker | Insert the highlighted path |
 | `Esc` | `@` file picker | Dismiss the list, keep the buffer |
 | `↑` / `↓` | `@` file picker | Move picker selection |
@@ -451,6 +521,10 @@ its way to someone else.
 | `Enter` (idle) | Prompt → `agent.followup` | Open a turn of its own |
 | pasted text | Prompt, **before every row above** | Insert verbatim; newlines normalised to `\n` |
 
+The table above is the `default` keymap, and it is also **insert mode** under
+`/keybinds vim` — the vim layer adds a mode on top of it rather than replacing
+it. See §1.19.
+
 **Paste is not a row in that table so much as a layer above it.** The app sets
 bracketed-paste mode (`?2004h`) alongside the alternate screen, so the terminal
 wraps pasted bytes in `ESC [200~` … `ESC [201~`. Between those markers every
@@ -469,7 +543,7 @@ still gets its stray `\r`s collapsed to `\n` (without which they reach the
 screen as carriage returns and the pasted lines overprint each other), but the
 split-chunk submission is unfixable there: a lone `\r` with no marker around
 it is genuinely indistinguishable from `Enter`, and pretending otherwise would
-break the `Enter` key to protect a paste. See `src/paste.ts`.
+break the `Enter` key to protect a paste. See `src/prompt/paste.ts`.
 
 Four rows are decided rather than inherited, and each costs something:
 
@@ -637,14 +711,14 @@ rather than a keystroke.
 
 ### 1.8 Rendering rules
 
-- **Width-aware.** Layout re-measures on terminal `resize`. No hard-coded widths beyond 80 chars; long output truncates with `…` (see `truncate` in [`src/message-layout.ts`](./../src/message-layout.ts), which caps a call's subject and its result summary separately).
+- **Width-aware.** Layout re-measures on terminal `resize`. No hard-coded widths beyond 80 chars; long output truncates with `…` (see `truncate` in [`src/render/message-layout.ts`](./../src/render/message-layout.ts), which caps a call's subject and its result summary separately).
 - **No flicker.** Already-emitted messages are static; only the streaming assistant block, the running tool, and the StatusBar re-render.
 - **TTY required.** The runner refuses to start without a TTY and prints a one-line error to stderr. Plain pipes are not a use case. The check is the first thing `run()` in `index.ts` does — before the loader await, so it costs nothing and no Session is created. It is ours rather than Ink's on purpose: Ink reports the same condition by throwing from inside `useInput`'s *passive effect*, and `<Static>` (which the banner uses) makes React swallow errors thrown there, turning the failure into a silent hang. See Part 1 banner rule 7.
 - **Graceful shutdown.** In raw mode, Ink receives Ctrl-C as a keypress rather than `SIGINT`. While a turn is running it cancels the turn. While idle with an empty buffer the *second* press (§1.6) unmounts Ink first (restoring the terminal), then triggers the same launcher `ctx.appExit` path as `/exit`. The runner never calls `process.exit` outside `commands.ts` and `index.ts`. See [Lessons → Ctrl-C shutdown](./lessons/ctrl-c-shutdown.md) for the investigation playbook behind this ordering.
 
 ### 1.9 Markdown rendering
 
-Assistant turns render a curated subset of GitHub-flavored markdown, from the first streamed delta onward. The parser lives in [src/markdown.ts](../src/markdown.ts) (pure, no React, no Ink) and the Ink renderer in [src/components/Markdown.tsx](../src/components/Markdown.tsx). Only the assistant block is markdown-aware; user messages, tool calls, and notes remain plain text.
+Assistant turns render a curated subset of GitHub-flavored markdown, from the first streamed delta onward. The parser lives in [src/render/markdown.ts](../src/render/markdown.ts) (pure, no React, no Ink) and the Ink renderer in [src/components/Markdown.tsx](../src/components/Markdown.tsx). Only the assistant block is markdown-aware; user messages, tool calls, and notes remain plain text.
 
 | Construct | Terminal style |
 |---|---|
@@ -662,7 +736,7 @@ Assistant turns render a curated subset of GitHub-flavored markdown, from the fi
 
 Raw HTML (`<script>`, etc.) is stripped before the AST is built — see §3.1. Unclosed fences and stray delimiters fall back to a plain `paragraph` so the chat surface never goes blank.
 
-**Spacing and indent normalization.** Paragraphs render with one line of vertical breathing room above and below, so model-written song lyrics and dialog don't look smushed against surrounding blocks. That row is suppressed at the document's own outer edges — a markdown document does not pad its container, because Ink does not collapse margins and the conversation has already decided how much space sits between one entry and the next. The parser pre-strips every leading space and tab at the start of each newline-continued line — the strip runs at the parse boundary (pre-`marked.lexer`) so the model's habit of hand-indenting continuation lines by 10+ spaces does not promote blank-line-separated blocks to a `╭─╮` code frame under CommonMark's 4-space rule. **The pre-strip skips the contents of a fenced code block** (`stripIndentOutsideFences`). Through v0.3 it did not, and every code block in the TUI rendered flush left: in Python that is not a cosmetic loss, because the block the user copies out of the terminal does not run, and it made the v0.4 highlighting actively misleading — coloring structure that the indentation no longer shows is worse than showing neither. A closing fence must match its opener in character and length, and an unclosed fence protects to the end of the input, which is what keeps a streaming block from flattening and then unflattening when its closer lands. Indented (4-space) blocks are deliberately still flattened: a fence is an explicit claim that the contents are code, an indent is a guess, and the guess is wrong for exactly the hand-indented verse this strip exists for. The renderer then applies a uniform **2-space hanging indent** to every soft line break in a text node — a `\n` not followed by another `\n` — so lyrics and dialog continuations read as a hanging indent rather than flush-left (the pre-strip's output) or right-shifted (the model's own 10+-space input). Blank lines (`\n\n`) are preserved end-to-end. Spaces at the very start of the text, and spaces between inline elements (`**bold**` and the next word), are preserved. The indent constant lives in [`src/markdown.ts`](./../src/markdown.ts) as `HANGING_INDENT`; the transform is `applyHangingIndent`.
+**Spacing and indent normalization.** Paragraphs render with one line of vertical breathing room above and below, so model-written song lyrics and dialog don't look smushed against surrounding blocks. That row is suppressed at the document's own outer edges — a markdown document does not pad its container, because Ink does not collapse margins and the conversation has already decided how much space sits between one entry and the next. The parser pre-strips every leading space and tab at the start of each newline-continued line — the strip runs at the parse boundary (pre-`marked.lexer`) so the model's habit of hand-indenting continuation lines by 10+ spaces does not promote blank-line-separated blocks to a `╭─╮` code frame under CommonMark's 4-space rule. **The pre-strip skips the contents of a fenced code block** (`stripIndentOutsideFences`). Through v0.3 it did not, and every code block in the TUI rendered flush left: in Python that is not a cosmetic loss, because the block the user copies out of the terminal does not run, and it made the v0.4 highlighting actively misleading — coloring structure that the indentation no longer shows is worse than showing neither. A closing fence must match its opener in character and length, and an unclosed fence protects to the end of the input, which is what keeps a streaming block from flattening and then unflattening when its closer lands. Indented (4-space) blocks are deliberately still flattened: a fence is an explicit claim that the contents are code, an indent is a guess, and the guess is wrong for exactly the hand-indented verse this strip exists for. The renderer then applies a uniform **2-space hanging indent** to every soft line break in a text node — a `\n` not followed by another `\n` — so lyrics and dialog continuations read as a hanging indent rather than flush-left (the pre-strip's output) or right-shifted (the model's own 10+-space input). Blank lines (`\n\n`) are preserved end-to-end. Spaces at the very start of the text, and spaces between inline elements (`**bold**` and the next word), are preserved. The indent constant lives in [`src/render/markdown.ts`](./../src/render/markdown.ts) as `HANGING_INDENT`; the transform is `applyHangingIndent`.
 
 **Streaming rule.** The block is parsed and drawn as markdown on every `assistant/chunk` event, not held as raw text until `assistant/message`.
 
@@ -672,7 +746,7 @@ Two things do move mid-stream, and both are fine: a blank separator row appears 
 
 **Parse cost.** `Markdown` memoizes the AST on its source, and `MessageList`'s per-entry dispatch is `React.memo`'d on the entry object. Both matter here rather than in general: every mounted entry re-renders on every delta, so without them a finished turn from earlier in the session is re-lexed a few thousand times over the course of the next answer. A single parse is ~0.4ms for a 20KB document; a mounted window of them per delta is not affordable when the frame's job is to keep up with a token stream.
 
-**Syntax highlighting.** Fenced blocks are tokenized by [Shiki](https://shiki.style) through [src/highlight.ts](../src/highlight.ts) (pure, plus the one async loader) and [src/hooks/useCodeHighlight.ts](../src/hooks/useCodeHighlight.ts). The renderer draws **one `<Text>` row per source line** rather than one `<Text>` holding the newlines, because a highlighted line is several differently-colored spans and they need something to nest in. The row count is identical either way, which is the load-bearing property: a block renders plain until its grammar arrives and colored after, and that switch must not move rows under the reader. `tests/highlight-frame.spec.ts` pins it by comparing two live apps — a `text` fence and a `ts` fence — rather than two frames of one app, which would make the assertion depend on Shiki's load timing.
+**Syntax highlighting.** Fenced blocks are tokenized by [Shiki](https://shiki.style) through [src/render/highlight.ts](../src/render/highlight.ts) (pure, plus the one async loader) and [src/hooks/useCodeHighlight.ts](../src/hooks/useCodeHighlight.ts). The renderer draws **one `<Text>` row per source line** rather than one `<Text>` holding the newlines, because a highlighted line is several differently-colored spans and they need something to nest in. The row count is identical either way, which is the load-bearing property: a block renders plain until its grammar arrives and colored after, and that switch must not move rows under the reader. `tests/highlight-frame.spec.ts` pins it by comparing two live apps — a `text` fence and a `ts` fence — rather than two frames of one app, which would make the assertion depend on Shiki's load timing.
 
 *Plain fallback.* A block with no language, or one Shiki cannot resolve, renders exactly as it did in v0.3 — `gray dim`, no colors, no error. Languages that mean "not code" (`text`, `txt`, `plaintext`, `console`, `output`, `log`) are short-circuited before the loader: they would load successfully and cost a grammar load plus a tokenize pass to produce the rendering we already have. There is deliberately no alias table in this repo; Shiki already resolves the short forms models write, and a second table here would be a copy that goes stale against the one that decides.
 
@@ -732,6 +806,30 @@ The split is conservative. Only the first `__` after the prefix is the server bo
 | Transcript | `⏺ github:create_issue(it broke)` | Two servers may each provide a `search`; the registered name is the only thing that tells them apart. `server:tool` says it in a third of the width of `mcp__server__tool`, with the part being scanned for at the end rather than behind two runs of underscores. |
 | Approval card | the same label, then a `yellow` row `via the github MCP server` | Approving a bridged tool is not the same decision as approving a built-in one, and `server:tool` alone does not say so. Drawn directly under the tool name and above the arguments, so a call with many arguments cannot push it out of view — and on its own row, because sharing the heading row let Ink break the tool name mid-word on a narrow card. |
 
+#### 1.12.1 Configuring a server from the TUI
+
+Listing servers answers "what can the model call"; it does not answer "how do I get one". Until `/mcp add`, the answer was to quit, find the right patch file, and hand-write a plugin row — which is not a thing a user of a terminal UI discovers, and is why the bridge shipped dark in every profile.
+
+**`/mcp add` with no payload opens a picker of preset servers.** Asking a user to find and paste a block answers "how do I get one" only for someone who already knows which server they want. For the common zero-decision cases, `mcp-catalog.ts` ships a small static list — memory, sequential thinking, docs lookup, a browser, the everything-demo — and typing `/mcp add` then Enter opens a command-anchored picker over it (§1.5), the fifth after `/skill `, `/permission ` and `/model `. Choosing a row submits `/mcp add <name>` through the *same* dispatch a paste takes, so the duplicate check, the connect-wait, and the report are identical; `findPreset` recognizes the bare name and builds the row without the snippet parser.
+
+**A preset is only allowed where writing it unseen is safe.** The catalog carries no server that needs a credential or a path argument, and that limit is mechanical rather than cautious: the patch writer emits plain YAML scalars, and a quoted `'!!js …'` string round-trips as a literal, not as the expression tag the loader's `interpolate` evaluates. So a preset that needed a key would either write a broken row or write the key in plaintext — the exact thing `secretEnvKeys` warns about for pastes. Anything that needs a decision stays on the paste path. The catalog is static, so unlike the other three pickers it has no service whose absence darkens it; it always has rows, and a stale package name simply fails to start and shows as an absent row in `/mcp`, the honest degradation §1.12 already defines.
+
+**`/mcp add <config>` takes the block the user already has in their clipboard.** Every MCP server documents itself with the same `mcpServers` JSON that Claude Desktop and Cursor read, so that is the input: paste it after the command and press Enter. The bare `{"name": {…}}` map someone copied out of the middle of one works too, and a Markdown code fence around either is stripped. `mcp-config.ts` translates it to a `@deepseek-ai/dsh-mcp-client` row — `command` means stdio, `url` means Streamable HTTP, inferred from the fields rather than from a `type` whose spelling varies between the clients that publish these snippets.
+
+**There is no modal.** Bracketed paste is already decoded ahead of every key branch (§1.19), so a multi-line block lands in the prompt buffer with its newlines intact and submits once; `dispatch` takes the verb off the front and hands the rest over untokenised. A component that took over input for multi-line editing would be a first for this UI, and its height would be driven by the length of whatever was pasted — which in a fixed-height root means overlap, not scrolling (§3.9).
+
+**The row is written to `$DSH_HOME/cordis.patch.yml`, not created through the loader.** `loader.create()` mounts a plugin immediately, but the loader's root tree is in-memory and its `write()` is a documented no-op, so a live-only insert would vanish on exit. The home patch layer is composed last over every profile *and* is registered with the launcher's HMR config watcher: writing it recomposes the tree in place, which mounts the new row without restarting the rows that did not change — including the TUI's own. That the TUI survives writing the file it is running out of is the load-bearing fact here, and it is a property of the transactional re-apply, not an accident.
+
+This is also why the path resolution differs from `tui.json`'s: `/mcp add` honours `$DSH_HOME` because the patch layer is the harness' file, and a user who moved their harness home expects the command to follow it there.
+
+**The file belongs to the user, so every write goes through a YAML document tree**, never `parse` + `stringify`. Their comments and their `!!js` expressions round-trip; a header comment written above the first row would otherwise be removed along with that row, so it is moved to the element taking its place, or to the document, before the removal. The round trip is faithful, not byte-exact — a flow list written `[ mcp ]` comes back `[mcp]`. A layer that does not parse, or that is not the top-level list a patch layer must be, stops the command: rewriting it would destroy whatever the user was in the middle of writing.
+
+**Duplicates are judged by `serverName`, not by row id.** The bridge's namespace uniqueness is by name, so a row someone hand-wrote under `id: memory-engram` still owns `engram`, and adding a second row for it would start a plugin the bridge refuses. Reading the name out of the config is also what lets `/mcp remove` address a row this command did not write — the alternative is telling the user to go edit YAML, which is the thing the command exists to avoid.
+
+**Reporting waits, with a deadline.** The write is the durable half and does not depend on the server ever answering; the useful half is the tool count, which arrives only after the watcher recomposes, the bridge dials, and the tools register. So the command subscribes to `tools/change` and waits up to `MCP_CONNECT_TIMEOUT_MS`, reading the registry once first because a fast local server can be up before the wait begins. A timeout is not a failure: the answer says the row was written and where, and `/mcp` tells the truth a moment later.
+
+**Secrets are flagged, not refused.** The bridge resolves no credential references — its `env` is a plain string dict — so a key pasted in a snippet lands in the patch file as plaintext, and `~/.dsh/.credentials.yaml` cannot reach an MCP child process. That is a real choice a user may want to make, and not one they should make silently, so `/mcp add` names the variables it just wrote in the clear and points at `!!js process.env.NAME`. Wiring credential references into the bridge's `env` is the one part of this that needs a change on the harness side.
+
 ### 1.13 Attaching an image
 
 An image reaches the model as an `image` content block on the user's message, carrying a durable `ImageAttachmentRef` the attachment store issued. Nothing about that path involves a terminal image protocol; Kitty, iTerm2 and sixel draw rasters in a cell grid, which is a different feature this package does not have.
@@ -775,9 +873,9 @@ Byte sizes use decimal units (`284 KB`, not `278 KiB`): the number is there to b
 
 `ctx.skills` (`@deepseek-ai/dsh-skill`) is a layered registry of skill providers; `dsh-base` mounts it along with the filesystem provider and the model-facing `skill` tool. The model half therefore already worked before this package did anything — the model calls `skill` and the TUI draws an ordinary tool call. What was missing was the **human** half, which the registry names but does not implement: every summary carries `invocation.userInvocable`, and nothing was reading it.
 
-A user-invocable skill is a `/` row. It is the only row on that surface that **starts a turn** — every other one changes view state or calls a plugin handler that returns text — so it is marked with `◆` ahead of its description, and the marker sits in the description rather than the name because the name is what Tab writes back into the buffer.
+A user-invocable skill is reached in two ways: chosen from the dedicated `/skill ` picker (§1.5.9), or typed directly as `/<name> [args]`. Skills are deliberately not rows of the `/` palette — a bundle can ship dozens of them, and the palette exists to keep the fixed command surface legible. Inside the picker a skill is the one row that **starts a turn** — every `/` command changes view state or calls a plugin handler that returns text — so it is marked with `◆` ahead of its description, and the marker sits in the description rather than the name because the name is what Tab writes back into the buffer.
 
-**Precedence is built-ins, then `ctx.commands`, then skills.** Built-ins already win against the registry, for the stated reason that advertising behaviour which cannot run is worse than omitting the row. Skills lose to both for an additional one: a skill is the only layer a user creates by dropping a file into a directory, so it is the layer that must not shadow anything by accident.
+**Precedence is built-ins, then `ctx.commands`, then skills.** Built-ins already win against the registry, for the stated reason that advertising behaviour which cannot run is worse than omitting the row. Skills lose to both for an additional one: a skill is the only layer a user creates by dropping a file into a directory, so it is the layer that must not shadow anything by accident. When skills left the `/` palette that rule moved rather than disappearing: the picker's row builder is handed every name both higher layers claim and drops its collisions — a skill called `clear` is unlisted in `/skill ` for the same reason it would never have run from `/`.
 
 **An invocation is two messages, and the split is not ours to choose.** `SkillInvocationSource` is a durable `MessageSourceMap` variant, documented as: the user's own words ride a plain user message, and the rendered skill body follows as injected `instructions`-form context carrying that source. So:
 
@@ -794,15 +892,15 @@ The body is `renderSkillContent`'s output and not our own wrapper, so the model 
 
 **Unknown is one outcome with four causes**: no registry mounted, a name outside the kebab-case grammar, a name no provider offers, and a name whose skill is model-only. They collapse because they produce one user-visible fact — nothing by that name is yours to run — and separating them would tell a user that a skill exists but is not theirs, which leaks the catalog the provider chose not to expose. A skill that *is* listed but whose body will not load is distinct (`The review skill could not be loaded`), because the user did name something real and can go look at it.
 
-**Matching a submitted line is exact**: no prefix, no case folding. The palette is where a partial name gets completed; once a line is submitted, running something the user did not name is worse than saying the name is unknown. The catalog is re-read on invocation rather than reusing the palette's copy — a skill is a file another process may have just rewritten, and `cd` moves which project roots are in view.
+**Matching a submitted line is exact**: no prefix, no case folding. The picker is where a partial name gets completed; once a line is submitted, running something the user did not name is worse than saying the name is unknown. The catalog is re-read on invocation rather than reusing the picker's copy — a skill is a file another process may have just rewritten, and `cd` moves which project roots are in view.
 
-**An incomplete catalog is dropped, not applied.** `snapshot()` reports `complete: false` while a provider is still starting up; the palette keeps its last good rows rather than flickering entries out of existence, and `skills/change` brings it back for another look.
+**An incomplete catalog is dropped, not applied.** `snapshot()` reports `complete: false` while a provider is still starting up; the picker keeps its last good rows rather than flickering entries out of existence, and `skills/change` brings it back for another look.
 
-**Not done.** No `/skills` listing. The palette *is* the listing, and a command that printed the same rows into the transcript would be a second surface to keep in sync with the first.
+**Not done.** No transcript listing. `/skill ` opens an interactive picker; a command that printed the same rows into the conversation would be a second surface to keep in sync with the first, and rows printed once at invocation time cannot track a changing catalog.
 
 ### 1.15 Hook runs
 
-`@deepseek-ai/dsh-hook-protocol` records two events per hook run — `hook/invoked` and `hook/result` — and the TUI draws them as one row. **It takes no dependency to do it.** `dsh-base` mounts no bridge and does not depend on one, so a hard peer would make every install warn about a package most assemblies will never have, for a feature that draws nothing until a user inserts `hooks-claude-code` or `hooks-codex`. `src/types.ts` declares the two payloads locally instead, the way it already does for `compaction/*` and `plan/mode` — neither of whose packages is a dependency either. That is the same one-build-serves-both property §1.12 buys for MCP by parsing tool names.
+`@deepseek-ai/dsh-hook-protocol` records two events per hook run — `hook/invoked` and `hook/result` — and the TUI draws them as one row. **It takes no dependency to do it.** `dsh-base` mounts no bridge and does not depend on one, so a hard peer would make every install warn about a package most assemblies will never have, for a feature that draws nothing until a user inserts `hooks-claude-code` or `hooks-codex`. `src/core/types.ts` declares the two payloads locally instead, the way it already does for `compaction/*` and `plan/mode` — neither of whose packages is a dependency either. That is the same one-build-serves-both property §1.12 buys for MCP by parsing tool names.
 
 The declarations are copies and can drift, which is the honest cost. They are verbatim from `hook-protocol`'s own `types.d.ts` at `0.1.0-rc.7`, the pinned line, so nothing here is a guess about a shape; and a drift surfaces as a field the renderer reads and no emitter sets, i.e. `undefined`, which every branch already handles.
 
@@ -825,6 +923,107 @@ Yellow and **not red**, because red on this surface means a failure and a hook t
 The row reads `⤷ PreToolUse hook · deny · claude-code · 42ms`, with the point and the decision left untranslated for the reason a plugin's name is (§1.4): they are what the user's own hook configuration says, and translating them would leave them unable to match the row against the file they wrote. The dialect rides alongside the way a plugin's name rides beside `runtime context` — with two bridges mounted, two hooks at one point are otherwise indistinguishable. `stderrSummary` follows on its own rows when the hook printed anything; the emitter has already capped it at the bridge's `stderrSummaryMaxChars`, so this surface adds no second cap to keep in sync with `estimateEntryRows`.
 
 **Not done.** No aggregate. A `PreToolUse` hook that matches everything draws one dim row per tool call, and collapsing a run of them is a real idea — but it needs a rule for which of the collapsed rows survives a `deny`, and inventing that before anyone has run the feature would be guessing.
+
+### 1.16 Code Mode sub-calls
+
+With `DSH_TOOLS_MODE=code`, the model stops calling tools one at a time and writes a program instead; `run_code` executes it in a worker and bridges each tool the program calls back through the session as a `tool/code-dispatch-start` / `tool/code-dispatch` pair. **Both are log-only** — `deriveMessages()` drops them, so a sub-call never re-enters model context — which makes the transcript the only place they can ever be seen. Until rc.7 the projection ignored them, and a program that read four files and edited one drew as one opaque row: `run_code(…) ✓`.
+
+Unlike hooks and MCP, this is not a capability that arrives when a user inserts something. **This package's own `cordis.patch.yml` mounts `code-runtime`**, with the comment "Code Mode is a core execution capability, not a UI component" — so every assembly the TUI ships in can emit these events, and the blind spot was the TUI's own.
+
+It costs no new dependency either, but for the opposite reason to §1.15's: `@deepseek-ai/dsh-tools` is already a peer, and it augments `SessionEventMap` with both payloads itself. `src/core/types.ts` therefore takes a type-only `import type {} from '@deepseek-ai/dsh-tools/types'` rather than copying the declarations the way it does for `compaction/*`, `plan/mode` and `hook/*`. A copy is what you write when the emitter is not in the tree; declaring a second copy of something the tree already knows is how the two drift.
+
+**A sub-call is not a `UiEntry`. It hangs inside the parent tool entry, paired by `subCallId`.** Two things forced that, and both are structural rather than aesthetic:
+
+- Every entry carries `marginTop={1}`, so ten dispatches as ten entries would spend ten blank rows saying nothing — in the one region whose height budget §1.1 fixes.
+- `tool/result` carries no call id, so `state.ts` closes **the most recent running tool** (§1.15 contrasts this with the `handlerId` pairing). Sub-calls as running entries would start intercepting the result that belongs to the `run_code` above them, and the parent would spin forever. Nested, the parent stays the one running tool, which is exactly what the log says it is.
+
+**One row per sub-call, and a second only for a failure.** A settlement carries the same `content` + `isError` a native result does — `dsh-tools` says so explicitly, "so UIs render a sub-call through the exact code path that renders a native call" — so the 8-line preview of §1.2 was available here and is still wrong: a program that read six files would push its own parent, and the conversation around it, off the screen to repeat six times what `run_code` already said once. The row names the tool and its subject, which is the question a reader of a `run_code` entry has ("what did the program touch"). A one-line output that fits rides on the row through the same `inlineResultText` a native call uses. The exception is a failed sub-call, which gets one truncated `⎿` row of its first output line, because that is the row explaining why the program's own result looks wrong and the text is nowhere else on screen.
+
+Both rows are drawn truncated, so `subCallRows` is exact rather than estimated and neither the terminal width nor the interface language can turn one row into two — the agreement rule 12 and §3.10 are about. The count lives in `message-layout.ts` and both `scroll.ts` and `MessageList.tsx` read it, rather than each deciding when the failure row exists.
+
+**Pairing, and the two ends that do not pair.** The parent is found by `parentCallId`, not by recency: a program may dispatch into another `run_code`, so the newest running entry is not reliably the right one. A dispatch whose parent is not projected is **dropped** — a bare `Read(…)` row with no program above it reads as a call the model made directly, which is the one thing it is not. A *settlement* with no open row is **appended whole**, which is the opposite choice and rests on the same reasoning §1.15 uses to drop an orphan `hook/result`: the emitter appends a start only when the scheduler enters the tool body, so a projection that joined mid-program has a settlement carrying the tool's name, its arguments and its whole outcome — everything the row needs. An orphan hook result carries a verdict and nothing to attach it to.
+
+**A sub-call still open at `turn/end` inherits the parent's fate**, where a hook run is unconditionally `cancelled`. The difference is what the emitter promises: the bridge drains in-flight dispatches before `run_code` returns, so a sub-call open at the boundary means the program was cut off mid-flight and the turn's own reason is the honest account of why.
+
+### 1.17 Workflow runs
+
+A workflow tool fans one turn out into several child agents. `@deepseek-ai/dsh-tool-workflow` records that fan-out into **its calling parent Session** as four events — `tool-workflow/run-start`, `agent-start`, `agent-end`, `run-end` — and they are the entire visible surface of it. The children's own work happens in child Sessions this transcript is not reading.
+
+**Where the "sub-agent visualization" roadmap item actually lives, and why it was never found.** The item was written against `@deepseek-ai/dsh-subagent`, and that package emits exactly one session event: `subagent/descriptor`, appended by the establishing provider *inside the child's initial turn*. It is durable identity for enumeration and cold resume, and it is in the **child's** log. No amount of reading the parent session will find a delegation there — a parent that spawns a subagent sees the tool call it made and nothing else, which the transcript already draws. Looking for the feature under its name found the one package that could not provide it. The renderable stream was next door.
+
+**A run is one entry with member rows nested inside it**, for §1.16's reasons — a fan-out of thirty as thirty entries spends thirty blank `marginTop` rows separating rows that are one thing. But a member cannot nest the way a sub-call does. The four events carry a `runId` and **no `callId`**, so there is no sound way to attach a run to the `Workflow` tool call that started it; pairing by recency would weld the run to whatever tool happened to be open. The run is therefore a top-level entry of its own, and `runId` is what identifies it.
+
+**Pairing is by id at both levels, never by recency or position.** A bundle may run two workflows concurrently — that is what a `runId` is for — and a workflow can be called twice with the same declared `name`, so the name identifies nothing. Inside a run, `agent-end` finds its member by the emitter's `seq`, not by array index: a member whose `agent-start` was missed (a session resumed mid-run) would shift every later index by one and land the outcome on someone else's row. An event naming a run that was never opened is dropped rather than opening one, which is `hook/result`'s rule (§1.15) — only `run-start` carries the workflow's name, so there is nothing honest to draw a header with. Openness is part of the match, so a stray member cannot reopen a closed run.
+
+**Row budget: one header, one row per member, one closing row once the run closes.** One row per member however much that agent did, for the reason a sub-call gets one row: thirty agents that each earned an output preview would bury the conversation that started them, and the child's transcript is a whole session that is not this session's to draw. Every row is drawn `truncate-end`, so `workflowRows` is exact and neither width nor interface language can turn one row into two.
+
+**No new glyphs.** The header takes `⏺`, members take `↳`, the close takes `⎿` — the three the transcript already uses for "the assistant did a thing", "this belongs to the row above", and "here is how it came out". Minting a glyph for this would mean choosing a character whose width is ambiguous in half the world's terminals (the failure mode `docs/lessons/` records) to say what three proven characters already say.
+
+**Outcomes are printed in the emitter's own word, and tone follows `hookTone`.** `WorkflowAgentOutcome` is `'completed' | 'failed' | 'cancelled'` today and the emitter may grow it, so the TUI widens it to `string`, displays it, and never switches on it. Only `completed` is quiet; **everything else, including a word this build has never heard of, is yellow** — for §1.15's reason, that an unrecognised value is a real outcome with no name here, and defaulting it to quiet hides the only case where the transcript is the sole record. Red is not used: a cancelled agent did not fail.
+
+**A member with no outcome says which kind of no.** Still working, or left behind when its run closed, are different facts. The second one keeps its absent `outcome` rather than inheriting the run's `stopReason` — that field describes the *run*, and copying it down would have this build claim the emitter reported something it never sent. **A run still open at `turn/end` is `cancelled` with no stop word at all**, the hook rule again rather than the tool rule: `run-end` fires once the run's live resources quiesce, so its absence at the turn boundary means the record broke, not that the fan-out quietly succeeded.
+
+This costs no dependency. `@deepseek-ai/dsh-tool-workflow` is not a peer and should not be — most assemblies will never mount it — so `src/core/types.ts` copies the four payloads the way it copies `hook/*` (§1.15), widening the branded `WorkflowRunId` and the two closed unions to `string`. Like MCP and hooks, the feature ships dark and draws nothing until a bundle inserts the tool.
+
+### 1.18 The approval audit trail
+
+`approval/asked`, `approval/decided` and `approval/policy` are **log-only**: `deriveMessages()` skips them, so the model never sees them, and the live card (§3.2.1) is gone the instant a key settles it. The transcript is therefore not one of several places a decision is recorded — it is the only one. A build that drew the card and not the rows would let a user answer a question, resume the session an hour later, and find no trace that they were ever asked.
+
+**Two surfaces, one moment, and the duplication is the point.** `ApprovalPrompt` answers a Cordis waterfall that never touches the log; these rows are the log's own account. They are not alternatives to each other and neither can be dropped in favour of the other: the card cannot survive the turn, and the rows cannot be answered.
+
+**Pairing is by `id`, never by recency.** The service issues one id per `request()` call and documents that several can be in flight, so closing "the newest open row" would file one tool's answer under another tool's name — `openHookRun`'s rule (§1.15) for the same reason it holds there. A `decided` with no open row is **dropped** rather than opening one: exactly one decision per ask is documented, so an unmatched one means the pair broke, and a row reading "a question you never saw was answered" names nothing a user can act on. Openness is part of the match, so a second decision cannot reopen a settled question.
+
+**A question still open at `turn/end` is `cancelled`, with no outcome.** Not `outcome: 'cancelled'` — the service has a real `cancelled` decision, and fabricating one here would make a broken record indistinguishable from a question the service actually answered that way. The row says "no decision" instead, which is the true statement.
+
+**Tone follows `hookTone`, for the fourth time.** `'allowed-once'` is the only grant the vocabulary defines and it is the only quiet outcome. `rejected`, `cancelled`, `unavailable` and **any word this build has never heard of** are notable/yellow. `unavailable` earns that weight on its own merits: it is the fail-closed default the service returns when no answerer was registered at all, which is a configuration fact the user needs, not a decision they made. Red is not used — a rejected call did not fail, it was refused, and that is the gate working.
+
+**A policy row is never yellow, including for `never`.** A stricter policy is not a warning; it is the setting the user or a delegation chose. The row exists so that a resumed session can account for behaviour — a run of tool calls silently refused — that would otherwise look arbitrary. `source: 'delegation'` is marked, because "you set this" and "something set this for you" are different facts about the same policy.
+
+**A policy row is a *switch*, and the log's first policy event is not one.** This shipped wrong and the failure was not in this section's own surface. `@deepseek-ai/dsh-permission-presets` seeds the knobs while constructing any session that carries none, so in every assembly that mounts it — which is every assembly this package ships in — the boot log already holds an `approval/policy` before the user has typed. Drawn as a row, that seed put entry number one on screen at boot, and the banner draws only while `state.entries` is empty (§1.1): the splash was gone from every launch, replaced by the StatusBar, over a row that said `approval policy · ask` and told the user nothing the preset chip was not already showing.
+
+So `onApprovalPolicy` keeps the policy in `UiState.approvalPolicy` and appends a row only when the event moves it. The discriminator has to be position, because for a runtime switch the payload has none: `dsh-user-approval` declares `source?: 'delegation'` and nothing else, so a construction seed and a `/approval` switch are byte-identical. Delegation is the one case the payload does mark and it draws wherever it lands, changed value or not. The cost is that a resumed session's first *stored* policy event is silent too — the right way to be wrong, since that is the value the session opened under rather than a change of it, and every switch after it still draws.
+
+The reason no test saw this is worth keeping: `seedSession` in `tests/fake-tty.ts` built sessions with an empty log, so the fixture disagreed with every real assembly about what a session looks like at boot. It now writes the three knob events first, which is what makes the banner assertions in `banner-frame.spec.ts` claims about a real launch.
+
+**Row budget: one row, plus the asker's reason when it gave one.** The header is drawn `truncate-end` and only the reason is charged by wrapping, exactly as a hook's stderr is (§1.15), so `approvalRows` matches what `MessageList` draws at every width. A policy row is unconditionally one row.
+
+#### `/approval`
+
+`/approval` with no argument prints the session's override, or says the deployment default applies; `/approval ask` and `/approval never` switch it. The command validates the word before it reaches the service, so a typo'd `/approval nver` is refused rather than silently doing nothing that the user would read as a switch.
+
+The policy list is written as `['ask', 'never'] as const satisfies readonly ApprovalPolicy[]` rather than by importing the runtime `APPROVAL_POLICIES`. That keeps the dependency type-only — the command still works in an assembly that never loaded the package, where it reports that there is no approval service — while making a third policy added upstream a **build error here** instead of a value the palette quietly cannot offer.
+
+#### Permission presets
+
+The approval policy is one knob; the sandbox mode (`read-only` / `workspace-write` / `danger-full-access`) is the other, and nobody should have to set them by hand in the one combination that is dangerous. `@deepseek-ai/dsh-permission-presets` bundles the two into named presets and ships the plugin command **`/permission <preset>`**, recording `permission/preset` alongside the `sandbox/mode` and `approval/policy` knob events. The dsh-base table is `read-only` (read-only + ask), `workspace-write` (workspace-write + ask, the default) and `danger-full-access` (danger-full-access + never — with the sandbox open the prompts have nothing left to gate, which is why "auto-approve" is not a third approval policy).
+
+The TUI surfaces the *effective* preset rather than the two knobs separately. `dsh-session-projection` exposes a synchronous `permissions` projection that folds all three events into one `PermissionSelect { currentValue, options }`; `src/commands/permissions.ts` reads it off `ctx.get('sessionProjections')` with the types declared locally (the same dark-dependency stance as plan mode, hooks and MCP — neither package is installed), shape-narrows the payload, and treats anything missing, malformed or throwing as "no service". Two surfaces show it:
+
+- the **`/permission ` picker** (§1.5.10): typing the command name and a space floats the advertised presets, with the current one ticked, and `Enter` submits `/permission <value>` to the plugin command — choosing a mode without memorising its word;
+- the **StatusBar chip** on the run-state row (§1.1), which re-reads on any of the three knob events for *this* session — its own `session/event` subscription, because the chip is chrome, not reducer state, and two of those events are not renderable log entries; and
+- a **`permissions: <word>` line in `/status`**, absent in assemblies without the projection, where the command stays two lines.
+
+Preset words are deployment-configured table keys, so they are shown **verbatim, never translated**, exactly like plugin command names. `danger-full-access` is the one key that earns treatment: bold red on the chip. It is a chosen setting, not an error — but it is the one setting that removes both gates at once, and a glance at the chrome must be able to settle whether this shell has them. `DSH_PERMISSION_MODE=danger-full-access` in the environment boots straight into it, which is also why the warning cannot depend on having watched a `/permission` switch happen this session.
+
+---
+
+### 1.19 Vim keybinds
+
+`/keybinds vim` puts a modal keymap over the prompt editor. The whole design is one sentence: **insert mode *is* §1.6's table, unchanged.** Turning the setting on subtracts nothing — the `/` palette, the `/skill` picker, the `@` picker, history recall, bracketed paste, `Ctrl-A/E/W/U/K`, mouse reports and the OSC tails all keep working, because every picker's key branches sit physically above the vim gate and `applyVim` declines every key while the mode is `insert` anyway, so the existing handlers run exactly as they did.
+
+**The keymap is a pure function, in `src/prompt/vim.ts`.** `applyVim(state, key, text, cursor) → VimResult` has no I/O, no React and no knowledge of Ink, for the same reason `state.ts` doesn't: a keymap is a decision table, and a decision table you can call in a `describe` block is one you can actually pin down. `Prompt.tsx` is the only adapter, and it does three things with the result — set the mode, set the text, move the caret.
+
+**The caret is a bar, not a block, and that changes the motions.** This prompt draws `▌` *between* two characters, so a caret at offset *n* sits before `text[n]`. `$`, `e` and the landing spot of a `dw` therefore all name the position *after* a character, and `Esc` does **not** step the caret left — that is a block-caret behaviour, and copying it here would move the caret away from the character the user was looking at.
+
+**What is implemented, and what deliberately is not.** Motions: `h j k l 0 ^ $ w b e gg G`. Entering insert: `i a I A o O`. Edits: `x D C dd cc` and `d`/`c` with any motion, with `p`/`P` pasting the last deletion. Words are whitespace-delimited, not vim's `iskeyword`, so `~/.dsh/.env` is one word — in a prompt where most text is paths and flags, splitting on punctuation would make `w` useless. **No counts** (`3w`), **no visual mode**, **no undo**. Undo is the one worth naming: an undo stack that covers the vim edits but not `Ctrl-W` would be a worse lie than no undo at all, and covering both is a rewrite of the buffer, not a keymap feature.
+
+**An unknown key in normal mode is swallowed, never typed.** `dq` abandons the operator; `q` alone does nothing. The alternative — falling through to the text path — means a mistyped normal-mode key silently appends a letter to a prompt the user believes they are navigating, and they find out when they press Enter.
+
+**Esc is contested six ways, and turn-cancel has to stay reachable.** The order is: the `/` palette, the `/skill` picker, the `/permission` picker, the `/model` picker, or the `@` picker wins it first (in the precedence of §1.5.9–§1.5.11, only one can be open); then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
+
+**The mode indicator costs zero rows and zero columns.** The prompt marker changes from `> ` to `N `, and it and the caret turn yellow. Not a `NORMAL` badge under the box: the root is a fixed-height frame and Yoga *overlaps* an overflowing subtree instead of scrolling it (§1.8), so a row that appears when a mode changes is a row that lands on top of the transcript. A width change would be as bad in the other direction — it re-folds every wrapped row in the buffer, which is a caret jump on a keystroke that was supposed to be free.
+
+**The preference persists, and defaults to off.** `keybinds` joins `language`, `theme` and `history` in `~/.dsh/tui.json` through the same total-read/merged-write path (§1.5). Bare `/keybinds` **reads without writing** — unlike `/history`, which toggles. Two states again, but these two change what every subsequent keystroke *means*, and a user who typed `/keybinds` to check which one is on must not be switched by the asking.
 
 ---
 
@@ -861,7 +1060,7 @@ Shipped here but not planned here: the bilingual catalog and `/language` (§3.10
 Shipped:
 
 - **Slash-command tab completion.** The `/` palette filters as you type and `Tab` completes the highlighted name, landing the cursor after a trailing space.
-- **Tool approval flow.** `y`/`n`/`Esc` on a card beside the Prompt, not a modal, listing the arguments of the call being authorised. It was never blocked on the dependency this spec claimed — see §3.2.1.
+- **Tool approval flow.** `y`/`n`/`Esc` on a card beside the Prompt, not a modal, listing the arguments of the call being authorised. It was never blocked on the dependency this spec claimed — see §3.2.1. The card's other half, the audit rows that survive the turn, shipped with §1.18, along with `/approval` for reading and switching the session's policy.
 - **`/model <name>`.** Switches the live agent and the saved default together.
 - **`/context`.** Window, cumulative spend, and a live occupancy percentage read off the newest turn — see §3.3.2.
 - **History.** `↑` / `↓` (and `Ctrl-P` / `Ctrl-N`) walk the user's prior inputs in this session.
@@ -887,20 +1086,30 @@ Still open: nothing — v0.3 is complete.
 
 ### v1.0 — Production
 
-- **Vim / Emacs keybind toggle.** `/keybinds vim` switches the prompt editor.
+- **Vim / Emacs keybind toggle.** *Shipped as `/keybinds vim` — see §1.19.* Emacs is not a second mode and never will be: §1.6's default keymap already *is* the readline/emacs one, so the toggle has two states rather than three. The vim half is a pure keymap in `src/prompt/vim.ts` layered over that table, with insert mode left byte-for-byte identical to it.
 - **Plan mode.** *The TUI's half is shipped.* `plan/mode` projects to a `plan` entry and draws `⤷ plan mode on`/`off` in both languages (§1.4). The `/plan` command and the read-only run are `@deepseek-ai/dsh-plan-mode`'s, not this package's — it reaches the REPL through the `ctx.commands` fallback (§1.5), the same way `/compact` does. Nothing is left here but the diff preview, which needs a diff to exist first.
-- **Sub-agent visualization.** Sub-agent outputs render as nested MessageList rows with a `↳` indent. **Blocked on a version line, not on the work.** `subagent/descriptor` and `tool-workflow/agent-start|agent-end|run-start|run-end` are in the session vocabulary, and `@deepseek-ai/dsh-subagent` / `@deepseek-ai/dsh-tool-workflow` do exist — but only on `0.1.2-rc.x`, whose peer range is `@deepseek-ai/dsh-session@^0.1.2-rc.1`. This package pins its whole peer set to `0.1.0-rc.7`. Adding either one purely to read its type declarations would pull a second `dsh-session` into the tree, and the module augmentation that gives session events their payload types would then have two disagreeing targets. The unblock is a tree-wide bump to `0.1.2-rc.x`, not a devDependency.
+- **Sub-agent visualization.** *Shipped, as workflow runs — see §1.17.* A fan-out draws as one entry with a `↳` row per child agent. Getting here took three corrections and they are all kept, because each was a different way of being wrong about the same thing.
+
+  The first two revisions called this blocked on a version line: `@deepseek-ai/dsh-subagent` and `@deepseek-ai/dsh-tool-workflow` supposedly existed only on `0.1.2-rc.x`, whose peers would drag a second `dsh-session` into the tree and split the module augmentation that types session events. False — both publish **`0.1.0-rc.7`**, the line this package pins, with `@deepseek-ai/dsh-session@^0.1.0-rc.7` peers throughout. The trap is worth naming: every package in this family carries a `latest` dist-tag of `0.0.1-rc.1`, so `npm view <pkg>` alone reports a version far *below* the pinned line and reads like confirmation. `versions --json` is the command; `npm view` is not.
+
+  The third revision, written an hour later while fixing the second, said the remaining work was a design problem — that a sub-agent's turn is "a whole session's worth of entries inside one tool call". Also false, and this one came from reading the roadmap's own wording instead of the `.d.ts`. `dsh-subagent` emits exactly one event, `subagent/descriptor`, into the **child's** log; the parent session never sees it, so there was never a nesting problem to solve there. `dsh-tool-workflow` is the package that writes into the calling parent, and its four events are a flat run/member record that needed no new idea at all — §1.16's answer applied unchanged.
+
+  So: **five** times this list has written off a reachable capability, and the failure mode has now been each of "no published plugin" (MCP, twice), "no published plugin" again (hooks), "wrong version line" (this, twice), and "a design problem" (this). The check is `npm view <pkg> versions --json`, then reading the `.d.ts` in the tarball, then checking *which* package emits into the session you are actually reading.
+
+- **Code Mode sub-calls.** *Shipped.* Not on any list in this document before it shipped, and the blind spot was this package's own: `cordis.patch.yml` mounts `code-runtime`, so a `run_code` program's bridged tool calls were being logged in every assembly the TUI ships in and drawn in none of them. A sub-call is now one `↳` row inside its parent entry — see §1.16. It cost no new dependency: `dsh-tools` is already a peer and declares both payloads, so `src/core/types.ts` imports the augmentation instead of copying it.
 - **MCP tool surface.** *The TUI's half is shipped.* This item previously said no MCP plugin was published on any version line. That was wrong: `@deepseek-ai/dsh-mcp-client` publishes `0.1.0-rc.7`, the line this package pins to, and its peers do not pull a second `dsh-session` — so nothing here was ever blocked.
 
   What the plugin actually offers turned out to decide the design. It publishes **no service and no session events**; one instance connects to one server and registers that server's tools on `ctx.tools` as `mcp__<serverName>__<rawName>`. The naming convention is the entire interface for rendering. So the TUI parses the name (`parseToolName`, §3.4) and renders with **no dependency at all** — the same build renders correctly in an assembly that mounts no MCP and in one that mounts six servers. `/mcp` is the one place that reads the registry itself, and it reads it through a type-only `dsh-tools` dependency (`service()`, §3.3) — no runtime import, and the command degrades to a translated "no tool registry" line in an assembly without one.
 
   A bridged call reads `github:create_issue(it broke)` in the transcript, and the approval card adds a yellow row naming the server, because approving a bridged tool is a different decision from approving a built-in one: the arguments leave the machine. See §1.12.
 
-  `/mcp` now ships (§1.5). What it reports is the *tool surface*, not the link: with no service and no events, "connected" can only be inferred from whether the tools are registered. *Configuring* a server remains a user patch layer (`insert` one `mcp-client` per server), which is not something a TUI user can discover; that is a bundle and documentation problem, and the README's MCP section is where the recipe lives.
+  `/mcp` now ships (§1.5). What it reports is the *tool surface*, not the link: with no service and no events, "connected" can only be inferred from whether the tools are registered.
+
+  *Configuring* a server used to be the remaining hole, and this list called it "a bundle and documentation problem". It was not: it was a missing command. `/mcp add` now takes the `mcpServers` block the user already has in their clipboard, writes it to the home patch layer, and the launcher's config watcher connects it without a restart — see §1.12.1. It cost no harness change and no new peer, only a `yaml` dependency to edit the user's file without eating their comments. What genuinely does need harness work is credentials: the bridge's `env` resolves no credential references, so a key in a pasted snippet is written in plaintext and flagged rather than stored.
 - **Agent skills.** *Shipped.* `@deepseek-ai/dsh-skill` publishes `0.1.0-rc.7` and `dsh-base` mounts the registry, the filesystem provider and the `skill` tool, all enabled — so the model half was already working and the human half was simply unclaimed. A user-invocable skill is now a `/` row that injects `renderSkillContent()`'s block and starts a turn; see §1.14. Nothing about it needed a version bump.
 - **Hooks visualization.** *Shipped.* This item spent its life saying the payloads were undefined because "no `dsh-hooks` package exists" — the third time this list wrote off a shipped capability that way, after MCP twice. `@deepseek-ai/dsh-hook-protocol` publishes `0.1.0-rc.7`, the pinned line, and declares both payloads in full.
 
-  A hook run is now one row, paired on `handlerId`, drawn dim when the hook changed nothing and `yellow` when it denied, asked or halted — see §1.15. It cost **no dependency**: `src/types.ts` declares the two payloads locally, as it already does for `compaction/*` and `plan/mode`, because `dsh-base` mounts no bridge and a hard peer would warn on every install for a feature that draws nothing until a user inserts one.
+  A hook run is now one row, paired on `handlerId`, drawn dim when the hook changed nothing and `yellow` when it denied, asked or halted — see §1.15. It cost **no dependency**: `src/core/types.ts` declares the two payloads locally, as it already does for `compaction/*` and `plan/mode`, because `dsh-base` mounts no bridge and a hard peer would warn on every install for a feature that draws nothing until a user inserts one.
 
   What remains is an aggregate for the match-everything case, which is deliberately deferred rather than blocked (§1.15).
 
@@ -923,31 +1132,57 @@ Rules contributors must follow. Breaking any of them needs a PR that updates thi
 src/
 ├── index.ts            # Cordis plugin entry — side effects
 ├── renderer.tsx        # Ink root — wires state + components
-├── state.ts            # Pure reducer — (UiState, SessionEvent) → UiState
-├── types.ts            # Type-only — UiEntry, UiState, isRenderable
-├── commands.ts         # Pure dispatch — string → CommandResult
 ├── invariant.ts        # Type companion for dsh-invariants (no runtime)
-├── markdown.ts         # Pure markdown → UI AST (no React, no Ink)
-├── highlight.ts        # Pure token shaping + line cache, and the one Shiki load
-├── resize.ts           # Real-TTY resize owner — debounce, clear, rerender, repaint
-├── services.ts         # Typed optional-service reads off the Cordis context
-├── environment.ts      # Process facts — version, cwd, git label
-├── interrupt.ts        # Ctrl-C / abort plumbing
-├── width.ts            # Display-column measurement (CJK-aware)
-├── scroll.ts           # Pure scroll arithmetic
-├── message-layout.ts   # Pure message-list layout arithmetic, incl. MCP name parsing
-├── prompt-editing.ts   # Pure prompt buffer edits — beside Prompt.tsx
-├── prompt-layout.ts    # Pure prompt layout arithmetic
-├── file-mentions.ts    # `@` mention parsing + path ranking, and the one walk
-├── attachments.ts      # Pure image-path detection in a submitted line
-├── attach-runner.ts    # The one place that reads image bytes and commits them
-├── skills.ts           # Pure skill-row layout, precedence, and name parsing
-├── skill-runner.ts     # Reads ctx.skills and builds an invocation's two messages
-├── hook-runs.ts        # Pure hook-decision vocabulary — how loud a run is drawn
-├── plugins.ts          # Pure classification + table for `/plugins`
-├── banner-art.ts       # Pure banner art + text — beside Banner.tsx
-├── theme.ts            # Pure appearance arithmetic, and the one terminal probe
-├── clipboard.ts        # Pure OSC 52 sequence + what `/copy` selects
+├── core/               # Shared kernel
+│   ├── types.ts        # Type-only — UiEntry, UiState, isRenderable
+│   ├── state.ts        # Pure reducer — (UiState, SessionEvent) → UiState
+│   ├── services.ts     # Typed optional-service reads off the Cordis context
+│   ├── i18n.ts         # The bilingual string catalog
+│   └── width.ts        # Display-column measurement (CJK-aware)
+├── prompt/             # The input line
+│   ├── prompt-editing.ts # Pure prompt buffer edits — beside Prompt.tsx
+│   ├── prompt-layout.ts  # Pure prompt layout arithmetic
+│   ├── paste.ts          # Bracketed-paste decoding
+│   ├── vim.ts            # Pure vim keymap state machine
+│   └── file-mentions.ts  # `@` mention parsing + path ranking, and the one walk
+├── pickers/            # The command-anchored picker family
+│   ├── skills.ts           # Pure skill-row layout, precedence, and name parsing
+│   ├── skill-runner.ts     # Reads ctx.skills and builds an invocation's two messages
+│   ├── model-picker.ts     # /model rows, mentions, and the submitted line
+│   ├── permission-picker.ts # /permission rows, mentions, and the submitted line
+│   └── mcp-picker.ts       # /mcp add rows, mentions, and the submitted line
+├── mcp/                # MCP servers
+│   ├── mcp.ts            # Registry reads, /mcp layout, the connect-wait
+│   ├── mcp-config.ts     # Pasted snippet → loader row
+│   ├── mcp-patch.ts      # The patch-layer reader/writer
+│   └── mcp-catalog.ts    # The static /mcp add preset catalog
+├── shell/              # `!` escapes
+│   ├── shell.ts          # Pure `!` parsing, cd rules, clamping
+│   └── shell-runner.ts   # The one spawner
+├── attachments/        # Image attachments
+│   ├── attachments.ts    # Pure image-path detection in a submitted line
+│   └── attach-runner.ts  # The one place that reads image bytes and commits them
+├── commands/           # Slash-command dispatch and its backends
+│   ├── commands.ts       # Pure dispatch — string → CommandResult
+│   ├── plugins.ts        # Pure classification + table for `/plugins`
+│   ├── sessions.ts       # /sessions listing
+│   ├── usage.ts          # /usage + /context reports
+│   ├── permissions.ts    # The permission-projection read
+│   ├── clipboard.ts      # Pure OSC 52 sequence + what `/copy` selects
+│   └── resume.ts         # --resume planning
+├── render/             # Transcript rendering
+│   ├── markdown.ts       # Pure markdown → UI AST (no React, no Ink)
+│   ├── highlight.ts      # Pure token shaping + line cache, and the one Shiki load
+│   ├── message-layout.ts # Pure message-list layout arithmetic, incl. MCP name parsing
+│   ├── scroll.ts         # Pure scroll arithmetic
+│   ├── hook-runs.ts      # Pure hook-decision vocabulary — how loud a run is drawn
+│   └── banner-art.ts     # Pure banner art + text — beside Banner.tsx
+├── terminal/           # The machine this runs on
+│   ├── theme.ts          # Pure appearance arithmetic, and the one terminal probe
+│   ├── settings.ts       # Read/write ~/.dsh/tui.json
+│   ├── environment.ts    # Process facts — version, cwd, git label
+│   ├── resize.ts         # Real-TTY resize owner — debounce, clear, rerender, repaint
+│   └── interrupt.ts      # Ctrl-C / abort plumbing
 ├── hooks/              # React-only — useInput, useEffect, useState
 └── components/         # React components — pure functions of state
 ```
@@ -987,9 +1222,11 @@ The reducer is the unit-test surface for the model layer. Every new `SessionEven
 
 #### 3.2.1 What the reducer cannot project yet
 
-**Approval prompts are answered, but not by the reducer.** `dsh-session` rc.7 lists `approval/asked`, `approval/decided` and `approval/policy` in its generated persistence catalog — the set of event types this build will read back from a log — but they are **not** members of the typed `SessionEventMap`. The plugin that merges those variants in is not a peer dependency of this package, so `SessionEvent` here is a union that says those events cannot occur. A `case 'approval/asked'` in the reducer would not compile without a cast, and the cast would be asserting the shape of a payload no installed type declares. That much is still true, and it is why there is no approval `UiEntry`.
+**Approval prompts are answered by the live card, and recorded by the reducer — see §1.18.** This section carried two claims about that, in sequence, and both were wrong. The first was that `approval/asked`, `approval/decided` and `approval/policy` are "not members of the typed `SessionEventMap`": false — `@deepseek-ai/dsh-user-approval@0.1.0-rc.7` is a peer dependency and `lib/types/index.d.ts` augments the map with all three, fully typed. The second, written when the first was corrected, was that the reducer had no approval `UiEntry` because nobody had written one; that was true when written and is no longer. Both corrections are left in the text rather than quietly deleted, because the shape of the mistake — reading a *stated* gap as a *verified* one — is the same one §1.16, §1.17 and Part 2 each record, and the count is the point.
 
-This section used to conclude from that the approval flow was blocked. **The conclusion was wrong, and the way it was wrong is worth keeping.** The question a user has to answer never travels through the session log in the first place: `dsh-tools` calls `ctx.approval.request()`, and `ApprovalService` dispatches `approval/request` as a **waterfall** on the Cordis context. Reading the log is how you learn an approval *happened*; answering one is a live request/response with no reducer in it. Looking for the feature in the event union found the one place it provably was not.
+The consequence while it lasted was real: an approval you answered was invisible after `/resume`, because the live prompt is not `UiState` and the audit events that *are* in the log were dropped.
+
+**The live prompt was never the blocked part, though.** The question a user has to answer never travels through the session log in the first place: `dsh-tools` calls `ctx.approval.request()`, and `ApprovalService` dispatches `approval/request` as a **waterfall** on the Cordis context. Reading the log is how you learn an approval *happened*; answering one is a live request/response with no reducer in it. Looking for the feature in the event union found the one place it provably was not.
 
 So `hooks/useApprovalRequests.ts` registers this terminal as the answerer for its own agent and holds the listener's promise open until a keystroke settles it, and `components/ApprovalPrompt.tsx` draws the oldest pending question with `y`/`n`/`Esc`. It sits beside the Prompt rather than inside the log, so nothing about it is `UiState`. Three facts make that safe, and each is load-bearing:
 
@@ -1164,7 +1401,7 @@ heeded when it was built.
   it. The two quantities are identical for exactly one turn, which is how a
   test suite can pass over the mistake.
 
-  The fix is `contextOccupancy` in [`src/usage.ts`](./../src/usage.ts): read the
+  The fix is `contextOccupancy` in [`src/commands/usage.ts`](./../src/commands/usage.ts): read the
   **latest** assistant entry's billed input plus its output, and nothing else.
   That module now owns both readings side by side, with the distinction stated
   at the top, because the bug's habitat was two copies of the same loop — one in
@@ -1207,7 +1444,7 @@ Do not add a snapshot test. There is no snapshot in this package and no `renderH
 
 **What the suite structurally cannot reach, and what discharges it.** Every test runs with no TTY and with chalk's color level pinned to 0. Four shipped behaviours are therefore covered only as arithmetic: the OSC 11 probe never gets a reply, the OSC 52 write never reaches a clipboard, no assertion can say whether a chosen color is legible, and no frame carries the SGR bytes that would show a hook's two weights (§1.15) apart. `docs/TUI-ROADMAP.md` §7 makes "it works in a real TTY" an acceptance rule, so those four are discharged by `scripts/tty-check.ts` (`pnpm tty-check`) — a diagnostic a human runs in their own terminal.
 
-Two rules govern it. It **imports the real modules** (`src/theme.ts`, `src/clipboard.ts`, `src/highlight.ts`, `src/banner-art.ts`, `src/hook-runs.ts`) rather than reimplementing the sequences: a checker carrying its own copy of the OSC 11 parser would verify the terminal and prove nothing about the code that ships. And it prints the three human-answerable checks **as questions**, never as ticks — a program cannot see whether a comment token is readable, and a script that claims it can is worse than no script. This is not a test, it does not run in CI, and `package.json#files` excludes `scripts/` so it does not ship.
+Two rules govern it. It **imports the real modules** (`src/terminal/theme.ts`, `src/commands/clipboard.ts`, `src/render/highlight.ts`, `src/render/banner-art.ts`, `src/render/hook-runs.ts`) rather than reimplementing the sequences: a checker carrying its own copy of the OSC 11 parser would verify the terminal and prove nothing about the code that ships. And it prints the three human-answerable checks **as questions**, never as ticks — a program cannot see whether a comment token is readable, and a script that claims it can is worse than no script. This is not a test, it does not run in CI, and `package.json#files` excludes `scripts/` so it does not ship.
 
 ### 3.5 Secret handling
 
@@ -1256,11 +1493,11 @@ After publish, the dsh-tui bundle becomes available as `@deepseek-ai/dsh-tui@0.1
 
 The interface is bilingual; everything a contributor reads is English.
 
-- **On-screen strings: English and Chinese, from one catalog.** Every string this UI can put on screen lives in `src/i18n.ts`, once per language. English is the source of truth — `EN` is typed as `Catalog`, so a key added without an English string fails to compile, and `tests/i18n.spec.ts` fails when the Chinese side is missing one. Components read strings through `useStrings()`, never as literals.
+- **On-screen strings: English and Chinese, from one catalog.** Every string this UI can put on screen lives in `src/core/i18n.ts`, once per language. English is the source of truth — `EN` is typed as `Catalog`, so a key added without an English string fails to compile, and `tests/i18n.spec.ts` fails when the Chinese side is missing one. Components read strings through `useStrings()`, never as literals.
 - **`/language` switches the chrome, not the conversation.** The command changes the language of the TUI's own text and nothing else. It does not instruct the model, does not touch the prompt, and does not appear in the session log as anything but a command entry. The choice persists in `~/.dsh/tui.json`.
 - **Four things stay untranslated, deliberately.** Brand art (the whale, the wordmark, the slogan) is a logo. Key names (`Tab`, `Esc`, `Enter`) are what is printed on the keyboard. Plugin command descriptions come from another package's registry and are shown as written. Identifiers a plugin chose — producer names, form names, model and provider ids — are names, not prose.
-- **`(+N more)` used to stay untranslated, and no longer does.** `src/message-layout.ts` is measured by `src/scroll.ts` and rendered by `MessageList`, and the two must agree on the row count to the character — so a language-dependent summary string would have meant threading the catalog into the scroll geometry. The fix was to stop returning a string. `outputPreview` returns `{ lines, hidden }`, the renderer draws `hidden` through `entries.hiddenLines(n)`, and every row it draws is `wrap="truncate"` — so the *height* stays language-independent even though the *text* is not. Reach for that shape whenever measurement and translation seem to be in conflict; `shellStatusKinds` is the same move.
-- **Column width, not character count.** A CJK glyph occupies two terminal columns. Any string that is padded, centred, or truncated must be measured with `displayWidth` from `src/width.ts`. Counting characters lets a row through at twice its budget, the terminal wraps it, and Ink — which erases by logical line count — under-erases it on every redraw. See `docs/lessons/resize-reflow.md`.
+- **`(+N more)` used to stay untranslated, and no longer does.** `src/render/message-layout.ts` is measured by `src/render/scroll.ts` and rendered by `MessageList`, and the two must agree on the row count to the character — so a language-dependent summary string would have meant threading the catalog into the scroll geometry. The fix was to stop returning a string. `outputPreview` returns `{ lines, hidden }`, the renderer draws `hidden` through `entries.hiddenLines(n)`, and every row it draws is `wrap="truncate"` — so the *height* stays language-independent even though the *text* is not. Reach for that shape whenever measurement and translation seem to be in conflict; `shellStatusKinds` is the same move.
+- **Column width, not character count.** A CJK glyph occupies two terminal columns. Any string that is padded, centred, or truncated must be measured with `displayWidth` from `src/core/width.ts`. Counting characters lets a row through at twice its budget, the terminal wraps it, and Ink — which erases by logical line count — under-erases it on every redraw. See `docs/lessons/resize-reflow.md`.
 - **README: bilingual.** English in `README.md`, Chinese in `README.zh.md`. Update both in the same PR.
 - **Spec, comments, commit messages, PR descriptions: English.** Even when the surrounding repo uses Chinese for communication.
 
@@ -1280,7 +1517,7 @@ Code and docs ship in lockstep. A change to `src/` without a matching doc update
 | New `SessionEvent` type | `state.ts` case in `tests/state.spec.ts` + reducer contract section if it introduces a new rule |
 | New slash command | `commands.ts` + `tests/commands.spec.ts` + slash-command table in `README.md` and `README.zh.md` |
 | New `UiEntry` kind | `scroll.ts` `estimateEntryRows` + `MessageList.tsx` case + a row-count case in `tests/scroll.spec.ts` + Part 1 if it has a glyph or color |
-| New on-screen string | `Catalog` in `src/i18n.ts` + **both** the `EN` and `ZH` entries (English alone does not compile; a missing translation fails `tests/i18n.spec.ts`) |
+| New on-screen string | `Catalog` in `src/core/i18n.ts` + **both** the `EN` and `ZH` entries (English alone does not compile; a missing translation fails `tests/i18n.spec.ts`) |
 | New platform behavior (env, build step, native dep) | `README.md` "Use it" / "Develop it" + Windows callout if relevant |
 | New color, glyph, border, layout rule | `docs/SPEC.md` Part 1 — Style |
 | New milestone or completed feature | `docs/SPEC.md` Part 2 — Roadmap (move from planned to shipped) |

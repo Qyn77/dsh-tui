@@ -32,7 +32,7 @@ import { render } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { App } from '../src/renderer.tsx'
-import { installResizeOwner, type RepaintRef } from '../src/resize.ts'
+import { installResizeOwner, type RepaintRef } from '../src/terminal/resize.ts'
 
 /** `\u001B` spelled out, so this file contains no literal control bytes. */
 const ESC = String.fromCharCode(27)

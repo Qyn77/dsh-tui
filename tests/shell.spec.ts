@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { resolve } from 'node:path'
-import { clampOutput, parseCd, parseShellInput, resolveCd } from '../src/shell.ts'
+import { clampOutput, parseCd, parseShellInput, resolveCd } from '../src/shell/shell.ts'
 
 describe('parseShellInput', () => {
   it('ignores lines that are not escapes', () => {

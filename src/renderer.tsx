@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, type FC, type
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, type CallId } from '@deepseek-ai/dsh-llm'
-import type { HistoryPref } from './types.ts'
+import type { HistoryPref } from './core/types.ts'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
 import { StatusBar } from './components/StatusBar.tsx'
@@ -24,20 +24,24 @@ import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { useRegistryCommands } from './hooks/useRegistryCommands.ts'
 import { useApprovalRequests } from './hooks/useApprovalRequests.ts'
 import { useShell } from './hooks/useShell.ts'
-import { parseShellInput } from './shell.ts'
-import { attachImages, classifyModalities, refusalText } from './attach-runner.ts'
-import { resolveSkill, skillFailureText, viewingScope } from './skill-runner.ts'
+import { parseShellInput } from './shell/shell.ts'
+import { attachImages, classifyModalities, refusalText } from './attachments/attach-runner.ts'
+import { resolveSkill, skillFailureText, viewingScope } from './pickers/skill-runner.ts'
 import { useSkillCommands } from './hooks/useSkillCommands.ts'
-import { service } from './services.ts'
-import { dispatch } from './commands.ts'
-import { handleCancel, handleInterrupt } from './interrupt.ts'
-import { catalog, type Lang } from './i18n.ts'
+import { usePermissionPreset } from './hooks/usePermissionPreset.ts'
+import { permissionRows } from './pickers/permission-picker.ts'
+import { useModelCommands } from './hooks/useModelCommands.ts'
+import { service } from './core/services.ts'
+import { commands, dispatch } from './commands/commands.ts'
+import { handleCancel, handleInterrupt } from './terminal/interrupt.ts'
+import { catalog, type Lang } from './core/i18n.ts'
 import { LanguageProvider } from './hooks/useStrings.tsx'
 import { ThemeProvider } from './hooks/useTheme.tsx'
-import type { Appearance, ThemePref } from './theme.ts'
-import type { SwapSession } from './resume.ts'
-import { writeSettings } from './settings.ts'
-import { CLEAR_SCREEN, type RepaintRef } from './resize.ts'
+import type { Appearance, ThemePref } from './terminal/theme.ts'
+import type { KeybindPref } from './prompt/vim.ts'
+import type { SwapSession } from './commands/resume.ts'
+import { writeSettings } from './terminal/settings.ts'
+import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 
 
@@ -97,6 +101,11 @@ export interface AppProps {
    */
   historyPref?: HistoryPref
   /**
+   * Which keymap the prompt editor starts on, read from `~/.dsh/tui.json` at
+   * boot. Defaults to the readline editor.
+   */
+  keybinds?: KeybindPref
+  /**
    * Which way the terminal's background reads, as measured by `index.ts` before
    * Ink mounted — the query has to happen while nobody else owns stdin, so it
    * cannot happen in here. Defaults to `'dark'`, which is what shipped before
@@ -147,6 +156,7 @@ export const App: FC<AppProps> = ({
   lang: initialLang = 'en',
   themePref: initialThemePref = 'auto',
   historyPref: initialHistoryPref = 'show',
+  keybinds: initialKeybindPref = 'default',
   appearance: detected = 'dark',
   swapSession,
 }) => {
@@ -155,13 +165,7 @@ export const App: FC<AppProps> = ({
   const [historyPref, setHistoryPref] = useState<HistoryPref>(initialHistoryPref)
   const { state, resetView, appendEntry } = useSessionEvents(ctx, agent, { history: historyPref })
   const registryRows = useRegistryCommands(ctx, agent)
-  const skillRowsForPalette = useSkillCommands(ctx, agent, registryRows)
-  // Registry rows first: they outrank skills on a name collision, and
-  // `filterCommands` keeps the first of a duplicate pair.
-  const extraCommands = useMemo(
-    () => [...registryRows, ...skillRowsForPalette],
-    [registryRows, skillRowsForPalette],
-  )
+  const permissionPreset = usePermissionPreset(ctx, agent)
   const approvals = useApprovalRequests(ctx, agent)
   // Appended once, in an effect rather than as a seeded entry, because the view
   // is seeded by replaying the session's durable log and a boot notice is not
@@ -188,6 +192,25 @@ export const App: FC<AppProps> = ({
   // `/language` changes it mid-session and every framed string has to follow.
   const [lang, setLang] = useState<Lang>(initialLang)
   const strings = catalog(lang)
+  // Skills no longer ride along in the `/` palette: they feed the `/skill `
+  // picker as a separate prop. Shadowing therefore can't happen in
+  // `filterCommands` anymore, so both higher layers' names are claimed here.
+  const claimedCommands = useMemo(
+    () => [...commands(lang), ...registryRows],
+    [lang, registryRows],
+  )
+  const skillRowsForPicker = useSkillCommands(ctx, agent, claimedCommands)
+  // Presets for the `/permission ` picker. Same projection value as the
+  // StatusBar chip: no service mounted means an empty list, which means no
+  // picker and the plugin command's own bare-command answer stays reachable.
+  const permissionRowsForPicker = useMemo(
+    () => permissionPreset === undefined ? [] : permissionRows(permissionPreset),
+    [permissionPreset],
+  )
+  // The current provider's catalogue for the `/model ` picker. Async like the
+  // skill catalog, scoped like the selection: no llm service or no selection
+  // means an empty list, which means no picker.
+  const modelRowsForPicker = useModelCommands(ctx, selection)
   // `!` escapes. Declared here because both the interrupt handler and the
   // submit handler need it, and it is the owner of the working directory.
   const shell = useShell({ agent, appendEntry, strings })
@@ -226,6 +249,16 @@ export const App: FC<AppProps> = ({
   const setHistory = useCallback((next: HistoryPref) => {
     setHistoryPref(next)
     writeSettings({ history: next })
+  }, [])
+  /**
+   * Switch the prompt editor's keymap, on the same terms as {@link setTheme}.
+   * Persisted for a stronger reason than the theme is: a modal editor you have
+   * to re-enable every launch is one nobody would keep using.
+   */
+  const [keybindPref, setKeybindPref] = useState<KeybindPref>(initialKeybindPref)
+  const setKeybinds = useCallback((next: KeybindPref) => {
+    setKeybindPref(next)
+    writeSettings({ keybinds: next })
   }, [])
   /**
    * Write a control sequence to the terminal, for `/copy`.
@@ -540,6 +573,8 @@ export const App: FC<AppProps> = ({
           lang,
           setTheme,
           themePref,
+          setKeybinds,
+          keybindPref,
           setHistory,
           historyPref,
           appearance,
@@ -566,6 +601,11 @@ export const App: FC<AppProps> = ({
             // the name. That ordering is the precedence rule (`skills.ts`):
             // the layer a user creates by dropping a file into a directory is
             // the one that must not shadow anything.
+            void runSkill(result.input)
+          } else if (result.kind === 'skill') {
+            // `/skill <name> [args]` rewrites to the same line the direct
+            // `/<name>` fallback takes, so both invocations share one path —
+            // one inject/followup ordering and one set of failure notes.
             void runSkill(result.input)
           }
           // 'exit' is handled inside dispatch by calling appExit; nothing more
@@ -627,6 +667,34 @@ export const App: FC<AppProps> = ({
       setTheme, themePref, appearance, emit, strings, state, shell, swapSession,
       scroll.setExpanded, scroll.expanded, attach, statusRef,
     ],
+  )
+
+  /**
+   * Step through the advertised permission presets, wired to Tab / Shift+Tab
+   * on an empty prompt. The submitted line is the same `/permission <value>`
+   * the picker's Enter sends, deliberately: the switch keeps its audit trail
+   * (command echo plus the plugin's own answer), the busy-check applies, and
+   * the chip follows through its knob-event subscription.
+   *
+   * A `currentValue` outside the advertised options (`custom` — the knobs
+   * were set individually) has no position to step from; forward enters the
+   * table at its first row and backward at its last, so the key always lands
+   * somewhere the projection can name.
+   */
+  const cyclePermission = useCallback(
+    (direction: 1 | -1) => {
+      if (permissionPreset === undefined) return
+      const values = permissionPreset.options.map(option => option.value)
+      if (values.length < 2) return
+      const at = values.indexOf(permissionPreset.currentValue)
+      const stepped = at === -1
+        ? (direction === 1 ? 0 : values.length - 1)
+        : (at + direction + values.length) % values.length
+      const next = values[stepped]
+      if (next === undefined) return
+      onSubmit(`/permission ${next}`)
+    },
+    [permissionPreset, onSubmit],
   )
 
   if (selection === undefined) {
@@ -731,6 +799,7 @@ export const App: FC<AppProps> = ({
             state={state}
             spinnerFrame={spinnerFrame}
             elapsedSeconds={elapsedSeconds}
+            preset={permissionPreset}
           />
         )}
         <MessageList
@@ -790,8 +859,13 @@ export const App: FC<AppProps> = ({
           onArrowClaimChange={setPromptClaimsArrows}
           onFilledChange={setPromptFilled}
           onEscClaimChange={setPromptClaimsEsc}
+          keybinds={keybindPref}
           onOverlayRowsChange={setPromptOverlayRows}
-          extraCommands={extraCommands}
+          extraCommands={registryRows}
+          skillCommands={skillRowsForPicker}
+          permissionCommands={permissionRowsForPicker}
+          onCyclePermission={permissionRowsForPicker.length > 1 ? cyclePermission : undefined}
+          modelCommands={modelRowsForPicker}
         />
       </Box>
     </AppProviders>

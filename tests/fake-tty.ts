@@ -16,9 +16,11 @@ import { render } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
 import { Session } from '@deepseek-ai/dsh-session'
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
 import { App } from '../src/renderer.tsx'
-import type { Lang } from '../src/i18n.ts'
-import type { Appearance, ThemePref } from '../src/theme.ts'
+import type { Lang } from '../src/core/i18n.ts'
+import type { Appearance, ThemePref } from '../src/terminal/theme.ts'
+import type { KeybindPref } from '../src/prompt/vim.ts'
 
 /** Built, never quoted: an invisible ESC byte in source is unreviewable. */
 export const ESC = String.fromCharCode(27)
@@ -99,9 +101,28 @@ export const strip = (frame: string): string =>
  * A test about *switching* sessions has to override it: the projection re-seeds
  * on a change of session id, so two sessions sharing one id would exercise the
  * unchanged path and prove the opposite of what such a test claims.
+ *
+ * Every session opens with the permission knobs `dsh-permission-presets` writes
+ * while constructing one that carries none, because in the assemblies this
+ * package actually ships in, every session does. The fixture used to start with
+ * an empty log, and that gap cost a shipped regression: `approval/policy` drew
+ * an entry, an entry at boot takes the splash banner away (`renderer.tsx` draws
+ * it only while there are none), and no test could see it because no test had
+ * the seed. Two of these three events are not in `isRenderable`; the third is
+ * handled in `onApprovalPolicy`.
  */
 export function seedSession(turns: number, id = 'tui-frame'): Session {
   const session = Session.create(id as never)
+  // `permission/preset` and `sandbox/mode` belong to a package this build does
+  // not depend on, so they are not in the typed event map. The cast widens the
+  // call rather than detaching the method: `Session.append` uses `this`, so a
+  // hoisted reference to it would seed nothing and fail 200 frame tests at once.
+  const write = (type: string, data: unknown): void => {
+    (session.append as (t: string, d: unknown) => void).call(session, type, data)
+  }
+  write('permission/preset', { preset: 'workspace-write' })
+  write('sandbox/mode', { mode: 'workspace-write' })
+  write('approval/policy', { policy: 'ask' })
   for (let turn = 1; turn <= turns; turn += 1) {
     session.append('turn/start', { turn })
     session.append('step/start', { turn, step: 1 })
@@ -204,6 +225,11 @@ export interface PaintOptions {
   /** What `/theme` should report as the current setting. Defaults to `auto`. */
   themePref?: ThemePref
   /**
+   * Which keymap the prompt boots on. Defaults to `default`, so every existing
+   * frame test types into the readline editor it always did.
+   */
+  keybinds?: KeybindPref
+  /**
    * Stand-in for `agent.inject`. Defaults to a no-op; pass a spy to assert what
    * a `!!` escape queued for the model.
    */
@@ -218,6 +244,39 @@ export interface PaintOptions {
   followup?: (message: unknown) => void
   /** Stand-in for `agent.cancel`. Defaults to a no-op. */
   cancel?: (cause: unknown) => void
+  /**
+   * Skill names to mount a fake `skills` registry with. Every skill is
+   * user-invocable, describes itself as `does <name>`, and loads a body of
+   * `body of <name>` on `get()`. The default fixture includes `clear`, the
+   * built-in name a dropped-in skill must never shadow, so the precedence rule
+   * is exercised in every mount that opens the picker. Pass `[]` for a registry
+   * that discovered nothing.
+   */
+  skills?: readonly string[]
+  /**
+   * Effective permission-preset word to mount a fake `sessionProjections`
+   * service for. The registry's `permissions` snapshot reports it as current
+   * alongside the three dsh-base table keys, the same way
+   * `dsh-permission-presets` presents them. Omitted entirely when no value is
+   * given — most mounts have no projection service and must draw no chip.
+   */
+  preset?: string
+  /**
+   * Plugin command descriptors to mount a fake `ctx.commands` registry with.
+   * Each descriptor answers `list()`; its optional handler receives the raw
+   * line `/permission` submits and its returned text becomes the command's
+   * output. Omitted entirely in most mounts — no registry means plugin names
+   * fall through to `unknown`.
+   */
+  registryCommands?: ReadonlyArray<{ name: string; description?: string; handler?: (raw: string) => string }>
+  /**
+   * Model ids to mount a fake `llm` service with, advertised to the current
+   * provider's `listModels()` in the given order, each describing itself as
+   * `name of <id>`. Omitted by default — most mounts have no llm service,
+   * which is one of the two states the `/model ` picker must degrade from
+   * (the other is an empty catalogue, `models: []`).
+   */
+  models?: readonly string[]
   /**
    * Ink's `debug` render mode, on by default because it writes each frame as
    * one plain chunk and that is what makes `screen()` readable.
@@ -235,18 +294,107 @@ export interface PaintOptions {
 
 const selection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
 
+/**
+ * A fake `ctx.sessionProjections` with only the `permissions` unit, mirroring
+ * dsh-permission-presets' dsh-base table. Every snapshot is a fresh object
+ * with the same contents, as the real registry returns a fresh cut per read.
+ */
+function fakeProjections(preset: string) {
+  const select = {
+    currentValue: preset,
+    options: [
+      { value: 'read-only', name: 'Read-only' },
+      { value: 'workspace-write', name: 'Workspace write' },
+      { value: 'danger-full-access', name: 'Danger: full access' },
+    ],
+  }
+  return {
+    snapshot: () => ({ asOfSeq: 0, values: { permissions: select } }),
+  }
+}
+
+/** Default catalog for the fake registry; `clear` is the built-in-shadow case. */
+const DEFAULT_SKILLS = ['review', 'refresh', 'changelog', 'clear'] as const
+
+/** Build one user-invocable summary, the same shape the fs provider emits. */
+function skillSummary(name: string): SkillSummary {
+  return {
+    name,
+    description: `does ${name}`,
+    invocation: { modelInvocable: true, userInvocable: true },
+    source: 'project-dsh',
+    provider: 'fs',
+  }
+}
+
+/**
+ * A fake `ctx.skills` over a fixed name list: an immediately-complete
+ * `snapshot()` and a `get()` that loads a body for any name the snapshot
+ * advertised. Mirrors the `fakeCatalog` of skill-runner.spec.ts.
+ */
+function fakeSkills(names: readonly string[]) {
+  const skills = names.map(skillSummary)
+  return {
+    snapshot: () => Promise.resolve({ skills: [...skills], complete: true }),
+    get: (name: string): Promise<SkillDefinition | undefined> => {
+      const found = skills.find(s => s.name === name)
+      return Promise.resolve(found ? { ...found, content: `body of ${name}` } : undefined)
+    },
+  }
+}
+
 /** Mount the real `App` against a fake TTY of the given size. */
 export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
-    appearance = 'dark', themePref = 'auto', steer, followup, cancel,
+    appearance = 'dark', themePref = 'auto', keybinds = 'default', steer, followup, cancel,
+    skills = DEFAULT_SKILLS, preset, registryCommands: pluginCommands, models,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
   stdout.isTTY = tty
   const stdin = fakeTtyStdin()
   const ctx = new Context()
-  ctx.provide('agentDefaultModel', { currentSelection: () => selection } as never)
+  // Per-mount copy: `saveSelection` mutates it, and the module-level default
+  // is shared by every test in a file.
+  const current = { ...selection }
+  ctx.provide('agentDefaultModel', {
+    // A fresh object per read: the App holds the selection in state and
+    // `refreshSelection` re-reads it, so returning the same mutated reference
+    // would leave a switch invisible to React's identity check.
+    currentSelection: () => ({ ...current }),
+    saveSelection: (next: { provider: string; model: string }) => {
+      current.provider = next.provider
+      current.model = next.model
+    },
+  } as never)
+  if (models !== undefined) {
+    ctx.provide('llm', {
+      listModels: (provider: string) => Promise.resolve(
+        models.map(id => ({ provider, id, name: `name of ${id}` })),
+      ),
+    } as never)
+  }
+  ctx.provide('skills', fakeSkills(skills) as never)
+  if (preset !== undefined) {
+    ctx.provide('sessionProjections', fakeProjections(preset) as never)
+  }
+  if (pluginCommands !== undefined) {
+    ctx.provide('commands', {
+      list: () => pluginCommands.map(({ name, description = '' }) => ({ name, description })),
+      // The runtime parses the name off the raw line itself; a line that
+      // matches no descriptor comes back `undefined` so dispatch calls it
+      // unknown. The fake mirrors that for the one name it knows.
+      execute: (_agent: unknown, raw: string) => {
+        const descriptor = pluginCommands.find(c => raw === `/${c.name}` || raw.startsWith(`/${c.name} `))
+        if (descriptor === undefined || descriptor.handler === undefined) return Promise.resolve(undefined)
+        return Promise.resolve({
+          descriptor,
+          result: { kind: 'success', text: descriptor.handler(raw) },
+        })
+      },
+    } as never)
+  }
   const session = seedSession(turns)
   // The double's status tracks the turn boundaries a test appends, rather
   // than sitting at 'idle' forever. `handleInterrupt` reads `agent.status`
@@ -272,6 +420,7 @@ export async function paintApp(
       lang,
       appearance,
       themePref,
+      keybinds,
       ...notice === undefined ? {} : { notice },
     }),
     {

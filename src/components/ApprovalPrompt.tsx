@@ -28,7 +28,7 @@ import { Box, Text, useInput } from 'ink'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import type { CallId } from '@deepseek-ai/dsh-llm'
 import type { PendingApproval } from '../hooks/useApprovalRequests.ts'
-import { approvalArgs, parseToolName } from '../message-layout.ts'
+import { approvalArgs, parseToolName } from '../render/message-layout.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link ApprovalPrompt}. */

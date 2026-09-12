@@ -9,12 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands.ts'
-import { catalog } from '../src/i18n.ts'
-import type { UiState } from '../src/types.ts'
-import { OSC52_MAX_BYTES, osc52 } from '../src/clipboard.ts'
-import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/message-layout.ts'
-import { MAX_SESSION_ROWS } from '../src/sessions.ts'
+import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands/commands.ts'
+import { catalog } from '../src/core/i18n.ts'
+import type { UiState } from '../src/core/types.ts'
+import { OSC52_MAX_BYTES, osc52 } from '../src/commands/clipboard.ts'
+import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/render/message-layout.ts'
+import { MAX_SESSION_ROWS } from '../src/commands/sessions.ts'
 
 interface Stand {
   ctx: Context
@@ -136,6 +136,25 @@ describe('slash command dispatch', () => {
     if (result.kind === 'handled') {
       expect(result.message).toContain('model: unknown')
       expect(result.message).toContain('tui-1')
+    }
+  })
+
+  it('names the effective permission preset on /status when a projection is mounted', async () => {
+    const { cmd } = makeCommand()
+    cmd.ctx.provide('sessionProjections', {
+      snapshot: () => ({
+        values: {
+          permissions: {
+            currentValue: 'danger-full-access',
+            options: [{ value: 'danger-full-access', name: 'Danger: full access' }],
+          },
+        },
+      }),
+    } as never)
+    const result = await dispatch('/status', cmd)
+    expect(result.kind).toBe('handled')
+    if (result.kind === 'handled') {
+      expect(result.message).toContain('permissions: danger-full-access')
     }
   })
 
@@ -499,6 +518,78 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/approval', () => {
+    /**
+     * An approval-service stand-in. The command only reads `overrideOf` and
+     * writes `setPolicy`; everything else on the real service answers a
+     * Cordis waterfall the REPL never touches.
+     */
+    function withApproval(override?: string): {
+      cmd: CommandContext
+      setPolicy: ReturnType<typeof vi.fn>
+    } {
+      const setPolicy = vi.fn()
+      const ctx = new Context()
+      ctx.provide('approval', { overrideOf: () => override, setPolicy } as never)
+      return {
+        setPolicy,
+        cmd: {
+          ctx,
+          agent: { id: 'tui-1' as never, session: makeSession() } as never,
+          resetView: vi.fn(),
+          setModel: vi.fn().mockResolvedValue(undefined),
+          refreshSelection: vi.fn(),
+          state: emptyState(),
+        },
+      }
+    }
+
+    it('reports the deployment default when the session never switched', async () => {
+      const result = await dispatch('/approval', withApproval().cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.approvalUsageDefault)
+    })
+
+    it('reports the session override when there is one', async () => {
+      const result = await dispatch('/approval', withApproval('never').cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.approvalUsage('never'))
+    })
+
+    it.each(['ask', 'never'])('switches the session to %s', async (policy) => {
+      const { cmd, setPolicy } = withApproval()
+      const result = await dispatch(`/approval ${policy}`, cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(setPolicy).toHaveBeenCalledWith(cmd.agent, policy)
+      expect(result.message).toBe(catalog('en').output.approvalSwitched(policy))
+    })
+
+    it('refuses a word that is not a policy, and does not set anything', async () => {
+      // Fail closed on the way in: a typo'd `/approval nver` that fell through
+      // to the service would be a silent no-op the user reads as a switch.
+      const { cmd, setPolicy } = withApproval()
+      const result = await dispatch('/approval nver', cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(setPolicy).not.toHaveBeenCalled()
+      expect(result.message).toBe(catalog('en').output.approvalUnknown('nver', ['ask', 'never']))
+    })
+
+    it('says so when the assembly has no approval service', async () => {
+      const stand = makeStand()
+      const cmd: CommandContext = {
+        ctx: stand.ctx,
+        agent: { id: 'tui-1' as never, session: makeSession() } as never,
+        resetView: vi.fn(),
+        setModel: vi.fn().mockResolvedValue(undefined),
+        refreshSelection: vi.fn(),
+        state: emptyState(),
+      }
+      const result = await dispatch('/approval never', cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toBe(catalog('en').output.approvalNoService)
+    })
+  })
+
   describe('/language', () => {
     it('shows usage and the current language when no argument is given', async () => {
       const setLanguage = vi.fn()
@@ -848,6 +939,76 @@ describe('slash command dispatch', () => {
         expect(result.message).toContain('/history show')
         expect(result.failed).not.toBe(true)
       }
+    })
+  })
+
+  describe('/skill', () => {
+    it('prints usage for a bare line rather than claiming to have run anything', async () => {
+      // The picker lives in the buffer; a submitted bare line has no picker
+      // to open, so it points the reader at one.
+      const { cmd } = makeCommand()
+      const result = await dispatch('/skill', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).not.toBe(true)
+        expect(result.message).toContain('/skill')
+      }
+    })
+
+    it('routes `/skill <name> args` as `/<name> args`', async () => {
+      const { cmd } = makeCommand()
+      const result = await dispatch('/skill review the auth change', cmd)
+      expect(result).toEqual({ kind: 'skill', input: '/review the auth change' })
+    })
+
+    it('keeps the prose spacing after the one separator it removes', async () => {
+      const { cmd } = makeCommand()
+      const result = await dispatch('/skill\treview  the diff', cmd)
+      expect(result).toEqual({ kind: 'skill', input: '/review  the diff' })
+    })
+  })
+
+  describe('/keybinds', () => {
+    it('reads without writing when bare, unlike /history', async () => {
+      // Deliberately not a toggle. These two states change what every
+      // subsequent keystroke *means*, so a user who typed `/keybinds` to find
+      // out which one is on must not be switched by the asking.
+      const setKeybinds = vi.fn()
+      const { cmd } = makeCommand({ setKeybinds, keybindPref: 'vim' })
+      const result = await dispatch('/keybinds', cmd)
+      expect(setKeybinds).not.toHaveBeenCalled()
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') {
+        expect(result.failed).not.toBe(true)
+        expect(result.message).toContain('Current: vim')
+      }
+    })
+
+    it('sets explicitly, ignoring what is already in force', async () => {
+      const setKeybinds = vi.fn()
+      const { cmd } = makeCommand({ setKeybinds, keybindPref: 'vim' })
+      await dispatch('/keybinds vim', cmd)
+      expect(setKeybinds).toHaveBeenCalledWith('vim')
+      await dispatch('/keybinds default', cmd)
+      expect(setKeybinds).toHaveBeenLastCalledWith('default')
+    })
+
+    it('fails on a keymap it does not have, naming the ones it does', async () => {
+      const setKeybinds = vi.fn()
+      const { cmd } = makeCommand({ setKeybinds, keybindPref: 'default' })
+      const result = await dispatch('/keybinds emacs', cmd)
+      expect(setKeybinds).not.toHaveBeenCalled()
+      if (result.kind === 'handled') {
+        expect(result.failed).toBe(true)
+        expect(result.message).toContain('emacs')
+        expect(result.message).toContain('vim')
+      }
+    })
+
+    it('reports without a handler rather than throwing', async () => {
+      const { cmd } = makeCommand({})
+      const result = await dispatch('/keybinds vim', cmd)
+      expect(result.kind).toBe('handled')
     })
   })
 
@@ -1214,8 +1375,9 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/clear', '/context', '/copy', '/exit', '/help', '/history', '/language', '/mcp', '/model',
-      '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
+      '/approval', '/clear', '/context', '/copy', '/exit', '/help', '/history', '/keybinds', '/language',
+      '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
+      '/usage', '/verbose',
     ])
   })
 
@@ -1267,8 +1429,10 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/language', '/mcp', '/model',
-        '/plugins', '/quit', '/resume', '/sessions', '/status', '/theme', '/usage', '/verbose',
+        '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/keybinds',
+        '/language',
+        '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
+        '/usage', '/verbose',
       ])
     })
 

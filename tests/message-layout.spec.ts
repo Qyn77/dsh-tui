@@ -26,7 +26,7 @@ import {
   toolResultPreview,
   toolStatusGlyph,
   truncate,
-} from '../src/message-layout.ts'
+} from '../src/render/message-layout.ts'
 
 describe('truncate', () => {
   it('leaves text that already fits', () => {
@@ -43,8 +43,8 @@ describe('truncate', () => {
 
 describe('toolCallSummary', () => {
   it('reads as name(subject)', () => {
-    expect(toolCallSummary('Read', '{"file_path":"src/scroll.ts"}'))
-      .toBe('Read(src/scroll.ts)')
+    expect(toolCallSummary('Read', '{"file_path":"src/render/scroll.ts"}'))
+      .toBe('Read(src/render/scroll.ts)')
   })
 
   it('prefers the conventional subject key over declaration order', () => {

@@ -31,12 +31,12 @@
 
 import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
-import type { UiEntry, UiState } from '../types.ts'
-import { userMessageImages, userMessageText } from '../types.ts'
-import { windowStart } from '../scroll.ts'
-import { hookStderr, hookTone } from '../hook-runs.ts'
+import type { SubCall, UiEntry, UiState, WorkflowMember } from '../core/types.ts'
+import { userMessageImages, userMessageText } from '../core/types.ts'
+import { windowStart } from '../render/scroll.ts'
+import { hookStderr, hookTone } from '../render/hook-runs.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
-import type { Catalog } from '../i18n.ts'
+import type { Catalog } from '../core/i18n.ts'
 import {
   ASSISTANT_GLYPH,
   ATTACHMENT_GLYPH,
@@ -47,18 +47,25 @@ import {
   TODO_GLYPH,
   RESULT_GLYPH,
   SHELL_GLYPH,
+  SUBCALL_GLYPH,
   USER_BORDER_COLOR,
   USER_GLYPH,
   inlineResultText,
   shellStatusKinds,
+  subCallErrorLine,
+  subCallPreview,
   toolCallSummary,
   toolResultPreview,
   toolStatusGlyph,
   outputPreview,
   previewLimit,
+  workflowMemberTone,
+  approvalTone,
+  type ApprovalEntry,
   type OutputPreview,
-} from '../message-layout.ts'
-import { SHELL_TIMEOUT_MS } from '../shell.ts'
+  type WorkflowEntry,
+} from '../render/message-layout.ts'
+import { SHELL_TIMEOUT_MS } from '../shell/shell.ts'
 import { Markdown } from './Markdown.tsx'
 
 /** Props for {@link MessageList}. */
@@ -167,6 +174,46 @@ function Preview({ preview, color, dim = false }: {
 }
 
 /**
+ * One tool call a Code Mode program made from inside `run_code`, as a single
+ * indented row under the call that dispatched it.
+ *
+ * Drawn through the same `toolCallSummary` / `toolStatusGlyph` pair a native
+ * call is, which is the point — `dsh-tools` settles a sub-call in `tool/result`'s
+ * own vocabulary precisely so a UI does not need a second way to say what a tool
+ * call did. What differs is the budget: one row, and a second only for the
+ * failure text (see `subCallRows`). Both are truncated, so the height
+ * `scroll.ts` charged cannot be changed by a long path or a wide glyph.
+ */
+function SubCallRow({ sub, width }: { sub: SubCall; width: number }) {
+  const color = sub.status === 'error'
+    ? 'red'
+    : sub.status === 'ok'
+      ? 'green'
+      : sub.status === 'cancelled'
+        ? 'gray'
+        : 'yellow'
+  const summary = toolCallSummary(sub.name, sub.args)
+  const preview = sub.status === 'error' ? undefined : subCallPreview(sub)
+  const inline = preview === undefined ? undefined : inlineResultText(preview, summary, width)
+  const failure = sub.status === 'error' ? subCallErrorLine(sub) : undefined
+  return (
+    <>
+      <Text wrap="truncate">
+        <Text dimColor>{SUBCALL_GLYPH} </Text>
+        <Text>{summary}</Text>
+        <Text color={color}> {toolStatusGlyph(sub.status)}</Text>
+        {inline !== undefined && <Text dimColor>{inline}</Text>}
+      </Text>
+      {failure !== undefined && (
+        <Text color="red" dimColor wrap="truncate">
+          {'  '}{RESULT_GLYPH} {failure}
+        </Text>
+      )}
+    </>
+  )
+}
+
+/**
  * A tool call: the invocation on one row, its outcome hanging below.
  *
  * The round-bordered card this replaced cost four rows of frame before any
@@ -177,6 +224,9 @@ function Preview({ preview, color, dim = false }: {
  * The outcome gets its own gutter under the call, so a result that runs to
  * several lines keeps a hanging indent instead of sliding back under the
  * marker — the same shape {@link Row} gives the entry as a whole.
+ *
+ * Code Mode sub-calls sit between the call and its outcome, which is the order
+ * they happened in: the program dispatched them, then `run_code` returned.
  */
 function ToolCall({ entry, maxLines, width }: {
   entry: Extract<UiEntry, { kind: 'tool' }>
@@ -208,6 +258,13 @@ function ToolCall({ entry, maxLines, width }: {
         <Text color={color}> {toolStatusGlyph(entry.status)}</Text>
         {inline !== undefined && <Text dimColor>{inline}</Text>}
       </Text>
+      {entry.subCalls?.map(sub => (
+        // Keyed by the sub-call id, which the emitter numbers deterministically
+        // (`<parent>:code:<n>`) — unlike a preview's lines, these rows do have a
+        // stable identity, and a running one is rewritten in place when it
+        // settles.
+        <SubCallRow key={sub.subCallId} sub={sub} width={width - GUTTER_WIDTH} />
+      ))}
       {entry.error !== undefined ? (
         <Text color="red" wrap="truncate">
           {RESULT_GLYPH} {entry.error.name}: {entry.error.code}
@@ -433,6 +490,117 @@ function HookLine({ entry }: { entry: Extract<UiEntry, { kind: 'hook' }> }) {
   )
 }
 
+/**
+ * One approval question, as the audit record it is.
+ *
+ * Drawn like a hook run and for the same reason — it is the log's account of
+ * something that already happened, not a question being asked. The question
+ * itself is `ApprovalPrompt`, beside the Prompt, and by the time this row can
+ * be read that card is gone. Two weights on `hookTone`'s rule: a grant is a
+ * dim audit line, and anything that stopped the call is yellow.
+ */
+function ApprovalLine({ entry }: { entry: ApprovalEntry }) {
+  const strings = useStrings()
+  const notable = approvalTone(entry) === 'notable'
+  const color = notable ? 'yellow' : 'gray'
+  const reason = entry.reason?.trim()
+  const label = entry.status === 'cancelled'
+    ? strings.entries.approvalUnfinished(entry.toolName)
+    : entry.outcome === undefined
+      ? strings.entries.approvalAsked(entry.toolName)
+      : strings.entries.approvalDecided(entry.toolName, entry.outcome)
+  return (
+    <Row glyph={NOTE_GLYPH} color={color} dim={!notable}>
+      <Text color={color} dimColor={!notable} wrap="truncate-end">{label}</Text>
+      {reason !== undefined && reason !== '' && (
+        <Text color={color} dimColor>{reason}</Text>
+      )}
+    </Row>
+  )
+}
+
+/**
+ * One approval-policy switch, at a compaction notice's weight.
+ *
+ * Never yellow, including for `never`. A stricter policy is not a warning —
+ * it is the setting the user or the delegation chose, and the row exists so a
+ * resumed session accounts for behaviour that would otherwise look arbitrary.
+ */
+function ApprovalPolicyLine({ entry }: { entry: Extract<UiEntry, { kind: 'approval-policy' }> }) {
+  const strings = useStrings()
+  return (
+    <Row glyph={NOTE_GLYPH} color="gray" dim>
+      <Text color="gray" dimColor wrap="truncate-end">
+        {entry.delegated
+          ? strings.entries.approvalPolicyDelegated(entry.policy)
+          : strings.entries.approvalPolicy(entry.policy)}
+      </Text>
+    </Row>
+  )
+}
+
+/**
+ * One workflow run: a header, a row per member agent, and a closing row.
+ *
+ * No new glyphs. The header takes the assistant's `⏺` because a run *is* the
+ * assistant doing work, members take the `↳` a Code Mode sub-call takes because
+ * they are the same relationship, and the close takes the `⎿` every outcome
+ * takes. Inventing a glyph for this would mean picking a character whose width
+ * is ambiguous in half the world's terminals, to say something three characters
+ * already on screen say correctly.
+ *
+ * Two weights for a settled member, on `hookTone`'s rule: `completed` is quiet,
+ * everything else — `failed`, `cancelled`, and any word a later emitter adds —
+ * is yellow. Red is not used: a cancelled member did not fail, and neither did
+ * a run the user interrupted.
+ */
+function WorkflowRun({ entry }: { entry: WorkflowEntry }) {
+  const strings = useStrings()
+  const running = entry.status === 'running'
+  return (
+    <Row glyph={ASSISTANT_GLYPH} color={running ? undefined : 'gray'} dim={!running}>
+      <Text wrap="truncate-end">{strings.entries.workflowRun(entry.name)}</Text>
+      {entry.members.map(member => (
+        <WorkflowMemberRow key={member.seq} member={member} run={entry} />
+      ))}
+      {!running && (
+        <Text color="gray" dimColor wrap="truncate-end">
+          {RESULT_GLYPH}
+          {' '}
+          {entry.stopReason === undefined
+            ? strings.entries.workflowUnfinished(entry.members.length)
+            : strings.entries.workflowEnded(entry.stopReason, entry.members.length)}
+        </Text>
+      )}
+    </Row>
+  )
+}
+
+/**
+ * One member agent of a run, as a single truncated row.
+ *
+ * The outcome is printed in the emitter's own word rather than mapped to a
+ * glyph, for the reason a hook's `decision` is: the vocabulary is open, and a
+ * word this build cannot name is exactly the one worth showing verbatim. A
+ * member with no outcome shows why it has none — still working, or left behind
+ * when its run closed — which are different facts and must not read alike.
+ */
+function WorkflowMemberRow({ member, run }: { member: WorkflowMember; run: WorkflowEntry }) {
+  const strings = useStrings()
+  const tone = workflowMemberTone(member, run)
+  const color = tone === 'ok' ? 'green' : tone === 'notable' ? 'yellow' : 'gray'
+  const settlement = member.outcome
+    ?? (tone === 'pending' ? strings.entries.workflowPending : strings.entries.workflowAbandoned)
+  return (
+    <Text wrap="truncate-end">
+      <Text dimColor>{SUBCALL_GLYPH} </Text>
+      <Text>{member.label}</Text>
+      {member.phase !== undefined && <Text dimColor>{' · '}{member.phase}</Text>}
+      <Text color={color} dimColor={tone !== 'notable'}>{' · '}{settlement}</Text>
+    </Text>
+  )
+}
+
 function RuntimeContextLine({ entry }: { entry: Extract<UiEntry, { kind: 'runtime-context' }> }) {
   const strings = useStrings()
   // Header carries the producer and form so the user can see which
@@ -573,6 +741,12 @@ const Entry = React.memo(function Entry({ entry, maxLines, width }: {
       return <RuntimeContextLine entry={entry} />
     case 'hook':
       return <HookLine entry={entry} />
+    case 'approval':
+      return <ApprovalLine entry={entry} />
+    case 'approval-policy':
+      return <ApprovalPolicyLine entry={entry} />
+    case 'workflow':
+      return <WorkflowRun entry={entry} />
     case 'command':
       return <CommandLine entry={entry} />
     case 'shell':

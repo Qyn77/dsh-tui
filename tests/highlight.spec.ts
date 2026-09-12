@@ -19,8 +19,8 @@ import {
   highlightLang,
   loadTokenizer,
   type LineTokenizer,
-} from '../src/highlight.ts'
-import { palette } from '../src/theme.ts'
+} from '../src/render/highlight.ts'
+import { palette } from '../src/terminal/theme.ts'
 
 /** The dark appearance's Shiki theme — what these tests tokenize under. */
 const THEME = palette('dark').shikiTheme

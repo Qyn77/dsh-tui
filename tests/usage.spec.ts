@@ -16,9 +16,9 @@ import {
   formatUsage,
   totalUsage,
   usageByTurn,
-} from '../src/usage.ts'
-import type { UiState } from '../src/types.ts'
-import { displayWidth } from '../src/width.ts'
+} from '../src/commands/usage.ts'
+import type { UiState } from '../src/core/types.ts'
+import { displayWidth } from '../src/core/width.ts'
 
 /** A state holding one assistant entry with the given usage. */
 function withUsage(...usages: readonly TokenUsage[]): UiState {

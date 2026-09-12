@@ -20,7 +20,7 @@ import React from 'react'
 import { render, Text } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, type SessionEvent } from '@deepseek-ai/dsh-session'
-import type { HistoryPref, UiEntry, UiState } from '../src/types.ts'
+import type { HistoryPref, UiEntry, UiState } from '../src/core/types.ts'
 import { useSessionEvents } from '../src/hooks/useSessionEvents.ts'
 import { fakeStdout, seedSession } from './fake-tty.ts'
 

@@ -19,8 +19,8 @@ import {
   BANNER_ROWS,
   BANNER_MIN_WIDTH,
   BANNER_WORDMARK_WIDTH,
-} from '../src/banner-art.ts'
-import { displayWidth } from '../src/width.ts'
+} from '../src/render/banner-art.ts'
+import { displayWidth } from '../src/core/width.ts'
 
 describe('displayWidth', () => {
   it('counts ASCII as one column each', () => {

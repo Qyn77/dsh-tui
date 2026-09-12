@@ -16,13 +16,13 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 // Empty type import carries the loader Context merge for the settlement await
 // and the cordis EventMap merge for `session/event` and `agent/*`.
 import type {} from '@deepseek-ai/cordis-plugin-loader'
-import { appExit, service, type AppExit } from './services.ts'
-import { shortId } from './sessions.ts'
+import { appExit, service, type AppExit } from './core/services.ts'
+import { shortId } from './commands/sessions.ts'
 import { App } from './renderer.tsx'
-import { installResizeOwner, type RepaintRef } from './resize.ts'
-import { planResume, requestFromEnv, type SwapSession } from './resume.ts'
-import { readSettings } from './settings.ts'
-import { probeAppearance } from './theme.ts'
+import { installResizeOwner, type RepaintRef } from './terminal/resize.ts'
+import { planResume, requestFromEnv, type SwapSession } from './commands/resume.ts'
+import { readSettings } from './terminal/settings.ts'
+import { probeAppearance } from './terminal/theme.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'tui-runner'
@@ -111,7 +111,7 @@ const AUTOWRAP_ON = '\u001B[?7h'
  *
  * Without it a pasted newline is a bare `\r` — byte-identical to the Enter
  * key — so a paste either overprinted itself in the prompt or, when a stdin
- * chunk boundary fell on a newline, submitted half a message. `src/paste.ts`
+ * chunk boundary fell on a newline, submitted half a message. `src/prompt/paste.ts`
  * decodes the markers; this is the request that makes them appear.
  *
  * A terminal that ignores `?2004` is no worse off than before: the decoder
@@ -175,7 +175,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
   // place the process touches `~/.dsh/tui.json` on the way in; `/language`,
   // `/theme` and `/history` write it back out. It has moved up here because
   // the theme decides whether the appearance probe runs at all.
-  const { language, theme, history } = readSettings()
+  const { language, theme, history, keybinds } = readSettings()
   // Asked here and read just before `render()`, with the loader await, the
   // resume plan, and agent creation in between — so the terminal's round trip
   // overlaps work that was happening anyway and costs the boot nothing. It has
@@ -330,6 +330,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           lang: language,
           themePref: theme,
           historyPref: history,
+          keybinds,
           swapSession,
           ...detected === undefined ? {} : { appearance: detected },
           ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},

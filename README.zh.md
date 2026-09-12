@@ -119,19 +119,23 @@ REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续�
 | `Enter` | 把当前输入作为用户消息发给模型 |
 | `/help` | 打印可用的斜杠命令 |
 | `/clear` | 清空可见的聊天区（session log 不变） |
-| `/status` | 打印当前模型和 session id |
-| `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换 |
+| `/status` | 打印当前模型、session id 和生效中的权限预设 |
+| `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换。输入 `/model `（带空格）会弹出当前 provider 的模型选择器，直接选而不必猜名字 |
 | `/context` | 打印上下文窗口、本次 session 的 token 开销，以及当前上下文占用了多少 |
 | `/usage` | 按轮次拆开本次 session 的 token 开销 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
-| `/mcp` | 列出已连接的 MCP 服务器，以及各自注册的工具 |
+| `/mcp` | 列出已连接的 MCP 服务器，以及各自注册的工具；`/mcp add <json>` 从粘贴的 `mcpServers` 片段连一个，`/mcp remove <server>` 撤下来 |
+| `/approval` | 查看这条 session 的审批策略；`/approval ask` 或 `never` 切换 |
+| `/permission` | 插件命令：选择「沙箱 + 审批」打包预设——`/permission ` 打开选择器，也可直接打 `read-only` / `workspace-write` / `danger-full-access` |
 | `/theme` | 选择配色假定的背景：`/theme auto`、`dark` 或 `light` |
 | `/copy` | 把最新一条回复复制到剪贴板；`/copy code` 取最新的代码块 |
 | `/verbose` | 让每段长输出多显示一些：`/verbose on`、`off`，不带参数则切换 |
 | `/plugins` | 列出本进程加载的插件，以及各自的生命周期状态；`/plugins enable\|disable <名字>` 开关某一个，并写回 loader 配置 |
 | `/sessions` | 列出已存的 session，以及接上其中一个要用的 id |
+| `/skill` | 挑选可由用户调用的 skill：`/skill ` 打开选择器，`/skill <名称> [参数]` 直接运行 |
 | `/resume` | 切到某个已存的 session：`/resume <id>`，或者 `/resume last` |
 | `/history` | 显示或隐藏接续 session 带来的已存历史：`/history show` 或 `hide` |
+| `/keybinds` | 选择输入框的键位：`/keybinds default` 或 `vim`；不带参数只报告当前是哪一种，不做切换 |
 | `/exit`, `/quit` | 退出 REPL |
 | `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
 | `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
@@ -246,10 +250,43 @@ session 重来一遍。除此之外没有别的东西读这个文件——API ke
 这行存在的理由是：批准一个桥接工具和批准一个内置工具是两种决定——参数会离开你的机器，
 交给一个不是本程序启动的进程。
 
-TUI 为此没有引入对 MCP 插件的任何依赖，它读的是命名约定。配置 server 属于装配层的事，
-在你自己的 patch 层里一个 server 一个 `insert` 块——在 profile 的 `cordis.patch.yml`
-（或命令行的 `--patch` 文件）的 `plugins:` 下面加 `@deepseek-ai/dsh-mcp-client`，
-配置键是每个 server 的 `serverName`、`command`/`url`，以及传输选项。
+TUI 为此没有引入对 MCP 插件的任何依赖，它读的是命名约定。
+
+#### 添加一个 server
+
+输入 `/mcp add` 直接回车，会打开一个常见预设服务器的选择器——记忆、多步推理、文档
+检索、浏览器，以及演示全部能力的 everything。选中一个再回车，这一行就写好了；不用粘贴，
+也不用配置。
+
+```
+/mcp add memory
+
+  已连接 memory —— 9 个工具。已写入 /Users/you/.dsh/cordis.patch.yml，下次启动仍在。
+```
+
+预设停在"需要做决定"的地方：要 API key 或要授权路径的 server 不进目录，因为预设必须
+敢在无人过目的情况下直接写入。那类服务器走粘贴：`/mcp add` 收的就是各家 server 的
+README 给你的那段 `mcpServers` JSON——跟 Claude Desktop、Cursor 读的是同一份。粘在
+命令后面回车即可；多行粘贴没问题，外面裹的代码围栏会被剥掉。
+
+```
+/mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}
+
+  已连接 filesystem —— 11 个工具。已写入 /Users/you/.dsh/cordis.patch.yml，下次启动仍在。
+```
+
+这一行落到 `$DSH_HOME/cordis.patch.yml`（默认 `~/.dsh/cordis.patch.yml`），也就是每个
+profile 最后叠上去的那层本机 patch。启动器盯着这个文件，所以不用重启就会连上，下次启动
+也还在。你在那个文件里的注释和 `!!js` 表达式不会被这次写入吃掉。
+
+`/mcp remove <server>` 把它撤下来，认的是 `/mcp` 列出来的那个名字——手写的行也能撤。
+
+老办法照旧可用：在任一 patch 层里一个 server 一个 `insert` 块，配置键是每个 server 的
+`serverName`、`command`/`url`，以及传输选项。`/mcp add` 写出来的就是这个形状。
+
+**凭据是明文写进去的。** 桥接不解析任何凭据引用，所以粘贴片段里的 API key 会原样落进
+patch 文件，`/mcp add` 会告诉你它刚刚明文写下了哪几个变量。想让值不进文件，就在那儿写
+`!!js process.env.YOUR_VAR`，然后在 shell 里导出。
 
 `/mcp` 列出的就是这份接线的成果：每个连接中的 server 一行表头，下面是它注册的工具，
 每次调用都从工具注册表现读。插件不发布连接状态，所以掉线的 server 表现为一个不存在的
@@ -283,30 +320,34 @@ TUI 为此没有引入对 MCP 插件的任何依赖，它读的是命名约定�
 
 ### 跑一个 skill
 
-如果你的装配里挂了 skill，其中允许用户调用的那些会出现在 `/` 面板里，
-描述前面带一个 `◆`：
+skill 不混在 `/` 面板里——一个 bundle 可能带上几十个 skill，而面板是留给
+固定指令面的。想看你的装配挂了哪些，输入 `/skill `（带末尾空格）：会弹出一个
+只列「允许用户调用」的 skill 的选择器，每行前面带一个 `◆`：
 
 ```
 /review    ◆ Read a diff and list what would break in production
 ```
 
-像普通命令一样打它，后面跟上要干什么：
+用 `↑`/`↓` 挑选：`Tab` 把 `/<名称> ` 插进输入框，可以接着打参数；`Enter`
+立刻执行高亮的 skill。`/skill ` 后面打的一个词会按前缀过滤，所以
+`/skill rev` 直接缩到它。`Esc` 关闭列表但不丢你打的字。
+
+也可以直接打出名字，后面跟上要干什么：
 
 ```
 > /review 看看鉴权那块改动
 ```
 
-skill 的指令会交给模型，然后开始一轮对话。你自己写的话还是你自己的消息，
-不会被揉进指令里。transcript 里只会多一行暗色的说明，告诉你跑的是哪个：
+`/skill review 看看鉴权那块改动` 在派发后就是同一行。skill 的指令会交给模型，
+然后开始一轮对话。你自己写的话还是你自己的消息，不会被揉进指令里。
+transcript 里只会多一行暗色的说明，告诉你跑的是哪个：
 
 ```
 ⤷ 技能 review
 ```
 
-名字撞车时内置命令最大，其次是插件命令，最后才是 skill——所以在项目里放一个
-叫 `clear` 的 skill，拿不走你的 `/clear`。
-
-没有 `/skills` 列表：面板本身就是列表。
+名字撞车时内置命令最大，其次是插件命令，最后才是 skill——所以一个叫 `clear`
+的 skill 既不会出现在选择器里，也拿不走你的 `/clear`。裸 `/skill` 会打印用法。
 
 ### hook 执行记录
 
@@ -336,6 +377,170 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 
 和 MCP 一样，TUI 不为此依赖任何 hook 包——事件来了就画，不来就什么都不画。
 配置桥接是 bundle 层的事，在你自己的 patch 层里 `insert` 一段。
+
+### Code Mode 的子调用
+
+打开 `DSH_TOOLS_MODE=code` 之后，模型不再一次发一个工具调用，而是写一小段程序。
+程序跑在 worker 里，它用到的工具是从程序内部派发出去的。屏幕上这仍然只是一个条目
+——那次 `run_code` 调用——每次派发在它下面占一行：
+
+```
+⏺ run_code(…)
+  ↳ read_file({"file_path":"src/render/scroll.ts"}) ✓ 84 lines
+  ↳ write_file({"file_path":"src/render/scroll.ts"}) ✓
+  ⎿ done
+```
+
+不管返回了多少内容，一次派发就是一行；失败的那次多一行写清原因——和被拦下的 hook
+是同一个两行形状，理由也一样：出错的那句话，正是你要读的那句话。
+
+```
+  ↳ read_file({"file_path":"nope.ts"}) ✗
+    ⎿ ENOENT: no such file
+```
+
+派发三十个工具的程序就占三十行，正是这个上限让 transcript 仍然翻得动——子调用画在
+父条目**内部**，而不是各自成为条目，所以它们之间没有空行，也不会被看成下一个真正的
+工具调用。
+
+回合结束时还没跑完的派发，跟着父条目的结局走：被你打断就是 `⊘`，正常收尾就是 `✓`。
+不会有东西一直转下去。
+
+这需要装配里挂了 `code-runtime` 并且设了 `DSH_TOOLS_MODE=code`；默认的工具模式下
+你永远不会看到 `↳` 行。
+
+### 工作流
+
+如果你的装配里挂了 `@deepseek-ai/dsh-tool-workflow`，模型可以把一个回合扇出成好几个
+子 agent。整个 run 画成一个条目，每个 agent 在它下面占一行：
+
+```
+⏺ 工作流 review-changes
+  ↳ review:bugs · Review · completed
+  ↳ review:perf · Review · failed
+  ↳ verify:auth · Verify · 执行中…
+```
+
+整个 run 收尾之后，末尾多一行：
+
+```
+  ⎿ completed · 3 个 agent
+```
+
+一个 agent 就是一行。这些子 agent 各自在自己的 session 里跑着一整段对话，那些内容
+都不画在这里——三十个 agent 每个都摊开自己干的活，只会把发起它们的那段对话埋掉。
+
+结局按工作流工具自己的用词打印，不翻译也不换成符号。只有 `completed` 是安静的，
+其余一律黄色，**包括这个版本从没见过的结局**。是黄色不是红色：被取消的 agent 并没有
+出错。
+
+如果你打断了这个回合，run 会以 `没有结果` 收尾，还在跑的 agent 显示 `没有结果` 而不是
+一直转。两者都不会替工作流编一个它从没报过的词。
+
+真正意义上的 sub-agent（`@deepseek-ai/dsh-subagent`）长得不一样，原因值得知道：一次
+委派把记录写进的是**子 session** 的日志，不是你这条。从这条 transcript 上看，sub-agent
+就是你已经能看到的那次工具调用。而工作流工具，是会把结果报回你正在看的这条 session 的
+那一个。
+
+### 审批，以及审批之后还剩下什么
+
+当一次工具调用需要你授权时，提示框旁边会弹出一张卡片，列出这次调用的参数：`y` 放行
+一次，`n` 拒绝，`Esc` 走开。这张卡片是活的——你一答完它就没了。
+
+留下来的是 transcript 里的一行：
+
+```
+⤷ 审批 · shell · allowed-once
+⤷ 审批 · write · rejected
+  writes outside the workspace
+```
+
+这件事比看上去重要。这个问题的任何内容都不会进到模型的上下文里，而卡片又活不过这个
+回合；如果 transcript 不把答案记下来，那么一小时后你恢复这条 session，看到的就是一次
+根本没跑的工具调用，屏幕上没有任何东西说明是你把它拦下来的。
+
+被放行的调用是安静的。其余一律黄色——拒绝、取消、`unavailable`，以及这个版本从没见过
+的任何结局。`unavailable` 值得认一下：它意味着当时压根没有人可问，那是配置问题，不是
+你做的决定。是黄色不是红色：被拒绝的调用并没有出错，那正是这道闸门在干活。
+
+如果回合结束时问题还挂在那儿，这一行会写 `没有决定`，而不是让一个问题一直悬着。
+
+用 `/approval` 看这条 session 现在是什么策略：
+
+```
+/approval          # 当前生效的策略，以及怎么改
+/approval ask      # 需要授权的调用先问你
+/approval never    # 这类调用一律拒绝，不问
+```
+
+切换策略本身也会留下一行，这样一串被静默拒绝的调用才有个交代，而不是看起来莫名其妙：
+
+```
+⤷ 审批策略 · never
+```
+
+策略行永远不是黄色，`never` 也一样。更严的策略不是警告，它就是你选的设置。如果是委派
+替你选的，那一行会标出来。
+
+只有**切换**才留行。会话一开始所处的那个策略不会：那是 harness 构造会话时记下来的，
+没人改动过什么，而且状态栏里的预设已经写着它是什么了。
+
+### 权限预设
+
+审批策略是一个旋钮，沙箱允许工具碰什么是另一个。权限预设把两者打包。输入
+`/permission `（带末尾空格）会弹出选择窗口，当前生效的那个前面带 `✓`：`↑`/`↓`
+选择，`Enter` 直接切换，`Tab` 只填入命令行不执行。还有一个更快的按键：**空输入框时
+`Tab` / `Shift+Tab`** 在预设间前后循环（到头回绕）——切走的仍是同一条
+`/permission <值>` 命令行，日志里留同样的记录。这些词也可以直接打给插件命令
+`/permission <preset>`：
+
+| 预设 | 沙箱 | 审批 |
+|---|---|---|
+| `read-only` | 只读，什么都不能写 | 询问 |
+| `workspace-write` | 工作区可写（默认） | 询问 |
+| `danger-full-access` | 全开，无沙箱 | 一律不问 |
+
+`/permission` 由 harness 插件提供，不是 TUI 的内置命令，只要挂了插件的装配都能用；
+选择器的选项读自预设 projection，没挂 projection 时选择器不出现。
+
+当前生效的预设始终可见：StatusBar 状态行上有一个 chip，`/status` 里也有一行
+`permissions:`。除了 `danger-full-access` 是**红色加粗**，其余预设都是灰色——它同时撤掉
+了两道闸门，所以扫一眼边框就能确认这个 shell 还有没有防护。预设词按原文显示，不翻译。
+
+在环境里设置 `DSH_PERMISSION_MODE=danger-full-access` 会直接以该预设启动；那个红 chip
+就是确认 shell 是不是这样起来的办法。
+
+### vim 键位
+
+`/keybinds vim` 在输入框上加一层 normal 模式，`/keybinds default` 关掉它。不带参数的 `/keybinds` 只告诉你现在是哪一种，不会顺手切换——为了确认状态而敲的命令，不该把状态改掉。
+
+插入模式就是你原来那个编辑器。readline 的每一个键位、`/` 命令面板、`@` 文件选择、历史回溯、粘贴，全都照旧。开 vim 只是多一层模式，不减任何东西。
+
+`Esc` 离开插入模式。提示符会跟着变，这就是模式指示：
+
+```
+> what does this do?      ← 插入模式
+N what does this do?      ← normal 模式
+```
+
+只有这一处提示，是故意的。单独画一个 `NORMAL` 标记要占一行，而整个界面是固定高度的——切换模式时多出来的一行，会直接盖在对话记录上。
+
+能用的：
+
+| | |
+|---|---|
+| 移动 | `h` `j` `k` `l` `0` `^` `$` `w` `b` `e` `gg` `G` |
+| 进入插入 | `i` `a` `I` `A` `o` `O` |
+| 删除 / 修改 | `x` `D` `C` `dd` `cc`，以及 `d`、`c` 接任意 motion |
+| 粘贴 | `p` `P`——上一次删掉的东西 |
+
+单词按空白切，不按标点切，所以 `~/.dsh/.env` 是一个 `w`。输入框里绝大部分内容是路径和参数，照 vim 平时那套规则，`w` 会一个字符一个字符地爬过去。
+
+不支持的：计数（`3w`）、visual 模式、撤销。撤销是有意不做的——一个管得了 `dd` 却管不了 `Ctrl-W` 的撤销，比没有更糟。
+
+`Esc` 仍然能中断正在跑的一轮。normal 模式下编辑器不认领它，它就照旧往上传；插入模式下第一下进 normal，第二下才中断。`/` 命令面板比这两者都优先。
+
+这个设置会存进 `~/.dsh/tui.json`。
 
 ### 想多看几行长输出
 
@@ -522,7 +727,7 @@ tests/                       state、commands、apply() 的 vitest 单元测试
 
 ### 视图怎么工作的
 
-Ink 树是 Agent session log 的**纯投影**。[`src/state.ts`](src/state.ts) 里的 reducer 把每个 `SessionEvent` 映射成一个 `UiEntry`（user、assistant、tool call、compaction、plan、note）。`useSessionEvents`（[`src/hooks/useSessionEvents.ts`](src/hooks/useSessionEvents.ts)）首次渲染时从持久 log 回放种子，之后每个 `session/event` 来了就更新视图。
+Ink 树是 Agent session log 的**纯投影**。[`src/core/state.ts`](src/core/state.ts) 里的 reducer 把每个 `SessionEvent` 映射成一个 `UiEntry`（user、assistant、tool call、compaction、plan、note）。`useSessionEvents`（[`src/hooks/useSessionEvents.ts`](src/hooks/useSessionEvents.ts)）首次渲染时从持久 log 回放种子，之后每个 `session/event` 来了就更新视图。
 
 要加一种新事件类型：(1) 把 type 加到 `SessionEventMap`（如果还没有）；(2) 在 reducer 里加一个 case；(3) 在 `MessageList` 里渲染新 entry。
 
@@ -541,7 +746,7 @@ npm publish --access public
 
 ## 已知限制
 
-- **`@` 只补全路径，不会把文件塞进消息。** 输入 `@src/pro` 再按 `Tab`，写进消息的是 `@src/prompt-layout.ts` 这段文字，文件内容不会被读取或内联。往 prompt 里放什么是 harness 的决定，不该由一个输入框替它做——何况模型自己就有文件工具，拿到路径就能打开。
+- **`@` 只补全路径，不会把文件塞进消息。** 输入 `@src/pro` 再按 `Tab`，写进消息的是 `@src/prompt/prompt-layout.ts` 这段文字，文件内容不会被读取或内联。往 prompt 里放什么是 harness 的决定，不该由一个输入框替它做——何况模型自己就有文件工具，拿到路径就能打开。
 - **切 session 得先结束当前这一轮。** 有一轮在跑的时候所有斜杠命令都会被拒绝，`/resume` 也一样，先按 Esc 取消。也没法同时开着两个 session。
 - **长工具输出只给预览，展不开。** 会显示前 8 行，末尾加一条 `… 还有 N 行` 的标记；没有展开入口——要做展开就得引入这个应用刻意不要的选中模型。
 - **`ctx.appExit` 由 launcher 提供。** 在 `dsh` CLI 外面跑会大声报错，直到 host 提供 exit hook。

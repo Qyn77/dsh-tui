@@ -15,7 +15,7 @@ import {
   removeCharBeforeCursor,
   wordEndAfter,
   wordStartBefore,
-} from '../src/prompt-editing.ts'
+} from '../src/prompt/prompt-editing.ts'
 
 describe('insertion and single-character deletion', () => {
   it('inserts at the caret instead of always appending', () => {

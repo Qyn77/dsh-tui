@@ -39,7 +39,7 @@
 
 import { useEffect } from 'react'
 import { useStdout } from 'ink'
-import { CLEAR_SCREEN, RESIZE_QUIET_MS } from '../resize.ts'
+import { CLEAR_SCREEN, RESIZE_QUIET_MS } from '../terminal/resize.ts'
 
 // Banner is a fixed 19-row splash. Keep it intact while clearing the
 // resize-sensitive live frame below it.

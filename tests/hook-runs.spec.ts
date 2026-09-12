@@ -6,10 +6,10 @@
 
 import { describe, expect, it } from 'vitest'
 import { Session } from '@deepseek-ai/dsh-session'
-import { replay } from '../src/state.ts'
-import { hookStderr, hookTone, type HookEntry } from '../src/hook-runs.ts'
-import { estimateEntryRows } from '../src/scroll.ts'
-import { isRenderable } from '../src/types.ts'
+import { replay } from '../src/core/state.ts'
+import { hookStderr, hookTone, type HookEntry } from '../src/render/hook-runs.ts'
+import { estimateEntryRows } from '../src/render/scroll.ts'
+import { isRenderable } from '../src/core/types.ts'
 
 function makeSession(): Session {
   return Session.create('tui-test' as never)

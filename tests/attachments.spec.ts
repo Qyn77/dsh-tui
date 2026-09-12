@@ -11,7 +11,7 @@ import {
   IMAGE_MEDIA_TYPES,
   resolveCandidate,
   textWithoutCandidates,
-} from '../src/attachments.ts'
+} from '../src/attachments/attachments.ts'
 
 describe('finding image paths', () => {
   it('finds a bare relative path', () => {

@@ -11,7 +11,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { handleCancel, handleInterrupt, type InterruptDeps } from '../src/interrupt.ts'
+import { handleCancel, handleInterrupt, type InterruptDeps } from '../src/terminal/interrupt.ts'
 
 function makeDeps(overrides?: Partial<InterruptDeps['agent']>): {
   deps: InterruptDeps

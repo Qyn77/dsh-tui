@@ -1,20 +1,24 @@
 /**
- * Skill rows in the `/` palette: which skills a human may see, how they are
- * marked, what loses a name collision, and how a submitted line splits into a
- * skill name and the user's own words.
+ * Skill rows in the `/skill ` picker: which skills a human may see, how they
+ * are marked, what loses a name collision, how the picker token is found and
+ * completed, and how a submitted line splits into a skill name and the user's
+ * own words.
  */
 
 import { describe, expect, it } from 'vitest'
 import type { SkillSummary } from '@deepseek-ai/dsh-skill'
 import {
+  applySkillMention,
+  filterSkillRows,
   findSkill,
   parseSkillLine,
+  skillMentionAt,
   skillRows,
   SKILL_GLYPH,
   userSkills,
   withoutShadowed,
-} from '../src/skills.ts'
-import type { CommandMeta } from '../src/commands.ts'
+} from '../src/pickers/skills.ts'
+import type { CommandMeta } from '../src/commands/commands.ts'
 
 /** A summary with the invocation policy spelled out, since that is what is under test. */
 function summary(
@@ -56,7 +60,7 @@ describe('invocation policy', () => {
   })
 })
 
-describe('palette rows', () => {
+describe('picker rows', () => {
   it('prefixes the name with a slash and the description with the glyph', () => {
     expect(skillRows([summary('review', 'reviews a diff')])).toEqual([
       { name: '/review', description: `${SKILL_GLYPH} reviews a diff` },
@@ -123,6 +127,94 @@ describe('precedence', () => {
   it('preserves input order', () => {
     const rows = skillRows([summary('zebra'), summary('clear'), summary('apple')])
     expect(withoutShadowed(rows, taken).map(r => r.name)).toEqual(['/zebra', '/apple'])
+  })
+})
+
+describe('the /skill token in the buffer', () => {
+  it('opens on `/skill ` with an empty query', () => {
+    expect(skillMentionAt('/skill ', 7)).toEqual({ query: '', start: 7, end: 7 })
+  })
+
+  it('reads the token being typed', () => {
+    const buffer = '/skill rev'
+    expect(skillMentionAt(buffer, buffer.length)).toEqual({ query: 'rev', start: 7, end: 10 })
+  })
+
+  it('reads the whole token when the caret is in the middle of it', () => {
+    // Same rule the @ mention follows: completing mid-token replaces the
+    // whole thing rather than leaving its tail behind.
+    expect(skillMentionAt('/skill review', 9)).toEqual({ query: 'review', start: 7, end: 13 })
+  })
+
+  it('closes once a second token starts', () => {
+    expect(skillMentionAt('/skill rev x', 12)).toBeUndefined()
+  })
+
+  it('closes on a doubled space', () => {
+    expect(skillMentionAt('/skill  ', 8)).toBeUndefined()
+  })
+
+  it('does not follow the command onto a continuation line', () => {
+    // Commands start on line 0; a backslash-Enter newline ends the token.
+    expect(skillMentionAt('/skill\nx', 8)).toBeUndefined()
+  })
+
+  it('requires the anchor at position zero', () => {
+    expect(skillMentionAt('x\n/skill ', 9)).toBeUndefined()
+  })
+
+  it.each([
+    ['/skill', 6, 'no trailing space yet'],
+    ['/skillx', 7, 'a longer word'],
+    ['/skill-set', 10, 'a hyphenated word'],
+    ['/Skill ', 7, 'the wrong case'],
+  ])('does not open on %j (%s)', (buffer, cursor) => {
+    expect(skillMentionAt(buffer, cursor)).toBeUndefined()
+  })
+
+  it('clamps a caret index from outside rather than trusting it', () => {
+    expect(skillMentionAt('/skill rev', 99)?.query).toBe('rev')
+  })
+})
+
+describe('completing the /skill token', () => {
+  it('rewrites `/skill <token>` to the chosen row with a trailing space', () => {
+    const mention = skillMentionAt('/skill rev', 10)
+    if (!mention) throw new Error('expected a mention')
+    expect(applySkillMention('/skill rev', mention, '/review'))
+      .toEqual({ text: '/review ', cursor: 8 })
+  })
+
+  it('completes an empty query the same way', () => {
+    const mention = skillMentionAt('/skill ', 7)
+    if (!mention) throw new Error('expected a mention')
+    expect(applySkillMention('/skill ', mention, '/review'))
+      .toEqual({ text: '/review ', cursor: 8 })
+  })
+})
+
+describe('filtering picker rows', () => {
+  const rows: CommandMeta[] = [
+    { name: '/review', description: '' },
+    { name: '/refresh', description: '' },
+    { name: '/changelog', description: '' },
+  ]
+
+  it('returns every row for an empty query, in input order', () => {
+    expect(filterSkillRows(rows, '').map(r => r.name)).toEqual(['/review', '/refresh', '/changelog'])
+  })
+
+  it('prefix-matches case-insensitively on the bare name', () => {
+    expect(filterSkillRows(rows, 'RE').map(r => r.name)).toEqual(['/review', '/refresh'])
+    expect(filterSkillRows(rows, 'rev').map(r => r.name)).toEqual(['/review'])
+  })
+
+  it('does not match a substring in the middle', () => {
+    expect(filterSkillRows(rows, 'view')).toEqual([])
+  })
+
+  it('returns nothing when nothing matches', () => {
+    expect(filterSkillRows(rows, 'zzz')).toEqual([])
   })
 })
 
@@ -193,7 +285,7 @@ describe('resolving a name', () => {
   })
 
   it('does not match a prefix', () => {
-    // Completion happens in the palette; a submitted line runs what it names.
+    // Completion happens in the picker; a submitted line runs what it names.
     expect(findSkill(catalog, 'rev')).toBeUndefined()
   })
 

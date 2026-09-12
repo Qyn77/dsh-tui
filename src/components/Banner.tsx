@@ -52,8 +52,8 @@ import {
   displayCwd,
   fitTail,
   metaText,
-} from '../banner-art.ts'
-import { readRepoLabel } from '../environment.ts'
+} from '../render/banner-art.ts'
+import { readRepoLabel } from '../terminal/environment.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 import { usePalette } from '../hooks/useTheme.tsx'
 

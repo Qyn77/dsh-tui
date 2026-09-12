@@ -19,8 +19,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmpdir } from 'node:os'
 import { realpathSync } from 'node:fs'
 import { paintApp } from './fake-tty.ts'
-import { catalog } from '../src/i18n.ts'
-import { PREVIEW_MAX_LINES } from '../src/message-layout.ts'
+import { catalog } from '../src/core/i18n.ts'
+import { PREVIEW_MAX_LINES } from '../src/render/message-layout.ts'
 
 const origin = process.cwd()
 afterEach(() => { process.chdir(origin) })

@@ -18,8 +18,8 @@ import {
   multiplexerFromEnv,
   osc52,
   pickCopyText,
-} from '../src/clipboard.ts'
-import type { UiEntry } from '../src/types.ts'
+} from '../src/commands/clipboard.ts'
+import type { UiEntry } from '../src/core/types.ts'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 
 /** Built, never quoted: an invisible ESC byte in a spec is unreviewable. */

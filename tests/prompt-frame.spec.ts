@@ -12,8 +12,8 @@
  * @module @deepseek-ai/dsh-tui/tests/prompt-frame.spec
  */
 
-import { describe, expect, it } from 'vitest'
-import { MAX_PROMPT_ROWS } from '../src/prompt-layout.ts'
+import { describe, expect, it, vi } from 'vitest'
+import { MAX_PROMPT_ROWS } from '../src/prompt/prompt-layout.ts'
 import { ESC, paintApp } from './fake-tty.ts'
 
 /**
@@ -612,7 +612,7 @@ describe('the @ file picker', () => {
     const screen = painted.screen()
     painted.unmount()
 
-    expect(screen).toContain('src/prompt-layout.ts')
+    expect(screen).toContain('src/prompt/prompt-layout.ts')
     expect(screen).toContain('Tab or Enter insert path')
   })
 
@@ -624,7 +624,7 @@ describe('the @ file picker', () => {
     const screen = painted.screen()
     painted.unmount()
 
-    expect(promptBox(screen).join('\n')).toContain('read @src/prompt-layout.ts ▌')
+    expect(promptBox(screen).join('\n')).toContain('read @src/prompt/prompt-layout.ts ▌')
     // The trailing space closed the token, so the list is gone.
     expect(screen).not.toContain('Tab or Enter insert path')
   })
@@ -667,6 +667,150 @@ describe('the @ file picker', () => {
 })
 
 /**
+ * The `/skill ` picker: skills no longer ride along in the `/` palette, so the
+ * only frame that should ever show a `◆` row is the one opened by typing
+ * `/skill `. The catalog arrives by an async effect after mount, which is why
+ * every case settles before reading the frame.
+ */
+describe('the /skill picker', () => {
+  /** Wait out the fake registry's resolved snapshot and the rows effect. */
+  async function openPicker(painted: Awaited<ReturnType<typeof paintApp>>, token = ''): Promise<void> {
+    await painted.send(`/skill ${token}`)
+    await painted.settle(50)
+  }
+
+  it('keeps skills out of the / palette', async () => {
+    const painted = await paintApp()
+    await painted.send('/')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // `◆` is the skill glyph and belongs to no other row in the frame.
+    expect(screen).not.toContain('◆')
+    expect(screen).not.toContain('/review')
+  })
+
+  it('lists every skill, marked with the glyph and its own key legend', async () => {
+    const painted = await paintApp()
+    await openPicker(painted)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('/review')
+    expect(screen).toContain('◆ does review')
+    expect(screen).toContain('/changelog')
+    expect(screen).toContain('Tab insert')
+  })
+
+  it('filters by the token being typed', async () => {
+    const painted = await paintApp()
+    await openPicker(painted, 'rev')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('/review')
+    expect(screen).not.toContain('/refresh')
+    expect(screen).not.toContain('/changelog')
+  })
+
+  it('never advertises a skill whose name shadows a built-in', async () => {
+    // The default fixture includes `clear`; the picker must drop it, since
+    // submitting `/clear` runs the built-in, never the skill.
+    const painted = await paintApp()
+    await openPicker(painted)
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).not.toContain('/clear')
+  })
+
+  it('inserts the highlighted skill on Tab, closing the picker', async () => {
+    const painted = await paintApp()
+    await openPicker(painted, 'rev')
+    await painted.send('\t')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // Same idiom as command completion: a trailing space, args can follow.
+    expect(promptBox(screen).join('\n')).toContain('/review ▌')
+    expect(screen).not.toContain('Tab insert')
+  })
+
+  it('runs the highlighted skill immediately on Enter', async () => {
+    const inject = vi.fn()
+    const followup = vi.fn()
+    const painted = await paintApp({ inject, followup })
+    await openPicker(painted)
+    // First row is `/review`; walk one down to `/refresh`.
+    await painted.send(`${ESC}[B`)
+    await painted.send('\r')
+    await painted.settle(50)
+    const screen = painted.screen()
+    painted.unmount()
+
+    // Two messages, in this order: injected skill body, then the follow-up
+    // that actually starts the turn.
+    expect(inject).toHaveBeenCalledTimes(1)
+    expect(followup).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(inject.mock.calls[0]?.[0])).toContain('body of refresh')
+    // The picker is gone and the buffer is empty again.
+    expect(screen).not.toContain('Tab insert')
+    expect(promptBox(screen)[1]).toContain('Ask dsh anything…')
+  })
+
+  it('dismisses on Esc without losing the token, and Enter then runs the named skill', async () => {
+    const inject = vi.fn()
+    const followup = vi.fn()
+    const painted = await paintApp({ inject, followup })
+    await openPicker(painted, 'review')
+    await painted.send(ESC)
+    const dismissed = painted.screen()
+    expect(dismissed).not.toContain('Tab insert')
+    expect(promptBox(dismissed).join('\n')).toContain('/skill review▌')
+    // Dispatch rewrites `/skill review` to `/review`, which the same runner
+    // path resolves and invokes.
+    await painted.send('\r')
+    await painted.settle(50)
+    painted.unmount()
+
+    expect(inject).toHaveBeenCalledTimes(1)
+    expect(followup).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(inject.mock.calls[0]?.[0])).toContain('body of review')
+  })
+
+  it('reopens after the dismiss-once once the token has been closed and reopened', async () => {
+    const painted = await paintApp()
+    await openPicker(painted, 're')
+    await painted.send(ESC)
+    expect(painted.screen()).not.toContain('Tab insert')
+    // A space ends the token (the dismiss session is forgotten), Backspace
+    // brings the token — and the picker — back.
+    await painted.send(' ')
+    await painted.send('\x7f')
+    const screen = painted.screen()
+    painted.unmount()
+
+    expect(screen).toContain('Tab insert')
+    expect(screen).toContain('/review')
+  })
+
+  it('opens the picker when /skill itself is chosen from the / palette on Enter', async () => {
+    const painted = await paintApp()
+    await painted.send('/skill')
+    await painted.settle(50)
+    await painted.send('\r')
+    const screen = painted.screen()
+    painted.unmount()
+
+    // The one Enter exception: it completes to `/skill ` instead of running
+    // the bare command, so no usage line is printed.
+    expect(promptBox(screen).join('\n')).toContain('/skill ▌')
+    expect(screen).toContain('Tab insert')
+    expect(screen).not.toContain('followed by a space')
+  })
+})
+
+/**
  * The floating palette against a terminal that cannot hold it.
  *
  * The App gives its root box a fixed `stdout.rows - 3` height so Ink stays on
@@ -698,14 +842,14 @@ describe('the palette on a terminal too short to hold it', () => {
     const screen = painted.screen()
     painted.unmount()
 
-    // Eight rows shown, the rest counted. Without the cap all seventeen were
+    // Eight rows shown, the rest counted. Without the cap all twenty were
     // laid out, and the frame came back with `/quit` and `/plugins` printed
     // on the same line.
     expect(screen).toContain('/clear')
     expect(screen).toContain('/history')
     expect(screen).not.toContain('/plugins')
     expect(screen).not.toContain('/verbose')
-    expect(screen).toContain('+9 more')
+    expect(screen).toContain('+12 more')
   })
 
   it('leaves the StatusBar and the prompt box whole underneath it', async () => {
@@ -726,9 +870,9 @@ describe('the palette on a terminal too short to hold it', () => {
   it('scrolls the window down to keep the selection visible', async () => {
     const painted = await paintApp({ turns: 2, rows: 24 })
     await painted.send('/')
-    // Sixteen downs is the last of the seventeen built-ins: far enough past
+    // Nineteen downs is the last of the twenty built-ins: far enough past
     // the eighth row to have dragged the window all the way to the bottom.
-    for (let i = 0; i < 16; i += 1) await painted.send(`${ESC}[B`)
+    for (let i = 0; i < 19; i += 1) await painted.send(`${ESC}[B`)
     const screen = painted.screen()
     painted.unmount()
 

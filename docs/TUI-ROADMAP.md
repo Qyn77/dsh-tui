@@ -207,7 +207,7 @@ Definition of done:
 Priority features:
 
 - richer tool result rendering — **done**: a tool call is one line,
-  `Read(src/scroll.ts) ✓`, with its result previewed beneath and capped at 8
+  `Read(src/render/scroll.ts) ✓`, with its result previewed beneath and capped at 8
   lines behind a translated `… +N lines` marker. The `round`-bordered card it
   replaced cost four rows of frame before any content
 - clearer agent state transitions — **done**: `useRunningClock` drives one
@@ -218,7 +218,9 @@ Priority features:
 - better error rendering — **done** in v0.2: network, model and tool errors get
   one uniform block in `red`
 - richer slash command discoverability — **done**: the `/` palette filters as
-  you type and `Tab` completes the highlighted name
+  you type and `Tab` completes the highlighted name; skills moved out of it
+  into the dedicated `/skill ` picker once a large catalog started drowning
+  the fixed commands (SPEC §1.5.9)
 - plugin status integration through dsh events and session metadata —
   **done**: `/plugins` lists package name and lifecycle phase, broken entries
   first, and `enable`/`disable` rewrite the loader config
@@ -287,7 +289,8 @@ Definition of done:
 Priority features:
 
 - richer model switching and plan mode context — **partly done**: `/model`
-  switches routes and the plan-mode line is drawn from `plan/mode`. The command
+  switches routes, `/model ` opens a picker over the provider's catalogue, and
+  the plan-mode line is drawn from `plan/mode`. The command
   that enters plan mode belongs to `@deepseek-ai/dsh-plan-mode` and arrives
   through the `ctx.commands` fallback
 - better overall chat ergonomics
@@ -295,35 +298,102 @@ Priority features:
   and `DSH_TUI_RESUME`, all over `SessionPersistence`
 - optional advanced editing and completion features
 
-**One of the five v1.0 items in SPEC Part 2 remains blocked. This paragraph
-has now said three, then two, then one** — and both corrections were the same
-mistake, so it is worth naming the mistake rather than just the count. Each
-time, a capability was written off as having "no published plugin", and each
-time the plugin was published on `0.1.0-rc.7`, the line this package already
-pins. `@deepseek-ai/dsh-mcp-client` was the first (the TUI's half shipped, SPEC
-§1.12); `@deepseek-ai/dsh-hook-protocol` is the second. Before this file calls
-anything blocked again, the check is `npm view` and the package's `.d.ts` — not
-recollection.
+**None of the five v1.0 items in SPEC Part 2 is blocked. This paragraph has
+now said three, then two, then one, then none** — and every correction was the
+same mistake, so it is worth naming the mistake rather than just the count.
+Each time, a capability was written off as unreachable, and each time the
+packages were published on `0.1.0-rc.7`, the line this package already pins.
+`@deepseek-ai/dsh-mcp-client` was the first (the TUI's half shipped, SPEC
+§1.12); `@deepseek-ai/dsh-hook-protocol` the second; sub-agents the third, and
+that one was worse — the claim was not "no plugin" but a specific wrong version
+line, which reads like it came from a check. Before this file calls anything
+blocked again, the check is `npm view` and the package's `.d.ts` — not
+recollection, and not a remembered version number.
 
 Hooks is no longer on this list because it shipped. `dsh-hook-protocol@0.1.0-rc.7`
 declares `hook/invoked` and `hook/result` in full, and a run now draws as one
 row paired on `handlerId` — dim when the hook changed nothing, yellow when it
-denied, asked or halted. It cost no dependency at all: `src/types.ts` declares
+denied, asked or halted. It cost no dependency at all: `src/core/types.ts` declares
 the payloads locally, as it already did for `compaction/*` and `plan/mode`. Like
 MCP it ships dark until a user inserts a bridge. See SPEC §1.15.
 
-What is genuinely still out of reach:
+MCP no longer ships dark either. `/mcp add` takes the `mcpServers` JSON block a
+server's README already gives the user, appends one `insert` row per server to
+`$DSH_HOME/cordis.patch.yml`, and the launcher's config watcher connects it
+without a restart — the TUI writes the file it is itself running out of, which
+a live-boot spike confirmed is safe. That closed the last hole in §1.12 and it
+too cost no harness change and no new peer, only a `yaml` dependency so the
+write does not eat the user's comments. What does still need harness work is
+credentials: the bridge resolves no credential references, so a key in a pasted
+snippet is written in plaintext and flagged rather than stored. See SPEC
+§1.12.1.
 
-- **Sub-agent visualization.** `@deepseek-ai/dsh-subagent` and
-  `@deepseek-ai/dsh-tool-workflow` *are* published, but on `0.1.2-rc.x`, which
-  peers against `dsh-session@^0.1.2-rc.1` while this package pins
-  `0.1.0-rc.7`. Borrowing their declarations would put two `dsh-session`
-  copies in the tree and split the module augmentation that types session
-  events. This unblocks on a tree-wide version bump, not on a devDependency.
+Nothing on that list is unreachable, and as of this revision nothing on it is
+unbuilt either:
 
-`plan/mode` is the precedent for unblocking one locally — `src/types.ts`
-declares that payload itself — but it works there only because
+- **Code Mode sub-calls.** *Shipped.* `tool/code-dispatch-start` and
+  `tool/code-dispatch` were declared by `@deepseek-ai/dsh-tools`, emitted by a
+  `code-runtime` this package's own patch mounts, and dropped on the floor by
+  the reducer. They now draw as one `↳` row each inside the parent `run_code`
+  entry. See SPEC §1.16.
+
+- **Sub-agent visualization.** *Shipped, as workflow runs.* Twice this file
+  called it blocked on a version line, and once — an hour after fixing that —
+  on a design problem. Both were wrong, and the second wrong answer is the
+  instructive one. `@deepseek-ai/dsh-subagent` emits a single event,
+  `subagent/descriptor`, into the **child's** log, so the parent transcript was
+  never going to find a delegation there. `@deepseek-ai/dsh-tool-workflow`
+  writes `tool-workflow/run-start|agent-start|agent-end|run-end` into the
+  calling parent, and that is the fan-out a user can actually watch. A run is
+  one entry with a `↳` row per member. See SPEC §1.17.
+
+  The version claim deserves its own note, because it will trip the next
+  reader too: every package in this family carries a `latest` dist-tag of
+  `0.0.1-rc.1`. A bare `npm view @deepseek-ai/<pkg>` therefore reports a
+  version *below* the line this package pins and reads like a confirmed
+  blocker. Use `npm view <pkg> versions --json`.
+
+- **The approval audit trail.** *Shipped.* Not a v1.0 item — SPEC §3.2.1
+  carried it as a known gap — and it is listed here because the gap was stated
+  in that section twice, wrongly both times, in a way this file's counting
+  paragraph is exactly about. First it said the three `approval/*` events are
+  not typed; `@deepseek-ai/dsh-user-approval@0.1.0-rc.7` is a peer and
+  augments `SessionEventMap` with all three. Then it said the reducer simply
+  had no entry for them, which was true and is no longer: an asked question is
+  one row paired on `id`, a decision settles that row, and a policy switch is a
+  row of its own. `/approval` reads and switches the session's policy. The
+  events are log-only, so before this the answer you gave vanished with the
+  card. See SPEC §1.18.
+
+- **Permission presets surfaced.** *Shipped.* The question "ask / auto-approve
+  / full access?" turned out to need no third approval policy:
+  `@deepseek-ai/dsh-permission-presets` already bundles the approval knob with
+  the sandbox knob and ships `/permission <preset>`. The TUI now reads the
+  plugin's synchronous `permissions` session projection (types copied locally,
+  no new dependency) and shows the effective preset word on the StatusBar and
+  in `/status`, with `danger-full-access` in bold red. `/permission ` also
+  opens a skill-style picker (§1.5.10) that ticks the live preset and submits
+  the full line to the plugin command, and `Tab`/`Shift+Tab` on an empty
+  prompt cycle the table the same way. No projection service, no chip, no
+  picker and no cycle — the feature ships dark. See SPEC §1.18.
+
+- **Vim keybinds.** *Shipped as `/keybinds vim`.* The last item on the v1.0
+  list, and the one whose title was half wrong: it read "Vim / Emacs keybind
+  toggle", but the default keymap already *is* the emacs/readline one, so there
+  were only ever two states to toggle between. The vim half is a pure keymap
+  (`src/prompt/vim.ts`) layered over that table — insert mode is the existing editor
+  byte for byte, so nothing that already worked in the prompt had to be
+  reimplemented behind a flag. Motions `h j k l 0 ^ $ w b e gg G`, inserts
+  `i a I A o O`, edits `x D C dd cc` and `d`/`c` with a motion, `p`/`P`. No
+  counts, no visual mode, no undo. The mode shows by changing the prompt marker
+  from `>` to `N`, which costs no row and no column — the fixed-height frame
+  overlaps anything that grows. See SPEC §1.19.
+
+`plan/mode` is the precedent for declaring a payload locally — `src/core/types.ts`
+declares that one itself — but it works there only because
 `{ enabled: boolean }` is a shape one can be certain of without the emitter.
+Where the emitter is already a peer, as with `dsh-tools`, importing its types
+beats copying them.
 
 Definition of done:
 
@@ -399,7 +469,7 @@ These are not the right next steps unless they are required by a concrete user s
 That last one is load-bearing and gets cited from outside this document, so it
 is spelled out rather than left implied by "broad app-level state machines".
 SPEC §1.2 states the same refusal, `/copy <n>` was dropped because of it
-(SPEC §1.5.5, `src/clipboard.ts`), and the v0.4 truncation item shipped as a
+(SPEC §1.5.5, `src/commands/clipboard.ts`), and the v0.4 truncation item shipped as a
 global `/verbose` switch rather than a per-entry `▾ show more` precisely to
 stay on this side of it. Reversing it is a deliberate decision to make here first, not
 something to discover halfway into implementing an affordance.

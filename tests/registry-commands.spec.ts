@@ -16,7 +16,7 @@ import React from 'react'
 import { render, Text } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
 import { useRegistryCommands } from '../src/hooks/useRegistryCommands.ts'
-import type { CommandMeta } from '../src/commands.ts'
+import type { CommandMeta } from '../src/commands/commands.ts'
 import { fakeStdout } from './fake-tty.ts'
 
 const { act } = React

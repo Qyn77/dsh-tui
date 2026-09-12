@@ -1,7 +1,7 @@
 /**
  * The catalog's own invariants.
  *
- * These tests are the reason `src/i18n.ts` is a pure module: they check the
+ * These tests are the reason `src/core/i18n.ts` is a pure module: they check the
  * *shape* of every language against the source-of-truth English one without
  * mounting a component or reading a file. A missing translation is caught here
  * as a failing test, which is the only thing standing between a new string and
@@ -18,8 +18,8 @@ import {
   isLang,
   parseLanguageArg,
   type Lang,
-} from '../src/i18n.ts'
-import { displayWidth } from '../src/width.ts'
+} from '../src/core/i18n.ts'
+import { displayWidth } from '../src/core/width.ts'
 
 /**
  * Every leaf path in an object, dotted. Functions are leaves — a catalog entry

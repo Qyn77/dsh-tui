@@ -137,7 +137,7 @@ Two further wrong turns, both found the same way:
 ## Follow-up: the prompt now claims the arrows sometimes
 
 The input box grew an auto-height with an internal scroll
-(`src/prompt-layout.ts`), which means `↑`/`↓` have a second job: walking the
+(`src/prompt/prompt-layout.ts`), which means `↑`/`↓` have a second job: walking the
 caret through a multi-row buffer. Ownership is negotiated as invariant 7
 describes. Two notes for whoever reads this next:
 
@@ -154,9 +154,9 @@ describes. Two notes for whoever reads this next:
 
 ## Related files
 
-- `src/scroll.ts`, `tests/scroll.spec.ts`
+- `src/render/scroll.ts`, `tests/scroll.spec.ts`
 - `src/hooks/useMessageListScroll.ts`
 - `src/components/MessageList.tsx`, `tests/message-scroll.spec.ts`
-- `src/prompt-layout.ts`, `src/components/Prompt.tsx`, `tests/prompt-frame.spec.ts`
+- `src/prompt/prompt-layout.ts`, `src/components/Prompt.tsx`, `tests/prompt-frame.spec.ts`
 - `src/renderer.tsx` (banner condition, reserved hint row)
 - `src/index.ts` (alternate scroll mode enter/exit)

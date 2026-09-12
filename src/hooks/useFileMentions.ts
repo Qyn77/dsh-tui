@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { listFiles, rankPaths } from '../file-mentions.ts'
+import { listFiles, rankPaths } from '../prompt/file-mentions.ts'
 
 /** Rows the picker shows at once. Same eight as the output previews. */
 export const MAX_MENTION_ROWS = 8

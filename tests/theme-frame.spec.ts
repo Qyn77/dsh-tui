@@ -15,13 +15,13 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { paintApp } from './fake-tty.ts'
-import { catalog } from '../src/i18n.ts'
+import { catalog } from '../src/core/i18n.ts'
 
 // `/theme` persists, and this suite runs it for real. Stubbed for the reason
 // `language-frame.spec.ts` gives: a test run must not rewrite the developer's
 // own `~/.dsh/tui.json`. The file's contents are `settings.spec.ts`'s subject.
-vi.mock('../src/settings.ts', async importOriginal => ({
-  ...await importOriginal<typeof import('../src/settings.ts')>(),
+vi.mock('../src/terminal/settings.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/terminal/settings.ts')>(),
   writeSettings: vi.fn(() => true),
 }))
 
@@ -86,7 +86,7 @@ describe('/theme', () => {
     // changed a row's length would break the erase arithmetic the same way an
     // over-wide banner row does — see Part 1 rule 7.
     const columns = 80
-    const { displayWidth } = await import('../src/width.ts')
+    const { displayWidth } = await import('../src/core/width.ts')
     for (const appearance of ['dark', 'light'] as const) {
       const painted = await paintApp({ appearance, columns, turns: 1 })
       const rows = painted.screen().split('\n')
