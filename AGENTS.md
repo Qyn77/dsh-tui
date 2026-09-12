@@ -54,6 +54,7 @@ src/
 │   ├── sessions.ts           /sessions listing                           [test-first]
 │   ├── usage.ts              /usage + /context reports                   [test-first]
 │   ├── permissions.ts        The permission-projection read              [test-first]
+│   ├── providers.ts          /provider route listing + the live tick     [test-first]
 │   ├── clipboard.ts          OSC 52 + what /copy selects                 [test-first]
 │   └── resume.ts             --resume planning                           [test-first]
 ├── render/                   Transcript rendering

@@ -1,18 +1,21 @@
 /**
- * Track the current provider's model catalogue for the `/model ` picker.
+ * Track every registered provider's model catalogue for the `/model ` picker.
  *
  * Sibling of `useSkillCommands`, with the same two properties that make a
  * hook rather than a read: the listing is **asynchronous** (`llm.listModels`
- * is a provider round-trip), and the catalogue can change under it
+ * is a provider round-trip per route), and the topology can change under it
  * (`llm/adapters-updated` fires when a provider route registers, is replaced
  * or is disposed). A failed listing keeps the previous rows rather than
  * emptying the picker mid-session, the same bargain an incomplete skill
  * catalog gets.
  *
- * The scope is deliberately the **current selection's provider**: one
- * round-trip, and the answer to "which models can I switch to" for the
- * provider the session is already talking to. Crossing providers stays a
- * typed `/model <provider>/<id>` line, which the dispatch has always taken.
+ * The scope is **every provider `listProviders()` reports**, not just the
+ * current selection's: one adapter can serve several routes, and a second
+ * adapter mounting without a restart should be pickable the moment its tools
+ * are. The fetches run in parallel and settle independently, so a slow route
+ * cannot hold back the rows of a fast one; each route's slice of the
+ * catalogue is replaced as a unit, and a route that disappears on
+ * `llm/adapters-updated` has its slice dropped on the next refresh.
  * @module @deepseek-ai/dsh-tui/hooks/useModelCommands
  */
 
@@ -31,14 +34,14 @@ function sameCatalogue(a: readonly LlmModelInfo[], b: readonly LlmModelInfo[]): 
 }
 
 /**
- * Subscribe to the current provider's model catalogue and return it as
- * `/model ` picker rows, with the model the session is on marked.
+ * Subscribe to every provider's model catalogue and return it as `/model `
+ * picker rows, with the model the session is on marked.
  *
  * The raw catalogue is the state; the ✓ marking is a memo over it, because a
- * switch changes `selection.model` without changing the catalogue and must
- * not re-run the fetch.
+ * switch changes the selection without changing the catalogue and must not
+ * re-run the fetches.
  * @param ctx - the context to read `ctx.llm` from.
- * @param selection - the live model selection; its provider scopes the fetch.
+ * @param selection - the live model selection; its route is the ticked row.
  * @returns model rows for the picker; empty with no selection, no `llm`
  *   service, or a listing that has not answered yet.
  */
@@ -46,24 +49,53 @@ export function useModelCommands(
   ctx: Context,
   selection: ModelSelection | undefined,
 ): readonly CommandMeta[] {
-  const [catalogue, setCatalogue] = useState<readonly LlmModelInfo[]>([])
-  const provider = selection?.provider
+  // Catalogue keyed by provider route, plus the route display names read at
+  // the same moment. One state value so a refresh that adds and drops routes
+  // lands as one render.
+  const [catalogue, setCatalogue] = useState<{
+    byProvider: ReadonlyMap<string, readonly LlmModelInfo[]>
+    names: ReadonlyMap<string, string>
+    order: readonly string[]
+  }>({ byProvider: new Map(), names: new Map(), order: [] })
 
   useEffect(() => {
-    if (provider === undefined) return
     const llm = service(ctx, 'llm')
     if (llm === undefined) return
     const controller = new AbortController()
     const refresh = (): void => {
-      void llm.listModels(provider)
-        .then((models) => {
-          if (controller.signal.aborted) return
-          // A failed refresh is not news about the catalogue; keeping the
-          // previous rows is what stops a flaky endpoint from emptying the
-          // picker between two opens.
-          setCatalogue(prev => sameCatalogue(prev, models) ? prev : models)
+      const providers = llm.listProviders()
+      const order = providers.map(p => p.id)
+      const names = new Map(providers.map(p => [p.id, p.name]))
+      void Promise.all(
+        order.map(async (provider) => {
+          try {
+            return [provider, await llm.listModels(provider)] as const
+          } catch {
+            return undefined
+          }
+        }),
+      ).then((settled) => {
+        if (controller.signal.aborted) return
+        const listings = settled.filter((entry): entry is readonly [string, LlmModelInfo[]] => entry !== undefined)
+        setCatalogue((prev) => {
+          // A route whose listing failed keeps its previous slice: a flaky
+          // endpoint must not empty rows the user could still pick.
+          const byProvider = new Map<string, readonly LlmModelInfo[]>()
+          for (const [provider, models] of listings) {
+            const old = prev.byProvider.get(provider)
+            byProvider.set(provider, old !== undefined && sameCatalogue(old, models) ? old : models)
+          }
+          for (const provider of order) {
+            const old = prev.byProvider.get(provider)
+            if (old !== undefined && !byProvider.has(provider)) byProvider.set(provider, old)
+          }
+          const same
+            = byProvider.size === prev.byProvider.size
+            && order.length === prev.order.length
+            && order.every((provider, i) => provider === prev.order[i] && byProvider.get(provider) === prev.byProvider.get(provider))
+          return same ? prev : { byProvider, names, order }
         })
-        .catch(() => {})
+      })
     }
     refresh()
     const off = ctx.on('llm/adapters-updated', refresh)
@@ -71,10 +103,10 @@ export function useModelCommands(
       controller.abort()
       off()
     }
-  }, [ctx, provider])
+  }, [ctx])
 
-  return useMemo(
-    () => modelRows(catalogue, selection?.model),
-    [catalogue, selection?.model],
-  )
+  return useMemo(() => {
+    const models = catalogue.order.flatMap(provider => catalogue.byProvider.get(provider) ?? [])
+    return modelRows(models, selection, provider => catalogue.names.get(provider) ?? provider)
+  }, [catalogue, selection])
 }

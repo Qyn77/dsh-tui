@@ -120,11 +120,12 @@ REPL 里：输入消息按 **Enter** 发送；模型跑着的时候可以继续�
 | `/help` | 打印可用的斜杠命令 |
 | `/clear` | 清空可见的聊天区（session log 不变） |
 | `/status` | 打印当前模型、session id 和生效中的权限预设 |
-| `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换。输入 `/model `（带空格）会弹出当前 provider 的模型选择器，直接选而不必猜名字 |
+| `/model` | 打印当前模型；`/model <名字>` 或 `/model <provider>/<名字>` 切换。输入 `/model `（带空格）会弹出所有已挂载 provider 的模型选择器，直接选而不必猜名字 |
+| `/provider` | 列出已挂载的 LLM 提供方路由和当前生效的那个（只读；要配置得去改 llm 插件的配置） |
 | `/context` | 打印上下文窗口、本次 session 的 token 开销，以及当前上下文占用了多少 |
 | `/usage` | 按轮次拆开本次 session 的 token 开销 |
 | `/language` | 切换界面语言：`/language en` 或 `/language zh` |
-| `/mcp` | 列出已连接的 MCP 服务器，以及各自注册的工具；`/mcp add <json>` 从粘贴的 `mcpServers` 片段连一个，`/mcp remove <server>` 撤下来 |
+| `/mcp` | 列出已连接的 MCP 服务器，以及各自注册的工具；`/mcp add` 打开常见预设服务器的选择器、或从粘贴的 `mcpServers` 片段连一个，`/mcp remove <server>` 撤下来 |
 | `/approval` | 查看这条 session 的审批策略；`/approval ask` 或 `never` 切换 |
 | `/permission` | 插件命令：选择「沙箱 + 审批」打包预设——`/permission ` 打开选择器，也可直接打 `read-only` / `workspace-write` / `danger-full-access` |
 | `/theme` | 选择配色假定的背景：`/theme auto`、`dark` 或 `light` |

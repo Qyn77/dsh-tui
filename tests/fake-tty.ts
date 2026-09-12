@@ -370,8 +370,13 @@ export async function paintApp(
   } as never)
   if (models !== undefined) {
     ctx.provide('llm', {
+      // One route for the fake: the mount's selection provider. A test that
+      // wants a second route provides its own `llm` through `inject`.
+      listProviders: () => [{ id: selection.provider, name: 'Fake Provider' }],
       listModels: (provider: string) => Promise.resolve(
-        models.map(id => ({ provider, id, name: `name of ${id}` })),
+        provider === selection.provider
+          ? models.map(id => ({ provider, id, name: `name of ${id}` }))
+          : [],
       ),
     } as never)
   }

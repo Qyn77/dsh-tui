@@ -73,6 +73,7 @@ export const COMMAND_NAMES = [
   '/mcp',
   '/model',
   '/plugins',
+  '/provider',
   '/quit',
   '/sessions',
   '/skill',
@@ -453,6 +454,16 @@ export interface Catalog {
     noModelService: string
     /** `/model` after a successful switch. */
     modelSwitched: (provider: string, model: string) => string
+    /** `/provider` with an argument — the command is read-only. */
+    providerUsage: string
+    /** `/provider` in an assembly with no `llm` service to read. */
+    providerNoService: string
+    /** `/provider` when the registry holds no provider routes. */
+    providerNone: string
+    /** `/provider`: heading above the route list, given the number of routes. */
+    providerHeading: (count: number) => string
+    /** `/provider`: one line per route — id, display name, and the live mark. */
+    providerRow: (id: string, name: string, current: boolean) => string
     /** `/language` with no argument. */
     languageUsage: (current: Lang) => string
     /** `/language` after a successful switch, written in the *new* language. */
@@ -653,8 +664,9 @@ const EN: Catalog = {
     '/history': 'Show or hide the resumed session\'s stored history: /history show or hide',
     '/keybinds': 'Choose the prompt editor: /keybinds vim or default',
     '/language': 'Switch the interface language: /language en or zh',
-    '/mcp': 'List connected MCP servers; /mcp add <config> and /mcp remove <server> configure them',
+    '/mcp': 'List connected MCP servers; /mcp add opens a preset picker or takes a pasted config, /mcp remove <server> takes one out',
     '/model': 'Switch model: /model <name> or <provider>/<name>',
+    '/provider': 'List the mounted LLM provider routes and the live one (read-only)',
     '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
     '/quit': 'Alias for /exit',
     '/sessions': 'List stored sessions and how to continue one',
@@ -775,6 +787,12 @@ const EN: Catalog = {
       `Usage: /model <name>\nCurrent: ${current}\n\nUse /context to see context window and token usage.`,
     noModelService: 'No default model service available.',
     modelSwitched: (provider, model) => `Switched to ${provider}/${model}`,
+    providerUsage:
+      'Usage: /provider — lists the mounted provider routes and the live one. Configuring a provider means editing the llm plugin\'s config (its baseURL and apiKeyEnv) and putting the key in ~/.dsh/.env; a key never goes through the chat line. `/model <provider>/<id>` switches routes once more than one is mounted.',
+    providerNoService: 'No llm service in this assembly — nothing to enumerate.',
+    providerNone: 'No provider route is registered, so no model call can leave this machine. Mount an llm adapter plugin (for example @deepseek-ai/dsh-llm-deepseek) and its route appears here.',
+    providerHeading: count => `Provider routes (${count}):`,
+    providerRow: (id, name, current) => `${current ? '✓ ' : '  '}${id} — ${name}`,
     languageUsage: current =>
       `Usage: /language <${LANGUAGES.join('|')}>\nCurrent: ${current}\n\nThe choice is saved and applies to the next launch too.`,
     languageSwitched: 'Interface language switched to English.',
@@ -926,6 +944,7 @@ const ZH: Catalog = {
     '/language': '切换界面语言：/language en 或 zh',
     '/mcp': '列出已连接的 MCP 服务器；/mcp add 打开预设选择器或接受粘贴的配置，/mcp remove <服务器> 移除一个',
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
+    '/provider': '列出已挂载的 LLM 提供方路由和当前生效的那个（只读）',
     '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
     '/quit': '/exit 的别名',
     '/sessions': '列出已存的 session，以及怎么接上其中一个',
@@ -1042,6 +1061,12 @@ const ZH: Catalog = {
       `用法：/model <名称>\n当前：${current}\n\n用 /context 查看上下文窗口和 token 用量。`,
     noModelService: '没有可用的默认模型服务。',
     modelSwitched: (provider, model) => `已切换到 ${provider}/${model}`,
+    providerUsage:
+      '用法：/provider —— 列出已挂载的提供方路由和当前生效的那个。配置提供方要改 llm 插件的配置（baseURL 与 apiKeyEnv），密钥放进 ~/.dsh/.env；密钥不经过聊天行。挂载了不止一个路由后，用 /model <提供方>/<id> 切换。',
+    providerNoService: '当前装配没有 llm 服务，无从枚举。',
+    providerNone: '没有注册任何提供方路由，模型请求出不了这台机器。挂一个 llm adapter 插件（比如 @deepseek-ai/dsh-llm-deepseek），它的路由就会出现在这里。',
+    providerHeading: count => `提供方路由（${count}）：`,
+    providerRow: (id, name, current) => `${current ? '✓ ' : '  '}${id} —— ${name}`,
     languageUsage: current =>
       `用法：/language <${LANGUAGES.join('|')}>\n当前：${current}\n\n选择会被保存，下次启动同样生效。`,
     languageSwitched: '界面语言已切换为中文。',

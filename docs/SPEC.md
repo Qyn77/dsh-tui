@@ -259,6 +259,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide`. |
 | `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`. Bare `/keybinds` reports which is in force and switches nothing — §1.19. |
 | `/mcp` | List the connected MCP servers and the tools each one registered, read fresh from `ctx.tools`. `/mcp add <config>` writes a pasted server config into the user's patch layer and waits for it to connect; `/mcp remove <server>` takes it back out (§1.12). |
+| `/provider` | List the mounted LLM provider routes, read fresh from `ctx.llm`, and tick the one the session is on. Read-only: configuring a route means editing the llm plugin's config, and a credential never passes through a chat line (§1.20). |
 | `/exit`, `/quit` | Leave the REPL. |
 | `Ctrl-C` (turn running) | Cancel the in-flight turn. |
 | `Ctrl-C` (buffer non-empty) | Clear the buffer. |
@@ -496,8 +497,8 @@ its way to someone else.
 | `Enter` | `/permission` picker | Submit `/permission <value>` to the plugin command |
 | `Esc` | `/permission` picker | Dismiss the list once, keep the buffer |
 | `↑` / `↓` | `/permission` picker | Move picker selection |
-| `Tab` | `/model` picker | Fill `/model <id> `, keep editing |
-| `Enter` | `/model` picker | Submit `/model <id>` through the ordinary dispatch |
+| `Tab` | `/model` picker | Fill `/model <provider>/<id> `, keep editing |
+| `Enter` | `/model` picker | Submit `/model <provider>/<id>` through the ordinary dispatch |
 | `Esc` | `/model` picker | Dismiss the list once, keep the buffer |
 | `↑` / `↓` | `/model` picker | Move picker selection |
 | `Tab` / `Shift+Tab` | Prompt (empty buffer, nothing floating, presets advertised) | Cycle the permission preset (§1.5.10) |
@@ -1019,11 +1020,19 @@ Preset words are deployment-configured table keys, so they are shown **verbatim,
 
 **An unknown key in normal mode is swallowed, never typed.** `dq` abandons the operator; `q` alone does nothing. The alternative — falling through to the text path — means a mistyped normal-mode key silently appends a letter to a prompt the user believes they are navigating, and they find out when they press Enter.
 
-**Esc is contested six ways, and turn-cancel has to stay reachable.** The order is: the `/` palette, the `/skill` picker, the `/permission` picker, the `/model` picker, or the `@` picker wins it first (in the precedence of §1.5.9–§1.5.11, only one can be open); then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
+**Esc is contested seven ways, and turn-cancel has to stay reachable.** The order is: the `/` palette, the `/skill` picker, the `/permission` picker, the `/model` picker, the `/mcp add` picker, or the `@` picker wins it first (in the precedence of §1.5.9–§1.5.11 and §1.12.1, only one can be open); then insert mode with a non-empty buffer takes it and switches to normal; then normal mode **declines** it, so the App's turn-cancel (§1.6) still fires. A normal-mode Esc with a pending operator clears the operator and *then* declines the next one. That is the only ordering in which a user in vim mode can still stop a running turn.
 
 **The mode indicator costs zero rows and zero columns.** The prompt marker changes from `> ` to `N `, and it and the caret turn yellow. Not a `NORMAL` badge under the box: the root is a fixed-height frame and Yoga *overlaps* an overflowing subtree instead of scrolling it (§1.8), so a row that appears when a mode changes is a row that lands on top of the transcript. A width change would be as bad in the other direction — it re-folds every wrapped row in the buffer, which is a caret jump on a keystroke that was supposed to be free.
 
 **The preference persists, and defaults to off.** `keybinds` joins `language`, `theme` and `history` in `~/.dsh/tui.json` through the same total-read/merged-write path (§1.5). Bare `/keybinds` **reads without writing** — unlike `/history`, which toggles. Two states again, but these two change what every subsequent keystroke *means*, and a user who typed `/keybinds` to check which one is on must not be switched by the asking.
+
+### 1.20 Provider routes
+
+`/provider` answers "which model endpoints can this session actually reach", which is a different question from `/model`'s "which model am I on": the routes are the assembly's, not the conversation's. It reads `ctx.llm.listProviders()` fresh on every call — the adapter registry is the only authority, the same stance §1.12 takes for MCP — and ticks the route the session's selection names.
+
+**The command is read-only, and that is a rule-4 decision, not a scope cut.** Configuring a provider means a base URL *and a credential*. The approval seam gates what the model does, not what the human configures, but a key typed into the prompt buffer would land in the session log, in scrollback, and possibly in a `/copy` — a credential must never pass through a chat line. So the write path stays in files the user owns: the llm adapter plugin's config (`baseURL`, `apiKeyEnv`) in a patch layer, and the key itself in `~/.dsh/.env`. `/provider`'s answer says exactly that, and `/model <provider>/<id>` — which the dispatch has always taken, and which the `/model ` picker now offers across every mounted route (§1.5.11) — is the switch.
+
+**A route the assembly does not register is not listed.** Unlike the MCP surface, where a configured-but-unanswered server has a row in the patch file to point at, a provider with no adapter mounted has nothing to report; the empty answer names the package to mount rather than enumerating a directory of things that cannot be used. Whether a second adapter ever ships is the harness' decision — this package's half is that the moment one mounts, the picker and this command see it without a change here.
 
 ---
 

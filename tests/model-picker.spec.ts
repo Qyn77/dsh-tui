@@ -1,6 +1,7 @@
 /**
- * Pure mechanics of the `/model ` picker: row mapping with the live model
- * marked, anchored query tokens, fill, filter, and the submitted line.
+ * Pure mechanics of the `/model ` picker: row mapping across providers with
+ * the live route marked, anchored query tokens, fill, filter, and the
+ * submitted line.
  *
  * @module @deepseek-ai/dsh-tui/tests/model-picker.spec
  */
@@ -19,10 +20,13 @@ import {
 const catalogue: readonly LlmModelInfo[] = [
   { provider: 'deepseek-official', id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
   { provider: 'deepseek-official', id: 'deepseek-v4', name: 'DeepSeek V4' },
-  { provider: 'deepseek-official', id: 'deepseek-r2', name: 'DeepSeek R2' },
+  { provider: 'openai-gateway', id: 'deepseek-v4', name: 'DeepSeek V4 (via gateway)' },
 ]
 
-const rows = modelRows(catalogue, undefined)
+const providerName = (provider: string): string =>
+  provider === 'deepseek-official' ? 'DeepSeek' : 'OpenAI'
+
+const rows = modelRows(catalogue, undefined, providerName)
 
 describe('modelMentionAt', () => {
   it('opens right after the anchoring space with an empty query', () => {
@@ -31,6 +35,11 @@ describe('modelMentionAt', () => {
 
   it('captures the whole token regardless of the caret inside it', () => {
     expect(modelMentionAt('/model deep', 9)).toEqual({ query: 'deep', start: 7, end: 11 })
+  })
+
+  it('captures a qualified token as one unit', () => {
+    expect(modelMentionAt('/model openai-gateway/deepseek-v4', 20))
+      .toEqual({ query: 'openai-gateway/deepseek-v4', start: 7, end: 33 })
   })
 
   it('closes once a second token exists', () => {
@@ -43,8 +52,8 @@ describe('modelMentionAt', () => {
 })
 
 describe('modelCommandLine', () => {
-  it('builds the full command line', () => {
-    expect(modelCommandLine('deepseek-r2')).toBe('/model deepseek-r2')
+  it('builds the full command line from a qualified name', () => {
+    expect(modelCommandLine('openai-gateway/deepseek-v4')).toBe('/model openai-gateway/deepseek-v4')
   })
 })
 
@@ -53,33 +62,57 @@ describe('applyModelMention', () => {
     const mention = modelMentionAt('/model dee', 9)
     expect(mention).toBeDefined()
     if (mention === undefined) return
-    expect(applyModelMention('/model dee', mention, 'deepseek-v4')).toEqual({
-      text: '/model deepseek-v4 ',
-      cursor: 19,
+    expect(applyModelMention('/model dee', mention, 'deepseek-official/deepseek-v4')).toEqual({
+      text: '/model deepseek-official/deepseek-v4 ',
+      cursor: 37,
     })
   })
 })
 
 describe('filterModelRows', () => {
-  it('prefix-matches case-insensitively and keeps order', () => {
-    expect(filterModelRows(rows, '').map(r => r.name))
-      .toEqual(['deepseek-v4-flash', 'deepseek-v4', 'deepseek-r2'])
-    expect(filterModelRows(rows, 'DEEPSEEK-V4').map(r => r.name))
-      .toEqual(['deepseek-v4-flash', 'deepseek-v4'])
-    expect(filterModelRows(rows, 'r2')).toEqual([])
+  it('prefix-matches the qualified name case-insensitively and keeps order', () => {
+    expect(filterModelRows(rows, 'DEEPSEEK-OFFICIAL').map(r => r.name))
+      .toEqual(['deepseek-official/deepseek-v4-flash', 'deepseek-official/deepseek-v4'])
+  })
+
+  it('prefix-matches the model half alone, so a provider name is no tax', () => {
+    expect(filterModelRows(rows, 'deepseek-v4').map(r => r.name))
+      .toEqual([
+        'deepseek-official/deepseek-v4-flash',
+        'deepseek-official/deepseek-v4',
+        'openai-gateway/deepseek-v4',
+      ])
+  })
+
+  it('keeps every row on an empty query', () => {
+    expect(filterModelRows(rows, '')).toEqual(rows)
   })
 })
 
 describe('modelRows', () => {
-  it('uses bare ids as names and the provider display names as descriptions', () => {
-    expect(rows[0]).toEqual({ name: 'deepseek-v4-flash', description: 'DeepSeek V4 Flash' })
+  it('names each row by the qualified route and describes it with both halves', () => {
+    expect(rows[0]).toEqual({
+      name: 'deepseek-official/deepseek-v4-flash',
+      description: 'DeepSeek V4 Flash · DeepSeek',
+    })
   })
 
-  it('marks only the model the session is on', () => {
-    const marked = modelRows(catalogue, 'deepseek-v4')
+  it('keeps same-id models from different providers apart', () => {
+    const names = rows.map(r => r.name)
+    expect(names).toContain('deepseek-official/deepseek-v4')
+    expect(names).toContain('openai-gateway/deepseek-v4')
+  })
+
+  it('marks only the exact route the session is on', () => {
+    const marked = modelRows(catalogue, { provider: 'openai-gateway', model: 'deepseek-v4' }, providerName)
     const ticked = marked.filter(r => r.description.startsWith(CURRENT_MODEL_GLYPH))
     expect(ticked).toHaveLength(1)
-    expect(ticked[0]?.name).toBe('deepseek-v4')
-    expect(ticked[0]?.description).toBe(`${CURRENT_MODEL_GLYPH} DeepSeek V4`)
+    expect(ticked[0]?.name).toBe('openai-gateway/deepseek-v4')
+    expect(ticked[0]?.description).toBe(`${CURRENT_MODEL_GLYPH} DeepSeek V4 (via gateway) · OpenAI`)
+  })
+
+  it('ticks nothing when the selection names no listed route', () => {
+    const marked = modelRows(catalogue, { provider: 'gone', model: 'ghost' }, providerName)
+    expect(marked.some(r => r.description.startsWith(CURRENT_MODEL_GLYPH))).toBe(false)
   })
 })

@@ -68,6 +68,7 @@ import {
   type PluginRow,
 } from './plugins.ts'
 import { describeMcpServers, formatMcpServers, waitForMcpServer } from '../mcp/mcp.ts'
+import { formatProviderRows, selectProviderRow } from './providers.ts'
 import { parseMcpSnippet, secretEnvKeys, type McpParseResult } from '../mcp/mcp-config.ts'
 import { addMcpRows, patchPath, removeMcpRow } from '../mcp/mcp-patch.ts'
 import { findPreset, presetRow } from '../mcp/mcp-catalog.ts'
@@ -878,6 +879,26 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       await cmd.setModel(provider, model)
       cmd.refreshSelection()
       return { kind: 'handled', message: strings.modelSwitched(provider, model) }
+    }
+
+    case '/provider': {
+      // Read-only, deliberately: the write side is a base URL and a
+      // credential, and a credential must never be typed into a chat line
+      // (rule 4). The answer names the file to edit instead.
+      const args = raw.trim().split(/\s+/).slice(1)
+      if (args.length > 0) {
+        return { kind: 'handled', message: strings.providerUsage, failed: true }
+      }
+      const llm = service(cmd.ctx, 'llm')
+      if (llm === undefined) return { kind: 'handled', message: strings.providerNoService }
+      const rows = llm.listProviders()
+      if (rows.length === 0) return { kind: 'handled', message: strings.providerNone }
+      const selection = service(cmd.ctx, 'agentDefaultModel')?.currentSelection()
+      const selected = selectProviderRow(rows, selection?.provider)
+      return {
+        kind: 'handled',
+        message: `${strings.providerHeading(rows.length)}\n${formatProviderRows(rows, selected, strings.providerRow)}`,
+      }
     }
 
     // Deliberately a separate command from `/context` rather than more lines

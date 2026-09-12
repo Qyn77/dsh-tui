@@ -1251,6 +1251,48 @@ describe('slash command dispatch', () => {
     })
   })
 
+  describe('/provider', () => {
+    /** A context whose `llm` registers two routes, one the selection is on. */
+    function makeLlmStand(): Context {
+      const ctx = new Context()
+      ctx.provide('agentDefaultModel', {
+        currentSelection: () => ({ provider: 'test-provider', model: 'test-model' }),
+      } as never)
+      ctx.provide('llm', {
+        listProviders: () => [
+          { id: 'test-provider', name: 'Test Provider' },
+          { id: 'other-provider', name: 'Other Provider' },
+        ],
+      } as never)
+      return ctx
+    }
+
+    it('lists the routes and ticks the live one', async () => {
+      const { cmd } = makeCommand({ ctx: makeLlmStand() })
+      const result = await dispatch('/provider', cmd)
+      expect(result.kind).toBe('handled')
+      if (result.kind !== 'handled') return
+      expect(result.message).toContain('Provider routes (2):')
+      expect(result.message).toContain('✓ test-provider — Test Provider')
+      expect(result.message).toContain('other-provider — Other Provider')
+    })
+
+    it('reports no service when none is mounted', async () => {
+      const { cmd } = makeCommand()
+      const result = await dispatch('/provider', cmd)
+      if (result.kind !== 'handled') throw new Error('unreachable')
+      expect(result.message).toContain('No llm service')
+    })
+
+    it('refuses an argument — the command is read-only', async () => {
+      const { cmd } = makeCommand({ ctx: makeLlmStand() })
+      const result = await dispatch('/provider add openai', cmd)
+      expect(result).toMatchObject({ kind: 'handled', failed: true })
+      if (result.kind !== 'handled') return
+      expect(result.message).toContain('Usage: /provider')
+    })
+  })
+
   describe('/usage', () => {
     it('says so before any turn has reported tokens', async () => {
       const { cmd } = makeCommand()
@@ -1376,7 +1418,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/approval', '/clear', '/context', '/copy', '/exit', '/help', '/history', '/keybinds', '/language',
-      '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
+      '/mcp', '/model', '/plugins', '/provider', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
       '/usage', '/verbose',
     ])
   })
@@ -1431,7 +1473,7 @@ describe('filterCommands', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/keybinds',
         '/language',
-        '/mcp', '/model', '/plugins', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
+        '/mcp', '/model', '/plugins', '/provider', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
         '/usage', '/verbose',
       ])
     })

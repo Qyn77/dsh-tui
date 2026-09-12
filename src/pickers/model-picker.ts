@@ -7,9 +7,11 @@
  * network round-trip, so rows arrive asynchronously the way the skill
  * catalog's do (`useModelCommands`), not synchronously the way the permission
  * projection reads. Like a preset row, a model row is an *argument* to its
- * command — the row's name is the bare model id, because a bare id is what
- * `/model` accepts against the current provider, and Enter submits
- * `/model <id>` through the ordinary dispatch.
+ * command — but the row's name is the **route-qualified** `provider/id`, not
+ * the bare id: the catalogue spans every registered provider, so the bare id
+ * would be ambiguous the moment a second adapter mounts, and `/model` has
+ * always taken the qualified form. Enter submits `/model <provider>/<id>`
+ * through the ordinary dispatch.
  *
  * No `llm` service mounted, no selection, or a failed listing means no rows,
  * which means no picker — the same dark-feature stance as the other two.
@@ -40,29 +42,36 @@ export interface ModelMention {
 }
 
 /**
- * Map a provider's advertised models into picker rows.
+ * Map advertised models from every registered provider into picker rows.
  *
- * The row's **name is the bare model id** — that is what gets typed after
- * `/model`, and what Enter submits; a `provider/id` form would make every row
- * longer to say what the picker's scope already implies (the current
- * provider's catalogue). The description is the provider's own display name
- * for the model, shown as written; the model the session is currently on
+ * The row's **name is the route-qualified `provider/id`** — that is the form
+ * `/model` has always accepted, and the only form that survives a second
+ * adapter mounting a model with the same bare id. The description is the
+ * provider's display name and the model's own name, so a row reads as one
+ * phrase the user can say out loud; the model the session is currently on
  * carries {@link CURRENT_MODEL_GLYPH} so the list answers "what am I on"
  * before it answers "what can I pick".
- * @param models - the provider's catalogue, in adapter-preferred order.
- * @param current - the model id the session is on, if selection is known.
- * @returns one row per advertised model, catalogue order preserved.
+ * @param models - every provider's catalogue, concatenated in provider order.
+ * @param current - the exact route the session is on, if selection is known.
+ * @param providerName - display name per provider route, from `listProviders`.
+ * @returns one row per advertised model, input order preserved.
  */
 export function modelRows(
   models: readonly LlmModelInfo[],
-  current: string | undefined,
+  current: { provider: string; model: string } | undefined,
+  providerName: (provider: string) => string,
 ): CommandMeta[] {
-  return models.map(model => ({
-    name: model.id,
-    description: model.id === current
-      ? `${CURRENT_MODEL_GLYPH} ${model.name}`
-      : model.name,
-  }))
+  return models.map((model) => {
+    const label = `${model.name} · ${providerName(model.provider)}`
+    return {
+      name: `${model.provider}/${model.id}`,
+      description: current !== undefined
+        && current.provider === model.provider
+        && current.model === model.id
+        ? `${CURRENT_MODEL_GLYPH} ${label}`
+        : label,
+    }
+  })
 }
 
 /**
@@ -81,11 +90,11 @@ export function modelMentionAt(buffer: string, cursor: number): ModelMention | u
  * The line choosing a model submits. Enter's answer — the switch happens
  * through the ordinary `/model` dispatch, so it keeps its echo, its
  * validation and its busy-check.
- * @param id - a row's bare model id.
- * @returns the full command line, e.g. `/model deepseek-v4`.
+ * @param qualified - a row's `provider/id` name.
+ * @returns the full command line, e.g. `/model deepseek-official/deepseek-v4`.
  */
-export function modelCommandLine(id: string): string {
-  return `/model ${id}`
+export function modelCommandLine(qualified: string): string {
+  return `/model ${qualified}`
 }
 
 /**
@@ -106,15 +115,20 @@ export function applyModelMention(
 /**
  * Filter model rows by the typed token.
  *
- * Case-insensitive **prefix** match on the bare id, same rule the other
- * command pickers use: a model id is a short token, and a prefix is what the
- * person typing one means. Rows arrive in catalogue order and leave in it;
- * the floating palette does the windowing.
- * @param rows - the candidate rows, named by bare model id.
+ * Case-insensitive **prefix** match on either half of the `provider/id` name:
+ * a user typing `v4` means the model, and one typing `deep` means the
+ * provider; requiring the qualified prefix would make every provider name a
+ * keystroke tax. Rows arrive in catalogue order and leave in it; the floating
+ * palette does the windowing.
+ * @param rows - the candidate rows, named by `provider/id`.
  * @param query - the token typed after `/model `.
  * @returns the matching rows, input order preserved.
  */
 export function filterModelRows(rows: readonly CommandMeta[], query: string): CommandMeta[] {
   const wanted = query.toLowerCase()
-  return rows.filter(row => row.name.toLowerCase().startsWith(wanted))
+  return rows.filter((row) => {
+    if (row.name.toLowerCase().startsWith(wanted)) return true
+    const slash = row.name.indexOf('/')
+    return slash >= 0 && row.name.slice(slash + 1).toLowerCase().startsWith(wanted)
+  })
 }
