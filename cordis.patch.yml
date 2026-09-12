@@ -40,5 +40,5 @@
     # through `ctx.get` at dispatch time instead and treats its absence as
     # "only the built-in slash table exists".
     - id: tui-runner
-      name: '@deepseek-ai/dsh-tui'
+      name: '@qiao-qyn/dsh-tui'
       inject: [agentDefaultModel, agents, sessions]

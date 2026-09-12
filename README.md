@@ -1,4 +1,4 @@
-# `@deepseek-ai/dsh-tui`
+# `@qiao-qyn/dsh-tui`
 
 English | [中文](README.zh.md)
 
@@ -51,7 +51,7 @@ pnpm init
 # @next pins dsh-base to the same 0.1.0-rc.x line as this package;
 # the `latest` dist-tag currently points at the abandoned 0.0.1-rc.1,
 # which has a transitive dependency that was never published.
-pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui
+pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
 echo '[]' > cordis.yml
 
 # 3. Register the bundles. pnpm add only puts them in node_modules;
@@ -88,7 +88,7 @@ New-Item -ItemType Directory -Force -Path $profilePath | Out-Null
 Push-Location $profilePath
 pnpm init
 # Same @next note as in the macOS / Linux block above.
-pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui
+pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
 Set-Content -Path cordis.yml -Value "[]"
 
 # 3. Register the bundles (same `dsh.profile.bundles` contract)
@@ -707,7 +707,7 @@ pnpm run build                 # tsc → .d.ts,  tsdown → lib/index.js
 mkdir -p ~/.dsh/profiles/tui-dev && cd ~/.dsh/profiles/tui-dev
 pnpm init
 # Same @next note as in `Use it` above.
-pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui@link:/absolute/path/to/dsh-tui
+pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui@link:/absolute/path/to/dsh-tui
 echo '[]' > cordis.yml
 
 # 5. Register the bundles + approve native builds
@@ -745,9 +745,9 @@ $devProfile = Join-Path $env:USERPROFILE ".dsh\profiles\tui-dev"
 New-Item -ItemType Directory -Force -Path $devProfile | Out-Null
 Push-Location $devProfile
 pnpm init
-pnpm add @deepseek-ai/dsh-base@next "@deepseek-ai/dsh-tui@link:$PWD/../dsh-tui"
+pnpm add @deepseek-ai/dsh-base@next "@qiao-qyn/dsh-tui@link:$PWD/../dsh-tui"
 # $PWD assumes you cloned the repo as a sibling of `.dsh`. Otherwise
-# pass the absolute path:  "@deepseek-ai/dsh-tui@link:C:/Users/you/Desktop/dsh-tui"
+# pass the absolute path:  "@qiao-qyn/dsh-tui@link:C:/Users/you/Desktop/dsh-tui"
 Set-Content -Path cordis.yml -Value "[]"
 
 # 5. Register the bundles + approve native builds

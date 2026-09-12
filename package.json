@@ -1,5 +1,5 @@
 {
-  "name": "@deepseek-ai/dsh-tui",
+  "name": "@qiao-qyn/dsh-tui",
   "description": "The dsh Claude Code-style terminal UI bundle: an interactive Ink-based REPL over dsh-base with no Host, HTTP, or browser layer.",
   "version": "0.1.0-rc.7",
   "publishConfig": {

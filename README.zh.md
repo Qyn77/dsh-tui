@@ -1,4 +1,4 @@
-# `@deepseek-ai/dsh-tui`
+# `@qiao-qyn/dsh-tui`
 
 [English](README.md) | 中文
 
@@ -49,7 +49,7 @@ mkdir -p ~/.dsh/profiles/tui && cd ~/.dsh/profiles/tui
 pnpm init
 # @next 把 dsh-base 钉到跟本包同一代的 0.1.0-rc.x；latest 标签目前指向
 # 已弃用的 0.0.1-rc.1，它有个传递依赖从来没发到 npm。
-pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui
+pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
 echo '[]' > cordis.yml
 
 # 3. 注册 bundle。pnpm add 只是把它们装到 node_modules；dsh launcher
@@ -84,7 +84,7 @@ New-Item -ItemType Directory -Force -Path $profilePath | Out-Null
 Push-Location $profilePath
 pnpm init
 # @next 的原因同上面 macOS / Linux 段。
-pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui
+pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
 Set-Content -Path cordis.yml -Value "[]"
 
 # 3. 注册 bundle（跟 macOS/Linux 同一份 `dsh.profile.bundles` 合约）
@@ -597,7 +597,7 @@ pnpm run build                 # tsc 产 .d.ts，tsdown 产 lib/index.js
 mkdir -p ~/.dsh/profiles/tui-dev && cd ~/.dsh/profiles/tui-dev
 pnpm init
 # @next 的原因同「用起来」那段。
-pnpm add @deepseek-ai/dsh-base@next @deepseek-ai/dsh-tui@link:/absolute/path/to/dsh-tui
+pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui@link:/absolute/path/to/dsh-tui
 echo '[]' > cordis.yml
 
 # 5. 注册 bundle + 批准原生 build
@@ -635,9 +635,9 @@ $devProfile = Join-Path $env:USERPROFILE ".dsh\profiles\tui-dev"
 New-Item -ItemType Directory -Force -Path $devProfile | Out-Null
 Push-Location $devProfile
 pnpm init
-pnpm add @deepseek-ai/dsh-base@next "@deepseek-ai/dsh-tui@link:$PWD/../dsh-tui"
+pnpm add @deepseek-ai/dsh-base@next "@qiao-qyn/dsh-tui@link:$PWD/../dsh-tui"
 # $PWD 假设你把仓库 clone 在 .dsh 同级目录。如果不是，把绝对路径写出来：
-# "@deepseek-ai/dsh-tui@link:C:/Users/you/Desktop/dsh-tui"
+# "@qiao-qyn/dsh-tui@link:C:/Users/you/Desktop/dsh-tui"
 Set-Content -Path cordis.yml -Value "[]"
 
 # 5. 注册 bundle + 批准原生 build
