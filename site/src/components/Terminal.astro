@@ -1,0 +1,50 @@
+---
+import type { Content } from '../i18n';
+
+interface Props {
+  t: Content;
+}
+const { t } = Astro.props;
+const { lines, banner, status } = t.terminal;
+const last = lines.length - 1;
+
+/** The transcript is drawn by class, the way the app draws it: one weight per kind of row. */
+function kindOf(line: string, index: number): string {
+  if (index === last) return 'line-prompt';
+  if (index === 0) return 'line-user';
+  if (line.startsWith('⏺')) return 'line-tool';
+  if (line.startsWith('✔')) return 'line-done';
+  return 'line-user';
+}
+---
+
+<div class="term">
+  <div class="term-bar">
+    <span class="dot r"></span>
+    <span class="dot y"></span>
+    <span class="dot g"></span>
+    <span class="term-title">dsh --profile tui</span>
+  </div>
+  <div class="term-body">
+    <pre class="banner">{banner}</pre>
+    <div class="term-lines">
+      {
+        lines.map((line, i) => (
+          <div class={kindOf(line, i)} style={`--i:${i}`}>
+            {i === last ? (
+              <>
+                <span>{line}</span>
+                <span class="caret"></span>
+              </>
+            ) : (
+              line
+            )}
+          </div>
+        ))
+      }
+    </div>
+    <div class="term-status">
+      {status.map((chip) => <span class="chip">{chip}</span>)}
+    </div>
+  </div>
+</div>

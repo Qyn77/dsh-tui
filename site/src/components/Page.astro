@@ -1,0 +1,79 @@
+---
+import type { Content } from '../i18n';
+import { inline } from '../lib/inline';
+import Terminal from './Terminal.astro';
+import Command from './Command.astro';
+
+interface Props {
+  t: Content;
+}
+const { t } = Astro.props;
+---
+
+<div class="wrap hero">
+  <div>
+    <span class="eyebrow">
+      {t.hero.installCmd}
+      <button class="copy" data-copy={t.hero.installCmd} aria-label="Copy">copy</button>
+    </span>
+    <h1>{t.hero.titleLead} <span class="accent">{t.hero.titleAccent}</span></h1>
+    <p class="lede" set:html={inline(t.hero.lede)} />
+    <div class="cta">
+      <a class="btn btn-primary" href="#install">{t.hero.ctaPrimary}</a>
+      <a class="btn btn-ghost" href="https://github.com/Qyn77/dsh-tui/blob/main/docs/USAGE.md">
+        {t.hero.ctaSecondary}
+      </a>
+    </div>
+    <p class="note" set:html={inline(t.hero.altScreenNote)} />
+  </div>
+  <Terminal t={t} />
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <h2>{t.features.title}</h2>
+    <div class="grid">
+      {
+        t.features.items.map((item) => (
+          <article class="card">
+            <div class="card-glyph">{item.glyph}</div>
+            <h3>{item.title}</h3>
+            <p set:html={inline(item.body)} />
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<section id="commands">
+  <div class="wrap">
+    <h2>{t.commands.title}</h2>
+    <div class="rows">
+      {
+        t.commands.rows.map((row) => (
+          <div class="row">
+            <b set:html={inline(row.cmd)} />
+            <span set:html={inline(row.desc)} />
+          </div>
+        ))
+      }
+    </div>
+    <a class="more" href="https://github.com/Qyn77/dsh-tui/blob/main/docs/USAGE.md">
+      {t.commands.more} →
+    </a>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>{t.install.title}</h2>
+    <div class="steps">
+      {t.install.steps.map((step) => <Command cmd={step.cmd} note={step.note} />)}
+    </div>
+    <ul class="notes">
+      {t.install.notes.map((note) => <li set:html={inline(note)} />)}
+    </ul>
+    <a class="more" href="https://github.com/Qyn77/dsh-tui#install">{t.install.full} →</a>
+  </div>
+</section>

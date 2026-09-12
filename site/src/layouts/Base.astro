@@ -1,0 +1,81 @@
+---
+import '../styles/global.css';
+import type { Content } from '../i18n';
+import { url } from '../lib/base';
+
+interface Props {
+  t: Content;
+}
+const { t } = Astro.props;
+const otherHref = t.lang === 'en' ? url('zh/') : url();
+const repo = 'https://github.com/Qyn77/dsh-tui';
+---
+
+<!doctype html>
+<html lang={t.htmlLang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{t.meta.title}</title>
+    <meta name="description" content={t.meta.description} />
+    <link rel="icon" type="image/svg+xml" href={url('favicon.svg')} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={t.meta.title} />
+    <meta property="og:description" content={t.meta.description} />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href={url()}>
+          <span class="brand-mark">&gt;</span>
+          dsh-tui
+        </a>
+        <nav class="nav-links">
+          <a href="#features">{t.nav.features}</a>
+          <a href="#commands">{t.nav.commands}</a>
+          <a href="#install">{t.nav.install}</a>
+          <a href={`${repo}/blob/main/docs/USAGE.md`}>{t.nav.docs}</a>
+          <a href={repo}>{t.nav.source}</a>
+        </nav>
+        <a class="lang" href={otherHref}>{t.otherLabel}</a>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer>
+      <div class="wrap footer-inner">
+        <span>{t.footer.built} <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a></span>
+        <nav class="footer-links">
+          <a href="https://www.npmjs.com/package/@qiao-qyn/dsh-tui">npm</a>
+          <a href={`${repo}/blob/main/docs/USAGE.md`}>USAGE</a>
+          <a href={`${repo}/blob/main/docs/SPEC.md`}>SPEC</a>
+          <a href={`${repo}/blob/main/docs/DEVELOP.md`}>DEVELOP</a>
+        </nav>
+      </div>
+    </footer>
+
+    <script>
+      // One listener for every copy button on the page, including the ones a
+      // language switch swaps in later — the DOM is small enough not to care.
+      document.addEventListener('click', async (event) => {
+        const button = (event.target as HTMLElement)?.closest?.('[data-copy]') as HTMLButtonElement | null;
+        if (!button) return;
+        try {
+          await navigator.clipboard.writeText(button.dataset.copy ?? '');
+          button.textContent = '✓';
+          button.classList.add('done');
+        } catch {
+          button.textContent = '⌘C';
+        }
+        setTimeout(() => {
+          button.textContent = 'copy';
+          button.classList.remove('done');
+        }, 1400);
+      });
+    </script>
+  </body>
+</html>
