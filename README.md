@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It's a single Cordis bundle (`tui-runner`) that mounts on top of `dsh-base` and replaces the default web UI with a full-screen Ink REPL. Same Agent, same tools, same model — just a terminal.
+A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). One Cordis bundle (`tui-runner`) that mounts on `dsh-base` and replaces the default web UI with a full-screen Ink REPL — same agent, same tools, same model, in your terminal.
 
 ```text
 ╭──────────────────────────────────────────────────────────────────────────╮
@@ -27,842 +27,95 @@ A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepse
 ╰──────────────────────────────────────────────────────────────────────────╯
 ```
 
-The TUI uses the terminal's alternate screen buffer, like `vim` or `htop`.
-The startup banner, messages, status bar, and prompt are redrawn as one frame
-after a resize settles; the primary shell screen and scrollback are restored
-when the REPL exits. The banner has three responsive width tiers: full
-whale/wordmark (wide), wordmark (medium), and a compact plain tier (narrow).
+## Install
+
+Needs Node ≥ 22.19, a real TTY (iTerm / Terminal.app / Windows Terminal + PowerShell 7 — not legacy conhost `cmd.exe`), and a DeepSeek API key.
+
+This package is published on npm as **`@qiao-qyn/dsh-tui`** (it is *not* in the `@deepseek-ai` scope). It is a bundle for `dsh`, so: install the launcher once, then mount the bundle into a profile.
+
+```sh
+# 1. the launcher (once per machine)
+npm install -g @deepseek-ai/dsh
+
+# 2. a profile that mounts this bundle
+mkdir -p ~/.dsh/profiles/tui && cd ~/.dsh/profiles/tui
+npm init -y
+# @next pins dsh-base to the same 0.1.0-rc.x line as this bundle — `latest`
+# still points at the abandoned 0.0.1-rc.1.
+npm install @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
+echo '[]' > cordis.yml
+
+# 3. register the bundles. `npm install` only fills node_modules; the launcher
+#    reads package.json#dsh.profile.bundles, and this is what writes it.
+dsh plugin --profile tui install
+
+# 4. your key, once. dsh loads ~/.dsh/.env on every launch — no more exporting.
+echo 'DEEPSEEK_API_KEY=sk-...' > ~/.dsh/.env
+chmod 600 ~/.dsh/.env
+
+# 5. run it
+dsh --profile tui
+```
+
+**Windows (PowerShell 7 + Windows Terminal):**
+
+```powershell
+npm install -g @deepseek-ai/dsh
+$p = "$env:USERPROFILE\.dsh\profiles\tui"
+New-Item -ItemType Directory -Force -Path $p | Out-Null
+Set-Location $p
+npm init -y
+npm install @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
+Set-Content cordis.yml "[]"
+dsh plugin --profile tui install
+Set-Content "$env:USERPROFILE\.dsh\.env" "DEEPSEEK_API_KEY=sk-..."
+dsh --profile tui
+```
+
+> Prefer pnpm? Same steps with `pnpm add`, plus `pnpm approve-builds` once (tick
+> `node-pty`, `koffi`, `protobufjs`, `dsh-subprocess-local`) — npm runs those
+> build scripts by default. On Windows, if the dep tree trips `ENAMETOOLONG`,
+> install the profile closer to the drive root (`C:\tui`) or set
+> `HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem` → `LongPathsEnabled=1`.
 
 ## Use it
 
-> macOS, Linux, and Windows. Node ≥ 22.19, pnpm ≥ 9, a real terminal
-> (Windows Terminal + PowerShell 7, iTerm/Terminal.app, or any TTY that
-> handles ANSI; not legacy conhost cmd.exe), and a DeepSeek API key.
-
-**macOS / Linux (bash, zsh, Git Bash, WSL):**
-
-```sh
-# 1. Install dsh (one time)
-npm install -g @deepseek-ai/dsh
-
-# 2. Create a profile
-mkdir -p ~/.dsh/profiles/tui && cd ~/.dsh/profiles/tui
-pnpm init
-# @next pins dsh-base to the same 0.1.0-rc.x line as this package;
-# the `latest` dist-tag currently points at the abandoned 0.0.1-rc.1,
-# which has a transitive dependency that was never published.
-pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
-echo '[]' > cordis.yml
-
-# 3. Register the bundles. pnpm add only puts them in node_modules;
-#    the dsh launcher reads `dsh.profile.bundles` in package.json to
-#    know what to mount. `dsh plugin install` reconciles that list
-#    from the installed state.
-dsh plugin --profile tui install
-
-# 4. Approve native build scripts once. The sandbox and shell plumbing
-#    depend on these binaries.
-pnpm approve-builds    # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
-
-# 5. Set the API key once. dsh loads `~/.dsh/.env` on every launch, so
-#    you never have to `export` it again. To rotate the key, edit the
-#    file in place.
-cat > ~/.dsh/.env <<'EOF'
-DEEPSEEK_API_KEY=sk-...
-EOF
-chmod 600 ~/.dsh/.env
-
-# 6. Launch
-dsh --profile tui
-```
-
-**Windows (PowerShell 7 + Windows Terminal):**
-
-```powershell
-# 1. Install dsh (one time)
-npm install -g @deepseek-ai/dsh
-
-# 2. Create a profile
-$profilePath = Join-Path $env:USERPROFILE ".dsh\profiles\tui"
-New-Item -ItemType Directory -Force -Path $profilePath | Out-Null
-Push-Location $profilePath
-pnpm init
-# Same @next note as in the macOS / Linux block above.
-pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
-Set-Content -Path cordis.yml -Value "[]"
-
-# 3. Register the bundles (same `dsh.profile.bundles` contract)
-dsh plugin --profile tui install
-
-# 4. Approve native build scripts once. node-pty and koffi ship
-#    prebuilt Windows binaries via prebuild-install, so MSVC is not
-#    required unless a build falls back to source compilation.
-pnpm approve-builds    # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
-
-# 5. Set the API key once. dsh loads `$env:USERPROFILE\.dsh\.env` on
-#    every launch, so you never have to set `$env:DEEPSEEK_API_KEY`
-#    again. To rotate the key, edit the file in place.
-Set-Content -Path "$env:USERPROFILE\.dsh\.env" -Value "DEEPSEEK_API_KEY=sk-..."
-
-# 6. Launch
-dsh --profile tui
-Pop-Location
-```
-
-> **Windows long paths.** The DeepSeek Harness dep tree is deep; if you
-> hit `ENAMETOOLONG` on a fresh checkout, either install the profile
-> closer to the drive root (e.g. `C:\tui`) or enable Win32 long paths
-> in the registry (reboot required):
->
-> ```powershell
-> Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1
-> ```
-
-In the REPL: type a message and press **Enter** to send; keep typing while the model works and **Enter** steers it; **Esc** cancels the current turn; **`/exit`** leaves.
-
-| Command | Effect |
-| --- | --- |
-| `Enter` | Send the current input as a user message to the model — while a turn is running it steers that turn instead of queuing a new one |
-| `/help` | Print available slash commands |
-| `/clear` | Clear the visible chat (the session log is unchanged) |
-| `/status` | Print the current model, session id, and effective permission preset |
-| `/model` | Print the current model; `/model <name>` or `/model <provider>/<name>` switches it. Typing `/model ` opens a picker over every mounted provider's models — pick one directly instead of guessing names |
-| `/provider` | List the mounted LLM provider routes and which one the session is on (read-only; configuring one means editing the llm plugin's config) |
-| `/context` | Print the context window, this session's token spend, and how full the context is now |
-| `/usage` | Break this session's token spend out turn by turn |
-| `/language` | Switch the interface language: `/language en` or `/language zh` |
-| `/mcp` | List the connected MCP servers and the tools each one registered; `/mcp add` opens a picker of common preset servers or connects one from a pasted `mcpServers` block, `/mcp remove <server>` takes it back out |
-| `/approval` | Show this session's approval policy; `/approval ask` or `never` switches it |
-| `/permission` | Plugin command: pick a bundled sandbox + approval preset — `/permission ` opens a picker, or type `read-only` / `workspace-write` / `danger-full-access` directly |
-| `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
-| `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
-| `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
-| `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
-| `/sessions` | List the stored sessions, with the id to resume one by |
-| `/skill` | Pick a user-invocable skill: `/skill ` opens a picker, `/skill <name> [args]` runs one |
-| `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` |
-| `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide` |
-| `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`; bare reports which is on and changes nothing |
-| `/exit`, `/quit` | Leave the REPL |
-| `Tab` | Complete the highlighted slash command in the `/` palette |
-| `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
-| `Ctrl-O` | Same switch as `/verbose`, without typing a command |
-| `y` / `n` / `Esc` | Answer a tool approval request — the card lists the call's arguments so the answer is about what it would actually do |
-| `Esc` | Cancel the in-flight turn or `!` command; never exits |
-| `Ctrl-C` (turn running) | Cancel the in-flight turn |
-| `Ctrl-C` (half-written input) | Clear the input |
-| `Ctrl-C` (idle, empty input) | Ask first; a second `Ctrl-C` is the same as `/exit` |
-| `Ctrl-J` | Insert a newline in the input (so does `\` then `Enter`) |
-| `Ctrl-P` / `Ctrl-N` | Walk back and forward through this session's inputs |
-| `Ctrl-A` / `Ctrl-E` | Jump the caret to the start / end of the input |
-| `Alt-B` / `Alt-F` | Move the caret one word left / right |
-| `Ctrl-W` / `Ctrl-K` | Delete the word before the caret / to the end of the input |
-| `↑` / `↓` | Scroll the conversation one row — or move the caret, once the input is more than one row tall |
-| `PageUp` / `PageDown` | Scroll one viewport (two rows of overlap) |
-| `Ctrl-B` / `Ctrl-F` | The same, without reaching for `Fn` |
-| `Ctrl-U` / `Ctrl-D` | Scroll half a viewport — `Ctrl-U` deletes to the start of the input when there is input to delete |
-| `Home` / `End` | Jump to the oldest row / back to the newest |
-| `Ctrl-L` | Clear the screen and redraw (nothing else changes) |
-| Mouse wheel | Scrolls, in terminals that support alternate scroll mode |
-
-The alternate screen has no scrollback, so scrolling is the TUI's own. dsh
-asks the terminal to answer the wheel with arrow keys rather than to report
-mouse events, so **selecting and copying text with the mouse keeps working
-normally** — no modifier needed.
-
-The input box grows as you type, up to 10 rows, and then scrolls inside itself
-with a scrollbar on the right — so a long message never pushes the
-conversation off the screen. While the box is taller than one row, `↑`/`↓`
-move the caret through it; `PageUp`/`PageDown` and `Ctrl-B`/`Ctrl-F` always
-scroll the conversation.
-
-### Run a shell command
-
-`!` in front of a line runs it as a system command and shows the output in the
-conversation:
-
-```
-!git status
-!npm test
-```
-
-`!!` does the same and also shows the command and its output to the model, so the
-next thing you ask can refer to what you just saw. Plain `!` keeps it between you
-and the terminal.
-
-`!cd` moves the working directory, and it stays moved — later `!` commands and
-the model's own file tools both resolve relative paths against it. `cd`, `cd ~`,
-`cd -` and `cd <path>` all work. A change of directory is always shown to the
-model even when written as `!` rather than `!!`, because it silently redefines
-what every relative path afterwards means.
-
-A compound line like `!cd src && ls` is passed to the shell whole, so its
-directory change dies with that command — the same as in any shell script. Use
-`!cd src` on its own line to move.
-
-Ctrl-C stops a command that is taking too long, and one gives up on its own after
-two minutes. Output is capped at 128 KiB; past that the row says so.
-
-Commands that want the whole terminal — `vim`, `top`, `less` — are not supported.
-The REPL owns the screen and the keyboard while it is running, so an interactive
-command has no way to reach either. It gets no input (an immediate end-of-file)
-rather than hanging. Run those in your own terminal.
-
-### Language
-
-The interface speaks English or Chinese. `/language zh` switches it, `/language
-en` switches back, and `/language` on its own reports which one is in force.
-`cn`, `中文` and `zh-CN` all mean `zh`.
-
-The choice is saved to `~/.dsh/tui.json` and applies to the next launch too, so
-it is a one-time decision rather than a per-session one. Nothing else reads that
-file — your API key stays in `~/.dsh/.env`.
-
-Two things do not change with it. The banner has already been written to the
-terminal by the time you type the command (that is what makes it stay put while
-the conversation scrolls), so it returns in the new language on the next
-`/clear` or the next launch. And this is the *interface* language, not the
-model's: what the assistant replies in is up to what you ask it, exactly as
-before.
-
-### Light and dark terminals
-
-At boot the app asks your terminal what color it is drawing on (an OSC 11 query)
-and picks a light or dark appearance from the answer. `/theme dark` or `/theme
-light` overrides that permanently, `/theme auto` goes back to asking, and
-`/theme` on its own reports the current setting and what the terminal said. The
-choice is saved to `~/.dsh/tui.json` alongside the language.
-
-What changes is deliberately narrow: the colors inside code blocks, and the
-lighter of the two brand blues. Everything else is a *named* terminal color —
-`gray`, `cyan`, `yellow` — which your terminal already resolves against its own
-background, using the palette you configured. Recoloring those would override
-your own choice, so it doesn't. Only the two colors that name an absolute value
-need a light and a dark version, and those are the two that get one.
-
-Terminals that don't answer the query are the common case, not an error: the
-query is given 100ms, then `COLORFGBG` is consulted, then it settles on dark.
-Nothing is printed either way.
-
-### Clipboard
-
-`/copy` puts the newest reply on your system clipboard, and `/copy code` puts the
-newest fenced code block there instead. It works over SSH, which is the reason it
-exists: the text is handed to your *local* terminal as an escape sequence
-(OSC 52), so it reaches the clipboard of the machine you are sitting at rather
-than the one the session is running on.
-
-There is one honest caveat and the command states it every time: **the terminal
-never answers.** OSC 52 is a write with no reply, so if your terminal has it
-disabled, the sequence is discarded in silence and nothing here can tell. The
-confirmation therefore says what was *sent*, not what arrived. If nothing pastes,
-that is where to look — and under tmux you also need `set-clipboard on` in your
-config. GNU `screen` is not supported.
-
-Large replies are cut at 48 KB, and the command says when it cut. There is no
-`/paste`: your terminal's own paste already reaches the prompt, and reading the
-clipboard back would need the keyboard while the REPL is using it.
-
-### MCP tools
-
-If your assembly mounts `@deepseek-ai/dsh-mcp-client`, the tools it bridges show
-up like any other — with a name that says where they come from.
-
-```
-⏺ github:create_issue(it broke)
-```
-
-The plugin registers them as `mcp__github__create_issue`; the TUI shortens that
-to `github:create_issue` so the part you are scanning for is at the end rather
-than behind two runs of underscores. Two servers can each provide a `search`,
-and this is what tells them apart.
-
-When one of them needs approval, the card says so explicitly:
-
-```
-Permission required  github:create_issue
-via the github MCP server
-```
-
-That line is there because approving a bridged tool is a different decision from
-approving a built-in one — the arguments leave your machine for a process the
-app did not start.
-
-The TUI takes no dependency on the MCP plugin to do this; it reads the naming
-convention.
-
-#### Adding a server
-
-Type `/mcp add` and press Enter, and a picker of common preset servers opens —
-memory, sequential thinking, docs lookup, a browser, and the everything-demo.
-Pick one and Enter writes its row; nothing to paste and nothing to configure.
-
-```
-/mcp add memory
-
-  Connected to memory — 9 tools. Written to /Users/you/.dsh/cordis.patch.yml,
-  so it comes back next launch.
-```
-
-Presets stop where a decision would be needed: a server that wants an API key
-or a path to authorize is not in the catalog, because a preset must be safe to
-write unseen. For those, `/mcp add` takes the `mcpServers` block a server's
-README gives you — the same JSON Claude Desktop and Cursor read. Paste it after
-the command and press Enter; a multi-line paste is fine, and a code fence
-around it is stripped.
-
-```
-/mcp add {"mcpServers":{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}}
-
-  Connected to filesystem — 11 tools. Written to /Users/you/.dsh/cordis.patch.yml,
-  so it comes back next launch.
-```
-
-The row goes into `$DSH_HOME/cordis.patch.yml` (`~/.dsh/cordis.patch.yml` by
-default), the machine-local patch layer every profile composes last. The
-launcher watches that file, so the server connects without a restart, and it is
-still there next time. Your comments and `!!js` expressions in that file
-survive the write.
-
-`/mcp remove <server>` takes a server back out, by the name `/mcp` lists it
-under — including a row you wrote by hand.
-
-Servers can still be configured the old way, one `insert` block per server in
-any patch layer, with the per-server `serverName`, `command`/`url` and
-transport options as config keys. `/mcp add` writes exactly that shape.
-
-**Credentials are written in plaintext.** The bridge resolves no credential
-references, so an API key in a pasted snippet lands in the patch file as
-written, and `/mcp add` tells you which variables it just wrote in the clear.
-To keep the value out of the file, put `!!js process.env.YOUR_VAR` there
-instead and export it in your shell.
-
-`/mcp` lists what that wiring produced: one header per connected server and the
-tools it registered, read fresh from the tool registry on every call. The
-plugin publishes no connection state, so an absent server shows up as an absent
-row — only its tools being or not being registered says whether it is up.
-
-### Sending an image
-
-Drag an image file into the terminal and press Enter, and it goes to the model
-along with whatever you typed:
-
-```
-> here's the failing screen /Users/me/Desktop/shot.png
-```
-
-The path is taken out of the text and the image travels as an attachment. What
-you see afterwards is a chip inside your own message confirming what went:
-
-```
-> ╭──────────────────────────────────────╮
-  │ ⧉ shot.png · 1440×900 · 284 KB       │
-  │ here's the failing screen            │
-  ╰──────────────────────────────────────╯
-```
-
-`png`, `jpg`, `jpeg`, `webp` and `gif`. Relative paths, `~/` and quoted or
-backslash-escaped paths with spaces in them all work — which covers whatever
-form your terminal produces when you drop a file on it.
-
-A path is only attached if it actually points at a readable file, so mentioning
-`logo.png` in a sentence does not silently send one. If a file cannot go — too
-big, too many, a model that does not take images, no attachment service in your
-assembly — you get a note saying why, **and the message is still sent.** A bad
-attachment never costs you the line you typed.
-
-There is no clipboard paste for images yet, and nothing renders the picture
-itself in the terminal; the chip is the confirmation.
-
-### Running a skill
-
-Skills stay out of the `/` palette — a bundle can ship dozens of them, and the
-palette is for the fixed command surface. To see what your assembly mounted,
-type `/skill ` (with the trailing space): a picker opens listing only
-user-invocable skills, each marked with a `◆`:
-
-```
-/review    ◆ Read a diff and list what would break in production
-```
-
-Walk it with `↑`/`↓`: `Tab` inserts `/<name> ` into the prompt so you can keep
-typing arguments, and `Enter` runs the highlighted skill immediately. The
-token after `/skill ` filters by prefix, so `/skill rev` narrows straight to
-it. `Esc` closes the list without losing what you typed.
-
-You can also name a skill directly, and add whatever it should work on:
-
-```
-> /review the auth change
-```
-
-`/skill review the auth change` is exactly the same line once dispatched. The
-skill's instructions are handed to the model and the turn starts. Your own
-words stay your own message; the instructions are not folded into them. The
-transcript shows one dim row naming what ran:
-
-```
-⤷ skill review
-```
-
-Built-in commands win a name collision, then plugin commands, then skills — so
-a skill called `clear` neither appears in the picker nor can take `/clear`
-away from you. A bare `/skill` prints usage.
-
-### Hook runs
-
-If your assembly mounts a hook bridge (`@deepseek-ai/dsh-hooks-claude-code` or
-`@deepseek-ai/dsh-hooks-codex`), each hook that runs leaves a row. Most of them
-are quiet — a hook that let the turn carry on is an audit record, drawn at the
-same weight as a compaction notice:
-
-```
-⤷ PreToolUse hook · pass · claude-code · 12ms
-```
-
-A hook that *stopped* something is not quiet, and this is the point of the
-feature. Without the row you would be looking at a tool call that never ran with
-nothing on screen saying why:
-
-```
-⤷ PreToolUse hook · deny · claude-code · 31ms
-  refusing: working tree is dirty
-```
-
-That row is yellow rather than red. Red here means something failed; a hook that
-blocked a call did not fail, it did its job. Anything other than `pass`, `allow`
-or `approve` is drawn this way, including a decision this version has never
-heard of — a bridge can add to the vocabulary, and a decision we cannot name is
-the last thing that should be hidden.
-
-The hook point and the decision are printed in your hook configuration's own
-words, untranslated, so you can match the row against the file you wrote.
-
-As with MCP, the TUI takes no dependency on any hook package — it renders the
-events if they show up and draws nothing if they do not. Configuring a bridge is
-a bundle concern, an `insert` block in your own patch layer.
-
-### Code Mode sub-calls
-
-With `DSH_TOOLS_MODE=code`, the model stops emitting one tool call per action and
-writes a small program instead. The program runs in a worker, and the tools it
-reaches for are dispatched from inside it. On screen that stays one entry — the
-`run_code` call — with a line per dispatch nested under it:
-
-```
-⏺ run_code(…)
-  ↳ read_file({"file_path":"src/render/scroll.ts"}) ✓ 84 lines
-  ↳ write_file({"file_path":"src/render/scroll.ts"}) ✓
-  ⎿ done
-```
-
-Each dispatch is exactly one row no matter how much it returned, and a failure
-adds a second row with the reason — the same two-line shape a denied hook gets,
-for the same reason: the thing that went wrong is the thing you need to read.
-
-```
-  ↳ read_file({"file_path":"nope.ts"}) ✗
-    ⎿ ENOENT: no such file
-```
-
-A program that dispatches thirty tools costs thirty rows, and that bound is what
-makes the transcript still scrollable — sub-calls are drawn inside the parent
-entry rather than as entries of their own, so they carry no blank line between
-them and cannot be confused with the next real tool call.
-
-A dispatch still running when the turn ends inherits the parent's fate: `⊘` if
-you interrupted, `✓` if the turn completed. Nothing is left spinning.
-
-This is on when `code-runtime` is mounted and `DSH_TOOLS_MODE=code` is set; with
-the default tool mode you will never see a `↳` row.
-
-### Workflow runs
-
-If your assembly mounts `@deepseek-ai/dsh-tool-workflow`, the model can fan one
-turn out into several child agents. The run draws as a single entry, with a row
-per agent under it:
-
-```
-⏺ workflow review-changes
-  ↳ review:bugs · Review · completed
-  ↳ review:perf · Review · failed
-  ↳ verify:auth · Verify · running…
-```
-
-and gains a closing row once the run itself is over:
-
-```
-  ⎿ completed · 3 agents
-```
-
-Each agent is one row. The child agents are running whole conversations of their
-own, in their own sessions, and none of that is drawn here — thirty agents each
-showing their work would bury the conversation that started them.
-
-The outcome is printed in the workflow tool's own word, not translated and not
-mapped to a symbol. Only `completed` is quiet; everything else is yellow,
-including an outcome this version has never heard of. Yellow rather than red:
-an agent that was cancelled did not fail.
-
-If you interrupt the turn, the run closes as `no result` and any agent still
-going says `no outcome` rather than spinning forever. Neither invents a word the
-workflow never reported.
-
-Sub-agents proper (`@deepseek-ai/dsh-subagent`) look different, and the reason
-is worth knowing: a delegation writes its record into the *child's* session log,
-not yours. From this transcript a sub-agent is the tool call you can already
-see. The workflow tool is the one that reports back into the session you are
-watching.
-
-### Approvals, and what survives them
-
-When a tool call needs your authorisation, a card appears beside the prompt
-listing the call's arguments; `y` allows it once, `n` refuses it, `Esc` walks
-away. That card is live — it is gone the moment you answer.
-
-What stays is a row in the transcript:
-
-```
-⤷ approval · shell · allowed-once
-⤷ approval · write · rejected
-  writes outside the workspace
-```
-
-This matters more than it looks. Nothing about the question reaches the model,
-and the card cannot outlive the turn, so if the transcript did not record the
-answer then resuming the session an hour later would show a tool that never ran
-with nothing on screen saying you were the one who stopped it.
-
-A granted call is quiet. Anything else is yellow — refused, cancelled,
-`unavailable`, and any outcome this version has never heard of. `unavailable`
-is worth recognising: it is what you get when nothing was there to ask, which
-is a configuration problem rather than a decision you made. Yellow rather than
-red, because a refused call did not fail; that is the gate doing its job.
-
-If the turn ends while a question is still on screen, the row says `no
-decision` rather than leaving a question hanging.
-
-Use `/approval` to see which policy this session is on:
-
-```
-/approval          # what is in force, and how to change it
-/approval ask      # ask before a call that needs authorising
-/approval never    # refuse every such call without asking
-```
-
-A switch leaves its own row, so a run of silently refused calls is accounted
-for rather than looking arbitrary:
-
-```
-⤷ approval policy · never
-```
-
-Policy rows are never yellow, including `never`. A stricter setting is not a
-warning — it is the setting you chose. One that a delegation chose for you is
-marked as such.
-
-Only a *switch* leaves a row. The policy your session starts on does not: the
-harness records it while building the session, nobody changed anything, and the
-preset in the status bar already says what it is.
-
-### Permission presets
-
-Approval policy is one knob; what the sandbox lets a tool touch is the other.
-Permission presets bundle both. Type `/permission ` (with the trailing space)
-and a picker floats over the choices, ticking the one in force; `↑`/`↓` move,
-`Enter` switches, `Tab` just fills the line. There is also a keystroke for the
-impatient: **`Tab` / `Shift+Tab` on an empty prompt** steps forward and back
-through the presets, wrapping around — the switch submits the same
-`/permission <value>` line and leaves the same trail in the log. The same
-words also work typed straight at the plugin command,
-`/permission <preset>`:
-
-| Preset | Sandbox | Approvals |
-|---|---|---|
-| `read-only` | nothing writable | ask |
-| `workspace-write` | the workspace (default) | ask |
-| `danger-full-access` | everything, no sandbox | never asked |
-
-`/permission` is provided by the harness plugin rather than by the TUI, so it
-works wherever the plugin is loaded even though it is not a built-in command;
-the picker reads its choices from the preset projection and stays absent
-without it.
-
-The effective preset is always visible: a chip on the StatusBar's run-state row
-and a `permissions:` line in `/status`. Every preset is gray except
-`danger-full-access`, which is **bold red** — it removes both gates at once, so
-a glance at the chrome settles whether this shell has them. Preset words are
-shown verbatim and are not translated.
-
-Booting with `DSH_PERMISSION_MODE=danger-full-access` in the environment starts
-straight in that preset; the red chip is how you confirm a shell came up that
-way.
-
-### Vim keybinds
-
-`/keybinds vim` puts a normal mode over the prompt. `/keybinds default` takes
-it back off, and a bare `/keybinds` tells you which one is on without switching
-it — a command you typed to check something should not change it.
-
-Insert mode is the editor you already had. Every readline binding, the `/`
-palette, the `@` picker, history recall, paste: all unchanged. Turning vim on
-adds a mode and takes nothing away.
-
-`Esc` leaves insert mode. You can tell you are in normal mode because the
-prompt marker changes:
-
-```
-> what does this do?      ← insert
-N what does this do?      ← normal
-```
-
-That is the whole indicator, on purpose. A `NORMAL` badge would need a row, and
-the frame is a fixed height — a row that appears when the mode changes is a row
-drawn on top of the transcript.
-
-What works:
+Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exit`** leaves.
 
 | | |
-|---|---|
-| Move | `h` `j` `k` `l` `0` `^` `$` `w` `b` `e` `gg` `G` |
-| Insert | `i` `a` `I` `A` `o` `O` |
-| Delete / change | `x` `D` `C` `dd` `cc`, and `d` or `c` with any motion |
-| Paste | `p` `P` — the last thing you deleted |
-
-Words are split on whitespace, not on punctuation, so `~/.dsh/.env` is one
-`w`. Most of what you type into a prompt is paths and flags, and vim's usual
-word rules would make `w` crawl through them a character at a time.
-
-What does not: counts (`3w`), visual mode, and undo. Undo is the deliberate
-one — an undo that covered `dd` but not `Ctrl-W` would be worse than none.
-
-`Esc` still cancels a running turn. In normal mode it is not claimed by the
-editor, so it falls through the way it always did; in insert mode it goes to
-normal first, and a second one cancels. The `/` palette wins it before either.
-
-The setting is saved to `~/.dsh/tui.json`.
-
-### Seeing more of a long output
-
-A tool result or a `!` command's output is previewed at 8 lines, with a
-`… +N lines` marker for the rest. `/verbose` raises that to 200 lines, and
-`Ctrl-O` is the same switch without the typing. `/verbose on` and `/verbose off`
-set it explicitly if you would rather not guess which way a bare toggle goes.
-
-It applies to **every** entry at once, not to one you point at — there is no
-"current entry" in the transcript to point at. It is not remembered between
-sessions, and toggling it while you are scrolled up will move the text under
-you, because expanding adds rows below your position as well as above it.
-
-### Picking up an earlier session
-
-`/sessions` lists what is stored, newest first: a shortened id, when it started,
-where it was running, and the first thing you said in it. The one you are in is
-marked.
-
-Switch to one with `/resume`:
-
-```
-/resume tui-9f3c1a2b   the id as /sessions prints it
-/resume last           whichever was newest
-```
-
-The session you leave is not lost — it stays in the store and `/sessions` still
-lists it, so switching back is another `/resume`.
-
-The stored history is drawn when the switch lands. If you would rather the
-transcript start at the new work, `/history hide` folds it away and
-`/history show` brings it back — the model reads the whole log either way, so
-this is a screen preference, not a context one. The choice is saved in
-`~/.dsh/tui.json` and applies to the next resume too.
-
-The shortened id is enough as long as it matches one session; if it matches two,
-you are told so rather than dropped into the wrong history. The same ids work at
-launch, if you would rather start where you left off:
-
-```bash
-DSH_TUI_RESUME=tui-9f3c1a2b dsh --profile tui
-DSH_TUI_RESUME=last dsh --profile tui
-```
-
-## Develop it
-
-**macOS / Linux (bash, zsh, Git Bash, WSL):**
-
-```sh
-# 1. Get the source
-git clone https://github.com/<your-fork>/dsh-tui.git
-cd dsh-tui
-
-# 2. Install deps (build tools + harness peers from npm)
-pnpm install
-pnpm approve-builds esbuild    # one-time, lets tsdown's bundler run
-
-# 3. Sanity-check + first build
-pnpm run typecheck
-pnpm test                      # 20 unit tests, ~500ms
-pnpm run build                 # tsc → .d.ts,  tsdown → lib/index.js
-
-# 4. Create a link-mode profile that points at this checkout
-mkdir -p ~/.dsh/profiles/tui-dev && cd ~/.dsh/profiles/tui-dev
-pnpm init
-# Same @next note as in `Use it` above.
-pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui@link:/absolute/path/to/dsh-tui
-echo '[]' > cordis.yml
-
-# 5. Register the bundles + approve native builds
-dsh plugin --profile tui-dev install
-pnpm approve-builds            # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
-
-# 6. Set the API key (skip if you already did this in `Use it`).
-cat > ~/.dsh/.env <<'EOF'
-DEEPSEEK_API_KEY=sk-...
-EOF
-chmod 600 ~/.dsh/.env
-
-# 7. Launch
-dsh --profile tui-dev
-```
-
-**Windows (PowerShell 7 + Windows Terminal):**
-
-```powershell
-# 1. Get the source
-git clone https://github.com/<your-fork>/dsh-tui.git
-cd dsh-tui
-
-# 2. Install deps
-pnpm install
-pnpm approve-builds esbuild
-
-# 3. Sanity-check + first build
-pnpm run typecheck
-pnpm test
-pnpm run build
-
-# 4. Create a link-mode profile. Use forward slashes in the @link: spec.
-$devProfile = Join-Path $env:USERPROFILE ".dsh\profiles\tui-dev"
-New-Item -ItemType Directory -Force -Path $devProfile | Out-Null
-Push-Location $devProfile
-pnpm init
-pnpm add @deepseek-ai/dsh-base@next "@qiao-qyn/dsh-tui@link:$PWD/../dsh-tui"
-# $PWD assumes you cloned the repo as a sibling of `.dsh`. Otherwise
-# pass the absolute path:  "@qiao-qyn/dsh-tui@link:C:/Users/you/Desktop/dsh-tui"
-Set-Content -Path cordis.yml -Value "[]"
-
-# 5. Register the bundles + approve native builds
-dsh plugin --profile tui-dev install
-pnpm approve-builds            # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
-
-# 6. Set the API key (skip if you already did this in `Use it`).
-Set-Content -Path "$env:USERPROFILE\.dsh\.env" -Value "DEEPSEEK_API_KEY=sk-..."
-
-# 7. Launch
-dsh --profile tui-dev
-Pop-Location
-```
-
-> The build in step 3 is **required before the first launch** on every
-> platform: the linked `dsh-tui` package exports `lib/index.js`, not
-> `src/index.ts`, and the launcher reads it verbatim. `pnpm run build`
-> writes it; without that file the loader falls back to whatever stale
-> build sits in `lib/`.
-
-### The edit / rebuild / restart loop
-
-When you change a file under `src/`, the loader won't see it until you rebuild and restart:
-
-```sh
-# in this repo
-pnpm run build          # ~30 ms
-# in the other terminal
-Ctrl-C                  # leave the running dsh
-dsh --profile tui-dev   # restart; picks up the new lib/index.js
-```
-
-`pnpm test` and `pnpm run typecheck` run against the `.ts` source — they don't need a build.
-
-### `pnpm tty-check`
-
-The test suite runs with no TTY and with color forced off, so four shipped
-features are only ever exercised as arithmetic: the OSC 11 background probe, the
-OSC 52 clipboard write, whether the colors picked from those two are legible
-on your actual background, and whether a hook run's quiet and notable weights
-actually look different.
-
-```sh
-pnpm tty-check          # run it in the terminal you actually use
-```
-
-It imports the real modules — no second copy of the sequences — prints what your
-terminal answered, and ends three of its five checks with a question, because
-"is this readable" and "did that reach your clipboard" are not things a program
-can see. Anything you answer "no" to is a real bug the suite cannot catch.
-
-### Project layout
-
-```
-src/
-├── index.ts                 Cordis plugin entry: create Agent, render <App/>
-├── renderer.tsx             Ink root component
-├── state.ts                 Pure reducer: SessionEvent → UiState
-├── types.ts                 UiEntry, UiState, isRenderable, declaration-merged event map
-├── commands.ts              /help /clear /status /language /plugins /exit /quit dispatch
-├── i18n.ts                  Pure bilingual string catalog (English + Chinese)
-├── shell.ts                 Pure `!` escape parsing, `cd` rules, output clamping
-├── shell-runner.ts          The only spawner: runs one `!` command
-├── settings.ts              Read/write ~/.dsh/tui.json (the language choice)
-├── invariant.ts             Empty package-invariant companion
-├── scroll.ts                Pure scroll math + key/mouse parsing
-├── prompt-layout.ts         Pure input fold, caret, window, scrollbar
-├── message-layout.ts        Pure gutter glyphs, tool call + result summaries
-├── width.ts                 Pure display width (CJK counts as two columns)
-├── resize.ts                Real-TTY resize owner — debounce, clear, rerender, repaint
-├── hooks/
-│   ├── useSessionEvents.ts  Replay log + subscribe to session/event
-│   ├── useMessageListScroll.ts  Scroll offset, key bindings, measured geometry
-│   ├── useResizeRepaint.ts  Non-TTY resize regression harness
-│   ├── useShell.ts          Runs `!` escapes; the only caller of process.chdir
-│   └── useStrings.tsx       The current language, as React context
-└── components/
-    ├── StatusBar.tsx        Top: model · session · status · tokens
-    ├── MessageList.tsx      Middle: glyph-gutter conversation viewport
-    └── Prompt.tsx           Bottom: auto-growing input box, capped at 10 rows
-
-tests/                       vitest specs for state, commands, apply()
-```
-
-| Config file | Purpose |
 | --- | --- |
-| `tsconfig.json` | Editor + typecheck (`noEmit: true`, `allowImportingTsExtensions: true`) |
-| `tsconfig.dts.json` | Extends base; declaration-only emit into `lib/types/` |
-| `tsdown.config.ts` | Runtime bundle: `src/index.ts` → `lib/index.js` |
-| `vitest.config.ts` | Test discovery: `tests/**/*.spec.ts` |
-| `cordis.patch.yml` | The patch this bundle applies to `dsh-base` on install |
+| `/help` | list the slash commands |
+| `/status` | model, session id, permission preset |
+| `/model` | show the model; `/model <name>` switches it, `/model ` opens a picker |
+| `/clear` | clear the visible transcript (the session log is untouched) |
+| `/context` / `/usage` | context window, and this session's token spend |
+| `/mcp` | connected MCP servers; `/mcp add`, `/mcp remove <server>` |
+| `/permission` | pick a sandbox + approval preset |
+| `/approval` | show or switch the approval policy (`ask` / `never`) |
+| `/skill` | pick and run an invocable skill |
+| `/language`, `/theme` | `en` / `zh`; `auto` / `dark` / `light` |
+| `/copy` | newest reply to the clipboard; `/copy code` for the newest block |
+| `/verbose` | show more of long output (`Ctrl-O` is the same switch) |
+| `/keybinds` | `default` or `vim` prompt mode |
+| `/provider`, `/plugins` | mounted LLM routes; loaded plugins |
+| `/sessions`, `/resume` | list stored sessions; `/resume <id>` or `/resume last` |
+| `/history` | show or hide the history a resumed session came with |
+| `!`, `!!` | run a shell command — `!!` also shows it to the model |
+| `/exit`, `/quit` | leave the REPL |
+| `Tab` | complete the highlighted `/` command or `@` path |
+| `@` | open the file picker |
+| `↑` / `↓`, `PageUp` / `PageDown`, `Ctrl-L` | scroll the conversation / redraw |
+| `Ctrl-C` | cancel the turn, clear the input, or exit (it asks first) |
 
-### How the view works
+Every command, keybinding and feature in full — `!` escapes, MCP servers,
+images, skills, hooks, approvals, session resume, known limitations:
+**[docs/USAGE.md](docs/USAGE.md)**.
 
-The Ink tree is a **pure projection** of the Agent's session log. The reducer in [`src/core/state.ts`](src/core/state.ts) maps each `SessionEvent` to a `UiEntry` (user, assistant, tool call, compaction, plan, note). `useSessionEvents` ([`src/hooks/useSessionEvents.ts`](src/hooks/useSessionEvents.ts)) seeds from the durable log on first render, then keeps the view in sync with each `session/event` arrival. Adding a new event type means: (1) add the type to `SessionEventMap` if it isn't already, (2) add a case in the reducer, (3) render the new entry in `MessageList`.
+## Learn more
 
-## Publish it
-
-```sh
-# 1. Bump version in package.json (and bump peer packages in lockstep if needed)
-# 2. Update version pins in README.md
-# 3. Build
-pnpm run build
-# 4. Publish
-npm publish --access public
-```
-
-The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump them together when shipping a coordinated release. See `package.json#peerDependencies` for the full list.
-
-## Known limitations
-
-- **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
-- **Switching sessions ends the turn you are in.** Every slash command is refused while a turn is running — `/resume` included; cancel with Esc first. There is no way to keep two sessions open side by side.
-- **Long tool output is previewed, not expandable.** The first 8 lines are shown with a `… +N lines` marker; there is no `show more` affordance, because reaching one would need a selection model the app deliberately does not have.
-- **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.
+- **[docs/USAGE.md](docs/USAGE.md)** — every feature in detail, plus the full key and command reference.
+- **[docs/DEVELOP.md](docs/DEVELOP.md)** — hack on the source: link-mode profile, the edit / rebuild / restart loop, project layout, publish flow.
+- **[docs/SPEC.md](docs/SPEC.md)** — the design contract: visual rules, roadmap, contributor conventions.
 
 ## License
 
