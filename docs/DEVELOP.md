@@ -156,6 +156,17 @@ tests/                        vitest specs (`fake-tty.ts` = frame-level harness)
 
 The Ink tree is a **pure projection** of the Agent's session log. The reducer in [`src/core/state.ts`](../src/core/state.ts) maps each `SessionEvent` to a `UiEntry` (user, assistant, tool call, compaction, plan, note). `useSessionEvents` ([`src/hooks/useSessionEvents.ts`](../src/hooks/useSessionEvents.ts)) seeds from the durable log on first render, then keeps the view in sync with each `session/event` arrival. Adding a new event type means: (1) add the type to `SessionEventMap` if it isn't already, (2) add a case in the reducer, (3) render the new entry in `MessageList`.
 
+### The website
+
+The landing page at <https://qyn77.github.io/dsh-tui/> is an Astro project that lives on the **`site` branch** — an orphan branch, so `main` carries none of it:
+
+```sh
+git switch site
+cd site && npm install && npm run dev      # http://localhost:4321/dsh-tui/
+```
+
+Pushing `site` runs `.github/workflows/pages.yml`, which builds `site/dist` and deploys it to GitHub Pages. Two things to know if you touch it: the copy lives in `site/src/i18n.ts` (English and Chinese side by side), and `base: '/dsh-tui'` in `site/astro.config.mjs` is what makes links work under the project subpath — drop it if the site ever moves to a custom domain.
+
 ## Publish it
 
 ```sh
@@ -324,6 +335,17 @@ tests/                        vitest 用例（`fake-tty.ts` 是帧级测试工�
 Ink 树是 Agent session log 的**纯投影**。[`src/core/state.ts`](../src/core/state.ts) 里的 reducer 把每个 `SessionEvent` 映射成一个 `UiEntry`（user、assistant、tool call、compaction、plan、note）。`useSessionEvents`（[`src/hooks/useSessionEvents.ts`](../src/hooks/useSessionEvents.ts)）首次渲染时从持久 log 回放种子，之后每个 `session/event` 来了就更新视图。
 
 要加一种新事件类型：(1) 把 type 加到 `SessionEventMap`（如果还没有）；(2) 在 reducer 里加一个 case；(3) 在 `MessageList` 里渲染新 entry。
+
+### 项目主页
+
+<https://qyn77.github.io/dsh-tui/> 这个落地页是一个 Astro 项目，放在 **`site` 分支**上 —— 那是一条孤儿分支，所以 `main` 里一点都没有：
+
+```sh
+git switch site
+cd site && npm install && npm run dev      # http://localhost:4321/dsh-tui/
+```
+
+push `site` 会触发 `.github/workflows/pages.yml`，构建 `site/dist` 并部署到 GitHub Pages。改它之前要知道两件事：文案都在 `site/src/i18n.ts`（中英并排放），以及 `site/astro.config.mjs` 里的 `base: '/dsh-tui'` 是链接能带上项目子路径的原因 —— 哪天换成自定义域名，删掉这一行就行。
 
 ## 发版
 

@@ -112,6 +112,7 @@ dsh --profile tui
 
 ## 更多文档
 
+- **[项目主页](https://qyn77.github.io/dsh-tui/)** —— 长什么样、能做什么、三步装好（中英双语）。
 - **[docs/USAGE.md](docs/USAGE.md)** —— 各功能详细说明，以及完整的命令与按键速查表。
 - **[docs/DEVELOP.md](docs/DEVELOP.md)** —— 改源码：link 模式 profile、编辑 / 重建 / 重启循环、项目结构、发版流程。
 - **[docs/SPEC.md](docs/SPEC.md)** —— 设计契约：视觉规则、路线图、贡献者约定。

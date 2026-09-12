@@ -113,6 +113,7 @@ images, skills, hooks, approvals, session resume, known limitations:
 
 ## Learn more
 
+- **[Website](https://qyn77.github.io/dsh-tui/)** — what it looks like, what it does, and the three-command install (English and 中文).
 - **[docs/USAGE.md](docs/USAGE.md)** — every feature in detail, plus the full key and command reference.
 - **[docs/DEVELOP.md](docs/DEVELOP.md)** — hack on the source: link-mode profile, the edit / rebuild / restart loop, project layout, publish flow.
 - **[docs/SPEC.md](docs/SPEC.md)** — the design contract: visual rules, roadmap, contributor conventions.
