@@ -178,7 +178,7 @@ pnpm run build
 npm publish --access public
 ```
 
-The version is `0.1.0-rc.7`, in lockstep with the `dsh-*` peer packages. Bump them together when shipping a coordinated release. See `package.json#peerDependencies` for the full list.
+The version is `0.1.0-rc.8`, in lockstep with the `dsh-*` peer packages. Bump them together when shipping a coordinated release. See `package.json#peerDependencies` for the full list.
 
 
 ---
@@ -358,5 +358,5 @@ pnpm run build
 npm publish --access public
 ```
 
-当前版本 `0.1.0-rc.7`，跟 `dsh-*` peer 包同步发版。完整 peer 列表见 `package.json#peerDependencies`。
+当前版本 `0.1.0-rc.8`，跟 `dsh-*` peer 包同步发版。完整 peer 列表见 `package.json#peerDependencies`。
 

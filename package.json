@@ -1,7 +1,7 @@
 {
   "name": "@qiao-qyn/dsh-tui",
   "description": "The dsh Claude Code-style terminal UI bundle: an interactive Ink-based REPL over dsh-base with no Host, HTTP, or browser layer.",
-  "version": "0.1.0-rc.7",
+  "version": "0.1.0-rc.8",
   "publishConfig": {
     "access": "public"
   },

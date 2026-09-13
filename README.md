@@ -18,7 +18,7 @@ A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepse
 │                                █  █ █  █ █ █  █  █ █       █    █       │
 │        探索未至之境！           █  █ █  █ █  █ █  █ ████ ████ ████       │
 │                                                                          │
-│  tui-01e62198 · v0.1.0-rc.7       deepseek-official/deepseek-v4-flash   │
+│  tui-01e62198 · v0.1.0-rc.8       deepseek-official/deepseek-v4-flash   │
 │  ~/Desktop/dsh-tui (main*)           Tip: /help · /status · Tab completes │
 ╰──────────────────────────────────────────────────────────────────────────╯
 
