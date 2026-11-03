@@ -74,6 +74,8 @@ dsh --profile tui-rc5
 
 | | |
 | --- | --- |
+| `/mouse` | `auto` / `on` / `off`；F2 切换鼠标上报与原生文字选择 |
+| `/activity` | 展开/收起任务过程：`/activity <编号>`、`all`、`none` |
 | `/help` | 列出所有斜杠命令 |
 | `/status` | 当前模型、session id、生效中的权限预设 |
 | `/model` | 显示当前模型；`/model <名字>` 切换，`/model ` 打开选择器 |
@@ -110,3 +112,5 @@ dsh --profile tui-rc5
 ## License
 
 MIT
+
+Apple Terminal 在 `/mouse auto` 下使用鼠标上报传递滚轮。F2 或 `/mouse off` 恢复原生文字选择，`/mouse on` 恢复上报；如果终端配置禁用了鼠标上报，请启用 Terminal.app 的 Allow Mouse Reporting。其他终端在 auto 下沿用备用屏幕滚轮输入。任务结束后保留事件计算的耗时并收起中间过程，最终答复和失败信息保持可见。

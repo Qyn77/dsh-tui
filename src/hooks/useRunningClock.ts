@@ -45,7 +45,7 @@ export interface RunningClock {
  * transition and torn down on the next status change or unmount, so
  * idle turns do not pay the timer cost.
  */
-export function useRunningClock(running: boolean): RunningClock {
+export function useRunningClock(running: boolean, taskStartedAt?: number): RunningClock {
   const [spinnerFrame, setSpinnerFrame] = useState(0)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
@@ -57,7 +57,7 @@ export function useRunningClock(running: boolean): RunningClock {
       setElapsedSeconds(0)
       return
     }
-    const startedAt = Date.now()
+    const startedAt = taskStartedAt ?? Date.now()
     let lastElapsed = -1
     const interval = setInterval(() => {
       setSpinnerFrame(f => (f + 1) % SPINNER_FRAMES.length)
@@ -73,7 +73,7 @@ export function useRunningClock(running: boolean): RunningClock {
     return () => {
       clearInterval(interval)
     }
-  }, [running])
+  }, [running, taskStartedAt])
 
   return { spinnerFrame, elapsedSeconds }
 }

@@ -5,7 +5,9 @@
  * @module @qiao-qyn/dsh-tui/renderer
  */
 
-import { Box, Static, Text, useApp, useInput, useStdout } from 'ink'
+import { resolveMouseMode, type MousePreference } from './terminal/mouse.ts'
+import { activityView } from './render/activity.ts'
+import { Box, Static, Text, useApp, useInput, useStdin, useStdout } from 'ink'
 import { readFile } from 'node:fs/promises'
 import React, { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
@@ -47,6 +49,8 @@ import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  mouse?: MousePreference
+  onMousePreferenceChange?: (pref: MousePreference) => void
   ctx: Context
   agent: Agent
   /**
@@ -157,11 +161,31 @@ export const App: FC<AppProps> = ({
   themePref: initialThemePref = 'auto',
   historyPref: initialHistoryPref = 'show',
   keybinds: initialKeybindPref = 'default',
+  mouse: initialMousePref = 'auto',
+  onMousePreferenceChange,
   appearance: detected = 'dark',
   swapSession,
 }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
+  const { internal_eventEmitter: inputEvents } = useStdin()
+  const [mousePref, setMousePref] = useState<MousePreference>(initialMousePref)
+  const setMouse = useCallback((next: MousePreference) => {
+    setMousePref(next)
+    onMousePreferenceChange?.(next)
+    writeSettings({ mouse: next })
+  }, [onMousePreferenceChange])
+  useEffect(() => {
+    const onInput = (chunk: string | Buffer): void => {
+      const text = String(chunk)
+      if (text === '\u001B[12~' || text === '\u001BOQ') {
+        setMouse(resolveMouseMode(mousePref, process.env) === 'mouse' ? 'off' : 'on')
+      }
+    }
+    inputEvents?.on('input', onInput)
+    return () => { inputEvents?.off('input', onInput) }
+  }, [inputEvents, mousePref, setMouse])
+
   const [historyPref, setHistoryPref] = useState<HistoryPref>(initialHistoryPref)
   const [lang, setLang] = useState<Lang>(initialLang)
   const strings = catalog(lang)
@@ -280,7 +304,7 @@ export const App: FC<AppProps> = ({
   // transition; both the StatusBar (right-side) and the Prompt
   // (placeholder) read from the same frame index so the spinner
   // glyph is in lock-step on screen.
-  const { spinnerFrame, elapsedSeconds } = useRunningClock(state.status === 'running')
+  const { spinnerFrame, elapsedSeconds } = useRunningClock(state.status === 'running', state.tasks?.at(-1)?.startedAt)
 
   // The live status, readable after an `await`. Attaching an image reads files
   // and commits them to the store before the message can be built, and the
@@ -329,6 +353,20 @@ export const App: FC<AppProps> = ({
   // opposite ends of a frame neither of them can measure alone — see
   // `Prompt.onOverlayRowsChange` and `bannerRowBudget`.
   const [promptOverlayRows, setPromptOverlayRows] = useState(0)
+  const [expandedTasks, setExpandedTasks] = useState<ReadonlySet<number>>(new Set())
+  const setActivity = useCallback((value: number | 'all' | 'none') => {
+    setExpandedTasks(previous => {
+      if (value === 'none') return new Set()
+      if (value === 'all') return new Set(state.tasks?.map(task => task.turn))
+      const next = new Set(previous)
+      if (next.has(value)) next.delete(value)
+      else next.add(value)
+      return next
+    })
+  }, [state.tasks])
+  useEffect(() => { setExpandedTasks(new Set()) }, [agent.session])
+  const transcript = useMemo(() => activityView(state, expandedTasks), [state, expandedTasks])
+
   // An approval request names the call it is about but not what the call would
   // do; the arguments are in the entry the App already streamed. Searching from
   // the newest end because the question is always about the newest call — a
@@ -554,7 +592,7 @@ export const App: FC<AppProps> = ({
         // can do anything at all, and nothing in the registry says which is
         // which. One rule with no unknowns beats a per-command allowlist that
         // is wrong the first time a plugin adds a row.
-        if (state.status === 'running') {
+        if (state.status === 'running' && !['/activity', '/mouse'].includes(trimmed.split(/\s+/)[0])) {
           appendEntry({ kind: 'command', input: trimmed, text: strings.output.busyCommand, failed: true })
           return
         }
@@ -575,6 +613,9 @@ export const App: FC<AppProps> = ({
           themePref,
           setKeybinds,
           keybindPref,
+          setActivity,
+          mousePref,
+          setMouse,
           setHistory,
           historyPref,
           appearance,
@@ -662,7 +703,7 @@ export const App: FC<AppProps> = ({
         else agent.followup(message)
       })()
     },
-    [
+    [mousePref, setMouse, setActivity,
       ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
       setTheme, themePref, appearance, emit, strings, state, shell, swapSession,
       scroll.setExpanded, scroll.expanded, attach, statusRef,
@@ -801,7 +842,7 @@ export const App: FC<AppProps> = ({
           />
         )}
         <MessageList
-          state={state}
+          state={transcript}
           offset={scroll.offset}
           pinTop={scroll.pinTop}
           expanded={scroll.expanded}

@@ -74,6 +74,8 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 
 | | |
 | --- | --- |
+| `/mouse` | `auto` / `on` / `off`; F2 toggles mouse reporting and native text selection |
+| `/activity` | Expand/collapse a completed task: `/activity <number>`, `all`, or `none` |
 | `/help` | list the slash commands |
 | `/status` | model, session id, permission preset |
 | `/model` | show the model; `/model <name>` switches it, `/model ` opens a picker |
@@ -111,3 +113,5 @@ images, skills, hooks, approvals, session resume, known limitations:
 ## License
 
 MIT
+
+Apple Terminal uses mouse reporting under `/mouse auto` to deliver wheel events. F2 or `/mouse off` restores native selection; `/mouse on` restores reporting. Enable Terminal.app’s Allow Mouse Reporting setting if reports are disabled in its profile. Other terminals keep alternate-scroll input under auto. Completed tasks retain event-derived elapsed time and collapse intermediate activity while final answers and failures stay visible.

@@ -85,7 +85,7 @@ export interface MessageListProps {
    * Report the measured content and viewport heights after each layout, so
    * the scroll hook can bound the offset against real rows.
    */
-  onGeometry: (contentRows: number, viewportRows: number) => void
+  onGeometry: (contentRows: number, viewportRows: number, tail?: unknown) => void
 }
 
 /**
@@ -351,6 +351,14 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
  * fallback stays for the no-attachment case, where an empty frame with no rows
  * at all collapses to a border with nothing in it.
  */
+function ActivityRow({ entry }: { entry: Extract<UiEntry, { kind: 'activity' }> }) {
+  const strings = useStrings()
+  return <Row glyph="" color="gray"><Text wrap="truncate">{strings.activity.summary(
+    entry.turn, entry.durationMs === undefined ? undefined : Math.floor(entry.durationMs / 1000),
+    entry.count, entry.expanded, entry.outcome,
+  )}</Text></Row>
+}
+
 function UserBlock({ entry }: { entry: Extract<UiEntry, { kind: 'user' }> }) {
   const text = userMessageText(entry.message)
   const images = userMessageImages(entry.message)
@@ -723,6 +731,8 @@ const Entry = React.memo(function Entry({ entry, maxLines, width }: {
   width: number
 }) {
   switch (entry.kind) {
+    case 'activity':
+      return <ActivityRow entry={entry} />
     case 'user':
       return <UserBlock entry={entry} />
     case 'assistant':
@@ -807,7 +817,7 @@ export const MessageList: FC<MessageListProps> = ({
     const measuredViewport = measureElement(viewport).height
     const measuredContent = measureElement(content).height
     if (measuredViewport !== viewportRows) setViewportRows(measuredViewport)
-    onGeometry(measuredContent, measuredViewport)
+    onGeometry(measuredContent, measuredViewport, state.entries.at(-1))
   })
 
   if (state.entries.length === 0) {

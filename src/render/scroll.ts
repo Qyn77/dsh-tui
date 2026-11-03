@@ -11,6 +11,7 @@
  * @module @qiao-qyn/dsh-tui/render/scroll
  */
 
+import { parseMouseEvents } from '../terminal/mouse.ts'
 import type { UiEntry } from '../core/types.ts'
 import { userMessageImages, userMessageText } from '../core/types.ts'
 import { hookStderr } from './hook-runs.ts'
@@ -122,12 +123,8 @@ export function isOscTail(input: string): boolean {
  */
 export function parseWheelDelta(input: string): number {
   let delta = 0
-  for (const match of input.matchAll(/\[<([0-9]+);[0-9]+;[0-9]+[Mm]/g)) {
-    const button = Number(match[1])
-    // Bit 6 marks a wheel event; the low bit picks the direction. The
-    // remaining bits carry Shift/Meta/Ctrl, which we treat the same.
-    if ((button & 0b100_0000) === 0) continue
-    delta += (button & 1) === 1 ? -MOUSE_WHEEL_ROWS : MOUSE_WHEEL_ROWS
+  for (const event of parseMouseEvents(input)) {
+    if (event.kind === 'wheel') delta += event.delta * MOUSE_WHEEL_ROWS
   }
   return delta
 }
@@ -270,6 +267,8 @@ function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number 
       // Charged from `workflowRows` rather than counted here, so the budget has
       // a single owner — the renderer reads the same function's shape.
       return workflowRows(entry)
+    case 'activity':
+      return 2
     case 'command':
       // The echoed command line, then its output. `/help` is the tall one
       // and it is exactly as tall as its own newlines say.

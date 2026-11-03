@@ -24,6 +24,7 @@
  * @module @qiao-qyn/dsh-tui/commands/commands
  */
 
+import { isMousePreference, type MousePreference } from '../terminal/mouse.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import type { Context } from '@deepseek-ai/cordis'
@@ -435,6 +436,9 @@ async function listSessions(
 
 /** Snapshot one command from the registry. */
 export interface CommandContext {
+  setActivity?: (value: number | 'all' | 'none') => void
+  mousePref?: MousePreference
+  setMouse?: (pref: MousePreference) => void
   closeUi?: () => void
   ctx: Context
   agent: Agent
@@ -577,6 +581,21 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
   const strings = catalog(lang).output
   const name = raw.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
   switch (name) {
+    case '/activity': {
+      const value = raw.trim().split(/\s+/)[1]
+      if (value === 'all' || value === 'none') cmd.setActivity?.(value)
+      else if (value && /^[1-9]\d*$/.test(value) && cmd.state?.tasks?.some(task => task.turn === Number(value))) cmd.setActivity?.(Number(value))
+      else return { kind: 'handled', message: catalog(lang).activity.usage, failed: value !== undefined }
+      return { kind: 'handled' }
+    }
+
+    case '/mouse': {
+      const value = raw.trim().split(/\s+/)[1]
+      if (value !== undefined && !isMousePreference(value)) return { kind: 'handled', message: strings.mouseUsage, failed: true }
+      if (value !== undefined) cmd.setMouse?.(value)
+      return { kind: 'handled', message: strings.mouseStatus(value ?? cmd.mousePref ?? 'auto') }
+    }
+
     case '/help':
       return {
         kind: 'handled',

@@ -77,6 +77,24 @@ function makeStandWithoutExit(): Context {
 describe('slash command dispatch', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
+  it('switches mouse input policy and rejects invalid values', async () => {
+    const { cmd } = makeCommand()
+    const setMouse = vi.fn()
+    expect(await dispatch('/mouse on', { ...cmd, setMouse })).toMatchObject({ kind: 'handled' })
+    expect(setMouse).toHaveBeenCalledWith('on')
+    expect(await dispatch('/mouse invalid', { ...cmd, setMouse })).toMatchObject({ failed: true })
+    expect(setMouse).toHaveBeenCalledTimes(1)
+  })
+
+  it('expands and collapses task activity through its own command', async () => {
+    const { cmd } = makeCommand()
+    const setActivity = vi.fn()
+    await dispatch('/activity all', { ...cmd, setActivity })
+    await dispatch('/activity none', { ...cmd, setActivity })
+    expect(setActivity.mock.calls).toEqual([['all'], ['none']])
+    expect(await dispatch('/activity nope', { ...cmd, setActivity })).toMatchObject({ failed: true })
+  })
+
   it('tells the reader about the `!` escape, which is not a command', async () => {
     // `!` cannot be in the registry, and a user looking for "how do I run a
     // shell command" looks in `/help` and nowhere else.
@@ -1421,8 +1439,8 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/approval', '/clear', '/context', '/copy', '/exit', '/help', '/history', '/keybinds', '/language',
-      '/mcp', '/model', '/plugins', '/provider', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
+      '/activity', '/approval', '/clear', '/context', '/copy', '/exit', '/help', '/history', '/keybinds', '/language',
+      '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
       '/usage', '/verbose',
     ])
   })
@@ -1440,7 +1458,7 @@ describe('filterCommands', () => {
   })
 
   it('matches /mcp and /model under /m prefix', () => {
-    expect(filterCommands('/m').map(c => c.name)).toEqual(['/mcp', '/model'])
+    expect(filterCommands('/m').map(c => c.name)).toEqual(['/mcp', '/model', '/mouse'])
   })
 
   it('matches /quit under /Q prefix', () => {
@@ -1475,9 +1493,9 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/keybinds',
+        '/activity', '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/keybinds',
         '/language',
-        '/mcp', '/model', '/plugins', '/provider', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
+        '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
         '/usage', '/verbose',
       ])
     })

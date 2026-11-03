@@ -1038,6 +1038,27 @@ Preset words are deployment-configured table keys, so they are shown **verbatim,
 
 ---
 
+
+### Task disclosure and terminal input implementation
+
+The reducer retains `TaskRun` start/end timestamps and entry bounds from
+`turn/start` and `turn/end`. It never reads a clock. Clearing the local view
+also clears its local bounds. `activityView` produces two-row activity entries
+without mutating canonical events. Completed tasks collapse intermediate
+activity, retaining user inputs, final answers, command output and unresolved
+failures. `/activity <turn>|all|none` controls disclosure independently. Plain
+replies show duration without an empty disclosure. Live elapsed time uses the
+event start when available; historical duration comes from the recorded pair.
+Click disclosure is pending coordinate/focus integration.
+
+`/mouse auto|on|off` persists the input policy. Auto selects SGR mouse reporting
+for `TERM_PROGRAM=Apple_Terminal` and alternate-scroll for other environments.
+F2 toggles reporting versus native selection. Mouse reporting necessarily
+captures ordinary pointer selection; disable it temporarily for native drag
+selection. Both SGR and X10 wheel bursts are parsed, excluding horizontal wheel
+and release reports. All owned modes are disabled on exit. Actual Terminal.app
+and VS Code wheel acceptance remains a separate manual check.
+
 ## Part 2 · Roadmap
 
 The package is at **v0.1.0-rc.7**. Each milestone below lists what users see when it ships, not what's done internally.
@@ -1163,7 +1184,7 @@ The user endorsed the following directions on **2026-11-04**. They are pending w
 
 | Priority | Direction | Intended outcome and prerequisite |
 | --- | --- | --- |
-| High | Task activity groups and elapsed time | Show execution progress live, collapse completed activity behind a duration summary, and keep the final answer visible. Provide an explicit way to inspect the activity again. See the contract below. |
+| High | Task activity groups and elapsed time | Keyboard disclosure and durable timing implemented; click disclosure pending. Show execution progress live, collapse completed activity behind a duration summary, and keep the final answer visible. Provide an explicit way to inspect the activity again. See the contract below. |
 | High | Conversation search and navigation | Find keywords and jump to user messages, tool calls and errors in long conversations. Build on reliable transcript scrolling. |
 | High | Session management | Add a searchable session picker with titles, directories and last-activity information where available, building on `/sessions` and `/resume`. Verify persistence metadata support before designing updates. |
 | High | File-change previews | Show changed paths and line additions/deletions, including a diff at edit approval when the runtime exposes the proposed change. Verify tool and approval payloads before committing to coverage. |

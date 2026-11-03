@@ -115,6 +115,7 @@ export interface WorkflowMember {
 
 /** Visible entry in the chat list. The reducer grows a list of these. */
 export type UiEntry =
+  | { kind: 'activity'; turn: number; count: number; expanded: boolean; durationMs?: number; outcome: string }
   | { kind: 'user'; message: UserMessage }
   | {
     kind: 'assistant'
@@ -351,7 +352,18 @@ export type UiEntry =
  * and because dropping a field from an exported interface in an `rc` line is a
  * breaking change for no gain. Do not read this as "wiring in progress".
  */
+export interface TaskRun {
+  turn: number
+  startIndex: number
+  endIndex?: number
+  startedAt?: number
+  endedAt?: number
+  outcome?: string
+}
+
 export interface UiState {
+  /** Task bounds refer to the uncollapsed local projection. */
+  tasks?: TaskRun[]
   entries: UiEntry[]
   /** Current agent status. Drives the spinner and the `working`/`idle` label. */
   status: 'idle' | 'running'

@@ -136,6 +136,21 @@ describe('mouse reports', () => {
   })
 })
 
+describe('legacy wheel scrolling', () => {
+  const legacy = (button: number): string => `[M${String.fromCharCode(button + 32, 44, 62)}`
+
+  it('scrolls the legacy reports the prompt already recognizes and consumes', () => {
+    expect(isMouseReport(legacy(64))).toBe(true)
+    expect(parseWheelDelta(legacy(64))).toBe(MOUSE_WHEEL_ROWS)
+    expect(parseWheelDelta(legacy(65))).toBe(-MOUSE_WHEEL_ROWS)
+    expect(parseWheelDelta(`${legacy(64)}[<64;1;1M`)).toBe(2 * MOUSE_WHEEL_ROWS)
+  })
+
+  it('ignores horizontal wheel buttons and button releases', () => {
+    expect(parseWheelDelta('[<66;1;1M[<67;1;1M[<64;1;1m')).toBe(0)
+  })
+})
+
 describe('parseNavKey', () => {
   it('decodes every Home/End form a terminal may send', () => {
     for (const seq of [`${ESC}[H`, `${ESC}OH`, `${ESC}[1~`, `${ESC}[7~`]) {

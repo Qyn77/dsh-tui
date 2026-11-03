@@ -62,6 +62,7 @@ export const LANGUAGES: readonly Lang[] = ['en', 'zh']
  */
 export const COMMAND_NAMES = [
   '/approval',
+  '/activity',
   '/clear',
   '/context',
   '/copy',
@@ -71,6 +72,7 @@ export const COMMAND_NAMES = [
   '/keybinds',
   '/language',
   '/mcp',
+  '/mouse',
   '/model',
   '/plugins',
   '/provider',
@@ -115,6 +117,10 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  activity: {
+    summary: (turn: number, seconds: number | undefined, count: number, expanded: boolean, outcome: string) => string
+    usage: string
+  }
   /** The input box at the bottom of the screen. */
   prompt: {
     /** Shown in place of an empty buffer while input is accepted. */
@@ -486,6 +492,8 @@ export interface Catalog {
     /** `/history` after the switch moved. */
     historySwitched: (pref: HistoryPref) => string
     /** `/keybinds` with no argument: which keymap is in force, and the cheat sheet. */
+    mouseUsage: string
+    mouseStatus: (mode: string) => string
     keybindsUsage: (current: KeybindPref) => string
     /** `/keybinds <pref>` after the switch went through. */
     keybindsSwitched: (pref: KeybindPref) => string
@@ -568,6 +576,10 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  activity: {
+    summary: (turn, seconds, count, expanded, outcome) => `${count > 0 ? (expanded ? '▾ ' : '▸ ') : ''}Task ${turn} · ${seconds === undefined ? 'duration unknown' : `worked for ${seconds}s`} · ${outcome}${count > 0 ? ` · ${count} activities · /activity ${turn}` : ''}`,
+    usage: '/activity <task number>|all|none',
+  },
   prompt: {
     placeholder: 'Ask dsh anything…',
     working: 'working',
@@ -665,6 +677,7 @@ const EN: Catalog = {
     '/history': 'Show or hide the resumed session\'s stored history: /history show or hide',
     '/keybinds': 'Choose the prompt editor: /keybinds vim or default',
     '/language': 'Switch the interface language: /language en or zh',
+    '/mouse': 'Mouse input: /mouse auto|on|off · F2 toggles native selection',
     '/mcp': 'List connected MCP servers; /mcp add opens a preset picker or takes a pasted config, /mcp remove <server> takes one out',
     '/model': 'Switch model: /model <name> or <provider>/<name>',
     '/provider': 'List the mounted LLM provider routes and the live one (read-only)',
@@ -676,6 +689,7 @@ const EN: Catalog = {
     '/status': 'Print the current model and session id',
     '/theme': 'Choose the background the colors assume: /theme auto, dark, or light',
     '/usage': 'Break this session\'s token spend out turn by turn',
+    '/activity': 'Expand or collapse a completed task: /activity <number>|all|none',
     '/approval': 'Show or switch this session\'s approval policy: /approval ask or never',
     '/verbose': 'Show more of each long output: /verbose on, off, or bare to toggle',
   },
@@ -818,6 +832,8 @@ const EN: Catalog = {
       pref === 'show'
         ? 'Resumed history is drawn again — /resume or a re-seed repaints it.'
         : 'Resumed history is hidden from now on — the model still reads it.',
+    mouseUsage: '/mouse auto|on|off',
+    mouseStatus: mode => `Mouse: ${mode}. F2 toggles wheel/click reporting and native text selection.`,
     keybindsUsage: current =>
       `Usage: /keybinds <${KEYBIND_PREFS.join('|')}>\nCurrent: ${current}\n\ndefault is the readline editor: Ctrl-A/E, Ctrl-W, Alt-B/F. vim adds a normal mode on top of it — Esc leaves insert, i/a/I/A/o/O return, hjkl 0 ^ $ w b e gg G move, x D C dd cc and d/c with a motion delete, p/P paste the last deletion. No counts, no visual mode, no undo. Everything else — the palette, the file picker, history recall, paste — is unchanged in both. The setting is saved.`,
     keybindsSwitched: pref =>
@@ -852,6 +868,10 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  activity: {
+    summary: (turn, seconds, count, expanded, outcome) => `${count > 0 ? (expanded ? '▾ ' : '▸ ') : ''}任务 ${turn} · ${seconds === undefined ? '耗时未知' : `执行了 ${seconds} 秒`} · ${({ completed: '完成', error: '失败', cancelled: '取消', interrupted: '中断' } as Record<string, string>)[outcome] ?? outcome}${count > 0 ? ` · ${count} 项过程 · /activity ${turn}` : ''}`,
+    usage: '/activity <任务编号>|all|none',
+  },
   prompt: {
     placeholder: '问 dsh 任何问题…',
     working: '处理中',
@@ -944,6 +964,7 @@ const ZH: Catalog = {
     '/history': '显示或隐藏接续 session 的已存历史：/history show 或 hide',
     '/keybinds': '选择提示框的编辑器：/keybinds vim 或 default',
     '/language': '切换界面语言：/language en 或 zh',
+    '/mouse': '鼠标模式：/mouse auto|on|off · F2 切换原生文字选择',
     '/mcp': '列出已连接的 MCP 服务器；/mcp add 打开预设选择器或接受粘贴的配置，/mcp remove <服务器> 移除一个',
     '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
     '/provider': '列出已挂载的 LLM 提供方路由和当前生效的那个（只读）',
@@ -955,6 +976,7 @@ const ZH: Catalog = {
     '/status': '打印当前模型和 session id',
     '/theme': '选择配色假定的背景：/theme auto、dark 或 light',
     '/usage': '按轮次拆开本次 session 的 token 开销',
+    '/activity': '展开或收起任务过程：/activity <编号>|all|none',
     '/approval': '查看或切换本 session 的审批策略：/approval ask 或 never',
     '/verbose': '让每段长输出多显示一些：/verbose on、off，不带参数则切换',
   },
@@ -1093,6 +1115,8 @@ const ZH: Catalog = {
       pref === 'show'
         ? '已存历史重新画出来了——/resume 或重新播种会把它补上。'
         : '从现在起隐藏已存历史——模型仍然读得到。',
+    mouseUsage: '/mouse auto|on|off',
+    mouseStatus: mode => `鼠标模式：${mode}。F2 切换滚轮/点击上报与原生文字选择。`,
     keybindsUsage: current =>
       `用法：/keybinds <${KEYBIND_PREFS.join('|')}>\n当前：${current}\n\ndefault 是 readline 那套编辑器：Ctrl-A/E、Ctrl-W、Alt-B/F。vim 在它之上加一层 normal 模式——Esc 离开插入，i/a/I/A/o/O 回去，hjkl 0 ^ $ w b e gg G 移动，x D C dd cc 以及 d/c 接一个 motion 删除，p/P 粘贴上一次删掉的东西。不支持计数（3w）、visual 模式和撤销。其余一切——命令面板、文件选择、历史回溯、粘贴——两种设置下都一样。这个设置会保存。`,
     keybindsSwitched: pref =>

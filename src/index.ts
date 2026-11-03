@@ -21,6 +21,7 @@ import { shortId } from './commands/sessions.ts'
 import { App } from './renderer.tsx'
 import { installResizeOwner, type RepaintRef } from './terminal/resize.ts'
 import { planResume, requestFromEnv, type SwapSession } from './commands/resume.ts'
+import { MOUSE_MODE_EXIT, mouseModeSequence, resolveMouseMode } from './terminal/mouse.ts'
 import { readSettings } from './terminal/settings.ts'
 import { probeAppearance } from './terminal/theme.ts'
 
@@ -56,33 +57,6 @@ interface TuiIo {
 
 const ALT_SCREEN_ENTER = '\u001B[?1049h\u001B[2J\u001B[H'
 const ALT_SCREEN_EXIT = '\u001B[?1049l'
-/**
- * Ask the terminal to translate the wheel into cursor-key presses while the
- * alternate screen is up — xterm's "alternate scroll mode" — instead of
- * asking it to report mouse events at all.
- *
- * Full mouse tracking (`?1000h` + `?1006h`) was the first attempt and it
- * cost too much. Once the application is receiving clicks and drags, the
- * *terminal's own* selection stops working: dragging across the transcript
- * selects nothing unless a modifier is held (`Option` in iTerm2, `Fn` in
- * Terminal.app). Selecting output to paste somewhere else is not an
- * advanced gesture; it is most of what a chat log is for, and a wheel is
- * not worth it.
- *
- * Alternate scroll keeps the wheel and leaves the pointer alone: notches
- * arrive as ↑/↓, which `useMessageListScroll` scrolls a row at a time, and
- * no click is ever intercepted. A terminal that ignores `?1007` just keeps
- * its own wheel behaviour — the keyboard bindings still reach every row.
- * The hook also still understands SGR mouse reports, so a terminal
- * configured to send them anyway continues to scroll.
- */
-const ALT_SCROLL_ENTER = '\u001B[?1007h'
-/**
- * Turn it off again. This has to run on *every* exit path, a crash
- * included: a private mode left set outlives the process and changes how
- * the user's shell answers the wheel.
- */
-const ALT_SCROLL_EXIT = '\u001B[?1007l'
 /**
  * Turn off the terminal's autowrap (DECAWM) for the app's lifetime.
  *
@@ -175,7 +149,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
   // place the process touches `~/.dsh/tui.json` on the way in; `/language`,
   // `/theme` and `/history` write it back out. It has moved up here because
   // the theme decides whether the appearance probe runs at all.
-  const { language, theme, history, keybinds } = readSettings()
+  const { language, theme, history, keybinds, mouse = 'auto' } = readSettings()
   // Asked here and read just before `render()`, with the loader await, the
   // resume plan, and agent creation in between — so the terminal's round trip
   // overlaps work that was happening anyway and costs the boot nothing. It has
@@ -263,7 +237,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
     try {
       if (alternateScreen) {
         internals.stdout.write(ALT_SCREEN_ENTER)
-        internals.stdout.write(ALT_SCROLL_ENTER)
+        internals.stdout.write(mouseModeSequence(resolveMouseMode(mouse, process.env)))
         internals.stdout.write(AUTOWRAP_OFF)
         internals.stdout.write(BRACKETED_PASTE_ENTER)
       }
@@ -331,6 +305,8 @@ async function run(ctx: Context, config: Config): Promise<void> {
           themePref: theme,
           historyPref: history,
           keybinds,
+          mouse,
+          onMousePreferenceChange: (next) => { internals.stdout.write(mouseModeSequence(resolveMouseMode(next, process.env))) },
           swapSession,
           ...detected === undefined ? {} : { appearance: detected },
           ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
@@ -378,7 +354,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       if (alternateScreen) {
         internals.stdout.write(AUTOWRAP_ON)
         internals.stdout.write(BRACKETED_PASTE_EXIT)
-        internals.stdout.write(ALT_SCROLL_EXIT)
+        internals.stdout.write(MOUSE_MODE_EXIT)
         internals.stdout.write(ALT_SCREEN_EXIT)
       }
       // no signal handler to detach

@@ -75,7 +75,7 @@ export interface MessageListScroll {
    * after a layout. Called on every render; it only triggers work when a
    * number actually changed, so it cannot drive a render loop.
    */
-  reportGeometry: (contentRows: number, viewportRows: number) => void
+  reportGeometry: (contentRows: number, viewportRows: number, tail?: unknown) => void
 }
 
 /** Optional wiring for {@link useMessageListScroll}. */
@@ -120,7 +120,7 @@ export function useMessageListScroll(
   // Geometry lives in a ref, not in state: the key handlers need the
   // current viewport height to size a page, but a measurement that
   // changes nothing about the offset must not cost a render.
-  const geometry = useRef({ contentRows: 0, viewportRows: 0 })
+  const geometry = useRef<{ contentRows: number; viewportRows: number; tail?: unknown }>({ contentRows: 0, viewportRows: 0 })
 
   const scrollBy = useCallback((rows: number): void => {
     if (rows === 0) return
@@ -131,10 +131,10 @@ export function useMessageListScroll(
   }, [])
 
   const reportGeometry = useCallback(
-    (contentRows: number, viewportRows: number): void => {
+    (contentRows: number, viewportRows: number, tail?: unknown): void => {
       const previous = geometry.current
       if (previous.contentRows === contentRows && previous.viewportRows === viewportRows) return
-      geometry.current = { contentRows, viewportRows }
+      geometry.current = { contentRows, viewportRows, tail }
       // Re-clamp against the new bounds. This is what pins the view to the
       // newest row as a turn streams in (content grows, offset 0 stays 0),
       // and what collapses the offset back to the tail after `/clear`
@@ -142,7 +142,8 @@ export function useMessageListScroll(
       setOffset(current =>
         pinTop
           ? Math.max(0, contentRows - viewportRows)
-          : clampOffset(current, contentRows, viewportRows),
+          : clampOffset(current > 0 && tail !== undefined && tail !== previous.tail
+            ? current + contentRows - previous.contentRows : current, contentRows, viewportRows),
       )
     },
     [pinTop],

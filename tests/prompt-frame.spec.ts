@@ -13,6 +13,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
+import { commands } from '../src/commands/commands.ts'
 import { MAX_PROMPT_ROWS } from '../src/prompt/prompt-layout.ts'
 import { ESC, paintApp } from './fake-tty.ts'
 
@@ -849,7 +850,7 @@ describe('the palette on a terminal too short to hold it', () => {
     expect(screen).toContain('/history')
     expect(screen).not.toContain('/plugins')
     expect(screen).not.toContain('/verbose')
-    expect(screen).toContain('+13 more')
+    expect(screen).toContain('+15 more')
   })
 
   it('leaves the StatusBar and the prompt box whole underneath it', async () => {
@@ -870,9 +871,8 @@ describe('the palette on a terminal too short to hold it', () => {
   it('scrolls the window down to keep the selection visible', async () => {
     const painted = await paintApp({ turns: 2, rows: 24 })
     await painted.send('/')
-    // Twenty downs is the last of the twenty-one built-ins: far enough past
-    // the eighth row to have dragged the window all the way to the bottom.
-    for (let i = 0; i < 20; i += 1) await painted.send(`${ESC}[B`)
+    // Walk to the final built-in even as the command surface grows.
+    for (let i = 0; i < commands().length - 1; i += 1) await painted.send(`${ESC}[B`)
     const screen = painted.screen()
     painted.unmount()
 

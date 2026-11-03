@@ -242,6 +242,9 @@ function onTurnEnd(state: UiState, event: EventOf<'turn/end'>): UiState {
     entries: note ? pushNote(entries, note.text, note.tone) : entries,
     status: 'idle',
     lastReason: reason,
+    tasks: state.tasks?.map(task => task.turn === event.data.turn
+      ? { ...task, endedAt: event.time, endIndex: entries.length + (note ? 1 : 0), outcome: reason.kind }
+      : task),
   }
 }
 
@@ -697,7 +700,8 @@ function onTodoWrite(state: UiState, event: EventOf<'todo/write'>): UiState {
 export function reduce(state: UiState, event: SessionEvent): UiState {
   switch (event.type) {
     case 'turn/start':
-      return { ...state, status: 'running', currentTurn: event.data.turn }
+      return { ...state, status: 'running', currentTurn: event.data.turn,
+        tasks: [...(state.tasks ?? []), { turn: event.data.turn, startIndex: state.entries.length, startedAt: event.time }] }
 
     case 'turn/end':
       return onTurnEnd(state, event)

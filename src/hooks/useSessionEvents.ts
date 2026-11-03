@@ -15,7 +15,7 @@ type Change =
 
 function apply(state: UiState, change: Change): UiState {
   if (change.type === 'event') return reduce(state, change.event)
-  if (change.type === 'clear') return { ...state, entries: [] }
+  if (change.type === 'clear') return { ...state, entries: [], tasks: [] }
   return { ...state, entries: [...state.entries, change.entry] }
 }
 
