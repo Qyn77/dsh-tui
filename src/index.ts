@@ -345,7 +345,10 @@ async function run(ctx: Context, config: Config): Promise<void> {
         })
       const instance = inkRender(element(), {
         exitOnCtrlC: false,
-        patchConsole: false,
+        // Providers finish discovery after the first frame and log through
+        // console.error/warn. Ink must clear and replay its frame around those
+        // writes or its cursor-relative eraser leaves the old top border.
+        patchConsole: true,
       })
       redraw = () => { instance.rerender(element()) }
       // Resize repainting has exactly one owner and it lives outside React.
