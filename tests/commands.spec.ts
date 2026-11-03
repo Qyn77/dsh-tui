@@ -152,6 +152,15 @@ describe('slash command dispatch', () => {
     }
   })
 
+  it('closes the terminal before the launcher tears down the live agent', async () => {
+    const order: string[] = []
+    const ctx = makeStandWithoutExit()
+    ctx.provide('appExit', () => { order.push('host') })
+    const { cmd } = makeCommand({ ctx, closeUi: () => { order.push('ink') } })
+    await dispatch('/quit', cmd)
+    expect(order).toEqual(['ink', 'host'])
+  })
+
   it('asks the launcher to exit for /exit and /quit (case + trailing whitespace)', async () => {
     const { cmd, reset: resetA } = makeCommand()
     expect((await dispatch('/exit', cmd)).kind).toBe('exit')

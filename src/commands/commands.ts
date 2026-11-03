@@ -435,6 +435,7 @@ async function listSessions(
 
 /** Snapshot one command from the registry. */
 export interface CommandContext {
+  closeUi?: () => void
   ctx: Context
   agent: Agent
   /** Reset the visible chat to an empty list. */
@@ -953,7 +954,8 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
 
     case '/exit':
     case '/quit': {
-      // Request a process exit through the launcher's bounded host hook.
+      // Release Ink and its raw stdin before the launcher disposes the agent.
+      cmd.closeUi?.()
       const exit = appExit(cmd.ctx)
       if (exit !== undefined) exit(0)
       else process.exit(0)

@@ -1259,6 +1259,8 @@ What *is* typed and is projected by the reducer: `TurnEndReasonMap.blocked`, whi
 
 ### 3.3 Slash command contract
 
+`/exit` and `/quit` release Ink before asking the launcher to dispose the runtime, following the same order as a confirmed Ctrl-C exit.
+
 `commands.ts` is a **pure dispatcher**: `(raw: string, ctx: CommandContext) → CommandResult`. The Prompt calls it; the renderer handles the result.
 
 - Slash commands are case-sensitive: `/exit`, not `/Exit`.

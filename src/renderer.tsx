@@ -165,7 +165,9 @@ export const App: FC<AppProps> = ({
   const [historyPref, setHistoryPref] = useState<HistoryPref>(initialHistoryPref)
   const [lang, setLang] = useState<Lang>(initialLang)
   const strings = catalog(lang)
-  const { state, resetView, appendEntry } = useSessionEvents(ctx, agent, { history: historyPref, historyError: strings.output.historyReadFailed })
+  const { state, resetView, appendEntry } = useSessionEvents(ctx, agent, {
+    history: historyPref, historyError: strings.output.historyReadFailed,
+  })
   const registryRows = useRegistryCommands(ctx, agent)
   const permissionPreset = usePermissionPreset(ctx, agent)
   const approvals = useApprovalRequests(ctx, agent)
@@ -563,6 +565,7 @@ export const App: FC<AppProps> = ({
         void dispatch(trimmed, {
           ctx,
           agent,
+          closeUi,
           resetView: clearView,
           setModel,
           refreshSelection,
@@ -660,7 +663,7 @@ export const App: FC<AppProps> = ({
       })()
     },
     [
-      ctx, agent, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
+      ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
       setTheme, themePref, appearance, emit, strings, state, shell, swapSession,
       scroll.setExpanded, scroll.expanded, attach, statusRef,
     ],
