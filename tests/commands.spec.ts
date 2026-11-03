@@ -77,6 +77,38 @@ function makeStandWithoutExit(): Context {
 describe('slash command dispatch', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
+  it('branches only through the runner and validates the selected turn', async () => {
+    const { cmd } = makeCommand()
+    const forkSession = vi.fn().mockResolvedValue({ kind: 'switched', id: 'child' })
+    expect(await dispatch('/branch 2', { ...cmd, forkSession })).toMatchObject({ message: expect.stringContaining('child') })
+    expect(forkSession).toHaveBeenCalledWith(2)
+    expect(await dispatch('/branch bad', { ...cmd, forkSession })).toMatchObject({ failed: true })
+    expect(forkSession).toHaveBeenCalledOnce()
+  })
+
+  it('offers recovery without automatically replaying completed tools', async () => {
+    const { cmd } = makeCommand()
+    const followup = vi.fn()
+    const restoreDraft = vi.fn()
+    const state: UiState = { status: 'idle', currentTurn: 1, lastReason: { kind: 'interrupted' }, entries: [
+      { kind: 'user', message: createUserMessage({ content: [{ type: 'text', text: 'original request' }], source: { kind: 'user' } }) },
+    ] }
+    const agent = { ...cmd.agent, status: 'idle', followup } as never
+    expect(await dispatch('/retry', { ...cmd, state, agent })).toMatchObject({ message: expect.stringContaining('/retry continue') })
+    expect(followup).not.toHaveBeenCalled()
+    await dispatch('/retry continue', { ...cmd, state, agent })
+    expect(followup).toHaveBeenCalledOnce()
+    await dispatch('/retry draft', { ...cmd, state, agent, restoreDraft })
+    expect(restoreDraft).toHaveBeenCalledWith('original request')
+    expect(await dispatch('/retry', cmd)).toMatchObject({ message: expect.stringContaining('No failed') })
+  })
+
+  it('renders persisted file diffs and rejects unknown entry numbers', async () => {
+    const { cmd } = makeCommand()
+    expect(await dispatch('/diff', cmd)).toMatchObject({ message: expect.stringContaining('No recorded') })
+    expect(await dispatch('/diff 99', cmd)).toMatchObject({ failed: true })
+  })
+
   it('searches and addresses older transcript entries', async () => {
     const { cmd } = makeCommand()
     const state: UiState = { entries: [{ kind: 'note', text: 'needle' }], status: 'idle', currentTurn: 0 }
@@ -1461,8 +1493,8 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/activity', '/approval', '/clear', '/context', '/copy', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
-      '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/search', '/sessions', '/skill', '/status', '/theme',
+      '/activity', '/approval', '/branch', '/clear', '/context', '/copy', '/diff', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
+      '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
       '/usage', '/verbose',
     ])
   })
@@ -1515,9 +1547,9 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/activity', '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
+        '/activity', '/approval', '/branch', '/clear', '/compact', '/context', '/copy', '/diff', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
         '/language',
-        '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/search', '/sessions', '/skill', '/status', '/theme',
+        '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
         '/usage', '/verbose',
       ])
     })

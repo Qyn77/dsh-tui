@@ -24,6 +24,9 @@
  * @module @qiao-qyn/dsh-tui/commands/commands
  */
 
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { recoveryPlan } from './recovery.ts'
+import { diffLines, transcriptDiffs } from '../render/file-diffs.ts'
 import { entryNumber, entryText, navigationIndex, searchTranscript } from './transcript.ts'
 import { exportTranscript } from './transcript-export.ts'
 import { isMousePreference, type MousePreference } from '../terminal/mouse.ts'
@@ -54,7 +57,7 @@ import {
   type SessionRow,
 } from './sessions.ts'
 import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../render/message-layout.ts'
-import type { SwapSession } from './resume.ts'
+import type { SwapSession, SwapResult } from './resume.ts'
 import {
   OSC52_MAX_BYTES,
   byteLength,
@@ -440,6 +443,9 @@ async function listSessions(
 
 /** Snapshot one command from the registry. */
 export interface CommandContext {
+  forkSession?: (turn?: number) => Promise<SwapResult>
+  restoreDraft?: (text: string) => void
+  failedDraft?: string
   selectedIndex?: number
   searchMatches?: readonly number[]
   setSearchMatches?: (matches: number[]) => void
@@ -593,6 +599,45 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
   const strings = catalog(lang).output
   const name = raw.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
   switch (name) {
+    case '/branch': {
+      const parts = raw.trim().split(/\s+/)
+      const value = parts[1]
+      const labels = catalog(lang).branch
+      if (parts.length > 2 || (value !== undefined && !Number.isSafeInteger(Number(value)))) return { kind: 'handled', message: labels.usage, failed: true }
+      if (!cmd.forkSession) return { kind: 'handled', message: labels.unavailable, failed: true }
+      if (value !== undefined && !/^[1-9]\d*$/.test(value)) return { kind: 'handled', message: labels.usage, failed: true }
+      const result = await cmd.forkSession(value === undefined ? undefined : Number(value))
+      if (result.kind === 'switched') return { kind: 'handled', message: labels.created(result.id) + (result.notice ? `\n${result.notice}` : '') }
+      return { kind: 'handled', message: result.kind === 'refused' ? result.notice : labels.unavailable, failed: true }
+    }
+
+    case '/retry': {
+      const parts = raw.trim().split(/\s+/)
+      const action = parts[1]
+      if (parts.length > 2) return { kind: 'handled', message: catalog(lang).recovery.usage, failed: true }
+      const plan = recoveryPlan(cmd.state)
+      const labels = catalog(lang).recovery
+      if (action === 'draft' && (cmd.failedDraft !== undefined || plan)) {
+        cmd.restoreDraft?.(cmd.failedDraft ?? plan!.text)
+        return { kind: 'handled' }
+      }
+      if (!plan) return { kind: 'handled', message: labels.empty, failed: action !== undefined }
+      if (action === undefined) return { kind: 'handled', message: labels.report(plan.reason, plan.completed) }
+      if (action !== 'continue') return { kind: 'handled', message: labels.usage, failed: true }
+      if (cmd.agent.status !== 'idle') return { kind: 'handled', message: labels.usage, failed: true }
+      cmd.agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: labels.continuePrompt }] }))
+      return { kind: 'handled' }
+    }
+
+    case '/diff': {
+      const value = raw.trim().split(/\s+/)[1]
+      const index = value ? entryNumber(value, cmd.state.entries.length) : undefined
+      if (value && index === undefined) return { kind: 'handled', message: catalog(lang).transcript.invalid, failed: true }
+      const diffs = transcriptDiffs(index === undefined ? cmd.state.entries : [cmd.state.entries[index]])
+      return { kind: 'handled', message: diffs.length === 0 ? catalog(lang).diff.empty
+        : diffs.map(diff => [diff.oldText === null ? catalog(lang).diff.noBefore : '', '```diff', ...diffLines(diff), '```'].filter(Boolean).join('\n')).join('\n\n') }
+    }
+
     case '/search': {
       const query = raw.trim().slice('/search'.length).trim()
       if (!query) return { kind: 'handled', message: catalog(lang).transcript.usage }
@@ -619,7 +664,8 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       const input = raw.trim().slice('/export'.length).trim()
       const selection = /\s+--entry=(\d+)$/.exec(input)
       const path = (selection ? input.slice(0, selection.index) : input).replace(/^(["'])(.*)\1$/, '$2')
-      if (!path || cmd.historyReady === false) return { kind: 'handled', message: catalog(lang).transcript.usage, failed: true }
+      if (cmd.historyReady === false) return { kind: 'handled', message: catalog(lang).transcript.loading, failed: true }
+      if (!path || (/\s+--entry=/.test(input) && !selection)) return { kind: 'handled', message: catalog(lang).transcript.usage, failed: true }
       const entries = (cmd.exportState ?? cmd.state).entries
       const index = selection ? entryNumber(selection[1], entries.length) : undefined
       if (selection && index === undefined) return { kind: 'handled', message: catalog(lang).transcript.invalid, failed: true }
@@ -707,9 +753,9 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       // and the line has to say so or the screen reads as a failed resume.
       return {
         kind: 'handled',
-        message: (cmd.historyPref ?? 'show') === 'hide'
+        message: ((cmd.historyPref ?? 'show') === 'hide'
           ? strings.resumeSwitchedHidden(shortId(result.id))
-          : strings.resumeSwitched(shortId(result.id)),
+          : strings.resumeSwitched(shortId(result.id))) + (result.notice ? `\n${result.notice}` : ''),
       }
     }
 

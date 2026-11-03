@@ -223,6 +223,7 @@ function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number 
       // Every turn renders as markdown, streaming or finalized, which adds a
       // blank row between blocks; the raw text is the floor, the safe side.
       return 1 + textRows(entry.text || ' ', width)
+        + (entry.reasoning && entry.reasoningVisible !== false ? 1 + textRows(entry.reasoning, width) : 0)
     case 'tool': {
       // The call line, then the outcome. The outcome's height is *exact*
       // rather than estimated: an error is one truncated row, and a result is

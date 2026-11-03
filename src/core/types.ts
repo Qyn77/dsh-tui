@@ -78,6 +78,7 @@ export type ToolStatus = 'running' | 'ok' | 'error' | 'cancelled'
  * one running tool, exactly as the log says it is.
  */
 export interface SubCall {
+  meta?: unknown
   /** `<parent>:ptc:<n>` — pairs the start event with its settlement. */
   subCallId: ToolCallId
   /** The tool's registered name, rendered through the same `parseToolName` an MCP call is. */
@@ -119,6 +120,8 @@ export type UiEntry =
   | { kind: 'user'; message: UserMessage }
   | {
     kind: 'assistant'
+    reasoning?: string
+    reasoningVisible?: boolean
     turn: number
     step: number
     text: string
@@ -127,6 +130,7 @@ export type UiEntry =
   }
   | {
     kind: 'tool'
+    resultMeta?: unknown
     callId: ToolCallId
     name: string
     args: string

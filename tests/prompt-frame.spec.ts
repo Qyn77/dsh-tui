@@ -847,10 +847,10 @@ describe('the palette on a terminal too short to hold it', () => {
     // laid out, and the frame came back with `/quit` and `/plugins` printed
     // on the same line.
     expect(screen).toContain('/clear')
-    expect(screen).toContain('/help')
+    expect(screen).toContain('/exit')
     expect(screen).not.toContain('/plugins')
     expect(screen).not.toContain('/verbose')
-    expect(screen).toContain('+19 more')
+    expect(screen).toContain('+22 more')
   })
 
   it('leaves the StatusBar and the prompt box whole underneath it', async () => {

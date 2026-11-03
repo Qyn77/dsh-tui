@@ -25,6 +25,7 @@ interface Attempt {
 }
 
 interface View {
+  historyFailed?: boolean
   session: Session
   full: UiState
   live: UiState
@@ -94,6 +95,7 @@ export function useSessionEvents(ctx: Context, agent: Agent, options?: { history
     // storage. Commands, clears and live events received during I/O retain order.
     async function seed(): Promise<void> {
       let full = initialState()
+      let historyFailed = false
       try {
         const persistence = service(ctx, 'sessionPersistence')
         if (cut > 0 && persistence) {
@@ -107,10 +109,11 @@ export function useSessionEvents(ctx: Context, agent: Agent, options?: { history
           }
         }
       } catch {
+        historyFailed = true
         full = apply(full, { type: 'local', entry: { kind: 'note', tone: 'warn', text: historyError } })
       }
       if (active) setView(prev => prev.session === session
-        ? { ...prev, full: (prev.pending ?? []).reduce(apply, full), pending: undefined }
+        ? { ...prev, full: (prev.pending ?? []).reduce(apply, full), pending: undefined, historyFailed }
         : prev)
     }
     void seed()
@@ -125,5 +128,5 @@ export function useSessionEvents(ctx: Context, agent: Agent, options?: { history
     const { start, text } = view.attempt
     state = { ...state, entries: [...state.entries, { kind: 'assistant', turn: start.turn, step: start.step, text, finalized: false }] }
   }
-  return { state, fullState: view.full, historyReady: view.pending === undefined, resetView, appendEntry }
+  return { state, fullState: view.full, historyReady: view.pending === undefined && !view.historyFailed, resetView, appendEntry }
 }

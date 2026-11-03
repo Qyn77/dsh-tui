@@ -67,6 +67,9 @@ export const COMMAND_NAMES = [
   '/jump',
   '/inspect',
   '/export',
+  '/diff',
+  '/retry',
+  '/branch',
   '/clear',
   '/context',
   '/copy',
@@ -121,7 +124,18 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  branch: { usage: string; unavailable: string; created: (id: string) => string }
+  recovery: {
+    empty: string
+    usage: string
+    report: (reason: string, tools: readonly string[]) => string
+    continuePrompt: string
+    draftRestored: string
+  }
+  attachPreview: { summary: (count: number, bytes: string) => string }
+  diff: { preview: string; noBefore: string; empty: string }
   transcript: {
+    loading: string
     usage: string
     empty: string
     invalid: string
@@ -185,6 +199,7 @@ export interface Catalog {
   /** Rows in the conversation transcript. */
   entries: {
     /** Label above an assistant message. */
+    reasoning: string
     assistant: string
     /** The turn/step provenance beside that label. */
     turnStep: (turn: number, step: number) => string
@@ -589,7 +604,18 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  branch: { usage: '/branch [turn number]', unavailable: 'Cannot branch while switching/running, or without session support.', created: id => `Created branch ${id}. Conversation history is inherited; working files are not rolled back.` },
+  recovery: {
+    empty: 'No failed or interrupted request is available to continue.',
+    usage: '/retry · /retry continue · /retry draft',
+    report: (reason, tools) => `Last outcome: ${reason}\nCompleted tools: ${tools.join(', ') || 'none'}\n/retry continue resumes from recorded results; /retry draft restores the request text.`,
+    continuePrompt: 'Continue the previous incomplete request using the recorded conversation and tool results. Do not blindly repeat successful tools. Before repeating any operation that can change files or external state, first verify its current state.',
+    draftRestored: 'Submission failed. The request is retained; /retry draft restores it without replacing a newer draft.',
+  },
+  attachPreview: { summary: (count, bytes) => `${count} image${count === 1 ? '' : 's'} · ${bytes} · Ctrl-X removes image at cursor or last image` },
+  diff: { preview: 'Proposed change (preview)', noBefore: 'Previous content is unavailable; additions show the proposed content.', empty: 'No recorded file changes. Applied diff metadata is required.' },
   transcript: {
+    loading: 'Stored history is not available yet; export cannot produce a complete session.',
     usage: '/search <text> · /jump <entry number> · /inspect <entry number> · /copy <entry number> · /export <path> [--entry=N]',
     empty: 'No matching entries.',
     invalid: 'Entry not found. Use /search to discover entry numbers.',
@@ -625,6 +651,7 @@ const EN: Catalog = {
     viaMcp: server => `via the ${server} MCP server`,
   },
   entries: {
+    reasoning: 'Reasoning',
     assistant: 'assistant',
     turnStep: (turn, step) => ` · turn ${turn}.${step}`,
     streaming: ' · streaming',
@@ -714,6 +741,9 @@ const EN: Catalog = {
     '/search': 'Search conversation text',
     '/jump': 'Jump to a transcript entry',
     '/inspect': 'Inspect one complete message or tool result',
+    '/branch': 'Branch the conversation at the current point or an earlier turn',
+    '/retry': 'Inspect failure, continue safely, or restore the request draft',
+    '/diff': 'Inspect recorded file changes: /diff [entry number]',
     '/export': 'Export session or one entry as Markdown',
     '/activity': 'Expand or collapse a completed task: /activity <number>|all|none',
     '/approval': 'Show or switch this session\'s approval policy: /approval ask or never',
@@ -894,7 +924,18 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  branch: { usage: '/branch [轮次编号]', unavailable: '运行中、切换中或缺少会话服务时无法创建分支。', created: id => `已创建分支 ${id}，继承对话历史；工作文件保持当前状态。` },
+  recovery: {
+    empty: '当前没有可继续的失败或中断请求。',
+    usage: '/retry · /retry continue · /retry draft',
+    report: (reason, tools) => `上次结果：${reason}\n已完成工具：${tools.join('、') || '无'}\n/retry continue 根据已有结果继续；/retry draft 恢复请求文本。`,
+    continuePrompt: '请根据已有对话和工具结果继续上次未完成的请求。不要盲目重复成功执行的工具。再次执行可能修改文件或外部状态的操作前，先核对当前状态。',
+    draftRestored: '发送失败，请求已保留；/retry draft 可恢复文本，并会保留你新输入的草稿。',
+  },
+  attachPreview: { summary: (count, bytes) => `${count} 张图片 · ${bytes} · Ctrl-X 移除光标处或最后一张图片` },
+  diff: { preview: '拟修改内容（预览）', noBefore: '无法取得原内容；新增行显示拟写入内容。', empty: '没有已记录的文件修改，需要工具提供已应用的 diff 元数据。' },
   transcript: {
+    loading: '已存历史尚不可用，当前无法导出完整会话。',
     usage: '/search <关键词> · /jump <条目编号> · /inspect <条目编号> · /copy <条目编号> · /export <路径> [--entry=N]',
     empty: '没有匹配的条目。',
     invalid: '条目不存在，请用 /search 查找条目编号。',
@@ -930,6 +971,7 @@ const ZH: Catalog = {
     viaMcp: server => `经由 ${server} MCP 服务器`,
   },
   entries: {
+    reasoning: '思考过程',
     assistant: '助手',
     turnStep: (turn, step) => ` · 第 ${turn} 轮 ${step} 步`,
     streaming: ' · 输出中',
@@ -1014,6 +1056,9 @@ const ZH: Catalog = {
     '/search': '搜索对话内容',
     '/jump': '定位到对话条目',
     '/inspect': '查看单条消息或工具结果的完整内容',
+    '/branch': '从当前对话或指定轮次创建会话分支',
+    '/retry': '查看失败情况、继续任务或恢复请求草稿',
+    '/diff': '查看已记录的文件修改：/diff [条目编号]',
     '/export': '将会话或单条内容导出为 Markdown',
     '/activity': '展开或收起任务过程：/activity <编号>|all|none',
     '/approval': '查看或切换本 session 的审批策略：/approval ask 或 never',

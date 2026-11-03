@@ -45,7 +45,7 @@ export type ResumePlan =
  * already English for the same reason the boot notice is.
  */
 export type SwapResult =
-  | { kind: 'switched'; id: SessionId }
+  | { kind: 'switched'; id: SessionId; notice?: string }
   | { kind: 'current'; id: SessionId }
   | { kind: 'busy' }
   | { kind: 'refused'; notice: string }

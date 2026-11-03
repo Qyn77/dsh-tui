@@ -7,6 +7,7 @@
  * @module @qiao-qyn/dsh-tui/tests/approval-frame.spec
  */
 
+import type { FileDiff } from '@deepseek-ai/dsh-tools'
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink'
@@ -27,8 +28,9 @@ interface Painted {
 async function paint(
   pending: readonly PendingApproval[],
   argsFor?: (callId: string) => string | undefined,
+  diffsFor?: () => readonly FileDiff[],
 ): Promise<Painted> {
-  const stdout = fakeStdout(60, 10)
+  const stdout = fakeStdout(60, diffsFor ? 40 : 10)
   const stdin = fakeTtyStdin()
   const answers: [number, ApprovalOutcome][] = []
   const instance = render(
@@ -36,6 +38,7 @@ async function paint(
       pending,
       onAnswer: (id, outcome) => { answers.push([id, outcome]) },
       ...argsFor === undefined ? {} : { argsFor },
+      ...diffsFor === undefined ? {} : { diffsFor },
     }),
     { stdout: stdout as never, stdin, patchConsole: false, debug: true },
   )
@@ -259,4 +262,15 @@ describe('an approval for an MCP-bridged tool', () => {
     expect(view.frame()).not.toContain('MCP')
     view.unmount()
   })
+})
+
+it('shows a proposed edit diff and still routes the approval answer', async () => {
+  const tty = await paint([{ id: 44, toolName: 'edit' }], undefined,
+    () => [{ path: 'file.ts', oldText: 'old', newText: 'new' }])
+  try {
+    expect(tty.frame()).toContain('-old')
+    expect(tty.frame()).toContain('+new')
+    await tty.press('y')
+    expect(tty.answers).toContainEqual([44, 'allowed-once'])
+  } finally { tty.unmount() }
 })

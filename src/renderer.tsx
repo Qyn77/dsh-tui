@@ -43,7 +43,7 @@ import { LanguageProvider } from './hooks/useStrings.tsx'
 import { ThemeProvider } from './hooks/useTheme.tsx'
 import type { Appearance, ThemePref } from './terminal/theme.ts'
 import type { KeybindPref } from './prompt/vim.ts'
-import type { SwapSession } from './commands/resume.ts'
+import type { SwapSession, SwapResult } from './commands/resume.ts'
 import { writeSettings } from './terminal/settings.ts'
 import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
@@ -51,6 +51,7 @@ import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  forkSession?: (turn?: number) => Promise<SwapResult>
   mouse?: MousePreference
   onMousePreferenceChange?: (pref: MousePreference) => void
   ctx: Context
@@ -167,6 +168,7 @@ export const App: FC<AppProps> = ({
   onMousePreferenceChange,
   appearance: detected = 'dark',
   swapSession,
+  forkSession,
 }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
@@ -194,6 +196,11 @@ export const App: FC<AppProps> = ({
   const { state, fullState, historyReady, resetView, appendEntry } = useSessionEvents(ctx, agent, {
     history: historyPref, historyError: strings.output.historyReadFailed,
   })
+  const [draftRequest, setDraftRequest] = useState<{ text: string; revision: number }>()
+  const failedDraftRef = useRef<string | undefined>()
+  const restoreDraft = useCallback((text: string) => {
+    setDraftRequest(previous => ({ text, revision: (previous?.revision ?? 0) + 1 }))
+  }, [])
   const [sessionPickerOpen, setSessionPickerOpen] = useState(false)
   const sessionCommands = useSessionCatalog(ctx, agent, sessionPickerOpen)
   const onPromptValue = useCallback((value: string) => {
@@ -405,10 +412,21 @@ export const App: FC<AppProps> = ({
   const argsForCall = useCallback((callId: ToolCallId): string | undefined => {
     for (let i = state.entries.length - 1; i >= 0; i -= 1) {
       const entry = state.entries[i]
-      if (entry.kind === 'tool' && entry.callId === callId) return entry.args
+      if (entry.kind === 'tool') {
+        if (entry.callId === callId) return entry.args
+        const nested = entry.subCalls?.find(call => call.subCallId === callId)
+        if (nested) return nested.args
+      }
     }
     return undefined
   }, [state.entries])
+  const diffsForCall = useCallback((name: string, raw: string | undefined) => {
+    if (!raw) return []
+    try {
+      const view = service(ctx, 'tools')?.get(name, agent)?.presentCall?.(JSON.parse(raw))
+      return view?.card === 'diff' ? view.diffs : []
+    } catch { return [] }
+  }, [ctx, agent])
   // Ctrl-C on an empty line at idle asks once before closing the session.
   // The flag disarms on any other keystroke rather than on a timer: a timer
   // would make the outcome of a keypress depend on how long ago the last one
@@ -650,6 +668,8 @@ export const App: FC<AppProps> = ({
           setKeybinds,
           keybindPref,
           setActivity,
+          restoreDraft,
+          failedDraft: failedDraftRef.current,
           selectedIndex,
           searchMatches,
           setSearchMatches,
@@ -667,6 +687,7 @@ export const App: FC<AppProps> = ({
           verbose: scroll.expanded,
           emit,
           swapSession,
+          forkSession,
           state,
         }).then((result) => {
           // Command output goes into the log, not to stderr. Inside the
@@ -746,11 +767,16 @@ export const App: FC<AppProps> = ({
         })
         if (statusRef.current === 'running') agent.steer(message)
         else agent.followup(message)
-      })()
+        failedDraftRef.current = undefined
+      })().catch((error: unknown) => {
+        failedDraftRef.current = text
+        restoreDraft(text)
+        appendEntry({ kind: 'note', tone: 'error', text: `${strings.recovery.draftRestored}\n${error instanceof Error ? error.message : String(error)}` })
+      })
     },
-    [selectedIndex, searchMatches, mousePref, setMouse, setActivity, inspectEntry, jumpEntry, cwd, fullState, historyReady,
+    [restoreDraft, selectedIndex, searchMatches, mousePref, setMouse, setActivity, inspectEntry, jumpEntry, cwd, fullState, historyReady,
       ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
-      setTheme, themePref, appearance, emit, strings, state, shell, swapSession,
+      setTheme, themePref, appearance, emit, strings, state, shell, swapSession, forkSession,
       scroll.setExpanded, scroll.expanded, attach, statusRef,
     ],
   )
@@ -892,7 +918,7 @@ export const App: FC<AppProps> = ({
           pinTop={scroll.pinTop || browseFull}
           expanded={scroll.expanded}
           onGeometry={scroll.reportGeometry}
-          jumpIndex={jumpTarget ? transcript.entries.indexOf(jumpTarget) : undefined}
+          jumpIndex={jumpTarget ? transcript.entries.findIndex(entry => entry === jumpTarget || (entry.kind === 'assistant' && jumpTarget.kind === 'assistant' && entry.turn === jumpTarget.turn && entry.step === jumpTarget.step)) : undefined}
           onJump={offset => { scroll.jumpToOffset(offset); setJumpTarget(undefined) }}
         />
         {/*
@@ -936,6 +962,7 @@ export const App: FC<AppProps> = ({
           pending={approvals.pending}
           onAnswer={approvals.answer}
           argsFor={argsForCall}
+          diffsFor={diffsForCall}
         />
         <Prompt
           cwd={cwd}
@@ -951,6 +978,7 @@ export const App: FC<AppProps> = ({
           extraCommands={registryRows}
           sessionCommands={sessionCommands}
           onValueChange={onPromptValue}
+          restoreDraft={draftRequest}
           skillCommands={skillRowsForPicker}
           permissionCommands={permissionRowsForPicker}
           onCyclePermission={permissionRowsForPicker.length > 1 ? cyclePermission : undefined}

@@ -23,8 +23,10 @@
  * @module @qiao-qyn/dsh-tui/components/ApprovalPrompt
  */
 
+import type { FileDiff } from '@deepseek-ai/dsh-tools'
+import { diffLines } from '../render/file-diffs.ts'
 import React, { type FC } from 'react'
-import { Box, Text, useInput } from 'ink'
+import { Box, Text, useInput, useStdout } from 'ink'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { PendingApproval } from '../hooks/useApprovalRequests.ts'
@@ -33,6 +35,7 @@ import { useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link ApprovalPrompt}. */
 export interface ApprovalPromptProps {
+  diffsFor?: (name: string, raw: string | undefined) => readonly FileDiff[]
   /** Questions waiting on the user, oldest first. May be empty. */
   pending: readonly PendingApproval[]
   /** Settle the question with `id`. */
@@ -49,8 +52,9 @@ export interface ApprovalPromptProps {
   argsFor?: (callId: ToolCallId) => string | undefined
 }
 
-export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer, argsFor }) => {
+export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer, argsFor, diffsFor }) => {
   const strings = useStrings()
+  const { stdout } = useStdout()
   const current = pending[0]
 
   // Registered unconditionally with `isActive`, not behind an early return:
@@ -74,6 +78,8 @@ export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer, arg
   const mcp = parseToolName(current.toolName)
   const raw = current.callId === undefined ? undefined : argsFor?.(current.callId)
   const args = raw === undefined ? undefined : approvalArgs(raw)
+  const diffs = diffsFor?.(current.toolName, raw) ?? []
+  const diffRows = diffs.flatMap(diff => diffLines(diff)).slice(0, Math.max(1, Math.min(8, (stdout?.rows ?? 24) - 17)))
   return (
     <Box borderStyle="round" borderColor="yellow" flexDirection="column" paddingX={1}>
       <Box>
@@ -90,7 +96,12 @@ export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer, arg
         // on the card that must stay readable.
         <Text color="yellow" wrap="truncate-end">{strings.approval.viaMcp(mcp.server)}</Text>
       )}
-      {args !== undefined && args.rows.length > 0 && (
+      {diffRows.length > 0 && <Box flexDirection="column" marginTop={1}>
+        <Text color="yellow" wrap="truncate">{strings.diff.preview}</Text>
+        {diffRows.map((line, index) => <Text key={index} wrap="truncate" color={line.startsWith('+') ? 'green' : line.startsWith('-') ? 'red' : undefined}>{line}</Text>)}
+        {diffs.some(diff => diff.oldText === null) && <Text wrap="truncate">{strings.diff.noBefore}</Text>}
+      </Box>}
+      {diffRows.length === 0 && args !== undefined && args.rows.length > 0 && (
         <Box marginTop={1} flexDirection="column">
           {args.rows.map(arg => (
             <Text key={arg.key} wrap="truncate-end">

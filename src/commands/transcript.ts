@@ -4,7 +4,7 @@ import { userMessageText, type UiEntry } from '../core/types.ts'
 export function entryText(entry: UiEntry): string {
   switch (entry.kind) {
     case 'user': return userMessageText(entry.message) || JSON.stringify(entry.message.content, null, 2)
-    case 'assistant': return entry.text
+    case 'assistant': return [entry.reasoning, entry.text].filter(Boolean).join('\n\n')
     case 'tool': return [entry.name, entry.args, ...entry.result?.content.map(block => block.type === 'text' ? block.text : JSON.stringify(block)) ?? []].join('\n')
     case 'command': return `${entry.input}\n${entry.text}`
     case 'shell': return `${entry.command}\n${entry.output}`

@@ -80,6 +80,9 @@ dsh --profile tui-rc5
 | `/inspect` | 按编号查看完整条目，Esc 返回对话 |
 | `/export` | 导出 Markdown：`/export <路径> [--entry=N]`，已有文件会保留 |
 | `/resume ` / `/sessions ` | 按标题、目录或 ID 搜索历史会话，Enter 接续所选会话 |
+| `/diff` | 查看已记录的文件修改，`/diff N` 只看指定条目 |
+| `/retry` | 查看失败情况；`continue` 根据已有结果继续，`draft` 恢复请求文本 |
+| `/branch` | 从当前对话或指定轮次创建会话分支：`/branch N` |
 | `/help` | 列出所有斜杠命令 |
 | `/status` | 当前模型、session id、生效中的权限预设 |
 | `/model` | 显示当前模型；`/model <名字>` 切换，`/model ` 打开选择器 |
@@ -98,6 +101,7 @@ dsh --profile tui-rc5
 | `/history` | 显示或隐藏接续 session 带来的已存历史 |
 | `!`、`!!` | 跑一条系统命令 —— `!!` 还会把它给模型看 |
 | `/exit`, `/quit` | 退出 REPL |
+| `Ctrl-X` | 发送前显示图片名称、数量和大小；移除光标处或最后一张图片 |
 | `Tab` | 补全高亮的 `/` 命令或 `@` 路径 |
 | `@` | 打开文件选择器 |
 | `↑` / `↓`、`PageUp` / `PageDown`、`Ctrl-L` | 滚动对话 / 清屏重画 |

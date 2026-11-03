@@ -1085,6 +1085,50 @@ keep unreadable sessions discoverable. Sort by the final event timestamp when
 metadata provides an event count; otherwise show creation time with `*`.
 Canonical session headers remain unchanged.
 
+### Applied and proposed file diffs
+
+Native tool results and nested PTC settlements retain their opaque presentation
+metadata in the UI projection. `/diff [entry number]` inspects validated recorded
+`FileDiff` hunks without reading or changing the working tree. The preview
+retains contextual lines and distinguishes missing before-images from known
+content. Approval cards ask the scoped tool's pure `presentCall` presenter for
+a proposed diff when the request's arguments are available. Missing arguments
+or presenters retain the existing argument/reason card. A before-image of null
+is labelled unavailable, never asserted to mean a new file. Preview rows are
+bounded to protect the input area; `/diff` and `/inspect` provide scrollable
+inspection after execution.
+
+### Draft image attachments
+
+The prompt debounces metadata probes for image-path candidates. Existing files
+show their names, sizes and a total before submission, without reading image
+bytes or committing attachments. Ctrl-X removes the candidate under the caret,
+or the last candidate when the caret is elsewhere, preserving surrounding text
+and line breaks. Late probes cannot replace a newer buffer. The bounded tray
+reports its row count with other overlays so the banner yields space. Actual
+submission still revalidates through the attachment store and model capability
+checks; a preview is not a guarantee that a format or size will be accepted.
+
+### Failure recovery and conversation branches
+
+`/retry` reports the last non-success outcome and successful tools already
+recorded. `/retry continue` sends an explicit continuation request to the agent,
+using existing conversation/results rather than programmatically replaying tool
+calls. The continuation asks the model to verify current state before repeating
+side effects. `/retry draft` restores request text. Submission failures retain
+the original draft; a delayed restoration never replaces newly typed text.
+The model remains responsible for any subsequently proposed tool calls, which
+continue through normal permission and approval handling.
+
+`/branch [turn]` creates a new agent/session with the runtime's `buildForkSeed`,
+exact inherited-event count and parent lineage. A specified turn must have a
+recorded ending. The source is flushed and read at a bounded cut, child creation
+and durability complete before UI publication, and the prior handle is disposed
+after publication. Switching and branching share a concurrency guard. If prior
+cleanup fails after publication, report a warning while retaining the successful
+new handle. Conversation branching does not restore historical filesystem or
+external state. The original durable session remains resumable.
+
 ## Part 2 · Roadmap
 
 The package is at **v0.1.0-rc.7**. Each milestone below lists what users see when it ships, not what's done internally.

@@ -1,3 +1,6 @@
+import { useImagePreviews } from '../hooks/useImagePreviews.ts'
+import { removePreview } from '../attachments/preview.ts'
+import { formatBytes } from '../render/message-layout.ts'
 /**
  * The bottom input box. It grows with the buffer up to
  * {@link MAX_PROMPT_ROWS} rows and then scrolls internally, with a
@@ -105,6 +108,7 @@ import { useLang, useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link Prompt}. */
 export interface PromptProps {
+  restoreDraft?: { text: string; revision: number }
   cwd?: string
   /** Whether input is accepted (false while a shell runs or an approval waits). */
   active: boolean
@@ -255,6 +259,7 @@ export const Prompt: FC<PromptProps> = ({
   onFilledChange,
   onEscClaimChange,
   onOverlayRowsChange,
+  restoreDraft,
   sessionCommands,
   onValueChange,
   extraCommands,
@@ -281,6 +286,14 @@ export const Prompt: FC<PromptProps> = ({
   // to be readable and writable inside a single `useInput` call, and a paste
   // spanning three chunks must not cost three renders to track.
   const pasting = useRef(false)
+  useEffect(() => {
+    if (restoreDraft && value === '') {
+      setValue(restoreDraft.text)
+      setCursorIndex(restoreDraft.text.length)
+    }
+    // A late failure must not overwrite a newer draft, or reappear after the
+    // user clears it. Each explicit recovery request has its own revision.
+  }, [restoreDraft])
   // Submitted lines, newest last, and where in them the user currently is.
   // `null` means "on the live buffer"; `draft` is what that buffer held when
   // they started walking, so Ctrl-N can hand it back.
@@ -307,6 +320,9 @@ export const Prompt: FC<PromptProps> = ({
   // cursor from rapid input never escapes.
   useEffect(() => { onValueChange?.(value) }, [value, onValueChange])
   const sessionQuery = /^\/(?:resume|sessions)\s+(.*)$/i.exec(value)?.[1].trim().toLocaleLowerCase()
+  const imagePreviews = useImagePreviews(value, cwd)
+  const shownImages = Math.min(imagePreviews.length, Math.max(1, Math.min(3, (stdout?.rows ?? 24) - 20)))
+  const imageTrayRows = shownImages > 0 ? shownImages + 1 : 0
   const palette = sessionQuery !== undefined
     ? (sessionCommands ?? []).filter(row => `${row.name} ${row.description}`.toLocaleLowerCase().includes(sessionQuery))
     : isPaletteMode(value) ? filterCommands(value, extraCommands, lang) : []
@@ -489,7 +505,7 @@ export const Prompt: FC<PromptProps> = ({
             : picking
               ? Math.min(Math.max(fileRows.length, 1), paletteRows)
               : 0
-  const overlayRows = overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS
+  const overlayRows = (overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS) + imageTrayRows
   useEffect(() => {
     onOverlayRowsChange?.(overlayRows)
   }, [overlayRows, onOverlayRowsChange])
@@ -701,6 +717,13 @@ export const Prompt: FC<PromptProps> = ({
       // unsolicited, and the background-colour probe during boot can also
       // leave a tail if the terminal answers more than once.
       if (isOscTail(input)) return
+      if (key.ctrl && input === 'x' && imagePreviews.length > 0) {
+        const chosen = imagePreviews.find(row => cursorIndex >= row.candidate.start && cursorIndex <= row.candidate.end) ?? imagePreviews.at(-1)!
+        const next = removePreview(value, chosen)
+        setValue(next.text)
+        setCursorIndex(next.cursor)
+        return
+      }
       // Paste decoding comes first, ahead of every key branch. Inside a
       // bracketed paste Ink has already labelled some bytes `return`, `tab`
       // or `backspace` — a pasted newline is the same byte as Enter — so any
@@ -1180,6 +1203,12 @@ export const Prompt: FC<PromptProps> = ({
           />
         </Box>
       ) : null}
+      {imageTrayRows > 0 && <Box flexDirection="column" paddingX={1}>
+        <Text wrap="truncate">{strings.attachPreview.summary(imagePreviews.length, formatBytes(imagePreviews.reduce((sum, row) => sum + row.bytes, 0)))}</Text>
+        {imagePreviews.slice(0, shownImages).map((row, index) => <Text key={row.candidate.start} wrap="truncate" color="cyan">
+          {`${index + 1}. ${row.name} · ${formatBytes(row.bytes)}`}
+        </Text>)}
+      </Box>}
       <Box borderStyle="round" borderColor={active ? 'cyan' : 'gray'} paddingX={1}>
         {/*
           The `> ` prefix marks the *start of the buffer*, so it is drawn

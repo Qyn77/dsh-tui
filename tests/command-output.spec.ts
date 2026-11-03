@@ -34,7 +34,8 @@ describe('slash command output', () => {
     expect(screen).toContain('/help')
     expect(screen).toContain('Available commands')
     // Sourced from COMMANDS, so the rendered table lists real commands.
-    expect(screen).toContain('/status')
+    await painted.send('\u001B[6~')
+    expect(painted.screen()).toContain('/status')
   })
 
   it('renders /status into the conversation', async () => {

@@ -80,6 +80,9 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/inspect` | View a complete entry by number; Esc returns to the conversation |
 | `/export` | Export Markdown: `/export <path> [--entry=N]`; existing files are preserved |
 | `/resume ` / `/sessions ` | Search and select stored sessions by title, directory or id; Enter resumes |
+| `/diff` | Inspect recorded applied file changes; `/diff N` limits to an entry |
+| `/retry` | Inspect failed work; `continue` resumes from recorded results, `draft` restores request text |
+| `/branch` | Create a conversation branch, optionally at an earlier turn: `/branch N` |
 | `/help` | list the slash commands |
 | `/status` | model, session id, permission preset |
 | `/model` | show the model; `/model <name>` switches it, `/model ` opens a picker |
@@ -98,6 +101,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/history` | show or hide the history a resumed session came with |
 | `!`, `!!` | run a shell command — `!!` also shows it to the model |
 | `/exit`, `/quit` | leave the REPL |
+| `Ctrl-X` | Remove the draft image at the caret, or the last image; metadata preview appears before sending |
 | `Tab` | complete the highlighted `/` command or `@` path |
 | `@` | open the file picker |
 | `↑` / `↓`, `PageUp` / `PageDown`, `Ctrl-L` | scroll the conversation / redraw |

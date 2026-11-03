@@ -318,6 +318,10 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
         <Text color="gray">{strings.entries.turnStep(entry.turn, entry.step)}</Text>
         {!entry.finalized && <Text color="yellow">{strings.entries.streaming}</Text>}
       </Text>
+      {entry.reasoning && entry.reasoningVisible !== false && <>
+        <Text color="gray">{strings.entries.reasoning}</Text>
+        <Markdown source={entry.reasoning} />
+      </>}
       {entry.text === '' ? <Text> </Text> : <Markdown source={entry.text} />}
     </Row>
   )

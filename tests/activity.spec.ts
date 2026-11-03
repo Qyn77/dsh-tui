@@ -59,3 +59,17 @@ it('renders a collapsed group and expands it through the live prompt', async () 
     expect(tty.screen()).toContain('checking')
   } finally { tty.unmount() }
 })
+
+it('retains emitted reasoning for disclosure without showing it beside the collapsed answer', () => {
+  const withReasoning: UiState = { ...state, entries: [state.entries[0], {
+    kind: 'assistant', turn: 1, step: 1, text: 'answer', reasoning: 'recorded reasoning', finalized: true,
+  }], tasks: [{ ...state.tasks![0], endIndex: 2 }] }
+  expect(activityView(withReasoning, new Set()).entries.at(-1)).toMatchObject({ reasoning: 'recorded reasoning', reasoningVisible: false })
+  expect(activityView(withReasoning, new Set([1])).entries.at(-1)).toMatchObject({ reasoningVisible: true })
+})
+
+it('keeps a tool-only final result visible rather than hiding every outcome', () => {
+  const tool = { kind: 'tool' as const, callId: 'last' as never, name: 'present', args: '{}', turn: 1, step: 1, status: 'ok' as const }
+  const toolOnly: UiState = { ...state, entries: [state.entries[0], tool], tasks: [{ ...state.tasks![0], endIndex: 2 }] }
+  expect(activityView(toolOnly, new Set()).entries.at(-1)).toBe(tool)
+})

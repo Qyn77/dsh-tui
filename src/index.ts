@@ -20,7 +20,8 @@ import { appExit, service, type AppExit } from './core/services.ts'
 import { shortId } from './commands/sessions.ts'
 import { App } from './renderer.tsx'
 import { installResizeOwner, type RepaintRef } from './terminal/resize.ts'
-import { planResume, requestFromEnv, type SwapSession } from './commands/resume.ts'
+import { branchSeed } from './commands/session-branch.ts'
+import { planResume, requestFromEnv, type SwapSession, type SwapResult } from './commands/resume.ts'
 import { MOUSE_MODE_EXIT, mouseModeSequence, resolveMouseMode } from './terminal/mouse.ts'
 import { readSettings } from './terminal/settings.ts'
 import { probeAppearance } from './terminal/theme.ts'
@@ -252,7 +253,20 @@ async function run(ctx: Context, config: Config): Promise<void> {
       // Assigned once Ink has mounted. `swapSession` is built before `instance`
       // exists but only ever called from a keystroke, long after.
       let redraw: () => void = () => {}
-      const swapSession: SwapSession = async (request) => {
+      const publishHandle = async (next: typeof handle): Promise<SwapResult> => {
+        const previous = handle
+        handle = next
+        redraw()
+        try {
+          await previous.dispose()
+          return { kind: 'switched', id: next.agent.id }
+        } catch (error) {
+          return { kind: 'switched', id: next.agent.id,
+            notice: `Previous session cleanup failed: ${error instanceof Error ? error.message : String(error)}` }
+        }
+      }
+      let switchingSession = false
+      const performSwap: SwapSession = async (request) => {
         // Refused rather than cancelled: switching away would make the running
         // turn's output unreachable, and the user asking for another session is
         // not necessarily aware one is still going.
@@ -269,7 +283,6 @@ async function run(ctx: Context, config: Config): Promise<void> {
         // registry would reject a second agent on a live id, and the user would
         // get a registry error where the honest answer is "you are already here".
         if (target.id === handle.agent.id) return { kind: 'current', id: target.id }
-        const previous = handle
         let next
         try {
           next = await agents.resume({ resumeSessionId: target.id, agentOptions, setup })
@@ -284,15 +297,41 @@ async function run(ctx: Context, config: Config): Promise<void> {
             notice: `Cannot resume ${target.id}: ${error instanceof Error ? error.message : String(error)}`,
           }
         }
-        handle = next
-        // Draw the new session before unwinding the old one, so no frame is ever
-        // rendered against a disposed agent.
-        redraw()
-        // The switch has already happened and is on screen; a failure to unwind
-        // the previous scope is a leak, not something to report as a failed
-        // resume, and reporting it would contradict what the user is looking at.
-        await previous.dispose().catch(() => {})
-        return { kind: 'switched', id: target.id }
+        return await publishHandle(next)
+      }
+      const swapSession: SwapSession = async request => {
+        if (switchingSession) return { kind: 'busy' }
+        switchingSession = true
+        try { return await performSwap(request) }
+        finally { switchingSession = false }
+      }
+      const forkSession = async (turn?: number): Promise<SwapResult> => {
+        if (switchingSession || handle.agent.status === 'running') return { kind: 'busy' }
+        const persistence = service(ctx, 'sessionPersistence')
+        if (!persistence) return { kind: 'refused', notice: 'Session persistence is unavailable.' }
+        switchingSession = true
+        let next: typeof handle | undefined
+        const previous = handle
+        try {
+          const cut = previous.agent.session.seq
+          await service(ctx, 'sessions')?.flush(previous.agent.session)
+          const reader = await persistence.open(previous.agent.id, 'read')
+          let seed
+          try { seed = branchSeed((await reader.read(0, cut)).events, turn) }
+          finally { await reader.close() }
+          if (!seed) return { kind: 'refused', notice: `Turn ${turn} has no recorded ending.` }
+          next = await agents.create({ sessionId: SessionId(`tui-${randomUUID()}`),
+            ...seed, meta: { ...(previous.agent.session.header.cwd === undefined ? {} : { cwd: previous.agent.session.header.cwd }),
+              parentSession: previous.agent.id, isSeeded: true },
+            agentOptions: { ...agentOptions, ...ref.current }, setup })
+          await service(ctx, 'sessions')?.flush(next.agent.session)
+          const published = next
+          next = undefined
+          return await publishHandle(published)
+        } catch (error) {
+          await next?.dispose()
+          return { kind: 'refused', notice: error instanceof Error ? error.message : String(error) }
+        } finally { switchingSession = false }
       }
       const element = (): React.ReactElement =>
         React.createElement(App, {
@@ -308,6 +347,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           mouse,
           onMousePreferenceChange: (next) => { internals.stdout.write(mouseModeSequence(resolveMouseMode(next, process.env))) },
           swapSession,
+          forkSession,
           ...detected === undefined ? {} : { appearance: detected },
           ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
           // A boot resume with the history hidden draws an empty transcript, and

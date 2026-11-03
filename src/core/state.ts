@@ -289,6 +289,7 @@ function onAssistantMessage(state: UiState, event: EventOf<'assistant/message'>)
     .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
     .map(b => b.text)
     .join('')
+  const reasoning = message.content.filter(block => block.type === 'reasoning').map(block => block.text).join('')
   return {
     ...state,
     entries: append(state, {
@@ -297,6 +298,7 @@ function onAssistantMessage(state: UiState, event: EventOf<'assistant/message'>)
       step,
       text,
       finalized: true,
+      ...(reasoning ? { reasoning } : {}),
       ...(usage ? { usage } : {}),
     }),
   }
@@ -325,6 +327,7 @@ function onToolResult(state: UiState, event: EventOf<'tool/result'>): UiState {
   const next: UiEntry = {
     ...found.entry,
     result: event.data.message,
+    ...(event.data.meta === undefined ? {} : { resultMeta: event.data.meta }),
     ...(event.data.error ? { error: event.data.error } : {}),
     status: event.data.message.isError ? 'error' : 'ok',
   }
@@ -389,7 +392,8 @@ function onCodeDispatch(state: UiState, event: EventOf<'tool/ptc-dispatch'>): Ui
   const args = normalizeArgs(event.data.arguments)
   return withSubCalls(state, rootCallId, (subCalls) => {
     const index = subCalls.findIndex(c => c.subCallId === subCallId && c.status === 'running')
-    const settled: SubCall = { subCallId, name, args, content, status }
+    const settled: SubCall = { subCallId, name, args, content, status,
+      ...(event.data.meta === undefined ? {} : { meta: event.data.meta }) }
     if (index < 0) return [...subCalls, settled]
     const next = subCalls.slice()
     next[index] = settled
