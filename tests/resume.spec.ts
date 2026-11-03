@@ -20,14 +20,14 @@ import { SessionId, type SessionHeader } from '@deepseek-ai/dsh-session'
 import { LATEST, planResume, requestFromEnv } from '../src/commands/resume.ts'
 
 function header(id: string, createdAt: number): SessionHeader {
-  return { version: 1, id: SessionId(id), createdAt }
+  return { version: 4, id: SessionId(id), createdAt }
 }
 
 /** A context with a persistence stand-in that lists `headers`. */
 function withStore(headers: readonly SessionHeader[]): Context {
   const ctx = new Context()
   ctx.provide('sessionPersistence', {
-    list: () => Promise.resolve([...headers]),
+    list: () => Promise.resolve(headers.map(header => ({ header }))),
   } as never)
   return ctx
 }

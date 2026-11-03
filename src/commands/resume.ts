@@ -101,7 +101,7 @@ export async function planResume(
       notice: 'Cannot resume: no session persistence is mounted, so nothing was stored to resume from.',
     }
   }
-  const headers = await persistence.list(signal)
+  const headers = (await persistence.list({ signal })).map(snapshot => snapshot.header)
   if (request === LATEST) {
     const latest = newest(headers)
     if (latest === undefined) {

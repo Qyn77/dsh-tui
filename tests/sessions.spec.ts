@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionId, SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   formatSessions,
   summarizeLog,
@@ -20,7 +20,8 @@ import { displayWidth } from '../src/core/width.ts'
 function said(text: string, kind = 'user'): SessionEvent {
   return {
     type: 'user/message',
-    seq: 0,
+    seq: SessionSeq(0),
+    surfaceOp: 'append',
     time: 0,
     data: createUserMessage({
       content: [{ type: 'text', text }],

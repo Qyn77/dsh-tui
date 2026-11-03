@@ -1425,6 +1425,10 @@ heeded when it was built.
   warn. Before any turn has reported usage the line is omitted entirely — absent
   is not the same as zero.
 
+### Session commands on dsh 0.2.1-rc.5
+
+`/sessions` lists persistence snapshots by header creation time and opens read handles only for the displayed rows. Each handle closes after the summary read, including on failure. `/resume` resolves full IDs, unique prefixes and `last` from the same headers. Registry commands receive the submitted line, an empty attachment list for a text command and its cancellation signal.
+
 ### 3.4 Testing
 
 | Surface | Required coverage |

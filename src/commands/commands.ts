@@ -27,7 +27,8 @@
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import type { Context } from '@deepseek-ai/cordis'
-import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import type { HistoryPref, UiState } from '../core/types.ts'
 import { isHistoryPref } from '../core/types.ts'
 import { appExit, service } from '../core/services.ts'
@@ -369,17 +370,21 @@ function removeMcpServer(payload: string, strings: Catalog['output']): CommandRe
 /**
  * One session's opening line, or undefined when there is nothing readable.
  *
- * The throw is swallowed on purpose: `inspect` rejects an unknown format
+ * The throw is swallowed on purpose: a read rejects an unknown format
  * version and a corrupt committed prefix, and neither is a reason to withhold
  * the row. See {@link listSessions}.
  */
 async function summarize(
-  persistence: { inspect: (id: SessionId) => Promise<{ events: readonly SessionEvent[] }> },
+  persistence: SessionPersistence,
   id: SessionId,
 ): Promise<string | undefined> {
   try {
-    const { events } = await persistence.inspect(id)
-    return summarizeLog(events)
+    const reader = await persistence.open(id, 'read')
+    try {
+      return summarizeLog((await reader.read()).events)
+    } finally {
+      await reader.close()
+    }
   } catch {
     return undefined
   }
@@ -388,10 +393,10 @@ async function summarize(
 /**
  * Read the store and render the listing.
  *
- * The summary column costs one `inspect` per *listed* row — `list()` is
+ * The summary column costs one read handle per *listed* row — `list()` is
  * metadata only, with no message text and no count — so the slice happens
  * before the reads and the budget is `MAX_SESSION_ROWS` however large the store
- * is. `inspect` rather than `load`: it commits no recovery and publishes
+ * is. A read handle commits no recovery and publishes
  * nothing, and an already-live session yields its current snapshot instead of
  * rejecting, which matters because the running session is in the list.
  *
@@ -407,7 +412,7 @@ async function listSessions(
 ): Promise<CommandResult> {
   const persistence = service(cmd.ctx, 'sessionPersistence')
   if (persistence === undefined) return { kind: 'handled', message: strings.noPersistence }
-  const headers = await persistence.list()
+  const headers = (await persistence.list()).map(snapshot => snapshot.header)
   if (headers.length === 0) return { kind: 'handled', message: strings.noStoredSessions }
   const newest = [...headers].sort((a, b) => b.createdAt - a.createdAt)
   const shown = newest.slice(0, MAX_SESSION_ROWS)
@@ -984,7 +989,7 @@ async function runRegistryCommand(raw: string, cmd: CommandContext): Promise<Com
   const registry = service(cmd.ctx, 'commands')
   if (registry === undefined) return { kind: 'unknown', input: raw }
   const controller = new AbortController()
-  const execution = await registry.execute(cmd.agent, raw.trim(), controller.signal)
+  const execution = await registry.execute(cmd.agent, raw.trim(), [], controller.signal)
   if (execution === undefined) return { kind: 'unknown', input: raw }
   const { result } = execution
   if (result.kind === 'error') return { kind: 'handled', message: result.text, failed: true }

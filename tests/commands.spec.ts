@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands/commands.ts'
 import { catalog } from '../src/core/i18n.ts'
@@ -737,11 +737,11 @@ describe('slash command dispatch', () => {
         currentSelection: () => ({ provider: 'test-provider', model: 'test-model' }),
       } as never)
       ctx.provide('sessionPersistence', {
-        list: () => Promise.resolve(headers.map(h => ({ version: 0, ...h }))),
-        inspect: (id: string) => {
+        list: () => Promise.resolve(headers.map(h => ({ header: { version: 4, ...h } }))),
+        open: (id: string) => {
           const log = logs[id]
           if (log instanceof Error) return Promise.reject(log)
-          return Promise.resolve({ events: log ?? [] })
+          return Promise.resolve({ read: async () => ({ events: log ?? [] }), close: async () => {} })
         },
       } as never)
       const { cmd } = makeCommand({ ctx })
@@ -752,7 +752,8 @@ describe('slash command dispatch', () => {
     function said(text: string): SessionEvent {
       return {
         type: 'user/message',
-        seq: 0,
+        seq: SessionSeq(0),
+        surfaceOp: 'append',
         time: 0,
         data: createUserMessage({
           content: [{ type: 'text', text }],
@@ -833,10 +834,10 @@ describe('slash command dispatch', () => {
         currentSelection: () => ({ provider: 'test-provider', model: 'test-model' }),
       } as never)
       ctx.provide('sessionPersistence', {
-        list: () => Promise.resolve(headers.map(h => ({ version: 0, ...h }))),
-        inspect: (id: string) => {
+        list: () => Promise.resolve(headers.map(h => ({ header: { version: 4, ...h } }))),
+        open: (id: string) => {
           inspected.push(id)
-          return Promise.resolve({ events: [] })
+          return Promise.resolve({ read: async () => ({ events: [] }), close: async () => {} })
         },
       } as never)
       const { cmd } = makeCommand({ ctx })
