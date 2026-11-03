@@ -76,6 +76,7 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint, 
   const colWidth = nameColumnWidth(shown)
   return (
     <Box
+      width="100%"
       borderStyle="round"
       borderColor="cyan"
       flexDirection="column"

@@ -1111,12 +1111,12 @@ export const Prompt: FC<PromptProps> = ({
   return (
     <Box flexDirection="column">
       {palette.length > 0 ? (
-        <Box marginBottom={1}>
+        <Box marginBottom={1} width="100%">
           <SlashPalette commands={palette} selected={safePaletteIndex} maxRows={paletteRows} />
         </Box>
       ) : null}
       {pickingSkill ? (
-        <Box marginBottom={1}>
+        <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={skillPickRows}
             selected={safeSkillIndex}
@@ -1126,7 +1126,7 @@ export const Prompt: FC<PromptProps> = ({
         </Box>
       ) : null}
       {pickingPermission ? (
-        <Box marginBottom={1}>
+        <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={permissionPickRows}
             selected={safePermissionIndex}
@@ -1136,7 +1136,7 @@ export const Prompt: FC<PromptProps> = ({
         </Box>
       ) : null}
       {pickingModel ? (
-        <Box marginBottom={1}>
+        <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={modelPickRows}
             selected={safeModelIndex}
@@ -1146,7 +1146,7 @@ export const Prompt: FC<PromptProps> = ({
         </Box>
       ) : null}
       {pickingMcp ? (
-        <Box marginBottom={1}>
+        <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={mcpPickRows}
             selected={safeMcpIndex}
@@ -1156,7 +1156,7 @@ export const Prompt: FC<PromptProps> = ({
         </Box>
       ) : null}
       {picking ? (
-        <Box marginBottom={1}>
+        <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={fileRows.length > 0
               ? fileRows

@@ -129,7 +129,7 @@ function Row({
   children: React.ReactNode
 }) {
   return (
-    <Box marginTop={1}>
+    <Box marginTop={1} width="100%">
       <Box width={GUTTER_WIDTH} flexShrink={0}>
         <Text color={color} dimColor={dim}>{glyph}</Text>
       </Box>
@@ -831,7 +831,7 @@ export const MessageList: FC<MessageListProps> = ({
     >
       <Box ref={contentRef} flexDirection="column" flexShrink={0} marginBottom={-offset}>
         {visible.map((entry, idx) => (
-          <Box key={start + idx} flexShrink={0}>
+          <Box key={start + idx} flexShrink={0} width="100%">
             <Entry entry={entry} maxLines={maxLines} width={Math.max(1, columns - GUTTER_WIDTH)} />
           </Box>
         ))}
