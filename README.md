@@ -76,6 +76,10 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | --- | --- |
 | `/mouse` | `auto` / `on` / `off`; F2 toggles mouse reporting and native text selection |
 | `/activity` | Expand/collapse a completed task: `/activity <number>`, `all`, or `none` |
+| `/search` / `/jump` | Search full text; jump to result number, `next`, `prev`, `user`, `tool`, or `error` |
+| `/inspect` | View a complete entry by number; Esc returns to the conversation |
+| `/export` | Export Markdown: `/export <path> [--entry=N]`; existing files are preserved |
+| `/resume ` / `/sessions ` | Search and select stored sessions by title, directory or id; Enter resumes |
 | `/help` | list the slash commands |
 | `/status` | model, session id, permission preset |
 | `/model` | show the model; `/model <name>` switches it, `/model ` opens a picker |
@@ -86,7 +90,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/approval` | show or switch the approval policy (`ask` / `never`) |
 | `/skill` | pick and run an invocable skill |
 | `/language`, `/theme` | `en` / `zh`; `auto` / `dark` / `light` |
-| `/copy` | newest reply to the clipboard; `/copy code` for the newest block |
+| `/copy` | newest reply to the clipboard; `/copy code` / `/copy <entry number>` for the newest block |
 | `/verbose` | show more of long output (`Ctrl-O` is the same switch) |
 | `/keybinds` | `default` or `vim` prompt mode |
 | `/provider`, `/plugins` | mounted LLM routes; loaded plugins |

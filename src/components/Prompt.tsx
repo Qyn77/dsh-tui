@@ -164,6 +164,8 @@ export interface PromptProps {
    * (see `useRegistryCommands`) and hands the rows down. Optional: a prompt
    * rendered without it advertises the built-in table only.
    */
+  sessionCommands?: readonly CommandMeta[]
+  onValueChange?: (value: string) => void
   extraCommands?: readonly CommandMeta[]
   /**
    * User-invocable skills for the `/skill ` picker. Deliberately separate
@@ -253,6 +255,8 @@ export const Prompt: FC<PromptProps> = ({
   onFilledChange,
   onEscClaimChange,
   onOverlayRowsChange,
+  sessionCommands,
+  onValueChange,
   extraCommands,
   skillCommands,
   permissionCommands,
@@ -301,7 +305,11 @@ export const Prompt: FC<PromptProps> = ({
   // Filter is a pure derivation from `value`; no effect needed. The
   // selection index is clamped on every keystroke so an out-of-range
   // cursor from rapid input never escapes.
-  const palette = isPaletteMode(value) ? filterCommands(value, extraCommands, lang) : []
+  useEffect(() => { onValueChange?.(value) }, [value, onValueChange])
+  const sessionQuery = /^\/(?:resume|sessions)\s+(.*)$/i.exec(value)?.[1].trim().toLocaleLowerCase()
+  const palette = sessionQuery !== undefined
+    ? (sessionCommands ?? []).filter(row => `${row.name} ${row.description}`.toLocaleLowerCase().includes(sessionQuery))
+    : isPaletteMode(value) ? filterCommands(value, extraCommands, lang) : []
   const safePaletteIndex = clampPaletteIndex(paletteIndex, palette)
 
   // How tall either floating list may get. Read from the live terminal
@@ -947,6 +955,11 @@ export const Prompt: FC<PromptProps> = ({
         // Palette open with an exact match — run it. We compare
         // against the registry's `name` so case is normalized.
         if (palette.length > 0) {
+          if (sessionQuery !== undefined) {
+            const chosen = palette[safePaletteIndex]
+            if (chosen) submit(chosen.name)
+            return
+          }
           const normalized = value.toLowerCase()
           // The one exact match that must not run: a bare `/skill` only
           // prints usage, while the row's whole job is to open the picker.

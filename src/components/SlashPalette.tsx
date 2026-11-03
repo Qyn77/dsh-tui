@@ -24,6 +24,7 @@
  * @module @qiao-qyn/dsh-tui/components/SlashPalette
  */
 
+import { displayWidth } from '../core/width.ts'
 import React, { type FC } from 'react'
 import { Box, Text } from 'ink'
 import type { CommandMeta } from '../commands/commands.ts'
@@ -55,7 +56,7 @@ const NAME_GUTTER = 2
 function nameColumnWidth(commands: readonly CommandMeta[]): number {
   let max = 0
   for (const c of commands) {
-    if (c.name.length > max) max = c.name.length
+    max = Math.max(max, displayWidth(c.displayName ?? c.name))
   }
   return max + NAME_GUTTER
 }
@@ -90,7 +91,8 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint, 
         // A row with no description is not padded either: the column exists
         // to line descriptions up, and a file picker has none to line up.
         const described = cmd.description !== ''
-        const paddedName = described ? cmd.name.padEnd(colWidth) : cmd.name
+        const label = cmd.displayName ?? cmd.name
+        const paddedName = described ? label + ' '.repeat(Math.max(0, colWidth - displayWidth(label))) : label
         if (isSelected) {
           return (
             <Box key={cmd.name}>

@@ -6,6 +6,7 @@
  */
 
 import { resolveMouseMode, type MousePreference } from './terminal/mouse.ts'
+import { useSessionCatalog } from './hooks/useSessionCatalog.ts'
 import { activityView } from './render/activity.ts'
 import { Box, Static, Text, useApp, useInput, useStdin, useStdout } from 'ink'
 import { readFile } from 'node:fs/promises'
@@ -13,7 +14,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, type FC, type
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
-import type { HistoryPref } from './core/types.ts'
+import { entryText } from './commands/transcript.ts'
+import type { HistoryPref, UiEntry } from './core/types.ts'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
 import { StatusBar } from './components/StatusBar.tsx'
@@ -189,9 +191,14 @@ export const App: FC<AppProps> = ({
   const [historyPref, setHistoryPref] = useState<HistoryPref>(initialHistoryPref)
   const [lang, setLang] = useState<Lang>(initialLang)
   const strings = catalog(lang)
-  const { state, resetView, appendEntry } = useSessionEvents(ctx, agent, {
+  const { state, fullState, historyReady, resetView, appendEntry } = useSessionEvents(ctx, agent, {
     history: historyPref, historyError: strings.output.historyReadFailed,
   })
+  const [sessionPickerOpen, setSessionPickerOpen] = useState(false)
+  const sessionCommands = useSessionCatalog(ctx, agent, sessionPickerOpen)
+  const onPromptValue = useCallback((value: string) => {
+    setSessionPickerOpen(/^\/(?:resume|sessions)\s/i.test(value))
+  }, [])
   const registryRows = useRegistryCommands(ctx, agent)
   const permissionPreset = usePermissionPreset(ctx, agent)
   const approvals = useApprovalRequests(ctx, agent)
@@ -353,6 +360,12 @@ export const App: FC<AppProps> = ({
   // opposite ends of a frame neither of them can measure alone — see
   // `Prompt.onOverlayRowsChange` and `bannerRowBudget`.
   const [promptOverlayRows, setPromptOverlayRows] = useState(0)
+  const [selectedIndex, setSelectedIndex] = useState<number | undefined>()
+  const [searchMatches, setSearchMatches] = useState<number[]>([])
+  const [browseFull, setBrowseFull] = useState(false)
+  const [inspection, setInspection] = useState<UiEntry | undefined>()
+  const [inspectionIndex, setInspectionIndex] = useState(0)
+  const [jumpTarget, setJumpTarget] = useState<UiEntry | undefined>()
   const [expandedTasks, setExpandedTasks] = useState<ReadonlySet<number>>(new Set())
   const setActivity = useCallback((value: number | 'all' | 'none') => {
     setExpandedTasks(previous => {
@@ -365,7 +378,24 @@ export const App: FC<AppProps> = ({
     })
   }, [state.tasks])
   useEffect(() => { setExpandedTasks(new Set()) }, [agent.session])
-  const transcript = useMemo(() => activityView(state, expandedTasks), [state, expandedTasks])
+  const transcript = useMemo(() => inspection ? {
+    ...state, entries: [{ kind: 'command' as const,
+      input: strings.transcript.inspect(inspectionIndex + 1), text: entryText(inspection), failed: false }],
+  } : activityView(state, expandedTasks), [state, expandedTasks, inspection, inspectionIndex, strings])
+  const inspectEntry = useCallback((index: number) => {
+    setSelectedIndex(index)
+    setInspection(state.entries[index])
+    setInspectionIndex(index)
+    setJumpTarget(undefined)
+  }, [state.entries])
+  const jumpEntry = useCallback((index: number) => {
+    setBrowseFull(true)
+    setSelectedIndex(index)
+    setInspection(undefined)
+    setExpandedTasks(new Set(state.tasks?.map(task => task.turn)))
+    setJumpTarget(state.entries[index])
+  }, [state.entries, state.tasks])
+  useEffect(() => { setInspection(undefined); setJumpTarget(undefined); setBrowseFull(false) }, [agent.session])
 
   // An approval request names the call it is about but not what the call would
   // do; the arguments are in the entry the App already streamed. Searching from
@@ -402,6 +432,11 @@ export const App: FC<AppProps> = ({
 
   const clearView = useCallback(() => {
     resetView()
+    setSelectedIndex(undefined)
+    setSearchMatches([])
+    setBrowseFull(false)
+    setJumpTarget(undefined)
+    setInspection(undefined)
   }, [resetView])
 
   // Ink's raw mode delivers Ctrl-C as a keystroke (input 'c' with
@@ -411,6 +446,7 @@ export const App: FC<AppProps> = ({
   // here. This runs even when the prompt is "inactive" (a shell is running,
   // an approval is waiting) so the user can always cancel.
   useInput((input, key) => {
+    if (inspection && key.escape) { setInspection(undefined); return }
     if (key.ctrl && input === 'c') {
       handleInterrupt({
         agent,
@@ -592,7 +628,7 @@ export const App: FC<AppProps> = ({
         // can do anything at all, and nothing in the registry says which is
         // which. One rule with no unknowns beats a per-command allowlist that
         // is wrong the first time a plugin adds a row.
-        if (state.status === 'running' && !['/activity', '/mouse'].includes(trimmed.split(/\s+/)[0])) {
+        if (state.status === 'running' && !['/activity', '/mouse', '/search', '/jump', '/inspect', '/copy', '/export'].includes(trimmed.split(/\s+/)[0])) {
           appendEntry({ kind: 'command', input: trimmed, text: strings.output.busyCommand, failed: true })
           return
         }
@@ -614,6 +650,14 @@ export const App: FC<AppProps> = ({
           setKeybinds,
           keybindPref,
           setActivity,
+          selectedIndex,
+          searchMatches,
+          setSearchMatches,
+          inspectEntry,
+          jumpEntry,
+          cwd,
+          exportState: fullState,
+          historyReady,
           mousePref,
           setMouse,
           setHistory,
@@ -630,12 +674,12 @@ export const App: FC<AppProps> = ({
           // driving, so it is erased by the next frame or wedged into one —
           // which made `/help` and `/status` print nothing readable at all.
           if (result.kind === 'handled' && result.message !== undefined) {
-            appendEntry({
-              kind: 'command',
-              input: trimmed,
-              text: result.message,
-              failed: result.failed === true,
-            })
+            const entry: UiEntry = {
+              kind: 'command', input: trimmed, text: result.message, failed: result.failed === true,
+            }
+            appendEntry(entry)
+            setBrowseFull(true)
+            setJumpTarget(entry)
           } else if (result.kind === 'unknown') {
             // Skills are the last layer of the `/` surface, tried only once
             // both the built-in table and the plugin registry have declined
@@ -664,6 +708,7 @@ export const App: FC<AppProps> = ({
         })
         return
       }
+      setInspection(undefined)
       // `steer` while the driver is running, `followup` while it is idle. Both
       // take the same message; they differ in where the agent puts it. A
       // follow-up becomes the sole ordinary message of a turn of its own, so
@@ -703,7 +748,7 @@ export const App: FC<AppProps> = ({
         else agent.followup(message)
       })()
     },
-    [mousePref, setMouse, setActivity,
+    [selectedIndex, searchMatches, mousePref, setMouse, setActivity, inspectEntry, jumpEntry, cwd, fullState, historyReady,
       ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
       setTheme, themePref, appearance, emit, strings, state, shell, swapSession,
       scroll.setExpanded, scroll.expanded, attach, statusRef,
@@ -844,9 +889,11 @@ export const App: FC<AppProps> = ({
         <MessageList
           state={transcript}
           offset={scroll.offset}
-          pinTop={scroll.pinTop}
+          pinTop={scroll.pinTop || browseFull}
           expanded={scroll.expanded}
           onGeometry={scroll.reportGeometry}
+          jumpIndex={jumpTarget ? transcript.entries.indexOf(jumpTarget) : undefined}
+          onJump={offset => { scroll.jumpToOffset(offset); setJumpTarget(undefined) }}
         />
         {/*
         The only cue that the view is not at the live tail. A terminal
@@ -902,6 +949,8 @@ export const App: FC<AppProps> = ({
           keybinds={keybindPref}
           onOverlayRowsChange={setPromptOverlayRows}
           extraCommands={registryRows}
+          sessionCommands={sessionCommands}
+          onValueChange={onPromptValue}
           skillCommands={skillRowsForPicker}
           permissionCommands={permissionRowsForPicker}
           onCyclePermission={permissionRowsForPicker.length > 1 ? cyclePermission : undefined}

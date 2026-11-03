@@ -1059,6 +1059,32 @@ selection. Both SGR and X10 wheel bursts are parsed, excluding horizontal wheel
 and release reports. All owned modes are disabled on exit. Actual Terminal.app
 and VS Code wheel acceptance remains a separate manual check.
 
+### Transcript navigation, inspection and export
+
+`/search <text>` searches complete entry text in the uncollapsed view, skipping
+command-result echoes. Results expose stable one-based entry numbers.
+`/jump N` navigates to the entry; `next`/`prev` cycle the last search results,
+and `user`/`tool`/`error` seek a preceding matching entry. Jumping reveals task
+activity and mounts history so measured row geometry can locate the target.
+`/inspect N` opens one full entry in the scrollable surface; Esc returns to the
+conversation. `/copy N` copies that entry with the existing OSC 52 size limit.
+
+`/export <path> [--entry=N]` writes Markdown from the hydrated full projection,
+even when resumed history is hidden. Export waits for history hydration, uses
+the session working directory for relative paths, preserves literal tool-output
+fences, creates files exclusively, and never overwrites an existing file.
+Inspection, navigation, copying and export do not alter canonical session data.
+
+### Searchable session picker
+
+Typing `/resume ` or `/sessions ` opens the shared full-width picker. Filter by
+id, first-prompt title, directory or displayed time, then press Enter to resume
+the selected session. Rows use a compact id label while activation retains the
+full id. Catalog reads begin only on demand, close every opened handle, and
+keep unreadable sessions discoverable. Sort by the final event timestamp when
+metadata provides an event count; otherwise show creation time with `*`.
+Canonical session headers remain unchanged.
+
 ## Part 2 · Roadmap
 
 The package is at **v0.1.0-rc.7**. Each milestone below lists what users see when it ships, not what's done internally.

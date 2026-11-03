@@ -77,6 +77,28 @@ function makeStandWithoutExit(): Context {
 describe('slash command dispatch', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
+  it('searches and addresses older transcript entries', async () => {
+    const { cmd } = makeCommand()
+    const state: UiState = { entries: [{ kind: 'note', text: 'needle' }], status: 'idle', currentTurn: 0 }
+    const inspectEntry = vi.fn()
+    const jumpEntry = vi.fn()
+    expect(await dispatch('/search needle', { ...cmd, state })).toMatchObject({ message: expect.stringContaining('1. note') })
+    await dispatch('/inspect 1', { ...cmd, state, inspectEntry })
+    await dispatch('/jump 1', { ...cmd, state, jumpEntry })
+    expect(inspectEntry).toHaveBeenCalledWith(0)
+    expect(jumpEntry).toHaveBeenCalledWith(0)
+    expect(await dispatch('/inspect 99', { ...cmd, state, inspectEntry })).toMatchObject({ failed: true })
+    const emit = vi.fn()
+    expect(await dispatch('/copy 1', { ...cmd, state, emit })).toMatchObject({ message: expect.stringContaining('entry 1') })
+    expect(emit).toHaveBeenCalledOnce()
+  })
+
+  it('requires a path for exporting and waits for history hydration', async () => {
+    const { cmd } = makeCommand()
+    expect(await dispatch('/export', cmd)).toMatchObject({ failed: true })
+    expect(await dispatch('/export ignored.md', { ...cmd, historyReady: false })).toMatchObject({ failed: true })
+  })
+
   it('switches mouse input policy and rejects invalid values', async () => {
     const { cmd } = makeCommand()
     const setMouse = vi.fn()
@@ -1439,8 +1461,8 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/activity', '/approval', '/clear', '/context', '/copy', '/exit', '/help', '/history', '/keybinds', '/language',
-      '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
+      '/activity', '/approval', '/clear', '/context', '/copy', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
+      '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/search', '/sessions', '/skill', '/status', '/theme',
       '/usage', '/verbose',
     ])
   })
@@ -1493,9 +1515,9 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/activity', '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/goal', '/help', '/history', '/keybinds',
+        '/activity', '/approval', '/clear', '/compact', '/context', '/copy', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
         '/language',
-        '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/sessions', '/skill', '/status', '/theme',
+        '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/search', '/sessions', '/skill', '/status', '/theme',
         '/usage', '/verbose',
       ])
     })

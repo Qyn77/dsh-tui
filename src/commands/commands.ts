@@ -24,6 +24,8 @@
  * @module @qiao-qyn/dsh-tui/commands/commands
  */
 
+import { entryNumber, entryText, navigationIndex, searchTranscript } from './transcript.ts'
+import { exportTranscript } from './transcript-export.ts'
 import { isMousePreference, type MousePreference } from '../terminal/mouse.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
@@ -98,6 +100,8 @@ export type CommandResult =
  * one row here and one case in {@link dispatch}.
  */
 export interface CommandMeta {
+  /** Optional compact label; activation still uses the complete name. */
+  displayName?: string
   /** Canonical name, including the leading `/`. */
   name: string
   /** One-line description shown in the palette and `/help`. */
@@ -436,6 +440,14 @@ async function listSessions(
 
 /** Snapshot one command from the registry. */
 export interface CommandContext {
+  selectedIndex?: number
+  searchMatches?: readonly number[]
+  setSearchMatches?: (matches: number[]) => void
+  inspectEntry?: (index: number) => void
+  jumpEntry?: (index: number) => void
+  cwd?: string
+  exportState?: UiState
+  historyReady?: boolean
   setActivity?: (value: number | 'all' | 'none') => void
   mousePref?: MousePreference
   setMouse?: (pref: MousePreference) => void
@@ -581,6 +593,40 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
   const strings = catalog(lang).output
   const name = raw.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
   switch (name) {
+    case '/search': {
+      const query = raw.trim().slice('/search'.length).trim()
+      if (!query) return { kind: 'handled', message: catalog(lang).transcript.usage }
+      const matches = searchTranscript(cmd.state.entries, query)
+      cmd.setSearchMatches?.(matches.map(match => match.index))
+      const labels = catalog(lang).transcript
+      return { kind: 'handled', message: matches.length === 0 ? labels.empty : [labels.search(matches.length),
+        ...matches.map(match => `${match.index + 1}. ${match.kind} · ${match.preview}`)].join('\n') }
+    }
+
+    case '/jump':
+    case '/inspect': {
+      const value = raw.trim().split(/\s+/)[1]
+      const index = name === '/jump'
+        ? navigationIndex(value, cmd.state.entries, cmd.selectedIndex, cmd.searchMatches)
+        : value === undefined ? cmd.selectedIndex : entryNumber(value, cmd.state.entries.length)
+      if (index === undefined) return { kind: 'handled', message: catalog(lang).transcript.invalid, failed: true }
+      if (name === '/jump') cmd.jumpEntry?.(index)
+      else cmd.inspectEntry?.(index)
+      return { kind: 'handled' }
+    }
+
+    case '/export': {
+      const input = raw.trim().slice('/export'.length).trim()
+      const selection = /\s+--entry=(\d+)$/.exec(input)
+      const path = (selection ? input.slice(0, selection.index) : input).replace(/^(["'])(.*)\1$/, '$2')
+      if (!path || cmd.historyReady === false) return { kind: 'handled', message: catalog(lang).transcript.usage, failed: true }
+      const entries = (cmd.exportState ?? cmd.state).entries
+      const index = selection ? entryNumber(selection[1], entries.length) : undefined
+      if (selection && index === undefined) return { kind: 'handled', message: catalog(lang).transcript.invalid, failed: true }
+      const target = await exportTranscript(path, cmd.cwd ?? process.cwd(), index === undefined ? entries : [entries[index]])
+      return { kind: 'handled', message: catalog(lang).transcript.exported(target) }
+    }
+
     case '/activity': {
       const value = raw.trim().split(/\s+/)[1]
       if (value === 'all' || value === 'none') cmd.setActivity?.(value)
@@ -795,6 +841,12 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
 
     case '/copy': {
       const args = raw.trim().split(/\s+/).slice(1)
+      const index = entryNumber(args[0], cmd.state.entries.length)
+      if (args.length === 1 && index !== undefined) {
+        const text = clampForClipboard(entryText(cmd.state.entries[index]))
+        cmd.emit?.(osc52(text.text, { multiplexer: multiplexerFromEnv() }))
+        return { kind: 'handled', message: catalog(lang).transcript.copied(index + 1, byteLength(text.text), text.truncated) }
+      }
       // Exactly two forms, and an unrecognised argument is the usage line rather
       // than a guess. `/copy code` is one keystroke from `/copy codee`, and
       // silently copying the whole reply instead would be discovered on paste.

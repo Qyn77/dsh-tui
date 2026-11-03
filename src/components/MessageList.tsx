@@ -70,6 +70,8 @@ import { Markdown } from './Markdown.tsx'
 
 /** Props for {@link MessageList}. */
 export interface MessageListProps {
+  jumpIndex?: number
+  onJump?: (offset: number) => void
   state: UiState
   /** Rows the view is lifted above the newest row; `0` follows the tail. */
   offset: number
@@ -775,11 +777,14 @@ export const MessageList: FC<MessageListProps> = ({
   pinTop,
   expanded,
   onGeometry,
+  jumpIndex,
+  onJump,
 }) => {
   const { stdout } = useStdout()
   const columns = stdout?.columns ?? 80
   const viewportRef = useRef<DOMElement | null>(null)
   const contentRef = useRef<DOMElement | null>(null)
+  const entryRefs = useRef(new Map<number, DOMElement>())
   const [viewportRows, setViewportRows] = useState(0)
   const maxLines = previewLimit(expanded)
 
@@ -788,7 +793,7 @@ export const MessageList: FC<MessageListProps> = ({
   // edge is the log's bottom edge and the offset arithmetic stays exact.
   // `Home` overrides it: the beginning of the log is only reachable with
   // everything mounted.
-  const start = pinTop
+  const start = pinTop || jumpIndex !== undefined
     ? 0
     : windowStart(
       state.entries,
@@ -818,6 +823,10 @@ export const MessageList: FC<MessageListProps> = ({
     const measuredContent = measureElement(content).height
     if (measuredViewport !== viewportRows) setViewportRows(measuredViewport)
     onGeometry(measuredContent, measuredViewport, state.entries.at(-1))
+    if (jumpIndex !== undefined) {
+      const entry = entryRefs.current.get(jumpIndex)
+      if (entry?.yogaNode) onJump?.(Math.max(0, measuredContent - measuredViewport - entry.yogaNode.getComputedTop()))
+    }
   })
 
   if (state.entries.length === 0) {
@@ -841,7 +850,10 @@ export const MessageList: FC<MessageListProps> = ({
     >
       <Box ref={contentRef} flexDirection="column" flexShrink={0} marginBottom={-offset}>
         {visible.map((entry, idx) => (
-          <Box key={start + idx} flexShrink={0} width="100%">
+          <Box key={start + idx} flexShrink={0} width="100%" ref={node => {
+            if (node) entryRefs.current.set(start + idx, node)
+            else entryRefs.current.delete(start + idx)
+          }}>
             <Entry entry={entry} maxLines={maxLines} width={Math.max(1, columns - GUTTER_WIDTH)} />
           </Box>
         ))}

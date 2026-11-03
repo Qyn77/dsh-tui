@@ -59,6 +59,8 @@ function stream(view: View, frame: AssistantStreamFrame): View {
 
 export function useSessionEvents(ctx: Context, agent: Agent, options?: { history?: HistoryPref; historyError?: string }): {
   state: UiState
+  fullState: UiState
+  historyReady: boolean
   resetView: () => void
   appendEntry: (entry: UiEntry) => void
 } {
@@ -123,5 +125,5 @@ export function useSessionEvents(ctx: Context, agent: Agent, options?: { history
     const { start, text } = view.attempt
     state = { ...state, entries: [...state.entries, { kind: 'assistant', turn: start.turn, step: start.step, text, finalized: false }] }
   }
-  return { state, resetView, appendEntry }
+  return { state, fullState: view.full, historyReady: view.pending === undefined, resetView, appendEntry }
 }

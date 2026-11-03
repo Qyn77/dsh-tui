@@ -76,6 +76,10 @@ dsh --profile tui-rc5
 | --- | --- |
 | `/mouse` | `auto` / `on` / `off`；F2 切换鼠标上报与原生文字选择 |
 | `/activity` | 展开/收起任务过程：`/activity <编号>`、`all`、`none` |
+| `/search` / `/jump` | 搜索完整内容；按编号定位，或用 `next`、`prev`、`user`、`tool`、`error` 导航 |
+| `/inspect` | 按编号查看完整条目，Esc 返回对话 |
+| `/export` | 导出 Markdown：`/export <路径> [--entry=N]`，已有文件会保留 |
+| `/resume ` / `/sessions ` | 按标题、目录或 ID 搜索历史会话，Enter 接续所选会话 |
 | `/help` | 列出所有斜杠命令 |
 | `/status` | 当前模型、session id、生效中的权限预设 |
 | `/model` | 显示当前模型；`/model <名字>` 切换，`/model ` 打开选择器 |
@@ -86,7 +90,7 @@ dsh --profile tui-rc5
 | `/approval` | 查看或切换审批策略（`ask` / `never`） |
 | `/skill` | 挑选并运行一个可调用的 skill |
 | `/language`、`/theme` | `en` / `zh`；`auto` / `dark` / `light` |
-| `/copy` | 把最新回复放进剪贴板；`/copy code` 取最新代码块 |
+| `/copy` | 把最新回复放进剪贴板；`/copy code` / `/copy <条目编号>` 取最新代码块 |
 | `/verbose` | 长输出多看几行（`Ctrl-O` 是同一个开关） |
 | `/keybinds` | 输入框键位：`default` 或 `vim` |
 | `/provider`、`/plugins` | 已挂载的 LLM 路由；已加载的插件 |

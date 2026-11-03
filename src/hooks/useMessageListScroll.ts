@@ -48,6 +48,7 @@ import {
 
 /** Scroll position and the geometry channel the MessageList reports on. */
 export interface MessageListScroll {
+  jumpToOffset: (offset: number) => void
   /**
    * Rows the view is lifted above the newest row. `0` follows the tail,
    * which is what keeps a running turn's output on screen.
@@ -128,6 +129,11 @@ export function useMessageListScroll(
     setOffset(current =>
       clampOffset(current + rows, geometry.current.contentRows, geometry.current.viewportRows),
     )
+  }, [])
+
+  const jumpToOffset = useCallback((next: number) => {
+    setPinTop(false)
+    setOffset(clampOffset(next, geometry.current.contentRows, geometry.current.viewportRows))
   }, [])
 
   const reportGeometry = useCallback(
@@ -235,5 +241,5 @@ export function useMessageListScroll(
     }
   }, [events])
 
-  return { offset, atTail: offset === 0, pinTop, expanded, setExpanded, reportGeometry }
+  return { jumpToOffset, offset, atTail: offset === 0, pinTop, expanded, setExpanded, reportGeometry }
 }

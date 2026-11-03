@@ -63,6 +63,10 @@ export const LANGUAGES: readonly Lang[] = ['en', 'zh']
 export const COMMAND_NAMES = [
   '/approval',
   '/activity',
+  '/search',
+  '/jump',
+  '/inspect',
+  '/export',
   '/clear',
   '/context',
   '/copy',
@@ -117,6 +121,15 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  transcript: {
+    usage: string
+    empty: string
+    invalid: string
+    search: (count: number) => string
+    inspect: (entry: number) => string
+    exported: (path: string) => string
+    copied: (entry: number, bytes: number, truncated: boolean) => string
+  }
   activity: {
     summary: (turn: number, seconds: number | undefined, count: number, expanded: boolean, outcome: string) => string
     usage: string
@@ -576,6 +589,15 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  transcript: {
+    usage: '/search <text> · /jump <entry number> · /inspect <entry number> · /copy <entry number> · /export <path> [--entry=N]',
+    empty: 'No matching entries.',
+    invalid: 'Entry not found. Use /search to discover entry numbers.',
+    search: count => `${count} matches · /jump N to navigate · /inspect N to read full content`,
+    inspect: entry => `Entry ${entry} · Esc returns to the conversation`,
+    exported: path => `Exported to ${path}`,
+    copied: (entry, bytes, truncated) => `Copied entry ${entry}: ${bytes} bytes${truncated ? ' (clipboard limit reached)' : ''}`,
+  },
   activity: {
     summary: (turn, seconds, count, expanded, outcome) => `${count > 0 ? (expanded ? '▾ ' : '▸ ') : ''}Task ${turn} · ${seconds === undefined ? 'duration unknown' : `worked for ${seconds}s`} · ${outcome}${count > 0 ? ` · ${count} activities · /activity ${turn}` : ''}`,
     usage: '/activity <task number>|all|none',
@@ -689,6 +711,10 @@ const EN: Catalog = {
     '/status': 'Print the current model and session id',
     '/theme': 'Choose the background the colors assume: /theme auto, dark, or light',
     '/usage': 'Break this session\'s token spend out turn by turn',
+    '/search': 'Search conversation text',
+    '/jump': 'Jump to a transcript entry',
+    '/inspect': 'Inspect one complete message or tool result',
+    '/export': 'Export session or one entry as Markdown',
     '/activity': 'Expand or collapse a completed task: /activity <number>|all|none',
     '/approval': 'Show or switch this session\'s approval policy: /approval ask or never',
     '/verbose': 'Show more of each long output: /verbose on, off, or bare to toggle',
@@ -868,6 +894,15 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  transcript: {
+    usage: '/search <关键词> · /jump <条目编号> · /inspect <条目编号> · /copy <条目编号> · /export <路径> [--entry=N]',
+    empty: '没有匹配的条目。',
+    invalid: '条目不存在，请用 /search 查找条目编号。',
+    search: count => `${count} 条匹配 · /jump N 定位 · /inspect N 查看完整内容`,
+    inspect: entry => `条目 ${entry} · Esc 返回对话`,
+    exported: path => `已导出到 ${path}`,
+    copied: (entry, bytes, truncated) => `已复制条目 ${entry}：${bytes} 字节${truncated ? '（达到剪贴板上限）' : ''}`,
+  },
   activity: {
     summary: (turn, seconds, count, expanded, outcome) => `${count > 0 ? (expanded ? '▾ ' : '▸ ') : ''}任务 ${turn} · ${seconds === undefined ? '耗时未知' : `执行了 ${seconds} 秒`} · ${({ completed: '完成', error: '失败', cancelled: '取消', interrupted: '中断' } as Record<string, string>)[outcome] ?? outcome}${count > 0 ? ` · ${count} 项过程 · /activity ${turn}` : ''}`,
     usage: '/activity <任务编号>|all|none',
@@ -976,6 +1011,10 @@ const ZH: Catalog = {
     '/status': '打印当前模型和 session id',
     '/theme': '选择配色假定的背景：/theme auto、dark 或 light',
     '/usage': '按轮次拆开本次 session 的 token 开销',
+    '/search': '搜索对话内容',
+    '/jump': '定位到对话条目',
+    '/inspect': '查看单条消息或工具结果的完整内容',
+    '/export': '将会话或单条内容导出为 Markdown',
     '/activity': '展开或收起任务过程：/activity <编号>|all|none',
     '/approval': '查看或切换本 session 的审批策略：/approval ask 或 never',
     '/verbose': '让每段长输出多显示一些：/verbose on、off，不带参数则切换',
