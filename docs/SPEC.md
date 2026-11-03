@@ -1161,6 +1161,7 @@ The user endorsed the following directions on **2026-11-04**. They are pending w
 
 | Priority | Direction | Intended outcome and prerequisite |
 | --- | --- | --- |
+| High | Task activity groups and elapsed time | Show execution progress live, collapse completed activity behind a duration summary, and keep the final answer visible. Provide an explicit way to inspect the activity again. See the contract below. |
 | High | Conversation search and navigation | Find keywords and jump to user messages, tool calls and errors in long conversations. Build on reliable transcript scrolling. |
 | High | Session management | Add a searchable session picker with titles, directories and last-activity information where available, building on `/sessions` and `/resume`. Verify persistence metadata support before designing updates. |
 | High | File-change previews | Show changed paths and line additions/deletions, including a diff at edit approval when the runtime exposes the proposed change. Verify tool and approval payloads before committing to coverage. |
@@ -1172,7 +1173,18 @@ The user endorsed the following directions on **2026-11-04**. They are pending w
 
 **Decision update for per-entry actions.** Earlier sections and the historical roadmap rejected per-entry expansion because the TUI had no focus/selection model. The user's approval now makes that model and those actions a future product direction. Existing global expansion remains the current implementation. Revise the relevant interaction and reducer contracts when the new selection design is ready.
 
-Recommended sequence is layout/scroll correctness, visual refinement, search/session navigation, then diff and per-entry inspection. Attachment preview, recovery and export follow; session branches require a separate runtime feasibility check. Each implementation phase updates its matching behavior documentation and validates the actual user flow.
+#### Task activity groups and elapsed time · approved direction
+
+The user requested a Codex-like activity summary on 2026-11-04. The intended unit is one user request and its associated execution, rather than a separate task for every internal model step. Confirm how runtime turns, steering and follow-ups map to that unit before implementation.
+
+- **While running:** show progress messages, emitted reasoning text where available, tool activity and nested-agent progress. Display a live elapsed time. Pending approvals remain visible and actionable.
+- **After completion:** keep the user's request and final answer visible. Collapse intermediate activity under a compact disclosure row, for example `执行了 55 秒 · 读取 3 个文件 · 运行 2 条命令`. Counts must come from actual recorded activity. A plain chat reply without intermediate activity needs no empty disclosure group.
+- **On demand:** expand/collapse that task's activity without hiding its final answer. The user requested clicking the disclosure; evaluate terminal mouse hit testing alongside a keyboard focus/activation path, while preserving native text selection. Disclosure state belongs to each task and must not change other tasks.
+- **Timing:** use task start/end event timestamps to retain completed durations across session replay where the runtime supplies reliable data. The existing `useRunningClock` only measures the current mounted running interval and resets at idle; it cannot establish historical task duration. Proposed default is wall-clock elapsed time including tool execution and approval waits, with waiting state visibly identified. Missing historical timing should remain unavailable rather than be fabricated.
+- **Non-success endings:** make failed, cancelled and interrupted outcomes explicit in the summary. Keep unresolved failures or approval requests visible. When there is no final answer, show the actual outcome rather than inventing a completed result.
+- **Data and geometry:** collapsing changes presentation only. Preserve recorded activity for expansion, inspection and export. Update row measurement and scroll anchoring together so automatic collapse does not move the input or displace a user reading earlier history. Cover live completion, manual expansion, resumed sessions, nested activity and window resizing.
+
+Recommended sequence is layout/scroll correctness, visual refinement including task activity groups, search/session navigation, then diff and per-entry inspection. Attachment preview, recovery and export follow; session branches require a separate runtime feasibility check. Each implementation phase updates its matching behavior documentation and validates the actual user flow.
 
 ## Part 3 · Conventions
 
