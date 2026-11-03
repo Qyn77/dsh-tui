@@ -13,7 +13,7 @@
 - id: system-prompt
   config:
     personaPrefix: >-
-      You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
+      You are a coding agent powered by the {{model}} model.
 
 # Module-reload HMR has no place in a TUI; the launcher's watch-only fallback
 # still keeps the user patch layers live until the run exits.

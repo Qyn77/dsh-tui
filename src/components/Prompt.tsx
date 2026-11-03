@@ -105,6 +105,7 @@ import { useLang, useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link Prompt}. */
 export interface PromptProps {
+  cwd?: string
   /** Whether input is accepted (false while a shell runs or an approval waits). */
   active: boolean
   /**
@@ -246,6 +247,7 @@ export const Prompt: FC<PromptProps> = ({
   active,
   onSubmit,
   spinnerFrame,
+  cwd = process.cwd(),
   busy = false,
   onArrowClaimChange,
   onFilledChange,
@@ -405,7 +407,7 @@ export const Prompt: FC<PromptProps> = ({
       && mcpMention === undefined
     ? mentionAt(value, cursorIndex)
     : undefined
-  const files = useFileMentions(mention?.query)
+  const files = useFileMentions(mention?.query, cwd)
   const fileRows = files.paths.map(path => ({ name: path, description: '' }))
   const safeFileIndex = clampPaletteIndex(paletteIndex, fileRows)
   const picking = mention !== undefined

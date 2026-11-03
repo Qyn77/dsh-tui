@@ -75,7 +75,7 @@ const MetaStack: FC<{ meta: MetaText; width: number }> = ({ meta, width }) => {
   )
 }
 
-export const Banner: FC<BannerProps> = ({ selection, sessionId, availableRows }) => {
+export const Banner: FC<BannerProps> = ({ selection, sessionId, availableRows, cwd = process.cwd() }) => {
   const { stdout } = useStdout()
   const strings = useStrings()
   const { brandTint } = usePalette()
@@ -94,8 +94,8 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId, availableRows })
   const meta = metaText(
     selection,
     sessionId,
-    readRepoLabel(),
-    displayCwd(process.cwd(), process.env['HOME']),
+    readRepoLabel(cwd),
+    displayCwd(cwd, process.env['HOME']),
     strings.banner.tip,
   )
 
@@ -213,6 +213,7 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId, availableRows })
 
 /** Props for {@link Banner}. */
 export interface BannerProps {
+  cwd?: string
   /** Currently selected model for the agent. */
   selection: ModelSelection
   /** Session id of the live agent. */

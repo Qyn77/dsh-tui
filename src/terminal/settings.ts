@@ -25,8 +25,8 @@
  */
 
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dshHome } from '../mcp/mcp-patch.ts'
+import { dirname, join } from 'node:path'
 import { isLang, type Lang } from '../core/i18n.ts'
 import { isHistoryPref, type HistoryPref } from '../core/types.ts'
 import { isThemePref, type ThemePref } from './theme.ts'
@@ -87,8 +87,8 @@ export const SETTINGS_FILE = 'tui.json'
  * @param home - the home directory; defaults to the real one.
  * @returns the path, whether or not anything exists there.
  */
-export function settingsPath(home: string = homedir()): string {
-  return join(home, SETTINGS_DIR, SETTINGS_FILE)
+export function settingsPath(home?: string): string {
+  return join(home === undefined ? dshHome() : join(home, SETTINGS_DIR), SETTINGS_FILE)
 }
 
 /**
@@ -172,7 +172,7 @@ export function mergeSettings(raw: string | undefined, update: Partial<Settings>
  * @param home - the home directory; defaults to the real one.
  * @returns complete settings, defaults substituted for anything unusable.
  */
-export function readSettings(home: string = homedir()): Settings {
+export function readSettings(home?: string): Settings {
   return parseSettings(readRaw(settingsPath(home)))
 }
 
@@ -187,13 +187,13 @@ export function readSettings(home: string = homedir()): Settings {
  * @param home - the home directory; defaults to the real one.
  * @returns true when the file was written.
  */
-export function writeSettings(update: Partial<Settings>, home: string = homedir()): boolean {
+export function writeSettings(update: Partial<Settings>, home?: string): boolean {
   const path = settingsPath(home)
   try {
     const next = mergeSettings(readRaw(path), update)
     // `recursive` covers both "no `~/.dsh` yet" and "already there", so this
     // needs no existence check of its own.
-    mkdirSync(join(home, SETTINGS_DIR), { recursive: true })
+    mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, next, { encoding: 'utf8' })
     return true
   } catch {

@@ -78,6 +78,8 @@ dsh --profile tui
 > 离盘符根更近的位置（比如 `C:\tui`），或者把
 > `HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem` 的 `LongPathsEnabled` 设为 `1`。
 
+设置 `DSH_HOME` 可以将会话、配置和 TUI 偏好保存在独立目录。rc.5 下的 `!cd` 会切换当前会话的工作目录。
+
 ## 用起来
 
 打一句话，**Enter** 发送；**Esc** 取消正在跑的这一轮；**`/exit`** 退出。

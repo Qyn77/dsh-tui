@@ -47,6 +47,7 @@ export function useSkillCommands(
   ctx: Context,
   agent: Agent,
   taken: readonly CommandMeta[],
+  cwd: string,
 ): readonly CommandMeta[] {
   const [rows, setRows] = useState<readonly CommandMeta[]>([])
 
@@ -56,10 +57,7 @@ export function useSkillCommands(
       void (async () => {
         const listing = await listSkills({
           skills: service(ctx, 'skills'),
-          // `cd` is process-global in this app, so the live value is the only
-          // correct one — a captured cwd would keep showing another
-          // directory's project skills.
-          cwd: process.cwd(),
+          cwd,
           scope: viewingScope(agent),
         })
         if (controller.signal.aborted) return
@@ -76,7 +74,7 @@ export function useSkillCommands(
       controller.abort()
       off()
     }
-  }, [ctx, agent, taken])
+  }, [ctx, agent, taken, cwd])
 
   return rows
 }

@@ -24,7 +24,7 @@ The terminal is the canvas. The goal is the closest possible analog to Claude Co
 
 Each zone has a fixed role and stays in that role forever:
 
-- **Banner / StatusBar** — the top zone. The session opens with the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. In a real TTY the banner is part of the alternate-screen frame and is redrawn with the settled resize; non-TTY tests use Ink's `<Static>` for deterministic output. The compact **StatusBar** takes over as the live header as soon as there is a message to head, in two rows: the top row is identity — whale glyph, `dsh`, and the model in `green` — and the bottom row is run state — session id, the status indicator, the token counts as `↑ <in> · ↓ <out>` (arrows rather than translated labels: one column each, and no language to maintain), and, when a permission projection is mounted, the effective permission preset word verbatim — gray normally, bold red for `danger-full-access` (§1.18). The chip is absent, not blanked, in an assembly without the projection service. `/clear` empties the view and prints a fresh banner.
+- **Banner / StatusBar** — the top zone. The session opens with the **Banner**: a two-column brand splash. The left column is the pixel-art whale, framed by a blank row above and below, with the slogan `探索未至之境！` centered under it. The right column is the block-letter `DEEPSEEK` / `HARNESS` wordmark. The four meta facts are **split across both columns**, not stacked in one: the left carries *where am I* (`<session id> · v<version>`, `<cwd> (<branch>*)`) and the right carries *what and how* (`provider/model`, the tip line). The split exists because both columns are the same height above the meta block — the slogan leaves the left column with empty rows while the right column would otherwise carry four lines alone. In a real TTY the banner is part of the alternate-screen frame and is redrawn with the settled resize; non-TTY tests use Ink's `<Static>` for deterministic output. The compact **StatusBar** takes over as the live header as soon as there is a message to head, in two rows: the top row is identity — whale glyph, `dsh`, and the model in `green` — and the bottom row is run state — session id, the status indicator, the token counts as `↑ <in> · ↓ <out>` (arrows rather than translated labels: one column each, and no language to maintain), and, when the permission service is mounted, the effective permission preset word verbatim — gray normally, bold red for `danger-full-access` (§1.18). The chip is absent, not blanked, in an assembly without the permission service. `/clear` empties the view and prints a fresh banner.
 
   **Three width tiers**, chosen by `bannerTier(columns)`:
 
@@ -247,7 +247,7 @@ The only commands in the REPL are slash commands. No flags, no sub-commands, no 
 | `Enter` | Send the current input as a user message. |
 | `/help` | Print the list of available slash commands. |
 | `/clear` | Clear the visible chat. The session log is unchanged. Prints nothing — see below. |
-| `/status` | Print the current model and session id, plus the effective permission preset when a projection is mounted (§1.18). |
+| `/status` | Print the current model and session id, plus the effective permission preset when the permission service is mounted (§1.18). |
 | `/plugins` | List the plugins this host loaded, and how each one is doing. `/plugins enable\|disable <name>` switches one. |
 | `/usage` | Break this session's token spend out turn by turn. |
 | `/theme` | Choose the background the colors assume: `/theme auto\|dark\|light`. Bare `/theme` reports the current setting and, under `auto`, what the terminal answered. |
@@ -429,13 +429,13 @@ The token after `/skill ` filters by case-insensitive **prefix** on the bare nam
 
 **The floating lists are mutually exclusive, in one precedence order: the `/` palette, then the skill picker, then the `/permission ` picker (§1.5.10), then the `/model ` picker (§1.5.11), then the `/mcp add ` picker (§1.12.1), then the `@` file picker.** Only one may own `↑`/`↓`/`Tab`/`Esc` at a time, and Ink offers no way to stop a keystroke (§1.6), so the exclusivity is structural: while the buffer matches a higher anchor the lower mentions are not even derived. The command pickers outrank the `@` mention for the same reason the `/` palette does — they are anchored at the first character.
 
-**Bare `/skill` prints usage; `/skill <name> [args]` rewrites and runs.** The dispatcher turns `/skill review the auth` into `/review the auth` and hands the rewritten line to the *same* runner the unknown-name fallback uses (§1.14), so the explicit form and direct typing share one inject/followup ordering and one set of failure notes. There is one unconditional Enter exception in the `/` palette (§1.5.1): with `/skill` highlighted it completes to `/skill ` and opens this picker instead of dispatching the bare command — the picker is what the key was reaching for. `/permission` gets the same treatment only while a projection advertises presets (§1.5.10). Enter on a dismissed picker submits the literal buffer, so `/skill review` after `Esc` still runs `review`.
+**Bare `/skill` prints usage; `/skill <name> [args]` rewrites and runs.** The dispatcher turns `/skill review the auth` into `/review the auth` and hands the rewritten line to the *same* runner the unknown-name fallback uses (§1.14), so the explicit form and direct typing share one inject/followup ordering and one set of failure notes. There is one unconditional Enter exception in the `/` palette (§1.5.1): with `/skill` highlighted it completes to `/skill ` and opens this picker instead of dispatching the bare command — the picker is what the key was reaching for. `/permission` gets the same treatment only while the permission catalog advertises presets (§1.5.10). Enter on a dismissed picker submits the literal buffer, so `/skill review` after `Esc` still runs `review`.
 
 **There is no "scanning" placeholder.** Skill rows arrive as a prop from an asynchronous catalog read (§1.14); until the first complete listing lands the picker simply shows nothing, unlike the `@` picker whose one-time directory walk names itself while in flight. The catalog is already mounted before the prompt is interactive, so a placeholder would almost always paint an empty box and vanish a frame later.
 
 #### 1.5.10 The `/permission` picker
 
-Typing `/permission ` (with the trailing space) opens a picker over the preset words the `permissions` projection advertises, the same shape and windowing as the skill picker. The resemblance is mechanical only: a skill row *is* the command, while a preset row is an **argument** to the plugin-provided `/permission` command. The row name is the bare table key (`workspace-write`), shown verbatim like every preset word (§1.18); the description is the projection's display name, and the preset currently in force carries a leading `✓` so the list answers "what am I on" before it answers "what can I pick".
+Typing `/permission ` (with the trailing space) opens a picker over the preset words the permission catalog advertises, the same shape and windowing as the skill picker. The resemblance is mechanical only: a skill row *is* the command, while a preset row is an **argument** to the plugin-provided `/permission` command. The row name is the bare table key (`workspace-write`), shown verbatim like every preset word (§1.18); the description is the catalog’s display name, and the preset currently in force carries a leading `✓` so the list answers "what am I on" before it answers "what can I pick".
 
 | Key | Effect |
 |---|---|
@@ -445,7 +445,7 @@ Typing `/permission ` (with the trailing space) opens a picker over the preset w
 | `Enter` | Submit `/permission <value>` immediately — the plugin command switches the preset, the chip follows via its knob-event subscription. |
 | `Esc` | Dismiss once for this token, keeping `/permission dan` on screen; Enter then submits the literal buffer. |
 
-The picker has **no rows without a mounted projection**: it is the same dark-feature contract as the StatusBar chip. That also settles the one naming collision — `/permission` is a plugin command, not a built-in. While presets are advertised, bare `/permission` + `Enter` in the `/` palette completes to `/permission ` and opens this picker (the one conditional exception in §1.5.1); without them, the bare line is dispatched to the plugin untouched, so the command's own usage answer stays reachable in an assembly that provides the command but no projection. Direct typing is never intercepted at all: `/permission read-only` submitted by hand goes through the ordinary plugin-registry path exactly as it did before this picker existed.
+The picker has **no rows without the permission service**: it is the same dark-feature contract as the StatusBar chip. That also settles the one naming collision — `/permission` is a plugin command, not a built-in. While presets are advertised, bare `/permission` + `Enter` in the `/` palette completes to `/permission ` and opens this picker (the one conditional exception in §1.5.1); without them, the bare line is dispatched to the plugin untouched, so the command's own usage answer stays reachable in an assembly that provides the command but no projection. Direct typing is never intercepted at all: `/permission read-only` submitted by hand goes through the ordinary plugin-registry path exactly as it did before this picker existed.
 
 **`Tab` / `Shift+Tab` on an empty prompt cycle the preset**, forward and back through the advertised table, wrapping at both ends. Eligibility is positional: the branch sits below every completion branch, so an open list outranks the cycle, and so does any text in the buffer — Tab keeps its editing meaning there. The cycle submits the same `/permission <value>` line the picker's Enter sends, rather than calling the plugin out-of-band: the switch therefore keeps its audit trail (command echo plus the plugin's answer), the running-turn busy-check applies, and the chip follows through its knob-event subscription. A `currentValue` outside the advertised options (`custom`) has no position to step from; forward enters the table at its first row and backward at its last. No advertised presets means the callback is not mounted and Tab does what it always did.
 
@@ -998,11 +998,11 @@ The policy list is written as `['ask', 'never'] as const satisfies readonly Appr
 
 The approval policy is one knob; the sandbox mode (`read-only` / `workspace-write` / `danger-full-access`) is the other, and nobody should have to set them by hand in the one combination that is dangerous. `@deepseek-ai/dsh-permission-presets` bundles the two into named presets and ships the plugin command **`/permission <preset>`**, recording `permission/preset` alongside the `sandbox/mode` and `approval/policy` knob events. The dsh-base table is `read-only` (read-only + ask), `workspace-write` (workspace-write + ask, the default) and `danger-full-access` (danger-full-access + never — with the sandbox open the prompts have nothing left to gate, which is why "auto-approve" is not a third approval policy).
 
-The TUI surfaces the *effective* preset rather than the two knobs separately. `dsh-session-projection` exposes a synchronous `permissions` projection that folds all three events into one `PermissionSelect { currentValue, options }`; `src/commands/permissions.ts` reads it off `ctx.get('sessionProjections')` with the types declared locally (the same dark-dependency stance as plan mode, hooks and MCP — neither package is installed), shape-narrows the payload, and treats anything missing, malformed or throwing as "no service". Two surfaces show it:
+The TUI reads the current session selection from `permissionPresets.current(session)` and the available options from `permissionPresets.catalog()`. Session knob events refresh the selection; `permission-presets/catalog-changed` refreshes available options. Two surfaces show it:
 
 - the **`/permission ` picker** (§1.5.10): typing the command name and a space floats the advertised presets, with the current one ticked, and `Enter` submits `/permission <value>` to the plugin command — choosing a mode without memorising its word;
 - the **StatusBar chip** on the run-state row (§1.1), which re-reads on any of the three knob events for *this* session — its own `session/event` subscription, because the chip is chrome, not reducer state, and two of those events are not renderable log entries; and
-- a **`permissions: <word>` line in `/status`**, absent in assemblies without the projection, where the command stays two lines.
+- a **`permissions: <word>` line in `/status`**, absent in assemblies without the permission service, where the command stays two lines.
 
 Preset words are deployment-configured table keys, so they are shown **verbatim, never translated**, exactly like plugin command names. `danger-full-access` is the one key that earns treatment: bold red on the chip. It is a chosen setting, not an error — but it is the one setting that removes both gates at once, and a glance at the chrome must be able to settle whether this shell has them. `DSH_PERMISSION_MODE=danger-full-access` in the environment boots straight into it, which is also why the warning cannot depend on having watched a `/permission` switch happen this session.
 
@@ -1479,9 +1479,7 @@ Two rules govern it. It **imports the real modules** (`src/terminal/theme.ts`, `
 
 ### 3.7 Versioning
 
-- Lockstep with `dsh-*` peer packages: `dsh-agent`, `dsh-agent-default-model`, `dsh-invariants`, `dsh-llm`, `dsh-session`.
-- Bump all of them together. A pre-release line `0.1.0-rc.N` advances in lockstep across the family.
-- Don't bump `dsh-base` separately from the others — it's a dev-dep here, but the `latest` dist-tag on npm is currently broken. Always use `@next` until `latest` is repaired.
+- Pin the launcher, base bundle and dsh peer packages to the same tested release. This branch targets `0.2.1-rc.5`. Use explicit versions in both installation guides.
 
 ### 3.8 Publish flow
 
@@ -1494,7 +1492,7 @@ pnpm test && pnpm run typecheck && pnpm run build
 npm publish --access public
 ```
 
-After publish, the dsh-tui bundle becomes available as `@qiao-qyn/dsh-tui@0.1.0-rc.N+1`. The launcher reads `package.json#dsh.bundle.patch` to wire the bundle into profiles.
+After publish, the dsh-tui bundle becomes available as `@qiao-qyn/dsh-tui@<version>`. The launcher reads `package.json#dsh.bundle.patch` to wire the bundle into profiles.
 
 ### 3.9 Git workflow
 
@@ -1579,26 +1577,7 @@ row: nothing ran, so there is no command and no output to show.
 
 ### 4.2 The working directory
 
-The **process** working directory is authoritative. `!cd` calls `process.chdir`,
-so later `!` commands and the model's own file tools resolve relative paths
-against the same directory. `process.chdir` is called in exactly one place,
-[`hooks/useShell.ts`](./../src/hooks/useShell.ts) — the same single-door
-discipline `process.exit` gets.
-
-This is safe because the prompt is only `active` while
-`state.status === 'idle'`, so a `cd` cannot land between a running turn's tool
-calls and the relative paths they have already resolved.
-
-Two things record where the session *started* and correctly do not follow a
-`cd`: the banner (it is inside `<Static>` — written to the terminal once) and the
-session header's frozen `meta.cwd`. `readRepoLabel`'s memo, by contrast, **is**
-keyed by directory: a process-wide memo would answer with the branch of a
-directory the user has left, and that answer looks entirely plausible.
-
-A successful `cd` is injected into the session whether it was written `!` or
-`!!`. This is the one case where the view-only default would do damage rather
-than withhold a convenience — every relative path the model uses afterwards
-means something else, and it has no other way to find out.
+On rc.5, `!cd` calls `workingDirectory.set(agent, path)`. The service commits the directory for this session and supplies the model’s working-directory context. Shell subprocesses, file mentions, skill lookup and image attachments resolve against the same directory. Resuming another session restores its directory. The immutable header retains the original project. A minimal assembly without the directory service falls back to a process-local directory change and a TUI notice.
 
 Only a line that is *entirely* a `cd` invocation is intercepted: `cd`, `cd ~`,
 `cd -`, `cd <path>`, and one quoted operand. `cd src && ls` goes to the shell

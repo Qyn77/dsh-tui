@@ -8,19 +8,17 @@
  * three whole-value events `permission/preset`, `sandbox/mode` and
  * `approval/policy`; the read face is `ctx.sessionProjections.snapshot()`.
  *
- * Neither that package nor `dsh-session-projection` is a dependency — see the
- * copied vocabulary in `types.ts` — so everything here is an optional,
- * shape-checked read off the service store. An assembly that mounts neither
- * simply has no chip, which is also the honest answer it would give any other
- * client.
+ * rc.5 exposes the effective selection per Session and selectable options in
+ * a process-wide catalog through the permissionPresets service.
  * @module @qiao-qyn/dsh-tui/commands/permissions
  */
 
+import type { Session } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-permission-presets'
 import type { Context } from '@deepseek-ai/cordis'
 import {
   DANGER_PRESET,
   type PermissionPresetSelect,
-  type PermissionProjectionReader,
 } from '../core/types.ts'
 
 /**
@@ -64,16 +62,12 @@ function asPermissionSelect(value: unknown): PermissionPresetSelect | undefined 
  */
 export function readPermissionPreset(
   ctx: Context,
-  session: unknown,
+  session: Session,
 ): PermissionPresetSelect | undefined {
-  // `sessionProjections` is not in this build's typed `Context` merge (its
-  // package is not a dependency), so the read goes through the string-keyed
-  // `get` the same way `appExit` does in `services.ts`.
-  const registry = ctx.get('sessionProjections') as PermissionProjectionReader | undefined
-  if (registry === undefined) return undefined
+  const presets = ctx.get('permissionPresets')
+  if (!presets) return undefined
   try {
-    const snapshot = registry.snapshot(session)
-    return asPermissionSelect(snapshot.values.permissions)
+    return asPermissionSelect({ currentValue: presets.current(session), options: presets.catalog().options })
   } catch {
     // A projection unit's schema can throw on a payload another plugin wrote;
     // the chip is chrome, not the answer to a command — degrade to absent.

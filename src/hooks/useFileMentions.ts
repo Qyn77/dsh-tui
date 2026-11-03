@@ -35,7 +35,7 @@ export interface FileMentions {
  * reads as "the key did nothing" and gets pressed again.
  * @param query - the mention's text, or `undefined` when no mention is active.
  */
-export function useFileMentions(query: string | undefined): FileMentions {
+export function useFileMentions(query: string | undefined, cwd: string): FileMentions {
   const [files, setFiles] = useState<readonly string[] | null>(null)
   // The directory `files` was scanned from, so a `!cd` invalidates it and a
   // re-render does not re-scan.
@@ -44,19 +44,20 @@ export function useFileMentions(query: string | undefined): FileMentions {
   const active = query !== undefined
   useEffect(() => {
     if (!active) return
-    const cwd = process.cwd()
     if (scanned.current === cwd) return
     let live = true
-    scanned.current = cwd
     setFiles(null)
     void listFiles(cwd).then((found) => {
-      if (live) setFiles(found)
+      if (live) {
+        scanned.current = cwd
+        setFiles(found)
+      }
     }, () => {
       // An unreadable cwd is a picker with no rows, not a crash.
       if (live) setFiles([])
     })
     return () => { live = false }
-  }, [active])
+  }, [active, cwd])
 
   if (query === undefined) return { paths: [], scanning: false }
   if (files === null) return { paths: [], scanning: true }

@@ -512,17 +512,6 @@ export interface PermissionPresetSelect {
 }
 
 /**
- * The slice of `ctx.sessionProjections` this package reads. The real service's
- * `snapshot()` returns one consistent cut over every registered projection for
- * one session; only the `permissions` key is typed here.
- */
-export interface PermissionProjectionReader {
-  snapshot(session: unknown): {
-    readonly values: { readonly permissions?: unknown }
-  }
-}
-
-/**
  * The dsh-base preset-table key that means the sandbox is open and approval
  * never prompts. Written as data the deployment configured rather than an
  * enum: another assembly's table may name it differently, in which case its
@@ -556,6 +545,7 @@ export function isRenderable(event: SessionEvent): boolean {
     case 'compaction/end':
     case 'compaction/summary':
     case 'compaction/prune':
+    case 'working-directory/change':
     case 'plan/mode':
     case 'hook/invoked':
     case 'hook/result':

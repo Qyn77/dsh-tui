@@ -31,7 +31,7 @@ function samePreset(a: PermissionPresetSelect | undefined, b: PermissionPresetSe
   if (a.currentValue !== b.currentValue) return false
   if (a.options.length !== b.options.length) return false
   return a.options.every((option, i) =>
-    option.value === b.options[i]?.value && option.name === b.options[i]?.name)
+    option.value === b.options[i]?.value && option.name === b.options[i]?.name && option.description === b.options[i]?.description)
 }
 
 /**
@@ -62,7 +62,8 @@ export function usePermissionPreset(
       if (!PERMISSION_EVENTS.includes(event.type)) return
       refresh()
     })
-    return () => { off() }
+    const offCatalog = ctx.on('permission-presets/catalog-changed', refresh)
+    return () => { off(); offCatalog() }
   }, [ctx, agent])
 
   return preset

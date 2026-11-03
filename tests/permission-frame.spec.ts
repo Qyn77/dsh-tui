@@ -30,23 +30,9 @@ function permissionRegistry(run: (raw: string) => void) {
  * in the session log, so it would leave the Banner up.
  */
 function setCut(painted: Awaited<ReturnType<typeof paintApp>>, value: string): void {
-  const registry = painted.ctx.get('sessionProjections') as
-    | { snapshot: () => unknown }
-    | undefined
-  expect(registry).toBeDefined()
-  if (registry === undefined) return
-  registry.snapshot = () => ({
-    values: {
-      permissions: {
-        currentValue: value,
-        options: [
-          { value: 'read-only', name: 'Read-only' },
-          { value: 'workspace-write', name: 'Workspace write' },
-          { value: 'danger-full-access', name: 'Danger: full access' },
-        ],
-      },
-    },
-  })
+  const registry = painted.ctx.get('permissionPresets')
+  if (!registry) throw new Error('fixture has no permission service')
+  registry.current = () => value
 }
 
 describe('permission preset chip', () => {

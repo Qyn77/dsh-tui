@@ -61,6 +61,24 @@ describe('! shell escape', () => {
     expect(screen).toContain('!')
   })
 
+  it('uses the active session directory for cd and the following shell child', async () => {
+    let cwd = origin
+    const directory = {
+      get: () => cwd,
+      set: vi.fn(async (_agent, target: string) => { cwd = realpathSync(target); return cwd }),
+    }
+    const painted = await paintApp({ directory })
+    try {
+      await run(painted, '!cd ' + tmpdir())
+      expect(directory.set).toHaveBeenCalledOnce()
+      expect(process.cwd()).toBe(origin)
+      await run(painted, '!pwd')
+      expect(painted.screen()).toContain(cwd)
+    } finally {
+      painted.unmount()
+    }
+  })
+
   it('reports a non-zero exit on the status row', async () => {
     const painted = await paintApp()
     await run(painted, '!node -e "process.exit(7)"')

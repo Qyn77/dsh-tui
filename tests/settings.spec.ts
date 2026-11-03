@@ -9,7 +9,7 @@
  * @module @qiao-qyn/dsh-tui/tests/settings
  */
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -47,6 +47,18 @@ afterEach(() => {
 })
 
 describe('parseSettings', () => {
+  it('isolates settings under DSH_HOME when the launcher uses a separate home', () => {
+    const root = fakeHome()
+    vi.stubEnv('DSH_HOME', root)
+    try {
+      expect(writeSettings({ language: 'zh' })).toBe(true)
+      expect(settingsPath()).toBe(join(root, 'tui.json'))
+      expect(readSettings().language).toBe('zh')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('reads a stored language', () => {
     expect(parseSettings('{"language":"zh"}')).toEqual({ language: 'zh', theme: 'auto', history: 'show', keybinds: 'default' })
   })

@@ -197,7 +197,9 @@ export const App: FC<AppProps> = ({
     () => [...commands(lang), ...registryRows],
     [lang, registryRows],
   )
-  const skillRowsForPicker = useSkillCommands(ctx, agent, claimedCommands)
+  const directory = service(ctx, 'workingDirectory')
+  const cwd = directory?.get(agent.session) ?? process.cwd()
+  const skillRowsForPicker = useSkillCommands(ctx, agent, claimedCommands, cwd)
   // Presets for the `/permission ` picker. Same projection value as the
   // StatusBar chip: no service mounted means an empty list, which means no
   // picker and the plugin command's own bare-command answer stays reachable.
@@ -211,7 +213,7 @@ export const App: FC<AppProps> = ({
   const modelRowsForPicker = useModelCommands(ctx, selection)
   // `!` escapes. Declared here because both the interrupt handler and the
   // submit handler need it, and it is the owner of the working directory.
-  const shell = useShell({ agent, appendEntry, strings })
+  const shell = useShell({ agent, directory, appendEntry, strings })
   /**
    * Switch the interface language: repaint now, persist for the next launch.
    *
@@ -464,10 +466,7 @@ export const App: FC<AppProps> = ({
    */
   const attach = useCallback(
     (text: string) => attachImages(text, {
-      // Read at call time, not captured: `!cd` changes the process working
-      // directory (it has to — see `useShell`), and a relative path in the
-      // prompt means the directory the user is in *now*.
-      cwd: process.cwd(),
+      cwd,
       home: process.env['HOME'],
       store: service(ctx, 'attachments'),
       readFile: path => readFile(path),
@@ -487,7 +486,7 @@ export const App: FC<AppProps> = ({
         }
       },
     }),
-    [ctx, selection],
+    [ctx, selection, cwd],
   )
 
   /**
@@ -507,7 +506,7 @@ export const App: FC<AppProps> = ({
     async (input: string) => {
       const outcome = await resolveSkill(input, {
         skills: service(ctx, 'skills'),
-        cwd: process.cwd(),
+        cwd,
         scope: viewingScope(agent),
       })
       if (outcome.kind === 'invoked') {
@@ -526,7 +525,7 @@ export const App: FC<AppProps> = ({
         failed: true,
       })
     },
-    [ctx, agent, appendEntry, strings],
+    [ctx, agent, appendEntry, strings, cwd],
   )
 
   const onSubmit = useCallback(
@@ -783,11 +782,11 @@ export const App: FC<AppProps> = ({
       */}
         {stdout?.isTTY ? (
           state.entries.length === 0 && (
-            <Banner selection={selection} sessionId={agent.id} availableRows={bannerRowBudget} />
+            <Banner cwd={cwd} selection={selection} sessionId={agent.id} availableRows={bannerRowBudget} />
           )
         ) : (
           <Static items={state.entries.length === 0 ? [0] : []} style={{ width: '100%' }}>
-            {() => <Banner key="banner" selection={selection} sessionId={agent.id} />}
+            {() => <Banner cwd={cwd} key="banner" selection={selection} sessionId={agent.id} />}
           </Static>
         )}
         {state.entries.length > 0 && (
@@ -850,6 +849,7 @@ export const App: FC<AppProps> = ({
           argsFor={argsForCall}
         />
         <Prompt
+          cwd={cwd}
           active={!shell.running && approvals.pending.length === 0}
           busy={state.status === 'running' || shell.running}
           onSubmit={onSubmit}

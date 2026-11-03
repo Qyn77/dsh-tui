@@ -412,7 +412,7 @@ words also work typed straight at the plugin command,
 
 `/permission` is provided by the harness plugin rather than by the TUI, so it
 works wherever the plugin is loaded even though it is not a built-in command;
-the picker reads its choices from the preset projection and stays absent
+the picker reads its choices from the permission catalog and stays absent
 without it.
 
 The effective preset is always visible: a chip on the StatusBar's run-state row
@@ -830,7 +830,7 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 回合结束时还没跑完的派发，跟着父条目的结局走：被你打断就是 `⊘`，正常收尾就是 `✓`。
 不会有东西一直转下去。
 
-这需要base 挂载 `ptc-runtime` 并且设了 `DSH_TOOLS_MODE=ptc`；默认的工具模式下
+这需要 base 挂载 `ptc-runtime` 并且设了 `DSH_TOOLS_MODE=ptc`；默认的工具模式下
 你永远不会看到 `↳` 行。
 
 ### 工作流

@@ -1,20 +1,12 @@
 /**
- * Runs `!` shell escapes and owns the working directory.
- *
- * **This is the only place in the package that calls `process.chdir`**, the same
- * way `commands.ts` and `index.ts` are the only places that may exit the process
- * (AGENTS.md rule 7). A cwd change is process-global and silently redefines
- * every relative path anything resolves afterwards, so it gets one door.
- *
- * The change is safe here for a reason worth stating: the prompt is only
- * `active` while `state.status === 'idle'`, so a `cd` cannot land in the middle
- * of a turn whose tool calls have already resolved paths against the old
- * directory.
+ * Run shell escapes in the active session directory. Minimal assemblies
+ * without the directory service keep the process-local cd fallback.
  * @module @qiao-qyn/dsh-tui/hooks/useShell
  */
 
 import { useCallback, useRef, useState } from 'react'
 import { homedir } from 'node:os'
+import type { WorkingDirectoryService } from '@deepseek-ai/dsh-working-directory'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { boundContextSummary, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Catalog } from '../core/i18n.ts'
@@ -25,6 +17,7 @@ import { runShellCommand } from '../shell/shell-runner.ts'
 /** What the hook needs from the App. */
 export interface UseShellDeps {
   agent: Agent
+  directory?: WorkingDirectoryService
   /** The App's local appender — a `!` command produces no session event. */
   appendEntry: (entry: UiEntry) => void
   /** In-force catalog, for the one message that is ours rather than a program's. */
@@ -41,11 +34,11 @@ export interface ShellController {
   abort: () => void
 }
 
-export function useShell({ agent, appendEntry, strings }: UseShellDeps): ShellController {
+export function useShell({ agent, directory, appendEntry, strings }: UseShellDeps): ShellController {
   const [running, setRunning] = useState(false)
   const abortRef = useRef<AbortController | undefined>(undefined)
   /** Where the last `cd` came from, so `cd -` has somewhere to go back to. */
-  const previousRef = useRef<string | undefined>(undefined)
+  const previousRef = useRef<{ id: string; path: string } | undefined>(undefined)
 
   const inject = useCallback((text: string, summary: string): void => {
     agent.inject(
@@ -59,12 +52,12 @@ export function useShell({ agent, appendEntry, strings }: UseShellDeps): ShellCo
     )
   }, [agent])
 
-  const runCd = useCallback((escape: ShellEscape, target: NonNullable<ReturnType<typeof parseCd>>): void => {
-    const from = process.cwd()
+  const runCd = useCallback(async (escape: ShellEscape, target: NonNullable<ReturnType<typeof parseCd>>): Promise<void> => {
+    const from = directory?.get(agent.session) ?? process.cwd()
     const to = resolveCd(target, {
       cwd: from,
       home: homedir(),
-      ...(previousRef.current !== undefined ? { previous: previousRef.current } : {}),
+      ...(previousRef.current?.id === agent.id ? { previous: previousRef.current.path } : {}),
     })
     if (to === undefined) {
       appendEntry({
@@ -78,8 +71,14 @@ export function useShell({ agent, appendEntry, strings }: UseShellDeps): ShellCo
       })
       return
     }
+    let now: string
     try {
-      process.chdir(to)
+      if (directory) {
+        now = await directory.set(agent, to)
+      } else {
+        process.chdir(to)
+        now = process.cwd()
+      }
     } catch (error) {
       // Node's own wording, unlocalized, exactly as a shell would relay a failed
       // `cd`. Inventing our own phrasing for `ENOTDIR` would only hide which
@@ -95,13 +94,12 @@ export function useShell({ agent, appendEntry, strings }: UseShellDeps): ShellCo
       })
       return
     }
-    previousRef.current = from
-    const now = process.cwd()
+    previousRef.current = { id: agent.id, path: from }
     // A successful `cd` is injected whether the user wrote `!` or `!!`. This is
     // the one place the view-only default would do damage rather than merely
     // withhold a convenience: every relative path the model uses from here on
     // means something different, and it has no other way to learn that.
-    inject(
+    if (!directory) inject(
       `The user changed the terminal's working directory to ${now}. Resolve relative paths against it from now on.`,
       `cwd → ${now}`,
     )
@@ -114,12 +112,13 @@ export function useShell({ agent, appendEntry, strings }: UseShellDeps): ShellCo
       truncated: false,
       injected: true,
     })
-  }, [appendEntry, inject, strings])
+  }, [agent, directory, appendEntry, inject, strings])
 
   const run = useCallback((escape: ShellEscape): void => {
     const target = parseCd(escape.command)
     if (target !== undefined) {
-      runCd(escape, target)
+      setRunning(true)
+      void runCd(escape, target).finally(() => setRunning(false))
       return
     }
     const controller = new AbortController()
@@ -127,7 +126,7 @@ export function useShell({ agent, appendEntry, strings }: UseShellDeps): ShellCo
     setRunning(true)
     void runShellCommand({
       command: escape.command,
-      cwd: process.cwd(),
+      cwd: directory?.get(agent.session) ?? process.cwd(),
       signal: controller.signal,
     }).then((result) => {
       abortRef.current = undefined
@@ -150,7 +149,7 @@ export function useShell({ agent, appendEntry, strings }: UseShellDeps): ShellCo
         injected: escape.inject,
       })
     })
-  }, [appendEntry, inject, runCd])
+  }, [agent, directory, appendEntry, inject, runCd])
 
   const abort = useCallback((): void => {
     abortRef.current?.abort()

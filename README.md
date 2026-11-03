@@ -78,6 +78,8 @@ dsh --profile tui
 > install the profile closer to the drive root (`C:\tui`) or set
 > `HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem` → `LongPathsEnabled=1`.
 
+An isolated profile can set `DSH_HOME` to keep sessions, patches and TUI preferences together. On rc.5, `!cd` changes the active session’s working directory.
+
 ## Use it
 
 Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exit`** leaves.

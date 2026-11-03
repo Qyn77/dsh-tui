@@ -216,6 +216,7 @@ export interface Painted {
 
 /** How to mount the `App` for a frame test. */
 export interface PaintOptions {
+  directory?: Pick<import('@deepseek-ai/dsh-working-directory').WorkingDirectoryService, 'get' | 'set'>
   /** Question/answer pairs to seed the log with. Default 0 (banner only). */
   turns?: number
   rows?: number
@@ -326,7 +327,8 @@ function fakeProjections(preset: string) {
     ],
   }
   return {
-    snapshot: () => ({ asOfSeq: 0, values: { permissions: select } }),
+    current: () => preset,
+    catalog: () => ({ options: select.options }),
   }
 }
 
@@ -365,13 +367,14 @@ export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
     appearance = 'dark', themePref = 'auto', keybinds = 'default', steer, followup, cancel,
-    skills = DEFAULT_SKILLS, preset, registryCommands: pluginCommands, models,
+    skills = DEFAULT_SKILLS, preset, directory, registryCommands: pluginCommands, models,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
   stdout.isTTY = tty
   const stdin = fakeTtyStdin()
   const ctx = new Context()
+  if (directory) ctx.provide('workingDirectory', directory as never)
   // Per-mount copy: `saveSelection` mutates it, and the module-level default
   // is shared by every test in a file.
   const current = { ...selection }
@@ -399,7 +402,7 @@ export async function paintApp(
   }
   ctx.provide('skills', fakeSkills(skills) as never)
   if (preset !== undefined) {
-    ctx.provide('sessionProjections', fakeProjections(preset) as never)
+    ctx.provide('permissionPresets', fakeProjections(preset) as never)
   }
   if (pluginCommands !== undefined) {
     ctx.provide('commands', {
