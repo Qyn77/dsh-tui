@@ -15,62 +15,19 @@ import type {
 } from '@deepseek-ai/dsh-llm'
 import type { TodoItem } from '@deepseek-ai/dsh-tool-todo'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
-// Type-only, for the `tool/ptc-dispatch*` declarations this file's reducer
-// projects. `@deepseek-ai/dsh-tools` augments `SessionEventMap` with them, so
-// the import is what puts those two event types in the program at all — unlike
-// `compaction/*`, `plan/mode` and `hook/*` below, this vocabulary belongs to a
-// package that is already a peer, so copying it here would be a second
-// declaration of something the tree can simply be told about.
+// The base mounts these plugins. Import their declarations so producer changes
+// are checked wherever their events are projected.
+import type {} from '@deepseek-ai/dsh-compaction/types'
+import type {} from '@deepseek-ai/dsh-plan-mode'
+import type {} from '@deepseek-ai/dsh-tool-workflow/types'
 import type {} from '@deepseek-ai/dsh-tools/types'
-// Same reasoning for `approval/*`. `@deepseek-ai/dsh-user-approval` is a peer
-// dependency — `ApprovalPrompt` and `useApprovalRequests` already import its
-// `ApprovalOutcome` — so its augmentation is one import away rather than a
-// copy. SPEC §3.2.1 spent three revisions asserting the opposite.
 import type {} from '@deepseek-ai/dsh-user-approval'
 
-/**
- * The bridge that ran a hook. Mirrors `HookDialect` in
- * `@deepseek-ai/dsh-hook-protocol` — see the note on {@link SessionEventMap}
- * below for why this package copies the vocabulary instead of importing it.
- */
 export type HookDialect = 'claude-code' | 'codex'
 
-/**
- * Session events the TUI renders that other plugins add to `SessionEventMap`:
- * `@deepseek-ai/dsh-compaction` for `compaction/*`,
- * `@deepseek-ai/dsh-plan-mode` for `plan/mode`,
- * `@deepseek-ai/dsh-hook-protocol` for `hook/*`, and
- * `@deepseek-ai/dsh-tool-workflow` for `tool-workflow/*`.
- *
- * None of those four is a dependency of this package, which is the point.
- * `dsh-base` mounts no hook bridge and does not depend on one, so a hard peer
- * would make every install warn about a package most assemblies will never
- * have — for a feature that draws nothing until a user inserts a bridge. The
- * TUI instead renders whatever shows up on the session it is already reading,
- * the same way it renders MCP-bridged tools by parsing their names and
- * depending on `dsh-mcp-client` not at all (`docs/SPEC.md` §1.12).
- *
- * The cost is that these declarations are copies and can drift. For `hook/*`
- * the copy is verbatim from `packages/hooks/hook-protocol/lib/types/types.d.ts`
- * at `0.1.0-rc.7`, which is the version line this package pins; a drift shows
- * up as a field the renderer reads and no emitter sets, i.e. `undefined`, which
- * every branch below already handles.
- *
- * `tool-workflow/*` is copied from that package's `lib/types/types.d.ts` at the
- * same version, with its branded `WorkflowRunId` widened to `string` and its
- * two closed unions (`WorkflowAgentOutcome`, `WorkflowStopReason`) widened the
- * same way. That widening is deliberate and matches `hook/result.decision`:
- * these words are printed, never switched on, and a build that pattern-matched
- * `'completed' | 'failed' | 'cancelled'` would fail to compile against a
- * version that adds a fourth — for a value it was only ever going to display.
- */
+/** Hook bridges are optional; both rc.5 dialects publish these audit events. */
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    'compaction/start': { trigger: 'auto' | 'manual' }
-    'compaction/summary': { tokensBefore: number; tokensAfter: number }
-    'compaction/prune': { removedSeqs: readonly number[] }
-    'compaction/end': { ok: boolean }
-    'plan/mode': { active: boolean }
     'hook/invoked': {
       turn: number
       point: string
@@ -87,16 +44,6 @@ declare module '@deepseek-ai/dsh-session/types' {
       stderrSummary?: string
       durationMs: number
     }
-    'tool-workflow/run-start': { runId: string; name: string }
-    'tool-workflow/agent-start': {
-      runId: string
-      seq: number
-      label: string
-      phase?: string
-      childId: string
-    }
-    'tool-workflow/agent-end': { runId: string; seq: number; outcome: string }
-    'tool-workflow/run-end': { runId: string; stopReason: string }
   }
 }
 

@@ -4,6 +4,7 @@
  */
 
 import { recordedEvents, recordedSession } from './recorded-session.ts'
+import { CompactionId } from '@deepseek-ai/dsh-compaction'
 import { describe, expect, it } from 'vitest'
 import { type Session, SessionSeq } from '@deepseek-ai/dsh-session'
 import {
@@ -232,11 +233,15 @@ describe('tui state reducer', () => {
     // `@deepseek-ai/dsh-compaction`; the reducer's declaration merging
     // pulls them in here. We build the events directly so the test does
     // not depend on that plugin's load.
+    const compactionId = CompactionId('manual')
     const events = [
-      { type: 'compaction/start' as const, seq: SessionSeq(0), time: 0, data: { trigger: 'auto' as const } },
-      { type: 'compaction/summary' as const, seq: SessionSeq(1), time: 0, data: { tokensBefore: 100, tokensAfter: 40 } },
-      { type: 'compaction/end' as const, seq: SessionSeq(2), time: 0, data: { ok: true } },
-    ] as never
+      { type: 'compaction/start' as const, seq: SessionSeq(0), time: 0, data: { compactionId, turn: null } },
+      { type: 'compaction/summary' as const, seq: SessionSeq(1), time: 1, data: {
+        compactionId, summary: [], shadowedRange: { start: SessionSeq(0), end: SessionSeq(0) },
+        shadowedSeqs: [], shadowedTokenCount: 0, provider: 'test', model: 'test',
+      } },
+      { type: 'compaction/end' as const, seq: SessionSeq(2), time: 2, data: { compactionId, turn: null } },
+    ]
     const state = replay(events)
     expect(state.entries).toHaveLength(1)
     expect(state.entries[0]).toMatchObject({ kind: 'compaction', stage: 'end' })

@@ -6,7 +6,7 @@
  * approval policy (`ask | never`) — into one word. `dsh-permission-presets`
  * owns the folding as the `permissions` **session projection**, keyed by the
  * three whole-value events `permission/preset`, `sandbox/mode` and
- * `approval/policy`; the read face is `ctx.sessionProjections.snapshot()`.
+ * `approval/policy`; the TUI reads the effective value through `permissionPresets.current(session)`.
  *
  * rc.5 exposes the effective selection per Session and selectable options in
  * a process-wide catalog through the permissionPresets service.
