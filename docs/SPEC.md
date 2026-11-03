@@ -1229,9 +1229,9 @@ Violating these rules breaks testability. The renderer is the integration point;
 
 The reducer is the unit-test surface for the model layer. Every new `SessionEvent` type needs a `state.spec.ts` case. See the existing test for the exhaustive `kind` switch in `MessageList.tsx` — the same exhaustiveness discipline applies to the reducer.
 
-#Live assistant frames are scoped to one session and attempt. A retry starts an empty provisional row. A committed message seals the row, and an abandoned attempt clears it. On resume, the UI opens a read handle for the prefix present at subscription time; subsequent events stay ordered behind this prefix. Tool results settle by their message’s tool call ID, including when parallel calls finish out of order. Nested PTC results attach to the root call.
+Live assistant frames are scoped to one session and attempt. A retry starts an empty provisional row. A committed message seals the row, and an abandoned attempt clears it. On resume, the UI opens a read handle for the prefix present at subscription time; subsequent events stay ordered behind this prefix. Tool results settle by their message’s tool call ID, including when parallel calls finish out of order. Nested PTC results attach to the root call.
 
-### 3.2.1 What the reducer cannot project yet
+#### 3.2.1 What the reducer cannot project yet
 
 **Approval prompts are answered by the live card, and recorded by the reducer — see §1.18.** This section carried two claims about that, in sequence, and both were wrong. The first was that `approval/asked`, `approval/decided` and `approval/policy` are "not members of the typed `SessionEventMap`": false — `@deepseek-ai/dsh-user-approval@0.1.0-rc.7` is a peer dependency and `lib/types/index.d.ts` augments the map with all three, fully typed. The second, written when the first was corrected, was that the reducer had no approval `UiEntry` because nobody had written one; that was true when written and is no longer. Both corrections are left in the text rather than quietly deleted, because the shape of the mistake — reading a *stated* gap as a *verified* one — is the same one §1.16, §1.17 and Part 2 each record, and the count is the point.
 
@@ -1434,6 +1434,9 @@ heeded when it was built.
 `/sessions` lists persistence snapshots by header creation time and opens read handles only for the displayed rows. Each handle closes after the summary read, including on failure. `/resume` resolves full IDs, unique prefixes and `last` from the same headers. Registry commands receive the submitted line, an empty attachment list for a text command and its cancellation signal.
 
 ### 3.4 Testing
+
+Reducer and frame fixtures record real `session/event` notifications from an rc.5 SessionStore. The fake persistence handle reads from that record through the same bounded interface used by the TUI.
+
 
 | Surface | Required coverage |
 |---|---|

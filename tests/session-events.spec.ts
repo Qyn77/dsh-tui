@@ -15,11 +15,12 @@
  * @module @qiao-qyn/dsh-tui/tests/session-events.spec
  */
 
+import { recordedEvents, recordedSession } from './recorded-session.ts'
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render, Text } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
-import { Session, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { type Session, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { HistoryPref, UiEntry, UiState } from '../src/core/types.ts'
 import { useSessionEvents } from '../src/hooks/useSessionEvents.ts'
 import { fakeStdout, provideHistory, seedSession } from './fake-tty.ts'
@@ -57,7 +58,7 @@ const settle = (): Promise<void> => new Promise((resolve) => { setTimeout(resolv
 
 /** The last event appended to a session — what the plugin would emit. */
 function lastEvent(session: Session): SessionEvent {
-  const event = session.snapshotEvents().at(-1)
+  const event = recordedEvents(session).at(-1)
   if (event === undefined) throw new Error('session has no events')
   return event
 }
@@ -137,12 +138,12 @@ describe('seeding from the durable log', () => {
 
   it('keeps live and local events in order while the stored prefix is being read', async () => {
     let finish!: () => void
-    const reading = new Promise<void>(resolve => { finish = resolve })
+    const reading = new Promise<void>((resolve) => { finish = resolve })
     const session = seedSession(1)
     const probe = await mount(session, { reading })
     session.append('turn/start', { turn: 2 })
     await probe.emit(session, lastEvent(session))
-    await probe.act(() => probe.api().appendEntry({ kind: 'command', input: '/help', text: 'local', failed: false }))
+    await probe.act(() => { probe.api().appendEntry({ kind: 'command', input: '/help', text: 'local', failed: false }) })
     await probe.act(finish)
     const { state } = probe.api()
     probe.unmount()
@@ -152,7 +153,7 @@ describe('seeding from the durable log', () => {
   })
 
   it('starts empty for a session with no events', async () => {
-    const probe = await mount(Session.create('tui-seed' as never))
+    const probe = await mount(recordedSession('tui-seed'))
     const { state } = probe.api()
     probe.unmount()
 
@@ -160,7 +161,7 @@ describe('seeding from the durable log', () => {
   })
 
   it('skips events the projection has no rendering for', async () => {
-    const session = Session.create('tui-seed' as never)
+    const session = recordedSession('tui-seed')
     session.append('request/context', { provider: 'p', model: 'm' })
     const probe = await mount(session)
     const { state } = probe.api()
@@ -201,7 +202,7 @@ describe('seeding from the durable log', () => {
     // Nothing carried over is the whole point: the banner renders only on an
     // empty log, so a leftover entry would suppress it on a fresh session.
     const probe = await mount(seedSession(2, 'tui-first'))
-    await probe.swap(Session.create('tui-empty' as never))
+    await probe.swap(recordedSession('tui-empty'))
     const state = probe.api().state
     probe.unmount()
 
@@ -235,7 +236,7 @@ describe('resumed history and the /history preference', () => {
    * never appears in such a log.
    */
   const restored = (turns: number, id = 'tui-restored'): Session =>
-    Session.create(id as never, seedSession(turns, 'tui-stored').snapshotEvents())
+    recordedSession(id, recordedEvents(seedSession(turns, 'tui-stored')))
 
   it('draws the stored history of a restored session — the end-seed marker does not wipe it', async () => {
     // The resume-blank bug: the marker lands after the history, and a reducer
@@ -330,8 +331,8 @@ describe('the live subscription', () => {
     // as its argument, so every `seedSession` shares one — which means a test
     // built from two of them would exercise the guard's *pass* path and prove
     // the opposite of what it claims.
-    const mine = Session.create('tui-mine' as never)
-    const theirs = Session.create('tui-theirs' as never)
+    const mine = recordedSession('tui-mine')
+    const theirs = recordedSession('tui-theirs')
     const probe = await mount(mine)
     const before = probe.api().state
 
@@ -423,7 +424,7 @@ describe('the two local view operations', () => {
     // session it would be replayed as context on the next request.
     const session = seedSession(1)
     const probe = await mount(session)
-    const logged = session.snapshotEvents().length
+    const logged = recordedEvents(session).length
 
     await probe.act(() => {
       probe.api().appendEntry({ kind: 'command', input: '/help', text: 'output', failed: false })
@@ -437,7 +438,7 @@ describe('the two local view operations', () => {
       text: 'output',
       failed: false,
     })
-    expect(session.snapshotEvents()).toHaveLength(logged)
+    expect(recordedEvents(session)).toHaveLength(logged)
   })
 
   it('keeps the two callbacks stable across renders', async () => {

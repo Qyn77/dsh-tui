@@ -178,7 +178,7 @@ export function inlineResultText(
   width: number,
 ): string | undefined {
   if (preview.hidden > 0 || preview.lines.length !== 1) return undefined
-  const text = ` ${preview.lines[0]!}`
+  const text = ` ${preview.lines[0]}`
   if (displayWidth(summary) + displayWidth(text) > width) return undefined
   return text
 }

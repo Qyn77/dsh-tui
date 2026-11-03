@@ -72,7 +72,7 @@ export function useSessionEvents(ctx: Context, agent: Agent, options?: { history
     let active = true
     const offEvent = ctx.on('session/event', (owner, event) => {
       if (owner !== session || event.seq < cut || !isRenderable(event)) return
-      setView(prev => {
+      setView((prev) => {
         if (prev.session !== session) return prev
         const next = changeView(prev, { type: 'event', event })
         const start = next.attempt?.start
@@ -116,8 +116,8 @@ export function useSessionEvents(ctx: Context, agent: Agent, options?: { history
     // The notice uses the language in force when this session was opened.
   }, [ctx, session])
 
-  const resetView = useCallback(() => setView(prev => changeView(prev, { type: 'clear' })), [])
-  const appendEntry = useCallback((entry: UiEntry) => setView(prev => changeView(prev, { type: 'local', entry })), [])
+  const resetView = useCallback(() => { setView(prev => changeView(prev, { type: 'clear' })) }, [])
+  const appendEntry = useCallback((entry: UiEntry) => { setView(prev => changeView(prev, { type: 'local', entry })) }, [])
   let state = options?.history === 'hide' ? view.live : view.full
   if (view.attempt) {
     const { start, text } = view.attempt

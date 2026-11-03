@@ -3,8 +3,9 @@
  * is pure; the tests append real events to a real `Session` and replay them.
  */
 
+import { recordedEvents, recordedSession } from './recorded-session.ts'
 import { describe, expect, it } from 'vitest'
-import { Session, SessionSeq } from '@deepseek-ai/dsh-session'
+import { type Session, SessionSeq } from '@deepseek-ai/dsh-session'
 import {
   createAssistantMessage,
   createToolResultMessage,
@@ -13,7 +14,7 @@ import {
 import { initialState, isRuntimeContext, reduce, replay } from '../src/core/state.ts'
 
 function makeSession(): Session {
-  return Session.create('tui-test' as never)
+  return recordedSession('tui-test')
 }
 
 function appendTurn(session: Session, turn: number, completed: boolean): void {
@@ -25,7 +26,7 @@ function appendTurn(session: Session, turn: number, completed: boolean): void {
   session.append('step/start', { turn, step: 1 })
   session.append('user/message', user, { surfaceOp: 'append' })
   session.append('assistant/message', {
-      stream: [],
+    stream: [],
     turn,
     step: 1,
     message: createAssistantMessage({
@@ -50,7 +51,7 @@ describe('tui state reducer', () => {
   it('appends a user message and finalizes a turn with assistant text', () => {
     const session = makeSession()
     appendTurn(session, 1, true)
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
     expect(state.status).toBe('idle')
     expect(state.entries).toHaveLength(2)
     expect(state.entries[0]).toMatchObject({ kind: 'user' })
@@ -72,7 +73,7 @@ describe('tui state reducer', () => {
         callId: 'c1' as never, content: [{ type: 'text', text: 'a.txt' }], isError: false,
       }),
     }, { surfaceOp: 'append' })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
     const tools = state.entries.filter(e => e.kind === 'tool')
     expect(tools).toHaveLength(1)
     expect(tools[0]).toMatchObject({ kind: 'tool', status: 'ok', name: 'bash' })
@@ -92,14 +93,14 @@ describe('tui state reducer', () => {
       }),
       error: { name: 'BashError', code: 'EXIT_NONZERO' },
     }, { surfaceOp: 'append' })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
     expect((state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'tool' }>).status).toBe('error')
   })
 
   it('appends a turn-ended note for non-completed reasons', () => {
     const session = makeSession()
     appendTurn(session, 1, false)
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
     const note = state.entries.find(e => e.kind === 'note')
     expect(note).toBeDefined()
     expect((note as Extract<(typeof state.entries)[number], { kind: 'note' }>).text).toMatch(/aborted/)
@@ -120,7 +121,7 @@ describe('tui state reducer', () => {
         callId: 'c1' as never, name: 'bash', arguments: 'sleep 100', turn: 1, step: 1,
       })
       session.append('turn/end', { turn: 1, reason } as never)
-      return replay(session.snapshotEvents())
+      return replay(recordedEvents(session))
     }
 
     function toolStatus(state: ReturnType<typeof replay>): string {
@@ -223,7 +224,7 @@ describe('tui state reducer', () => {
       start: 0,
       inserted: [],
     })
-    expect(() => reduce(initialState(), session.snapshotEvents().find(e => e.type === 'agent/inbox/spliced')!)).not.toThrow()
+    expect(() => reduce(initialState(), recordedEvents(session).find(e => e.type === 'agent/inbox/spliced')!)).not.toThrow()
   })
 
   it('tracks a compaction lifecycle in one entry, advancing through summary and end', () => {
@@ -256,7 +257,7 @@ describe('tui state reducer', () => {
       content: [{ type: 'text', text: '<system-reminder>workspace state…</system-reminder>' }],
       source: { kind: 'agent-instructions', form: 'instructions' } as never,
     }), { surfaceOp: 'append' })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
     expect(state.entries).toHaveLength(2)
     expect(state.entries[0]).toMatchObject({ kind: 'user' })
     expect(state.entries[1]).toMatchObject({
@@ -275,7 +276,7 @@ describe('tui state reducer', () => {
       content: [{ type: 'text', text: long }],
       source: { kind: 'big-payload', form: 'catalog' } as never,
     }), { surfaceOp: 'append' })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
     const rc = state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'runtime-context' }>
     // 80-char cap, ellipsized on overflow.
     expect(rc.preview.length).toBe(80)
@@ -291,7 +292,7 @@ describe('tui state reducer', () => {
       content: [{ type: 'text', text: 'synthetic' }],
       source: { kind: 'mystery' } as never,
     }), { surfaceOp: 'append' })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
     const rc = state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'runtime-context' }>
     expect(rc.plugin).toBe('mystery')
     expect(rc.form).toBeUndefined()
@@ -307,12 +308,12 @@ describe('plan mode', () => {
   it('projects a switch into the transcript, keeping the sequence number', () => {
     const session = makeSession()
     session.append('plan/mode', { active: true })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
 
     // `at` carries the seq so the entry sorts with everything around it; a
     // constant would pile every switch at one position in the list.
     expect(state.entries).toEqual([
-      { kind: 'plan', enabled: true, at: session.snapshotEvents()[0]?.seq },
+      { kind: 'plan', enabled: true, at: recordedEvents(session)[0]?.seq },
     ])
   })
 
@@ -322,7 +323,7 @@ describe('plan mode', () => {
     const session = makeSession()
     session.append('plan/mode', { active: true })
     session.append('plan/mode', { active: false })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
 
     expect(state.entries.map(e => e.kind === 'plan' && e.enabled)).toEqual([true, false])
   })
@@ -333,7 +334,7 @@ describe('plan mode', () => {
     const session = makeSession()
     appendTurn(session, 1, true)
     session.append('plan/mode', { active: true })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
 
     expect(state.currentTurn).toBe(1)
     expect(state.status).toBe('idle')
@@ -378,7 +379,7 @@ describe('todo list', () => {
     // is merged and nothing is derived from the previous write.
     const session = makeSession()
     session.append('todo/write', { todos: todos(['read the spec', 'in_progress']) })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
 
     expect(state.entries).toEqual([
       { kind: 'todo', todos: [{ content: 'read the spec', status: 'in_progress' }] },
@@ -392,7 +393,7 @@ describe('todo list', () => {
     session.append('todo/write', { todos: todos(['a', 'pending'], ['b', 'pending']) })
     session.append('todo/write', { todos: todos(['a', 'completed'], ['b', 'in_progress']) })
     session.append('todo/write', { todos: todos(['a', 'completed'], ['b', 'completed']) })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
 
     expect(state.entries).toHaveLength(1)
     expect(state.entries[0]).toEqual({
@@ -409,7 +410,7 @@ describe('todo list', () => {
     session.append('todo/write', { todos: todos(['a', 'pending']) })
     appendTurn(session, 1, true)
     session.append('todo/write', { todos: todos(['a', 'completed']) })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
 
     const kinds = state.entries.map(e => e.kind)
     expect(kinds.filter(k => k === 'todo')).toHaveLength(2)
@@ -422,7 +423,7 @@ describe('todo list', () => {
     // emptied, not that it never existed.
     const session = makeSession()
     session.append('todo/write', { todos: [] })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
 
     expect(state.entries).toEqual([{ kind: 'todo', todos: [] }])
   })
@@ -431,7 +432,7 @@ describe('todo list', () => {
     const session = makeSession()
     appendTurn(session, 1, true)
     session.append('todo/write', { todos: todos(['a', 'pending']) })
-    const state = replay(session.snapshotEvents())
+    const state = replay(recordedEvents(session))
 
     expect(state.currentTurn).toBe(1)
     expect(state.status).toBe('idle')

@@ -10,11 +10,12 @@
  * @module @qiao-qyn/dsh-tui/tests/fake-tty
  */
 
+import { recordedEvents, recordedSession } from './recorded-session.ts'
 import { EventEmitter } from 'node:events'
 import React from 'react'
 import { render } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
-import { Session } from '@deepseek-ai/dsh-session'
+import type { Session } from '@deepseek-ai/dsh-session'
 import { createAssistantMessage, createUserMessage, LlmAttemptId } from '@deepseek-ai/dsh-llm'
 import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
 import { App } from '../src/renderer.tsx'
@@ -112,7 +113,7 @@ export const strip = (frame: string): string =>
  * handled in `onApprovalPolicy`.
  */
 export function seedSession(turns: number, id = 'tui-frame'): Session {
-  const session = Session.create(id as never)
+  const session = recordedSession(id)
   // `permission/preset` and `sandbox/mode` belong to a package this build does
   // not depend on, so they are not in the typed event map. The cast widens the
   // call rather than detaching the method: `Session.append` uses `this`, so a
@@ -153,7 +154,7 @@ export function provideHistory(ctx: Context, current: () => Session, reading?: P
       return {
         read: async (offset: number, length: number) => {
           await reading
-          return { events: session.snapshotEvents().slice(offset, offset + length) }
+          return { events: recordedEvents(session).slice(offset, offset + length) }
         },
         close: async () => {},
       }
@@ -463,7 +464,7 @@ export async function paintApp(
   const settle = (ms = 30): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms) })
   /** Publish the event just appended, the way the session plugin would. */
   const emitLast = async (): Promise<void> => {
-    const event = session.snapshotEvents().at(-1)
+    const event = recordedEvents(session).at(-1)
     if (event === undefined) throw new Error('nothing was appended')
     ctx.emit('session/event', session, event)
     await settle()
@@ -496,7 +497,7 @@ export async function paintApp(
     async finalize(text: string, { turn = 1, step = 1 } = {}) {
       streaming = false
       session.append('assistant/message', {
-      stream: [],
+        stream: [],
         turn,
         step,
         message: createAssistantMessage({

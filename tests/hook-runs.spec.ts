@@ -4,15 +4,16 @@
  * left claiming to be running.
  */
 
+import { recordedEvents, recordedSession } from './recorded-session.ts'
 import { describe, expect, it } from 'vitest'
-import { Session } from '@deepseek-ai/dsh-session'
+import type { Session } from '@deepseek-ai/dsh-session'
 import { replay } from '../src/core/state.ts'
 import { hookStderr, hookTone, type HookEntry } from '../src/render/hook-runs.ts'
 import { estimateEntryRows } from '../src/render/scroll.ts'
 import { isRenderable } from '../src/core/types.ts'
 
 function makeSession(): Session {
-  return Session.create('tui-test' as never)
+  return recordedSession('tui-test')
 }
 
 function invoke(
@@ -48,7 +49,7 @@ function settle(
 
 /** The projected hook rows, in order. */
 function hookRows(session: Session): HookEntry[] {
-  return replay(session.snapshotEvents()).entries.filter((e): e is HookEntry => e.kind === 'hook')
+  return replay(recordedEvents(session)).entries.filter((e): e is HookEntry => e.kind === 'hook')
 }
 
 describe('hook run projection', () => {
@@ -218,7 +219,7 @@ describe('the renderable filter', () => {
     session.append('turn/start', { turn: 1 })
     invoke(session, 'h1')
     settle(session, 'h1', 'pass')
-    const types = session.snapshotEvents().filter(isRenderable).map(e => e.type)
+    const types = recordedEvents(session).filter(isRenderable).map(e => e.type)
     expect(types).toContain('hook/invoked')
     expect(types).toContain('hook/result')
   })

@@ -118,7 +118,7 @@ export function useShell({ agent, directory, appendEntry, strings }: UseShellDep
     const target = parseCd(escape.command)
     if (target !== undefined) {
       setRunning(true)
-      void runCd(escape, target).finally(() => setRunning(false))
+      void runCd(escape, target).finally(() => { setRunning(false) })
       return
     }
     const controller = new AbortController()
