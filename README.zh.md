@@ -39,42 +39,30 @@
 # 1. launcher（每台机器一次）
 npm install -g @deepseek-ai/dsh@0.2.1-rc.5
 
-# 2. 建一个挂上本 bundle 的 profile
-mkdir -p ~/.dsh/profiles/tui && cd ~/.dsh/profiles/tui
+# 2. 为 rc.5 新建独立 profile
+mkdir -p ~/.dsh/profiles/tui-rc5 && cd ~/.dsh/profiles/tui-rc5
 npm init -y
-npm install @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
-echo '[]' > cordis.yml
+npm install --save-exact @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
+npm pkg set 'dsh.profile.bundles[0]=@deepseek-ai/dsh-base' 'dsh.profile.bundles[1]=@qiao-qyn/dsh-tui'
 
-# 3. 注册 bundle。`npm install` 只填了 node_modules；launcher 读的是
-#    package.json#dsh.profile.bundles，这一步才把它写进去。
-dsh plugin --profile tui install
-
-# 4. 一次性写 key。dsh 每次启动都会读 ~/.dsh/.env，之后不用再 export。
-echo 'DEEPSEEK_API_KEY=sk-...' > ~/.dsh/.env
-chmod 600 ~/.dsh/.env
-
-# 5. 启动
-dsh --profile tui
+# 3. 在 ~/.dsh/.env 中设置 DEEPSEEK_API_KEY，然后启动
+dsh --profile tui-rc5
 ```
 
 **Windows（PowerShell 7 + Windows Terminal）：**
 
 ```powershell
 npm install -g @deepseek-ai/dsh@0.2.1-rc.5
-$p = "$env:USERPROFILE\.dsh\profiles\tui"
+$p = "$env:USERPROFILE\.dsh\profiles\tui-rc5"
 New-Item -ItemType Directory -Force -Path $p | Out-Null
 Set-Location $p
 npm init -y
-npm install @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
-Set-Content cordis.yml "[]"
-dsh plugin --profile tui install
-Set-Content "$env:USERPROFILE\.dsh\.env" "DEEPSEEK_API_KEY=sk-..."
-dsh --profile tui
+npm install --save-exact @deepseek-ai/dsh-base@0.2.1-rc.5 C:\path\to\qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
+npm pkg set 'dsh.profile.bundles[0]=@deepseek-ai/dsh-base' 'dsh.profile.bundles[1]=@qiao-qyn/dsh-tui'
+dsh --profile tui-rc5
 ```
 
-> 想用 pnpm 也行：同样的步骤换成 `pnpm add`，另外要跑一次 `pnpm approve-builds`
-> （勾选 `node-pty`、`koffi`、`protobufjs`、`dsh-subprocess-local`）—— npm 默认
-> 就执行这些 build 脚本。Windows 上如果依赖树触发 `ENAMETOOLONG`，把 profile 装到
+> 如果 npm 报告依赖的构建脚本被阻止，可用 `npm install-scripts ls` 查看清单。使用 pnpm 时，可用 `pnpm approve-builds` 处理 profile 所需的原生依赖。Windows 上如果依赖树触发 `ENAMETOOLONG`，把 profile 装到
 > 离盘符根更近的位置（比如 `C:\tui`），或者把
 > `HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem` 的 `LongPathsEnabled` 设为 `1`。
 

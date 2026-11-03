@@ -8,6 +8,8 @@ This document is the working backlog for the dsh terminal UI. It answers three q
 
 The project goal is a Claude Code-style terminal REPL for dsh: one viewport, keyboard-first, no browser layer, no hidden host runtime, and a stable chat experience.
 
+The current integration target is dsh-base 0.2.1-rc.5. Earlier milestones below record the runtime versions used when those features shipped.
+
 ## 1. Product goal
 
 The TUI should feel like a dense, single-screen agent console:
@@ -302,7 +304,7 @@ Priority features:
 now said three, then two, then one, then none** — and every correction was the
 same mistake, so it is worth naming the mistake rather than just the count.
 Each time, a capability was written off as unreachable, and each time the
-packages were published on `0.1.0-rc.7`, the line this package already pins.
+packages were published on `0.1.0-rc.7`, the line the TUI pinned at that milestone.
 `@deepseek-ai/dsh-mcp-client` was the first (the TUI's half shipped, SPEC
 §1.12); `@deepseek-ai/dsh-hook-protocol` the second; sub-agents the third, and
 that one was worse — the claim was not "no plugin" but a specific wrong version
@@ -494,6 +496,10 @@ For plugin-related work, the feature is also ready only when it is clear that:
 - the plugin is integrated through dsh state/events, not through a separate terminal host
 - the agent conversation remains functional and readable
 - basic file-editing and tool-using agent workflows still work without relying on the TUI itself
+
+### rc.5 compatibility checks
+
+The macOS terminal acceptance run used a separate `DSH_HOME`, launcher and base pinned to `0.2.1-rc.5`, and the TUI installed from an npm tarball. Two turns on the official model verified streaming, persisted history and recall after restarting the launcher. A session fixture produced with rc.7 events verified V0-to-V4 migration and message order. Controlled model responses exercised the actual approval service and filesystem tool for allowed and rejected writes, and the PTC runtime for a nested read. The terminal returned exit code zero and restored the primary screen after `/exit`.
 
 ## 7.1 Plugin acceptance rules
 

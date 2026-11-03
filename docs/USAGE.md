@@ -300,7 +300,7 @@ them and cannot be confused with the next real tool call.
 A dispatch still running when the turn ends inherits the parent's fate: `⊘` if
 you interrupted, `✓` if the turn completed. Nothing is left spinning.
 
-This is on when the base’s `ptc-runtime` is mounted and `DSH_TOOLS_MODE=ptc` is set; with
+This is on when the base’s `ptc-runtime` is mounted and `DSH_TOOLS_MODE=ptc` is set (the TUI also recognizes the earlier value `code`); with
 the default tool mode you will never see a `↳` row.
 
 ### Workflow runs
@@ -830,7 +830,7 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 回合结束时还没跑完的派发，跟着父条目的结局走：被你打断就是 `⊘`，正常收尾就是 `✓`。
 不会有东西一直转下去。
 
-这需要 base 挂载 `ptc-runtime` 并且设了 `DSH_TOOLS_MODE=ptc`；默认的工具模式下
+这需要 base 挂载 `ptc-runtime` 并设置 `DSH_TOOLS_MODE=ptc`（也可继续使用旧值 `code`）；默认的工具模式下
 你永远不会看到 `↳` 行。
 
 ### 工作流

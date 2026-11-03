@@ -23,7 +23,7 @@
 - id: tools
   config:
     # The rc.5 tools registry accepts native (default) or ptc.
-    mode: !!js process.env.DSH_TOOLS_MODE
+    mode: !!js "process.env.DSH_TOOLS_MODE === 'code' ? 'ptc' : process.env.DSH_TOOLS_MODE"
 
 - insert:
     # The interactive terminal driver. Reads its default model from

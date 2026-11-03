@@ -39,42 +39,30 @@ Build the tarball from this branch with `pnpm install --frozen-lockfile && pnpm 
 # 1. the launcher (once per machine)
 npm install -g @deepseek-ai/dsh@0.2.1-rc.5
 
-# 2. a profile that mounts this bundle
-mkdir -p ~/.dsh/profiles/tui && cd ~/.dsh/profiles/tui
+# 2. Create a separate profile for the rc.5 runtime
+mkdir -p ~/.dsh/profiles/tui-rc5 && cd ~/.dsh/profiles/tui-rc5
 npm init -y
-npm install @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
-echo '[]' > cordis.yml
+npm install --save-exact @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
+npm pkg set 'dsh.profile.bundles[0]=@deepseek-ai/dsh-base' 'dsh.profile.bundles[1]=@qiao-qyn/dsh-tui'
 
-# 3. register the bundles. `npm install` only fills node_modules; the launcher
-#    reads package.json#dsh.profile.bundles, and this is what writes it.
-dsh plugin --profile tui install
-
-# 4. your key, once. dsh loads ~/.dsh/.env on every launch — no more exporting.
-echo 'DEEPSEEK_API_KEY=sk-...' > ~/.dsh/.env
-chmod 600 ~/.dsh/.env
-
-# 5. run it
-dsh --profile tui
+# 3. Set DEEPSEEK_API_KEY in ~/.dsh/.env, then start the profile
+dsh --profile tui-rc5
 ```
 
 **Windows (PowerShell 7 + Windows Terminal):**
 
 ```powershell
 npm install -g @deepseek-ai/dsh@0.2.1-rc.5
-$p = "$env:USERPROFILE\.dsh\profiles\tui"
+$p = "$env:USERPROFILE\.dsh\profiles\tui-rc5"
 New-Item -ItemType Directory -Force -Path $p | Out-Null
 Set-Location $p
 npm init -y
-npm install @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
-Set-Content cordis.yml "[]"
-dsh plugin --profile tui install
-Set-Content "$env:USERPROFILE\.dsh\.env" "DEEPSEEK_API_KEY=sk-..."
-dsh --profile tui
+npm install --save-exact @deepseek-ai/dsh-base@0.2.1-rc.5 C:\path\to\qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
+npm pkg set 'dsh.profile.bundles[0]=@deepseek-ai/dsh-base' 'dsh.profile.bundles[1]=@qiao-qyn/dsh-tui'
+dsh --profile tui-rc5
 ```
 
-> Prefer pnpm? Same steps with `pnpm add`, plus `pnpm approve-builds` once (tick
-> `node-pty`, `koffi`, `protobufjs`, `dsh-subprocess-local`) — npm runs those
-> build scripts by default. On Windows, if the dep tree trips `ENAMETOOLONG`,
+> When npm reports blocked dependency builds, use `npm install-scripts ls` to review them. With pnpm, use `pnpm approve-builds` for native dependencies required by the profile. On Windows, if the dep tree trips `ENAMETOOLONG`,
 > install the profile closer to the drive root (`C:\tui`) or set
 > `HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem` → `LongPathsEnabled=1`.
 
