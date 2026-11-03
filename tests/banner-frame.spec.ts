@@ -187,15 +187,28 @@ describe('banner under a resize storm', () => {
 })
 
 describe('the banner on a terminal the palette has to share', () => {
+  it.each([60, 90, 120].flatMap(columns => [24, 30, 33, 40].map(rows => [columns, rows])))('keeps every menu transition frame inside %ix%i', async (columns, rows) => {
+    const tty = await paintApp({ columns, rows, lang: 'zh' })
+    try {
+      for (const key of ['/', '\u007F', '/', '\u001B', '/']) {
+        await tty.send(key)
+        expect(tty.screen()).toMatch(/│ > .*│/)
+      }
+      const heights = tty.frames().filter(frame => frame.includes('╭')).map(frame => frame.split('\n').length)
+      expect(Math.max(...heights)).toBeLessThan(rows)
+    } finally {
+      tty.unmount()
+    }
+  })
   /** Rows the App's frame occupies on screen. */
   const frameRows = (screen: string): number => screen.split('\n').length
 
   it('leaves the whole banner alone when the palette is closed', async () => {
     // The over-fix guard: the banner must not start hiding itself on a
     // terminal that has always had room for it.
-    const tty = await paintApp({ turns: 0, columns: 90, rows: 24 })
+    const tty = await paintApp({ turns: 0, columns: 90, rows: 30 })
     expect(tty.screen()).toContain('探索未至之境')
-    expect(frameRows(tty.screen())).toBeLessThan(24)
+    expect(frameRows(tty.screen())).toBeLessThan(30)
     tty.unmount()
   })
 
@@ -211,7 +224,7 @@ describe('the banner on a terminal the palette has to share', () => {
   })
 
   it('brings the banner back when the palette closes', async () => {
-    const tty = await paintApp({ turns: 0, columns: 90, rows: 24 })
+    const tty = await paintApp({ turns: 0, columns: 90, rows: 30 })
     await tty.send('/')
     await tty.send('\u007F')
     expect(tty.screen()).toContain('探索未至之境')

@@ -707,32 +707,30 @@ export const App: FC<AppProps> = ({
     )
   }
 
-  // An empty session must stay intrinsic-height: making the dynamic frame
-  // full-screen would emit dozens of blank rows after the static banner,
-  // scrolling the banner out of the viewport on startup. Once there is
-  // conversation content, the message list can flex and the prompt belongs
-  // at the bottom of the terminal.
-  // Leave three rows outside Ink's dynamic output. If outputHeight reaches
-  // stdout.rows, Ink intentionally switches to clearTerminal + append mode,
-  // which cannot erase a previous frame during a resize. Keeping the frame
-  // strictly shorter makes log-update erase the previous render normally.
-  const frameHeight = state.entries.length > 0 ? Math.max(1, (stdout?.rows ?? 24) - 3) : undefined
+  // Bound every TTY frame, including startup and intermediate renders before
+  // the prompt reports its new overlay height. Ink switches to clear-and-append
+  // when outputHeight reaches stdout.rows; that leaves old banner rows behind.
+  // Non-TTY Static output stays intrinsic-height so the banner can scroll away.
+  const frameHeight = stdout?.isTTY || state.entries.length > 0
+    ? Math.max(1, (stdout?.rows ?? 24) - 3)
+    : undefined
 
-  // Rows the banner may have. An empty session gets no `frameHeight` at all —
-  // there is nothing to scroll, so nothing to cap — which means the banner is
-  // the one subtree that can push the frame past the terminal on its own, and
-  // it does exactly that as soon as the palette opens under it. A subtree that
-  // outgrows the frame overlaps rather than scrolls (§1.1), which is why the
-  // symptom is half a banner stranded above a whole one until the next resize.
-  //
+  // The settled banner yields space to the prompt's floating list. The root's
+  // height and clipping above also guard the earlier frame, before the passive
+  // onOverlayRowsChange effect has updated this budget.
   // The reserve is the prompt box (3), the message list's placeholder row (1)
-  // and the one row Ink must be kept clear of, plus whatever the floating list
+  // and the scroll/exit hint (1), plus whatever the floating list
   // is currently taking.
-  const bannerRowBudget = Math.max(0, (stdout?.rows ?? 24) - 5 - promptOverlayRows)
+  const bannerRowBudget = Math.max(0, (frameHeight ?? stdout?.rows ?? 24) - 5 - promptOverlayRows)
 
   return (
     <AppProviders lang={lang} appearance={appearance}>
-      <Box flexDirection="column" height={frameHeight} marginRight={1}>
+      <Box
+        flexDirection="column"
+        height={frameHeight}
+        overflow="hidden"
+        marginRight={1}
+      >
         {/*
         Keep one physical row free below Ink's live frame. When the root is
         exactly as tall as the terminal, Ink switches to its full-screen output

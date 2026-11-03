@@ -166,6 +166,8 @@ export function provideHistory(ctx: Context, current: () => Session, reading?: P
 export interface Painted {
   /** The last frame Ink wrote, escapes removed. */
   screen: () => string
+  /** Every rendered frame, including intermediate effect-driven layouts. */
+  frames: () => string[]
   /**
    * Every chunk written to stdout, joined, escapes **kept**. `screen()` is the
    * right tool for asking what is on the terminal; this one is for asking what
@@ -474,6 +476,7 @@ export async function paintApp(
     ctx,
     agent,
     screen: () => strip(stdout.frames.at(-1) ?? ''),
+    frames: () => stdout.frames.map(strip),
     written: () => stdout.frames.join(''),
     settle,
     async send(data: string) {
