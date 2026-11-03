@@ -1,7 +1,7 @@
 /**
  * Code Mode sub-calls in the transcript.
  *
- * `tool/code-dispatch-start` and `tool/code-dispatch` are the only trace a
+ * `tool/ptc-dispatch-start` and `tool/ptc-dispatch` are the only trace a
  * `run_code` program leaves of what it actually did: both are log-only, so
  * `deriveMessages()` drops them and the model never re-reads them. The TUI's
  * own bundle patch mounts `code-runtime`, which means every assembly this
@@ -15,15 +15,15 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { CallId, ContentBlock } from '@deepseek-ai/dsh-llm'
+import type { ToolCallId, ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import type { SubCall, UiEntry, UiState } from '../src/core/types.ts'
 import { replay } from '../src/core/state.ts'
 import { estimateEntryRows } from '../src/render/scroll.ts'
 import { subCallErrorLine, subCallRows } from '../src/render/message-layout.ts'
 
-const PARENT = 'call-1' as CallId
-const SUB = 'call-1:code:1' as CallId
+const PARENT = 'call-1' as ToolCallId
+const SUB = 'call-1:ptc:1' as ToolCallId
 
 /** One session event, shaped the way the log stores it. */
 function event(type: string, data: unknown): SessionEvent {
@@ -31,7 +31,7 @@ function event(type: string, data: unknown): SessionEvent {
 }
 
 /** The `run_code` call a program's dispatches hang under. */
-function runCode(callId: CallId = PARENT): SessionEvent {
+function runCode(callId: ToolCallId = PARENT): SessionEvent {
   return event('tool/call', {
     callId,
     name: 'run_code',
@@ -42,12 +42,12 @@ function runCode(callId: CallId = PARENT): SessionEvent {
 }
 
 function start(over: Partial<{
-  parentCallId: CallId
-  subCallId: CallId
+  parentCallId: ToolCallId
+  subCallId: ToolCallId
   name: string
   args: unknown
 }> = {}): SessionEvent {
-  return event('tool/code-dispatch-start', {
+  return event('tool/ptc-dispatch-start', {
     rootCallId: PARENT,
     parentCallId: over.parentCallId ?? PARENT,
     subCallId: over.subCallId ?? SUB,
@@ -57,12 +57,12 @@ function start(over: Partial<{
 }
 
 function settle(over: Partial<{
-  subCallId: CallId
+  subCallId: ToolCallId
   name: string
   isError: boolean
   content: ContentBlock[]
 }> = {}): SessionEvent {
-  return event('tool/code-dispatch', {
+  return event('tool/ptc-dispatch', {
     rootCallId: PARENT,
     parentCallId: PARENT,
     subCallId: over.subCallId ?? SUB,
@@ -121,15 +121,23 @@ describe('a Code Mode sub-call', () => {
       start(),
       settle(),
       event('tool/result', {
-        message: { role: 'user', content: [{ type: 'text', text: 'done' }] },
+        message: { role: 'tool', toolCallId: PARENT, content: [{ type: 'text', text: 'done' }] },
       }),
     ])
 
     expect(parentOf(state).status).toBe('ok')
   })
 
+  it('pairs parallel tool results by ID when the first call settles first', () => {
+    const state = replay([
+      runCode(), runCode(SUB),
+      event('tool/result', { message: { toolCallId: PARENT, content: [], isError: true } }),
+    ])
+    expect(state.entries).toMatchObject([{ status: 'error' }, { status: 'running' }])
+  })
+
   it('pairs by subCallId, not by recency', () => {
-    const second = 'call-1:code:2' as CallId
+    const second = 'call-1:ptc:2' as ToolCallId
     const state = replay([
       runCode(),
       start(),

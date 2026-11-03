@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { CallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import {
   EXPANDED_MAX_LINES,
@@ -93,7 +93,7 @@ describe('toolCallSummary', () => {
  */
 function toolResult(...blocks: ContentBlock[]) {
   return createToolResultMessage({
-    callId: CallId('call-1'),
+    callId: ToolCallId('call-1'),
     content: blocks,
     isError: false,
   })

@@ -36,8 +36,8 @@ async function program(
       name: call.name,
       arguments: { file_path: call.path },
     }
-    await painted.append('tool/code-dispatch-start', shared)
-    await painted.append('tool/code-dispatch', {
+    await painted.append('tool/ptc-dispatch-start', shared)
+    await painted.append('tool/ptc-dispatch', {
       ...shared,
       isError: call.isError ?? false,
       content: [{ type: 'text', text: call.text ?? 'ok' }],

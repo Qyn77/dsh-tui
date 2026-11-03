@@ -331,9 +331,9 @@ snippet is written in plaintext and flagged rather than stored. See SPEC
 Nothing on that list is unreachable, and as of this revision nothing on it is
 unbuilt either:
 
-- **Code Mode sub-calls.** *Shipped.* `tool/code-dispatch-start` and
-  `tool/code-dispatch` were declared by `@deepseek-ai/dsh-tools`, emitted by a
-  `code-runtime` this package's own patch mounts, and dropped on the floor by
+- **Code Mode sub-calls.** *Shipped.* `tool/ptc-dispatch-start` and
+  `tool/ptc-dispatch` were declared by `@deepseek-ai/dsh-tools`, emitted by a
+  `ptc-runtime` mounted by dsh-base, and dropped on the floor by
   the reducer. They now draw as one `↳` row each inside the parent `run_code`
   entry. See SPEC §1.16.
 

@@ -16,7 +16,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { homedir } from 'node:os'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { boundContextSummary, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Catalog } from '../core/i18n.ts'
 import type { UiEntry } from '../core/types.ts'
 import { SHELL_SOURCE_PLUGIN, parseCd, resolveCd, type ShellEscape } from '../shell/shell.ts'
@@ -54,7 +54,7 @@ export function useShell({ agent, appendEntry, strings }: UseShellDeps): ShellCo
         // A `notice`: a one-line account of something that happened outside the
         // conversation. The reducer skips re-projecting our own injections, so
         // this does not appear a second time as a `runtime-context` row.
-        source: { kind: 'plugin', plugin: SHELL_SOURCE_PLUGIN, form: 'notice', summary },
+        source: { kind: SHELL_SOURCE_PLUGIN, form: 'notice', summary: boundContextSummary(summary) },
       }),
     )
   }, [agent])

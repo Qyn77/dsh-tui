@@ -26,7 +26,7 @@
 import React, { type FC } from 'react'
 import { Box, Text, useInput } from 'ink'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
-import type { CallId } from '@deepseek-ai/dsh-llm'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { PendingApproval } from '../hooks/useApprovalRequests.ts'
 import { approvalArgs, parseToolName } from '../render/message-layout.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
@@ -46,7 +46,7 @@ export interface ApprovalPromptProps {
    * have to duplicate that rule to look one up. Optional: a card rendered
    * without it shows the tool's name and reason, which is what it always did.
    */
-  argsFor?: (callId: CallId) => string | undefined
+  argsFor?: (callId: ToolCallId) => string | undefined
 }
 
 export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer, argsFor }) => {

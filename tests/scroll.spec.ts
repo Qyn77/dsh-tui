@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { CallId, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/render/message-layout.ts'
 import {
   clampOffset,
@@ -290,7 +290,7 @@ describe('estimateEntryRows', () => {
     const rows = estimateEntryRows(
       {
         kind: 'tool',
-        callId: CallId('call-1'),
+        callId: ToolCallId('call-1'),
         name: 'bash',
         args: '{"command":"ls"}',
         turn: 1,
@@ -306,7 +306,7 @@ describe('estimateEntryRows', () => {
   it('adds a row once the call has an outcome', () => {
     const base = {
       kind: 'tool',
-      callId: CallId('call-1'),
+      callId: ToolCallId('call-1'),
       name: 'bash',
       args: '{"command":"ls"}',
       turn: 1,
@@ -319,7 +319,7 @@ describe('estimateEntryRows', () => {
         ...base,
         status: 'ok',
         result: createToolResultMessage({
-          callId: CallId('call-1'),
+          callId: ToolCallId('call-1'),
           content: [{ type: 'text', text: 'a.ts' }],
           isError: false,
         }),
@@ -337,14 +337,14 @@ describe('estimateEntryRows', () => {
     const rows = estimateEntryRows(
       {
         kind: 'tool',
-        callId: CallId('call-1'),
+        callId: ToolCallId('call-1'),
         name: 'bash',
         args: '{"command":"ls"}',
         turn: 1,
         step: 1,
         status: 'ok',
         result: createToolResultMessage({
-          callId: CallId('call-1'),
+          callId: ToolCallId('call-1'),
           content: [{ type: 'text', text: wide }],
           isError: false,
         }),
@@ -359,14 +359,14 @@ describe('estimateEntryRows', () => {
     const rows = estimateEntryRows(
       {
         kind: 'tool',
-        callId: CallId('call-1'),
+        callId: ToolCallId('call-1'),
         name: 'bash',
         args: '{"command":"ls"}',
         turn: 1,
         step: 1,
         status: 'ok',
         result: createToolResultMessage({
-          callId: CallId('call-1'),
+          callId: ToolCallId('call-1'),
           content: [{ type: 'text', text: long }],
           isError: false,
         }),
@@ -383,14 +383,14 @@ describe('estimateEntryRows', () => {
     // being invertible. The marker is language-dependent, the height is not.
     const entry = {
       kind: 'tool' as const,
-      callId: CallId('call-1'),
+      callId: ToolCallId('call-1'),
       name: 'bash',
       args: '{"command":"ls"}',
       turn: 1,
       step: 1,
       status: 'ok' as const,
       result: createToolResultMessage({
-        callId: CallId('call-1'),
+        callId: ToolCallId('call-1'),
         content: [{ type: 'text', text: 'a'.repeat(400) }],
         isError: false,
       }),

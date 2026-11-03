@@ -22,7 +22,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { Session, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { HistoryPref, UiEntry, UiState } from '../src/core/types.ts'
 import { useSessionEvents } from '../src/hooks/useSessionEvents.ts'
-import { fakeStdout, seedSession } from './fake-tty.ts'
+import { fakeStdout, provideHistory, seedSession } from './fake-tty.ts'
 
 /** The hook's return value, captured out of the render. */
 interface Api {
@@ -57,13 +57,15 @@ const settle = (): Promise<void> => new Promise((resolve) => { setTimeout(resolv
 
 /** The last event appended to a session — what the plugin would emit. */
 function lastEvent(session: Session): SessionEvent {
-  const event = session.events.at(-1)
+  const event = session.snapshotEvents().at(-1)
   if (event === undefined) throw new Error('session has no events')
   return event
 }
 
-async function mount(session: Session, options?: { history?: HistoryPref }): Promise<Probe> {
+async function mount(session: Session, options?: { history?: HistoryPref; reading?: Promise<void> }): Promise<Probe> {
   const ctx = new Context()
+  let selected = session
+  provideHistory(ctx, () => selected, options?.reading)
   let captured: Api | undefined
   // Counting reads of `agent.session` is how the tests see the handler run.
   // Wrapping `ctx.on` to watch for its disposer would be more direct, but a
@@ -105,6 +107,7 @@ async function mount(session: Session, options?: { history?: HistoryPref }): Pro
       await settle()
     },
     async swap(next) {
+      selected = next
       instance.rerender(element(next, options?.history ?? 'show'))
       await settle()
     },
@@ -130,6 +133,22 @@ describe('seeding from the durable log', () => {
     expect(state.entries.filter(e => e.kind === 'user')).toHaveLength(2)
     expect(state.currentTurn).toBe(2)
     expect(state.status).toBe('idle')
+  })
+
+  it('keeps live and local events in order while the stored prefix is being read', async () => {
+    let finish!: () => void
+    const reading = new Promise<void>(resolve => { finish = resolve })
+    const session = seedSession(1)
+    const probe = await mount(session, { reading })
+    session.append('turn/start', { turn: 2 })
+    await probe.emit(session, lastEvent(session))
+    await probe.act(() => probe.api().appendEntry({ kind: 'command', input: '/help', text: 'local', failed: false }))
+    await probe.act(finish)
+    const { state } = probe.api()
+    probe.unmount()
+    expect(state.entries.map(entry => entry.kind)).toEqual(['user', 'assistant', 'command'])
+    expect(state.status).toBe('running')
+    expect(state.currentTurn).toBe(2)
   })
 
   it('starts empty for a session with no events', async () => {
@@ -216,7 +235,7 @@ describe('resumed history and the /history preference', () => {
    * never appears in such a log.
    */
   const restored = (turns: number, id = 'tui-restored'): Session =>
-    Session.create(id as never, seedSession(turns, 'tui-stored').events)
+    Session.create(id as never, seedSession(turns, 'tui-stored').snapshotEvents())
 
   it('draws the stored history of a restored session — the end-seed marker does not wipe it', async () => {
     // The resume-blank bug: the marker lands after the history, and a reducer
@@ -404,7 +423,7 @@ describe('the two local view operations', () => {
     // session it would be replayed as context on the next request.
     const session = seedSession(1)
     const probe = await mount(session)
-    const logged = session.events.length
+    const logged = session.snapshotEvents().length
 
     await probe.act(() => {
       probe.api().appendEntry({ kind: 'command', input: '/help', text: 'output', failed: false })
@@ -418,7 +437,7 @@ describe('the two local view operations', () => {
       text: 'output',
       failed: false,
     })
-    expect(session.events).toHaveLength(logged)
+    expect(session.snapshotEvents()).toHaveLength(logged)
   })
 
   it('keeps the two callbacks stable across renders', async () => {

@@ -92,7 +92,7 @@ describe('an invoked skill', () => {
     const painted = await paintApp({ rows: 40 })
     await painted.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'remember the house style' }],
-      source: { kind: 'plugin', plugin: 'agent-instructions', form: 'instructions' },
+      source: { kind: 'agent-instructions', form: 'instructions' } as never,
     }), { surfaceOp: 'append' })
     const screen = painted.screen()
     painted.unmount()

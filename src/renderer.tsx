@@ -10,7 +10,7 @@ import { readFile } from 'node:fs/promises'
 import React, { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
-import { createUserMessage, type CallId } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { HistoryPref } from './core/types.ts'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
@@ -163,7 +163,9 @@ export const App: FC<AppProps> = ({
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
   const [historyPref, setHistoryPref] = useState<HistoryPref>(initialHistoryPref)
-  const { state, resetView, appendEntry } = useSessionEvents(ctx, agent, { history: historyPref })
+  const [lang, setLang] = useState<Lang>(initialLang)
+  const strings = catalog(lang)
+  const { state, resetView, appendEntry } = useSessionEvents(ctx, agent, { history: historyPref, historyError: strings.output.historyReadFailed })
   const registryRows = useRegistryCommands(ctx, agent)
   const permissionPreset = usePermissionPreset(ctx, agent)
   const approvals = useApprovalRequests(ctx, agent)
@@ -188,10 +190,6 @@ export const App: FC<AppProps> = ({
   const refreshSelection = useCallback(() => {
     setSelection(service(ctx, 'agentDefaultModel')?.currentSelection())
   }, [ctx])
-  // The interface language, for the same reason the selection is state:
-  // `/language` changes it mid-session and every framed string has to follow.
-  const [lang, setLang] = useState<Lang>(initialLang)
-  const strings = catalog(lang)
   // Skills no longer ride along in the `/` palette: they feed the `/skill `
   // picker as a separate prop. Shadowing therefore can't happen in
   // `filterCommands` anymore, so both higher layers' names are claimed here.
@@ -332,7 +330,7 @@ export const App: FC<AppProps> = ({
   // the newest end because the question is always about the newest call — a
   // linear scan is right here and a `Map` would be a second copy of the log to
   // keep correct.
-  const argsForCall = useCallback((callId: CallId): string | undefined => {
+  const argsForCall = useCallback((callId: ToolCallId): string | undefined => {
     for (let i = state.entries.length - 1; i >= 0; i -= 1) {
       const entry = state.entries[i]
       if (entry.kind === 'tool' && entry.callId === callId) return entry.args

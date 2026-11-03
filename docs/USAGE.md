@@ -271,7 +271,7 @@ a bundle concern, an `insert` block in your own patch layer.
 
 ### Code Mode sub-calls
 
-With `DSH_TOOLS_MODE=code`, the model stops emitting one tool call per action and
+With `DSH_TOOLS_MODE=ptc`, the model stops emitting one tool call per action and
 writes a small program instead. The program runs in a worker, and the tools it
 reaches for are dispatched from inside it. On screen that stays one entry — the
 `run_code` call — with a line per dispatch nested under it:
@@ -300,7 +300,7 @@ them and cannot be confused with the next real tool call.
 A dispatch still running when the turn ends inherits the parent's fate: `⊘` if
 you interrupted, `✓` if the turn completed. Nothing is left spinning.
 
-This is on when `code-runtime` is mounted and `DSH_TOOLS_MODE=code` is set; with
+This is on when the base’s `ptc-runtime` is mounted and `DSH_TOOLS_MODE=ptc` is set; with
 the default tool mode you will never see a `↳` row.
 
 ### Workflow runs
@@ -804,7 +804,7 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 
 ### Code Mode 的子调用
 
-打开 `DSH_TOOLS_MODE=code` 之后，模型不再一次发一个工具调用，而是写一小段程序。
+打开 `DSH_TOOLS_MODE=ptc` 之后，模型不再一次发一个工具调用，而是写一小段程序。
 程序跑在 worker 里，它用到的工具是从程序内部派发出去的。屏幕上这仍然只是一个条目
 ——那次 `run_code` 调用——每次派发在它下面占一行：
 
@@ -830,7 +830,7 @@ hook point 和 decision 都按你 hook 配置里的原文打印、不做翻译�
 回合结束时还没跑完的派发，跟着父条目的结局走：被你打断就是 `⊘`，正常收尾就是 `✓`。
 不会有东西一直转下去。
 
-这需要装配里挂了 `code-runtime` 并且设了 `DSH_TOOLS_MODE=code`；默认的工具模式下
+这需要base 挂载 `ptc-runtime` 并且设了 `DSH_TOOLS_MODE=ptc`；默认的工具模式下
 你永远不会看到 `↳` 行。
 
 ### 工作流

@@ -15,7 +15,7 @@ import React from 'react'
 import { render } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
 import { Session } from '@deepseek-ai/dsh-session'
-import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createAssistantMessage, createUserMessage, LlmAttemptId } from '@deepseek-ai/dsh-llm'
 import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
 import { App } from '../src/renderer.tsx'
 import type { Lang } from '../src/core/i18n.ts'
@@ -131,6 +131,7 @@ export function seedSession(turns: number, id = 'tui-frame'): Session {
       source: { kind: 'user' },
     }), { surfaceOp: 'append' })
     session.append('assistant/message', {
+      stream: [],
       turn,
       step: 1,
       message: createAssistantMessage({
@@ -142,6 +143,22 @@ export function seedSession(turns: number, id = 'tui-frame'): Session {
     session.append('turn/end', { turn, reason: { kind: 'completed' } })
   }
   return session
+}
+
+/** Read the detached test session through the same bounded handle as production. */
+export function provideHistory(ctx: Context, current: () => Session, reading?: Promise<void>): void {
+  ctx.provide('sessionPersistence', {
+    open: async () => {
+      const session = current()
+      return {
+        read: async (offset: number, length: number) => {
+          await reading
+          return { events: session.snapshotEvents().slice(offset, offset + length) }
+        },
+        close: async () => {},
+      }
+    },
+  } as never)
 }
 
 /** A mounted `App` under test. */
@@ -158,7 +175,7 @@ export interface Painted {
   /** Feed a chunk of stdin and let React settle. */
   send: (data: string) => Promise<void>
   /**
-   * Feed one `assistant/chunk` delta the way the model does, then settle.
+   * Feed one `agent/assistant-stream` delta the way the model does, then settle.
    *
    * Streaming is the one thing the App does that no keystroke can provoke, and
    * `paintApp`'s agent double never produces a turn on its own. Appending to
@@ -401,6 +418,10 @@ export async function paintApp(
     } as never)
   }
   const session = seedSession(turns)
+  provideHistory(ctx, () => session)
+  let revision = 0
+  let index = 0
+  let streaming = false
   // The double's status tracks the turn boundaries a test appends, rather
   // than sitting at 'idle' forever. `handleInterrupt` reads `agent.status`
   // while the frame reads the reducer's, and a double where the two disagree
@@ -439,7 +460,7 @@ export async function paintApp(
   const settle = (ms = 30): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms) })
   /** Publish the event just appended, the way the session plugin would. */
   const emitLast = async (): Promise<void> => {
-    const event = session.events.at(-1)
+    const event = session.snapshotEvents().at(-1)
     if (event === undefined) throw new Error('nothing was appended')
     ctx.emit('session/event', session, event)
     await settle()
@@ -456,13 +477,23 @@ export async function paintApp(
       await settle()
     },
     async stream(text: string, { turn = 1, step = 1 } = {}) {
-      session.append('assistant/chunk', {
-        turn, step, chunk: { type: 'text-delta', text },
-      } as never)
-      await emitLast()
+      const attemptId = LlmAttemptId('frame')
+      if (!streaming) {
+        index = 0
+        ctx.emit('agent/assistant-stream', { agent: agent as never,
+          frame: { type: 'start', revision: ++revision, attemptId, turn, step } })
+        streaming = true
+      }
+      ctx.emit('agent/assistant-stream', { agent: agent as never, frame: {
+        type: 'chunk', revision: ++revision, attemptId, index: index++, time: 0,
+        chunk: { type: 'text-delta', index: 0, text },
+      } })
+      await settle()
     },
     async finalize(text: string, { turn = 1, step = 1 } = {}) {
+      streaming = false
       session.append('assistant/message', {
+      stream: [],
         turn,
         step,
         message: createAssistantMessage({

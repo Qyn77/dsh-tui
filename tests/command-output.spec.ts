@@ -81,7 +81,7 @@ describe('the plan-mode line', () => {
   // event into the log directly — the same path the plugin would take.
   it('draws a line when the agent enters plan mode', async () => {
     painted = await paintApp({ rows: 40 })
-    await painted.append('plan/mode', { enabled: true })
+    await painted.append('plan/mode', { active: true })
     expect(painted.screen()).toContain('plan mode on')
   })
 
@@ -89,8 +89,8 @@ describe('the plan-mode line', () => {
     // Both edges stay in the transcript: without the second line, everything
     // after the switch would read as though it were still read-only.
     painted = await paintApp({ rows: 40 })
-    await painted.append('plan/mode', { enabled: true })
-    await painted.append('plan/mode', { enabled: false })
+    await painted.append('plan/mode', { active: true })
+    await painted.append('plan/mode', { active: false })
     const screen = painted.screen()
     expect(screen).toContain('plan mode on')
     expect(screen).toContain('plan mode off')
@@ -98,7 +98,7 @@ describe('the plan-mode line', () => {
 
   it('writes the line in the interface language', async () => {
     painted = await paintApp({ rows: 40, lang: 'zh' })
-    await painted.append('plan/mode', { enabled: true })
+    await painted.append('plan/mode', { active: true })
     expect(painted.screen()).toContain('计划模式已开启')
   })
 })

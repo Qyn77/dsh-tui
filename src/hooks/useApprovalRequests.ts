@@ -28,7 +28,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
-import type { CallId } from '@deepseek-ai/dsh-llm'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 
@@ -48,7 +48,7 @@ export interface PendingApproval {
    * about. The App already streamed that call into the log with its arguments
    * attached, and the id is what finds it there.
    */
-  readonly callId?: CallId
+  readonly callId?: ToolCallId
 }
 
 /** The queue plus the one operation the view performs on it. */

@@ -5,7 +5,7 @@
  */
 
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
-import type { CallId, UserMessage } from '@deepseek-ai/dsh-llm'
+import type { ToolCallId, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { SubCall, ToolStatus, UiEntry, UiState } from './types.ts'
 import { SHELL_SOURCE_PLUGIN } from '../shell/shell.ts'
 
@@ -87,17 +87,6 @@ function replaceAt(entries: readonly UiEntry[], index: number, entry: UiEntry): 
   const next = entries.slice()
   next[index] = entry
   return next
-}
-
-/** Match the assistant entry belonging to one `(turn, step)` pair. */
-function assistantAt(turn: number, step: number): (entry: UiEntry) => entry is EntryOf<'assistant'> {
-  return (entry): entry is EntryOf<'assistant'> =>
-    entry.kind === 'assistant' && entry.turn === turn && entry.step === step
-}
-
-/** Match a tool entry that has not reported a result yet. */
-function isRunningTool(entry: UiEntry): entry is EntryOf<'tool'> {
-  return entry.kind === 'tool' && entry.status === 'running'
 }
 
 /** Match any compaction entry. */
@@ -266,8 +255,8 @@ function onUserMessage(state: UiState, event: EventOf<'user/message'>): UiState 
   // a user-role message). Surface as a `runtime-context` row so
   // the user can see the model received context, without the chat
   // surface mislabeling it as a "you" message.
-  const plugin = msg.source.kind === 'plugin' ? msg.source.plugin : undefined
-  const form = msg.source.kind === 'plugin' ? msg.source.form : undefined
+  const plugin = msg.source.kind
+  const form = 'form' in msg.source ? msg.source.form : undefined
   // A skill invocation names itself in its source. Reading that is the whole
   // reason the source variant exists — the payload is a `<skill_content>`
   // block, so previewing it would show the user the markup instead of the
@@ -290,39 +279,13 @@ function onUserMessage(state: UiState, event: EventOf<'user/message'>): UiState 
   }
 }
 
-/** Stream one delta into the assistant entry for its `(turn, step)`. */
-function onAssistantChunk(state: UiState, event: EventOf<'assistant/chunk'>): UiState {
-  const { turn, step, chunk } = event.data
-  if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta') return state
-  const found = findLast(state.entries, assistantAt(turn, step))
-  if (found) {
-    const next: UiEntry = { ...found.entry, text: found.entry.text + chunk.text }
-    return { ...state, entries: replaceAt(state.entries, found.index, next) }
-  }
-  return {
-    ...state,
-    entries: append(state, { kind: 'assistant', turn, step, text: chunk.text, finalized: false }),
-  }
-}
-
 /** Seal the assistant entry for its `(turn, step)`, attaching usage if the event carried it. */
 function onAssistantMessage(state: UiState, event: EventOf<'assistant/message'>): UiState {
   const { turn, step, message, usage } = event.data
-  const found = findLast(state.entries, assistantAt(turn, step))
   const text = message.content
     .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
     .map(b => b.text)
     .join('')
-  if (found) {
-    const next: UiEntry = {
-      ...found.entry,
-      // An empty message keeps whatever the deltas already built.
-      text: text || found.entry.text,
-      finalized: true,
-      ...(usage ? { usage } : {}),
-    }
-    return { ...state, entries: replaceAt(state.entries, found.index, next) }
-  }
   return {
     ...state,
     entries: append(state, {
@@ -354,33 +317,27 @@ function onToolCall(state: UiState, event: EventOf<'tool/call'>): UiState {
 
 /** Close the tool entry this result belongs to. */
 function onToolResult(state: UiState, event: EventOf<'tool/result'>): UiState {
-  // `tool/result` does not carry its call id; the log ordering guarantees
-  // the result immediately follows its call, so the most recent running
-  // tool is the one this result closes.
-  const found = findLast(state.entries, isRunningTool)
-  if (!found) return state
+  const found = findLast(state.entries, toolWithCallId(event.data.message.toolCallId))
+  if (!found || found.entry.status !== 'running') return state
   const next: UiEntry = {
     ...found.entry,
     result: event.data.message,
     ...(event.data.error ? { error: event.data.error } : {}),
-    status: event.data.error ? 'error' : 'ok',
+    status: event.data.message.isError ? 'error' : 'ok',
   }
   return { ...state, entries: replaceAt(state.entries, found.index, next) }
 }
 
 /** Match the tool entry one Code Mode sub-dispatch was made from. */
-function toolWithCallId(callId: CallId): (entry: UiEntry) => entry is EntryOf<'tool'> {
+function toolWithCallId(callId: ToolCallId): (entry: UiEntry) => entry is EntryOf<'tool'> {
   return (entry): entry is EntryOf<'tool'> => entry.kind === 'tool' && entry.callId === callId
 }
 
 /**
  * Rewrite the sub-call list of the tool entry a code dispatch belongs to.
  *
- * The parent is found by `parentCallId` rather than by "the most recent running
- * tool", which is how `tool/result` finds its own. Both events carry the id
- * here, and a `run_code` program can dispatch into another one — the parent of
- * a sub-call may itself be a sub-call — so the newest running entry is not
- * reliably the right one.
+ * Nested dispatches preserve their immediate parent ID, but the transcript
+ * shows sub-calls under the top-level tool identified by rootCallId.
  *
  * A dispatch whose parent is not on screen is dropped rather than given an
  * entry of its own. That happens when the `run_code` call scrolled out of the
@@ -389,24 +346,24 @@ function toolWithCallId(callId: CallId): (entry: UiEntry) => entry is EntryOf<'t
  * saying a program is running would describe the wrong thing entirely: it would
  * read as a call the model made directly.
  * @param state - the state to update.
- * @param parentCallId - the `run_code` call the dispatch was made from.
+ * @param rootCallId - the `run_code` call the dispatch was made from.
  * @param update - rewrites the parent's sub-call list.
  */
 function withSubCalls(
   state: UiState,
-  parentCallId: CallId,
+  rootCallId: ToolCallId,
   update: (subCalls: readonly SubCall[]) => readonly SubCall[],
 ): UiState {
-  const found = findLast(state.entries, toolWithCallId(parentCallId))
+  const found = findLast(state.entries, toolWithCallId(rootCallId))
   if (!found) return state
   const next: UiEntry = { ...found.entry, subCalls: update(found.entry.subCalls ?? []) }
   return { ...state, entries: replaceAt(state.entries, found.index, next) }
 }
 
 /** Open a sub-call row under the `run_code` that dispatched it. */
-function onCodeDispatchStart(state: UiState, event: EventOf<'tool/code-dispatch-start'>): UiState {
-  const { parentCallId, subCallId, name } = event.data
-  return withSubCalls(state, parentCallId, subCalls => [
+function onCodeDispatchStart(state: UiState, event: EventOf<'tool/ptc-dispatch-start'>): UiState {
+  const { rootCallId, subCallId, name } = event.data
+  return withSubCalls(state, rootCallId, subCalls => [
     ...subCalls,
     { subCallId, name, args: normalizeArgs(event.data.arguments), status: 'running' },
   ])
@@ -423,11 +380,11 @@ function onCodeDispatchStart(state: UiState, event: EventOf<'tool/code-dispatch-
  * a lone result describes nothing, a sub-call's settlement carries the tool's
  * name, its arguments and its whole outcome.
  */
-function onCodeDispatch(state: UiState, event: EventOf<'tool/code-dispatch'>): UiState {
-  const { parentCallId, subCallId, name, isError, content } = event.data
+function onCodeDispatch(state: UiState, event: EventOf<'tool/ptc-dispatch'>): UiState {
+  const { rootCallId, subCallId, name, isError, content } = event.data
   const status: ToolStatus = isError ? 'error' : 'ok'
   const args = normalizeArgs(event.data.arguments)
-  return withSubCalls(state, parentCallId, (subCalls) => {
+  return withSubCalls(state, rootCallId, (subCalls) => {
     const index = subCalls.findIndex(c => c.subCallId === subCallId && c.status === 'running')
     const settled: SubCall = { subCallId, name, args, content, status }
     if (index < 0) return [...subCalls, settled]
@@ -748,9 +705,6 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
     case 'user/message':
       return onUserMessage(state, event)
 
-    case 'assistant/chunk':
-      return onAssistantChunk(state, event)
-
     case 'assistant/message':
       return onAssistantMessage(state, event)
 
@@ -760,10 +714,10 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
     case 'tool/result':
       return onToolResult(state, event)
 
-    case 'tool/code-dispatch-start':
+    case 'tool/ptc-dispatch-start':
       return onCodeDispatchStart(state, event)
 
-    case 'tool/code-dispatch':
+    case 'tool/ptc-dispatch':
       return onCodeDispatch(state, event)
 
     case 'compaction/start':
@@ -781,7 +735,7 @@ export function reduce(state: UiState, event: SessionEvent): UiState {
     case 'plan/mode':
       return {
         ...state,
-        entries: append(state, { kind: 'plan', enabled: event.data.enabled, at: event.seq }),
+        entries: append(state, { kind: 'plan', enabled: event.data.active, at: event.seq }),
       }
 
     case 'todo/write':

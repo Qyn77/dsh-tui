@@ -19,6 +19,11 @@ import { isAbsolute, resolve } from 'node:path'
  * the shell row is already on screen with the same text.
  */
 export const SHELL_SOURCE_PLUGIN = 'dsh-tui'
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'dsh-tui': { kind: 'dsh-tui'; form: 'notice'; summary: string }
+  }
+}
 
 /** Default wall-clock budget for one `!` command. */
 export const SHELL_TIMEOUT_MS = 120_000

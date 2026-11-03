@@ -9,6 +9,8 @@
  * @module @qiao-qyn/dsh-tui/tests/streaming-markdown.spec
  */
 
+import { LlmAttemptId } from '@deepseek-ai/dsh-llm'
+import type { Agent, AssistantStreamFrame } from '@deepseek-ai/dsh-agent'
 import { afterEach, describe, expect, it } from 'vitest'
 import { paintApp, type Painted } from './fake-tty.ts'
 
@@ -80,6 +82,29 @@ describe('streaming markdown', () => {
     expect(screen).toContain('The fix landed')
     // One assistant entry, not three: the deltas share a (turn, step).
     expect(screen.match(/assistant/g)).toHaveLength(1)
+  })
+
+  it('discards abandoned text and ignores delayed chunks from an earlier attempt', async () => {
+    const app = painted = await paintApp({ rows: 40 })
+    const send = async (frame: AssistantStreamFrame): Promise<void> => {
+      app.ctx.emit('agent/assistant-stream', { agent: app.agent as Agent, frame })
+      await app.settle()
+    }
+    const first = LlmAttemptId('first')
+    const retry = LlmAttemptId('retry')
+    await send({ type: 'start', revision: 1, attemptId: first, turn: 1, step: 1 })
+    await send({ type: 'chunk', revision: 2, attemptId: first, index: 0, time: 0,
+      chunk: { type: 'text-delta', index: 0, text: 'discard me' } })
+    expect(app.screen()).toContain('discard me')
+    await send({ type: 'end', revision: 3, attemptId: first, index: 1, outcome: { kind: 'abandoned' } })
+    await send({ type: 'start', revision: 4, attemptId: retry, turn: 1, step: 1 })
+    await send({ type: 'chunk', revision: 2, attemptId: first, index: 0, time: 0,
+      chunk: { type: 'text-delta', index: 0, text: 'discard me' } })
+    await send({ type: 'chunk', revision: 5, attemptId: retry, index: 0, time: 1,
+      chunk: { type: 'text-delta', index: 0, text: 'kept answer' } })
+    await app.finalize('kept answer')
+    expect(app.screen()).not.toContain('discard me')
+    expect(app.screen().match(/kept answer/g)).toHaveLength(1)
   })
 
   it('keeps a row for a turn that has announced itself with no text yet', async () => {

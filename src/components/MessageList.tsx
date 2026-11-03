@@ -260,7 +260,7 @@ function ToolCall({ entry, maxLines, width }: {
       </Text>
       {entry.subCalls?.map(sub => (
         // Keyed by the sub-call id, which the emitter numbers deterministically
-        // (`<parent>:code:<n>`) — unlike a preview's lines, these rows do have a
+        // (`<parent>:ptc:<n>`) — unlike a preview's lines, these rows do have a
         // stable identity, and a running one is rewritten in place when it
         // settles.
         <SubCallRow key={sub.subCallId} sub={sub} width={width - GUTTER_WIDTH} />

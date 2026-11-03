@@ -7,7 +7,7 @@
  * is readable in one place instead of split across a module for one `await`.
  *
  * **Why a line cache and not a memo on the block's text.** A code block is
- * re-rendered on every `assistant/chunk` event while the model is writing it
+ * re-rendered on every `agent/assistant-stream` delta while the model is writing it
  * (§1.9), and Shiki's cost is proportional to what it is handed: measured on
  * this machine, one line is 0.11ms and a 200-line block is 15ms. Re-highlighting
  * the whole block per delta therefore degrades exactly where an agent is most

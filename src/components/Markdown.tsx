@@ -33,7 +33,7 @@ export interface MarkdownProps {
  * Render a markdown string as Ink nodes.
  *
  * The AST is memoized on the source. Every mounted entry re-renders on every
- * `assistant/chunk` event, so without this an unchanged turn from ten minutes
+ * `agent/assistant-stream` delta, so without this an unchanged turn from ten minutes
  * ago is re-lexed a few thousand times over the course of the next answer —
  * and once streaming turns render as markdown too (§1.9), the growing text is
  * re-lexed from the top on every delta besides. A single parse is cheap (0.4ms

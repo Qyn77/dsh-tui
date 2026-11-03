@@ -48,7 +48,7 @@ function settle(
 
 /** The projected hook rows, in order. */
 function hookRows(session: Session): HookEntry[] {
-  return replay(session.events).entries.filter((e): e is HookEntry => e.kind === 'hook')
+  return replay(session.snapshotEvents()).entries.filter((e): e is HookEntry => e.kind === 'hook')
 }
 
 describe('hook run projection', () => {
@@ -218,7 +218,7 @@ describe('the renderable filter', () => {
     session.append('turn/start', { turn: 1 })
     invoke(session, 'h1')
     settle(session, 'h1', 'pass')
-    const types = session.events.filter(isRenderable).map(e => e.type)
+    const types = session.snapshotEvents().filter(isRenderable).map(e => e.type)
     expect(types).toContain('hook/invoked')
     expect(types).toContain('hook/result')
   })

@@ -375,6 +375,7 @@ export interface Catalog {
     /** `/resume` after the switch, naming the session now on screen. */
     resumeSwitched: (id: string) => string
     /** `/resume` after the switch, when the resumed history is not drawn. */
+    historyReadFailed: string
     resumeSwitchedHidden: (id: string) => string
     /** `/resume` aimed at the session already on screen. */
     resumeCurrent: (id: string) => string
@@ -718,6 +719,7 @@ const EN: Catalog = {
     resumeUsage: 'Usage: /resume <id>, or /resume last for the newest. Run /sessions for the ids.',
     skillUsage: 'Usage: type /skill followed by a space to pick from the list, or /skill <name> [args] to run one. Typing /<name> directly works too.',
     resumeSwitched: id => `Resumed ${id}. The session you left is still stored — /sessions lists it.`,
+    historyReadFailed: 'Could not read the stored transcript. Live messages will still appear.',
     resumeSwitchedHidden: id => `Resumed ${id}, history hidden — the model still reads it. /history show draws it. The session you left is still stored — /sessions lists it.`,
     resumeCurrent: id => `Already in ${id} — nothing to switch to.`,
     resumeBusy: 'A turn is still running. Cancel it with Ctrl-C first — switching now would put its output out of reach.',
@@ -996,6 +998,7 @@ const ZH: Catalog = {
     resumeUsage: '用法：/resume <id>，或者 /resume last 接上最新的那个。id 用 /sessions 看。',
     skillUsage: '用法：输入 /skill 加空格，从列表里挑选；也可以用 /skill <名称> [参数] 直接运行。直接打 /<名称> 同样可以。',
     resumeSwitched: id => `已经接上 ${id}。你刚才那个 session 还存着——/sessions 里能看到。`,
+    historyReadFailed: '读取历史消息失败，仍可查看本次会话的新消息。',
     resumeSwitchedHidden: id => `已经接上 ${id}，历史没有画出来——模型还是读得到的。/history show 可以画出来。你刚才那个 session 还存着——/sessions 里能看到。`,
     resumeCurrent: id => `已经在 ${id} 里了——没什么可切的。`,
     resumeBusy: '还有一轮在跑。先按 Ctrl-C 取消——现在切走的话，那一轮的输出就够不着了。',

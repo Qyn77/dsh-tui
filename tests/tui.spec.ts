@@ -36,7 +36,7 @@ describe('ui type helpers', () => {
   it('marks the events the TUI cares about as renderable', () => {
     const renderableTypes = [
       'turn/start', 'turn/end', 'step/start', 'step/end',
-      'user/message', 'assistant/chunk', 'assistant/message',
+      'user/message', 'assistant/attempt', 'assistant/message',
       'tool/call', 'tool/result',
       'compaction/start', 'compaction/end', 'compaction/summary', 'compaction/prune',
       'plan/mode', 'agent/inbox/spliced',

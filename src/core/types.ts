@@ -7,14 +7,15 @@
 
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {
-  CallId,
+  ToolCallId,
   ContentBlock,
   TokenUsage,
   ToolResultMessage,
   UserMessage,
 } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent, TodoItem, TurnEndReason } from '@deepseek-ai/dsh-session'
-// Type-only, for the `tool/code-dispatch*` declarations this file's reducer
+import type { TodoItem } from '@deepseek-ai/dsh-tool-todo'
+import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
+// Type-only, for the `tool/ptc-dispatch*` declarations this file's reducer
 // projects. `@deepseek-ai/dsh-tools` augments `SessionEventMap` with them, so
 // the import is what puts those two event types in the program at all — unlike
 // `compaction/*`, `plan/mode` and `hook/*` below, this vocabulary belongs to a
@@ -69,7 +70,7 @@ declare module '@deepseek-ai/dsh-session/types' {
     'compaction/summary': { tokensBefore: number; tokensAfter: number }
     'compaction/prune': { removedSeqs: readonly number[] }
     'compaction/end': { ok: boolean }
-    'plan/mode': { enabled: boolean }
+    'plan/mode': { active: boolean }
     'hook/invoked': {
       turn: number
       point: string
@@ -114,7 +115,7 @@ export type ToolStatus = 'running' | 'ok' | 'error' | 'cancelled'
  * One tool call a `run_code` program dispatched from inside itself.
  *
  * Code Mode runs the model's program in a worker and bridges each tool it calls
- * back through the session as a `tool/code-dispatch-start` / `tool/code-dispatch`
+ * back through the session as a `tool/ptc-dispatch-start` / `tool/ptc-dispatch`
  * pair. Those are log-only — `deriveMessages()` ignores them, so a sub-call
  * never re-enters model context — which means the transcript is the *only*
  * place they can ever be seen. Without them a `run_code` entry is a single
@@ -130,8 +131,8 @@ export type ToolStatus = 'running' | 'ok' | 'error' | 'cancelled'
  * one running tool, exactly as the log says it is.
  */
 export interface SubCall {
-  /** `<parent>:code:<n>` — pairs the start event with its settlement. */
-  subCallId: CallId
+  /** `<parent>:ptc:<n>` — pairs the start event with its settlement. */
+  subCallId: ToolCallId
   /** The tool's registered name, rendered through the same `parseToolName` an MCP call is. */
   name: string
   /** The dispatched arguments, JSON-normalized before dispatch by the emitter. */
@@ -178,7 +179,7 @@ export type UiEntry =
   }
   | {
     kind: 'tool'
-    callId: CallId
+    callId: ToolCallId
     name: string
     args: string
     turn: number
@@ -254,7 +255,7 @@ export type UiEntry =
     /** The tool the question was about. */
     toolName: string
     /** The exact call, when the asker had one — what the card resolved arguments through. */
-    callId?: CallId
+    callId?: ToolCallId
     /** The asker's own explanation, e.g. a hook's permission-decision reason. */
     reason?: string
     /**
@@ -545,12 +546,12 @@ export function isRenderable(event: SessionEvent): boolean {
     case 'step/start':
     case 'step/end':
     case 'user/message':
-    case 'assistant/chunk':
+    case 'assistant/attempt':
     case 'assistant/message':
     case 'tool/call':
     case 'tool/result':
-    case 'tool/code-dispatch-start':
-    case 'tool/code-dispatch':
+    case 'tool/ptc-dispatch-start':
+    case 'tool/ptc-dispatch':
     case 'compaction/start':
     case 'compaction/end':
     case 'compaction/summary':

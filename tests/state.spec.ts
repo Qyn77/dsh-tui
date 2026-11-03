@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Session } from '@deepseek-ai/dsh-session'
+import { Session, SessionSeq } from '@deepseek-ai/dsh-session'
 import {
   createAssistantMessage,
   createToolResultMessage,
@@ -25,6 +25,7 @@ function appendTurn(session: Session, turn: number, completed: boolean): void {
   session.append('step/start', { turn, step: 1 })
   session.append('user/message', user, { surfaceOp: 'append' })
   session.append('assistant/message', {
+      stream: [],
     turn,
     step: 1,
     message: createAssistantMessage({
@@ -49,41 +50,13 @@ describe('tui state reducer', () => {
   it('appends a user message and finalizes a turn with assistant text', () => {
     const session = makeSession()
     appendTurn(session, 1, true)
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
     expect(state.status).toBe('idle')
     expect(state.entries).toHaveLength(2)
     expect(state.entries[0]).toMatchObject({ kind: 'user' })
     const assistant = state.entries[1] as Extract<(typeof state.entries)[number], { kind: 'assistant' }>
     expect(assistant.text).toBe('hello')
     expect(assistant.finalized).toBe(true)
-  })
-
-  it('accumulates text-delta chunks into one assistant entry, then finalizes via assistant/message', () => {
-    const session = makeSession()
-    session.append('turn/start', { turn: 1 })
-    session.append('step/start', { turn: 1, step: 1 })
-    session.append('user/message', createUserMessage({
-      content: [{ type: 'text', text: 'q' }],
-      source: { kind: 'user' },
-    }), { surfaceOp: 'append' })
-    for (const text of ['Hel', 'lo, ', 'world']) {
-      session.append('assistant/chunk', {
-        turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text },
-      })
-    }
-    session.append('assistant/message', {
-      turn: 1, step: 1,
-      message: createAssistantMessage({
-        content: [{ type: 'text', text: 'Hello, world' }],
-        source: { provider: 'p', model: 'm' },
-      }),
-    }, { surfaceOp: 'append' })
-    const state = replay(session.events)
-    const assistants = state.entries.filter(e => e.kind === 'assistant')
-    expect(assistants).toHaveLength(1)
-    const a = assistants[0]
-    expect(a.text).toBe('Hello, world')
-    expect(a.finalized).toBe(true)
   })
 
   it('records a tool call and resolves it with the next result, using the running tail', () => {
@@ -99,7 +72,7 @@ describe('tui state reducer', () => {
         callId: 'c1' as never, content: [{ type: 'text', text: 'a.txt' }], isError: false,
       }),
     }, { surfaceOp: 'append' })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
     const tools = state.entries.filter(e => e.kind === 'tool')
     expect(tools).toHaveLength(1)
     expect(tools[0]).toMatchObject({ kind: 'tool', status: 'ok', name: 'bash' })
@@ -119,14 +92,14 @@ describe('tui state reducer', () => {
       }),
       error: { name: 'BashError', code: 'EXIT_NONZERO' },
     }, { surfaceOp: 'append' })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
     expect((state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'tool' }>).status).toBe('error')
   })
 
   it('appends a turn-ended note for non-completed reasons', () => {
     const session = makeSession()
     appendTurn(session, 1, false)
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
     const note = state.entries.find(e => e.kind === 'note')
     expect(note).toBeDefined()
     expect((note as Extract<(typeof state.entries)[number], { kind: 'note' }>).text).toMatch(/aborted/)
@@ -147,7 +120,7 @@ describe('tui state reducer', () => {
         callId: 'c1' as never, name: 'bash', arguments: 'sleep 100', turn: 1, step: 1,
       })
       session.append('turn/end', { turn: 1, reason } as never)
-      return replay(session.events)
+      return replay(session.snapshotEvents())
     }
 
     function toolStatus(state: ReturnType<typeof replay>): string {
@@ -230,9 +203,9 @@ describe('tui state reducer', () => {
     // and a user who wants the transcript to start at the live work says so
     // with `/history off` — that is a view preference, not a log event.
     const events = [
-      { type: 'user/message' as const, seq: 0, time: 0, data: createUserMessage({ content: [{ type: 'text', text: 'old' }], source: { kind: 'user' } }), surfaceOp: 'append' as const },
-      { type: 'session/end-seed' as const, seq: 1, time: 0, data: {} },
-      { type: 'user/message' as const, seq: 2, time: 0, data: createUserMessage({ content: [{ type: 'text', text: 'new' }], source: { kind: 'user' } }), surfaceOp: 'append' as const },
+      { type: 'user/message' as const, seq: SessionSeq(0), time: 0, data: createUserMessage({ content: [{ type: 'text', text: 'old' }], source: { kind: 'user' } }), surfaceOp: 'append' as const },
+      { type: 'session/end-seed' as const, seq: SessionSeq(1), time: 0, data: {} },
+      { type: 'user/message' as const, seq: SessionSeq(2), time: 0, data: createUserMessage({ content: [{ type: 'text', text: 'new' }], source: { kind: 'user' } }), surfaceOp: 'append' as const },
     ]
     const state = replay(events)
     // Both messages survive: the marker projects nothing, not even an erasure.
@@ -250,7 +223,7 @@ describe('tui state reducer', () => {
       start: 0,
       inserted: [],
     })
-    expect(() => reduce(initialState(), session.events.find(e => e.type === 'agent/inbox/spliced')!)).not.toThrow()
+    expect(() => reduce(initialState(), session.snapshotEvents().find(e => e.type === 'agent/inbox/spliced')!)).not.toThrow()
   })
 
   it('tracks a compaction lifecycle in one entry, advancing through summary and end', () => {
@@ -259,9 +232,9 @@ describe('tui state reducer', () => {
     // pulls them in here. We build the events directly so the test does
     // not depend on that plugin's load.
     const events = [
-      { type: 'compaction/start' as const, seq: 0, time: 0, data: { trigger: 'auto' as const } },
-      { type: 'compaction/summary' as const, seq: 1, time: 0, data: { tokensBefore: 100, tokensAfter: 40 } },
-      { type: 'compaction/end' as const, seq: 2, time: 0, data: { ok: true } },
+      { type: 'compaction/start' as const, seq: SessionSeq(0), time: 0, data: { trigger: 'auto' as const } },
+      { type: 'compaction/summary' as const, seq: SessionSeq(1), time: 0, data: { tokensBefore: 100, tokensAfter: 40 } },
+      { type: 'compaction/end' as const, seq: SessionSeq(2), time: 0, data: { ok: true } },
     ] as never
     const state = replay(events)
     expect(state.entries).toHaveLength(1)
@@ -281,9 +254,9 @@ describe('tui state reducer', () => {
     }), { surfaceOp: 'append' })
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: '<system-reminder>workspace state…</system-reminder>' }],
-      source: { kind: 'plugin', plugin: 'agent-instructions', form: 'instructions' },
+      source: { kind: 'agent-instructions', form: 'instructions' } as never,
     }), { surfaceOp: 'append' })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
     expect(state.entries).toHaveLength(2)
     expect(state.entries[0]).toMatchObject({ kind: 'user' })
     expect(state.entries[1]).toMatchObject({
@@ -300,9 +273,9 @@ describe('tui state reducer', () => {
     const session = makeSession()
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: long }],
-      source: { kind: 'plugin', plugin: 'big-payload', form: 'catalog' },
+      source: { kind: 'big-payload', form: 'catalog' } as never,
     }), { surfaceOp: 'append' })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
     const rc = state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'runtime-context' }>
     // 80-char cap, ellipsized on overflow.
     expect(rc.preview.length).toBe(80)
@@ -316,9 +289,9 @@ describe('tui state reducer', () => {
     const session = makeSession()
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'synthetic' }],
-      source: { kind: 'plugin', plugin: 'mystery' },
+      source: { kind: 'mystery' } as never,
     }), { surfaceOp: 'append' })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
     const rc = state.entries[0] as Extract<(typeof state.entries)[number], { kind: 'runtime-context' }>
     expect(rc.plugin).toBe('mystery')
     expect(rc.form).toBeUndefined()
@@ -333,13 +306,13 @@ describe('plan mode', () => {
   // no upstream type to catch a drift for us.
   it('projects a switch into the transcript, keeping the sequence number', () => {
     const session = makeSession()
-    session.append('plan/mode', { enabled: true })
-    const state = replay(session.events)
+    session.append('plan/mode', { active: true })
+    const state = replay(session.snapshotEvents())
 
     // `at` carries the seq so the entry sorts with everything around it; a
     // constant would pile every switch at one position in the list.
     expect(state.entries).toEqual([
-      { kind: 'plan', enabled: true, at: session.events[0]?.seq },
+      { kind: 'plan', enabled: true, at: session.snapshotEvents()[0]?.seq },
     ])
   })
 
@@ -347,9 +320,9 @@ describe('plan mode', () => {
     // Both edges are part of the account: a transcript that showed only the
     // switch on would read as though everything after it was still read-only.
     const session = makeSession()
-    session.append('plan/mode', { enabled: true })
-    session.append('plan/mode', { enabled: false })
-    const state = replay(session.events)
+    session.append('plan/mode', { active: true })
+    session.append('plan/mode', { active: false })
+    const state = replay(session.snapshotEvents())
 
     expect(state.entries.map(e => e.kind === 'plan' && e.enabled)).toEqual([true, false])
   })
@@ -359,8 +332,8 @@ describe('plan mode', () => {
     // conversation. Touching `currentTurn` would make the StatusBar lie.
     const session = makeSession()
     appendTurn(session, 1, true)
-    session.append('plan/mode', { enabled: true })
-    const state = replay(session.events)
+    session.append('plan/mode', { active: true })
+    const state = replay(session.snapshotEvents())
 
     expect(state.currentTurn).toBe(1)
     expect(state.status).toBe('idle')
@@ -379,7 +352,7 @@ describe('isRuntimeContext', () => {
   it('returns true for a plugin-source user message (any form)', () => {
     const msg = createUserMessage({
       content: [{ type: 'text', text: 'injected' }],
-      source: { kind: 'plugin', plugin: 'p', form: 'instructions' },
+      source: { kind: 'p', form: 'instructions' } as never,
     })
     expect(isRuntimeContext(msg)).toBe(true)
   })
@@ -405,7 +378,7 @@ describe('todo list', () => {
     // is merged and nothing is derived from the previous write.
     const session = makeSession()
     session.append('todo/write', { todos: todos(['read the spec', 'in_progress']) })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
 
     expect(state.entries).toEqual([
       { kind: 'todo', todos: [{ content: 'read the spec', status: 'in_progress' }] },
@@ -419,7 +392,7 @@ describe('todo list', () => {
     session.append('todo/write', { todos: todos(['a', 'pending'], ['b', 'pending']) })
     session.append('todo/write', { todos: todos(['a', 'completed'], ['b', 'in_progress']) })
     session.append('todo/write', { todos: todos(['a', 'completed'], ['b', 'completed']) })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
 
     expect(state.entries).toHaveLength(1)
     expect(state.entries[0]).toEqual({
@@ -436,7 +409,7 @@ describe('todo list', () => {
     session.append('todo/write', { todos: todos(['a', 'pending']) })
     appendTurn(session, 1, true)
     session.append('todo/write', { todos: todos(['a', 'completed']) })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
 
     const kinds = state.entries.map(e => e.kind)
     expect(kinds.filter(k => k === 'todo')).toHaveLength(2)
@@ -449,7 +422,7 @@ describe('todo list', () => {
     // emptied, not that it never existed.
     const session = makeSession()
     session.append('todo/write', { todos: [] })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
 
     expect(state.entries).toEqual([{ kind: 'todo', todos: [] }])
   })
@@ -458,7 +431,7 @@ describe('todo list', () => {
     const session = makeSession()
     appendTurn(session, 1, true)
     session.append('todo/write', { todos: todos(['a', 'pending']) })
-    const state = replay(session.events)
+    const state = replay(session.snapshotEvents())
 
     expect(state.currentTurn).toBe(1)
     expect(state.status).toBe('idle')

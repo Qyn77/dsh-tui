@@ -363,19 +363,18 @@ export function toolResultPreview(
 }
 
 /**
- * Concatenate the text a result's blocks carry, one nesting level deep.
+ * Concatenate text blocks from the rc.5 tool-role result.
  *
  * Only text blocks say anything a terminal can show; other block types are
  * dropped rather than described, because a placeholder like `[image]` costs a
  * row without telling the user more than the tool's name already did.
- * @param blocks - content blocks from a result message or a `tool-result` block.
+ * @param blocks - content blocks from a result message.
  * @returns the concatenated text, possibly empty.
  */
 function resultText(blocks: readonly ContentBlock[]): string {
   let text = ''
   for (const block of blocks) {
     if (block.type === 'text') text += block.text
-    else if (block.type === 'tool-result') text += resultText(block.content)
   }
   return text
 }

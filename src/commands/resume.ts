@@ -5,7 +5,7 @@
  * already has `resume({ resumeSessionId })`, which loads the log through
  * `SessionPersistence`, durably closes an interrupted final turn, and publishes
  * the reconstructed session — and `useSessionEvents` already seeds the view from
- * `agent.session.events`, so a resumed transcript draws itself. What was missing
+ * a bounded read of the persisted prefix, so a resumed transcript draws itself. What was missing
  * is only the decision of *which* id, and what to do when the answer is nothing.
  *
  * That decision is separated out because every one of its failure paths is a
