@@ -1145,6 +1145,35 @@ Recorded from user acceptance screenshots on 2026-11-04 at **120 columns × 31 r
 
 Acceptance requires checking the actual accumulated terminal screen, including opening, filtering, navigating and closing the menu, plus resizing. Full width means the usable layout width after the terminal safety margin. No row may wrap beyond the terminal edge or leave stale borders.
 
+### Approved product direction · usability and workflow extensions
+
+The user endorsed the following directions on **2026-11-04**. They are pending work, with no release dates assigned. Implementation starts with the width and terminal-specific scrolling issues above, then improves navigation and inspection before adding broader workflow capabilities. This section is the live backlog; historical milestone descriptions record what shipped at the time.
+
+#### UI refinement after the reported layout fixes
+
+- [ ] **Compact welcome area.** Aim for 3–5 lines in the default view, retaining a small whale, model and working directory. Avoid large height changes when opening the command menu.
+- [ ] **Consistent visual hierarchy and spacing.** Give the input a clear primary role, reduce competing banner/menu borders, and keep menus close to the input with consistent gaps. Coordinate this with the approved full-width behavior.
+- [ ] **Readable secondary text.** Improve prompt placeholders, command descriptions and keyboard hints across light and dark terminal themes. Avoid combining gray and dim styling where the information must remain readable.
+- [ ] **Concise command discovery.** Use short descriptions in picker rows, present detailed syntax on demand, and make selected rows clear without an excessively dominant highlight. Improve built-in bilingual copy while retaining plugin-provided descriptions as supplied.
+- [ ] **Quiet diagnostics.** Route routine background discovery information to an appropriate diagnostic channel rather than leaving it in the main conversation. Present actionable errors concisely. Preserve Ink's ownership of any terminal output.
+
+#### Functional priorities
+
+| Priority | Direction | Intended outcome and prerequisite |
+| --- | --- | --- |
+| High | Conversation search and navigation | Find keywords and jump to user messages, tool calls and errors in long conversations. Build on reliable transcript scrolling. |
+| High | Session management | Add a searchable session picker with titles, directories and last-activity information where available, building on `/sessions` and `/resume`. Verify persistence metadata support before designing updates. |
+| High | File-change previews | Show changed paths and line additions/deletions, including a diff at edit approval when the runtime exposes the proposed change. Verify tool and approval payloads before committing to coverage. |
+| High | Per-entry inspection and copying | Select a message or tool result, inspect its complete available content and copy it independently. First design keyboard focus/selection, scroll anchoring and key ownership. Preserve existing `/verbose` and `/copy` workflows. |
+| Medium | Attachment preview before sending | Show image names, counts and sizes, with removal before submission. Build on the existing image-path attachment flow. |
+| Medium | Failure recovery | Preserve drafts and offer a clear retry path for failed model requests. Show which tools already ran and respect runtime retry semantics so recovery does not repeat completed side effects. |
+| Medium | Conversation export | Export a whole session or selected content as Markdown for handoff and feedback. Selection export depends on the entry-selection design. |
+| Later | Conversation branches | Continue from an earlier turn while preserving the original path. Verify dsh session/fork semantics and tool-side-effect boundaries first. |
+
+**Decision update for per-entry actions.** Earlier sections and the historical roadmap rejected per-entry expansion because the TUI had no focus/selection model. The user's approval now makes that model and those actions a future product direction. Existing global expansion remains the current implementation. Revise the relevant interaction and reducer contracts when the new selection design is ready.
+
+Recommended sequence is layout/scroll correctness, visual refinement, search/session navigation, then diff and per-entry inspection. Attachment preview, recovery and export follow; session branches require a separate runtime feasibility check. Each implementation phase updates its matching behavior documentation and validates the actual user flow.
+
 ## Part 3 · Conventions
 
 Rules contributors must follow. Breaking any of them needs a PR that updates this file in the same diff.
