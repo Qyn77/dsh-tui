@@ -1133,6 +1133,15 @@ Still open: nothing — v0.3 is complete.
 
 ---
 
+### UI refinement backlog · width alignment
+
+Recorded from user acceptance screenshots on 2026-11-04 at **120 columns × 31 rows**. Both items are pending implementation. The user requested recording these issues first.
+
+- [ ] **User-message frames should fill the available transcript width.** Short messages currently appear in a small content-sized box, leaving most of the row empty and making their right edge inconsistent with the input frame. Stretch the message frame across its available content column, preserving the existing `>` gutter, padding, and terminal safety margin. Verify short Chinese and English messages, multiline text, and image attachments. Keep row measurement and scrolling consistent with the rendered frame.
+- [ ] **The slash-command menu should fill the available prompt width.** The menu currently ends around the longest visible description, leaving a large unused area to its right. Align its outer left and right borders with the input frame and keep this width stable as filtering and selection change. Check selected-row highlighting, description truncation, the footer, and narrower terminals. Apply the same width policy to the shared picker family where it uses this menu component.
+
+Acceptance requires checking the actual accumulated terminal screen, including opening, filtering, navigating and closing the menu, plus resizing. Full width means the usable layout width after the terminal safety margin. No row may wrap beyond the terminal edge or leave stale borders.
+
 ## Part 3 · Conventions
 
 Rules contributors must follow. Breaking any of them needs a PR that updates this file in the same diff.
