@@ -1149,9 +1149,9 @@ Acceptance requires checking the actual accumulated terminal screen, including o
 
 The user endorsed the following directions on **2026-11-04**. They are pending work, with no release dates assigned. Implementation starts with the width and terminal-specific scrolling issues above, then improves navigation and inspection before adding broader workflow capabilities. This section is the live backlog; historical milestone descriptions record what shipped at the time.
 
-#### UI refinement after the reported layout fixes
+#### Optional visual refinement after functional work
 
-- [ ] **Compact welcome area.** Aim for 3–5 lines in the default view, retaining a small whale, model and working directory. Avoid large height changes when opening the command menu.
+- [ ] **Polish the existing responsive welcome states.** The user explicitly approved keeping all three visible states on 2026-11-04: the full whale-and-wordmark banner, the wordmark-only banner for narrower windows, and the compact banner when height is limited. This supersedes the earlier suggestion to replace the default with a 3–5-line welcome area. Preserve the responsive states and brand artwork while considering improvements to spacing, alignment, color and typography. Keep input access and resize stability intact.
 - [ ] **Consistent visual hierarchy and spacing.** Give the input a clear primary role, reduce competing banner/menu borders, and keep menus close to the input with consistent gaps. Coordinate this with the approved full-width behavior.
 - [ ] **Readable secondary text.** Improve prompt placeholders, command descriptions and keyboard hints across light and dark terminal themes. Avoid combining gray and dim styling where the information must remain readable.
 - [ ] **Concise command discovery.** Use short descriptions in picker rows, present detailed syntax on demand, and make selected rows clear without an excessively dominant highlight. Improve built-in bilingual copy while retaining plugin-provided descriptions as supplied.
@@ -1184,7 +1184,9 @@ The user requested a Codex-like activity summary on 2026-11-04. The intended uni
 - **Non-success endings:** make failed, cancelled and interrupted outcomes explicit in the summary. Keep unresolved failures or approval requests visible. When there is no final answer, show the actual outcome rather than inventing a completed result.
 - **Data and geometry:** collapsing changes presentation only. Preserve recorded activity for expansion, inspection and export. Update row measurement and scroll anchoring together so automatic collapse does not move the input or displace a user reading earlier history. Cover live completion, manual expansion, resumed sessions, nested activity and window resizing.
 
-Recommended sequence is layout/scroll correctness, visual refinement including task activity groups, search/session navigation, then diff and per-entry inspection. Attachment preview, recovery and export follow; session branches require a separate runtime feasibility check. Each implementation phase updates its matching behavior documentation and validates the actual user flow.
+**Priority clarification from the user, 2026-11-04:** functional completeness and reliable interaction come first. Cosmetic polish is optional and may be deferred. The current appearance feels rigid to the user; Codex and other comfortable interfaces are references for refinement, while the three approved responsive welcome states remain part of this product.
+
+Recommended sequence is layout/scroll correctness, task activity grouping and timing, search/session navigation, then diff and per-entry inspection. Attachment preview, recovery and export follow; session branches require a separate runtime feasibility check. Schedule optional visual polish around functional work without making it a prerequisite. Each implementation phase updates its matching behavior documentation and validates the actual user flow.
 
 ## Part 3 · Conventions
 
