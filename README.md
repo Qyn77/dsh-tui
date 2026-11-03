@@ -18,7 +18,7 @@ A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepse
 │                                █  █ █  █ █ █  █  █ █       █    █       │
 │        探索未至之境！           █  █ █  █ █  █ █  █ ████ ████ ████       │
 │                                                                          │
-│  tui-01e62198 · v0.1.0-rc.8       deepseek-official/deepseek-v4-flash   │
+│  tui-01e62198 · v0.2.1-rc.5       deepseek-official/deepseek-v4-flash   │
 │  ~/Desktop/dsh-tui (main*)           Tip: /help · /status · Tab completes │
 ╰──────────────────────────────────────────────────────────────────────────╯
 
@@ -33,16 +33,16 @@ Needs Node ≥ 22.19, a real TTY (iTerm / Terminal.app / Windows Terminal + Powe
 
 This package is published on npm as **`@qiao-qyn/dsh-tui`** (it is *not* in the `@deepseek-ai` scope). It is a bundle for `dsh`, so: install the launcher once, then mount the bundle into a profile.
 
+Build the tarball from this branch with `pnpm install --frozen-lockfile && pnpm run build && npm pack`. Substitute its absolute path below.
+
 ```sh
 # 1. the launcher (once per machine)
-npm install -g @deepseek-ai/dsh
+npm install -g @deepseek-ai/dsh@0.2.1-rc.5
 
 # 2. a profile that mounts this bundle
 mkdir -p ~/.dsh/profiles/tui && cd ~/.dsh/profiles/tui
 npm init -y
-# @next pins dsh-base to the same 0.1.0-rc.x line as this bundle — `latest`
-# still points at the abandoned 0.0.1-rc.1.
-npm install @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
+npm install @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
 echo '[]' > cordis.yml
 
 # 3. register the bundles. `npm install` only fills node_modules; the launcher
@@ -60,12 +60,12 @@ dsh --profile tui
 **Windows (PowerShell 7 + Windows Terminal):**
 
 ```powershell
-npm install -g @deepseek-ai/dsh
+npm install -g @deepseek-ai/dsh@0.2.1-rc.5
 $p = "$env:USERPROFILE\.dsh\profiles\tui"
 New-Item -ItemType Directory -Force -Path $p | Out-Null
 Set-Location $p
 npm init -y
-npm install @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
+npm install @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
 Set-Content cordis.yml "[]"
 dsh plugin --profile tui install
 Set-Content "$env:USERPROFILE\.dsh\.env" "DEEPSEEK_API_KEY=sk-..."

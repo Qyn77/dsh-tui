@@ -18,7 +18,7 @@
 │                                █  █ █  █ █ █  █  █ █       █    █       │
 │        探索未至之境！           █  █ █  █ █  █ █  █ ████ ████ ████       │
 │                                                                          │
-│  tui-01e62198 · v0.1.0-rc.8       deepseek-official/deepseek-v4-flash   │
+│  tui-01e62198 · v0.2.1-rc.5       deepseek-official/deepseek-v4-flash   │
 │  ~/Desktop/dsh-tui (main*)           Tip: /help · /status · Tab completes │
 ╰──────────────────────────────────────────────────────────────────────────╯
 
@@ -33,16 +33,16 @@
 
 本包在 npm 上的名字是 **`@qiao-qyn/dsh-tui`**（**不在** `@deepseek-ai` scope 下）。它是 `dsh` 的一个 bundle，所以流程是：先把 launcher 装上，再把 bundle 挂进一个 profile。
 
+从本分支运行 `pnpm install --frozen-lockfile && pnpm run build && npm pack` 生成安装包，将下文路径替换成它的绝对路径。
+
 ```sh
 # 1. launcher（每台机器一次）
-npm install -g @deepseek-ai/dsh
+npm install -g @deepseek-ai/dsh@0.2.1-rc.5
 
 # 2. 建一个挂上本 bundle 的 profile
 mkdir -p ~/.dsh/profiles/tui && cd ~/.dsh/profiles/tui
 npm init -y
-# @next 把 dsh-base 钉到和本 bundle 同一代的 0.1.0-rc.x；
-# latest 标签目前还指向已弃用的 0.0.1-rc.1。
-npm install @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
+npm install @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
 echo '[]' > cordis.yml
 
 # 3. 注册 bundle。`npm install` 只填了 node_modules；launcher 读的是
@@ -60,12 +60,12 @@ dsh --profile tui
 **Windows（PowerShell 7 + Windows Terminal）：**
 
 ```powershell
-npm install -g @deepseek-ai/dsh
+npm install -g @deepseek-ai/dsh@0.2.1-rc.5
 $p = "$env:USERPROFILE\.dsh\profiles\tui"
 New-Item -ItemType Directory -Force -Path $p | Out-Null
 Set-Location $p
 npm init -y
-npm install @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui
+npm install @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
 Set-Content cordis.yml "[]"
 dsh plugin --profile tui install
 Set-Content "$env:USERPROFILE\.dsh\.env" "DEEPSEEK_API_KEY=sk-..."
