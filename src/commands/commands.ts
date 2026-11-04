@@ -29,6 +29,7 @@ import { recoveryPlan } from './recovery.ts'
 import { diffLines, transcriptDiffs } from '../render/file-diffs.ts'
 import { entryNumber, entryText, navigationIndex, searchTranscript } from './transcript.ts'
 import { exportTranscript } from './transcript-export.ts'
+import { isNotificationMode, type NotificationMode } from '../terminal/notifications.ts'
 import { isMousePreference, type MousePreference } from '../terminal/mouse.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
@@ -455,6 +456,9 @@ export interface CommandContext {
   exportState?: UiState
   historyReady?: boolean
   setActivity?: (value: number | 'all' | 'none') => void
+  notificationMode?: NotificationMode
+  setNotificationMode?: (mode: NotificationMode) => void
+  testNotification?: () => void
   mousePref?: MousePreference
   setMouse?: (pref: MousePreference) => void
   closeUi?: () => void
@@ -685,6 +689,16 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       return { kind: 'handled' }
     }
 
+    case '/notify': {
+      const args = raw.trim().split(/\s+/).slice(1)
+      const labels = catalog(lang).notify
+      if (args.length > 1 || (args[0] !== undefined && args[0] !== 'test' && !isNotificationMode(args[0]))) {
+        return { kind: 'handled', message: labels.usage, failed: true }
+      }
+      if (args[0] === 'test') cmd.testNotification?.()
+      else if (isNotificationMode(args[0])) cmd.setNotificationMode?.(args[0])
+      return { kind: 'handled', message: labels.status(args[0] === 'test' ? cmd.notificationMode ?? 'off' : args[0] ?? cmd.notificationMode ?? 'off') }
+    }
     case '/mouse': {
       const value = raw.trim().split(/\s+/)[1]
       if (value !== undefined && !isMousePreference(value)) return { kind: 'handled', message: strings.mouseUsage, failed: true }

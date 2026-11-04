@@ -5,6 +5,7 @@
  * @module @qiao-qyn/dsh-tui/renderer
  */
 
+import { notificationSequence, watchNotifications, type NotificationMode } from './terminal/notifications.ts'
 import { resolveMouseMode, type MousePreference } from './terminal/mouse.ts'
 import type { DiagnosticRef } from './terminal/diagnostics.ts'
 import { useSessionCatalog } from './hooks/useSessionCatalog.ts'
@@ -52,6 +53,7 @@ import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  notifications?: NotificationMode
   diagnostics?: DiagnosticRef
   forkSession?: (turn?: number) => Promise<SwapResult>
   mouse?: MousePreference
@@ -162,6 +164,7 @@ export const App: FC<AppProps> = ({
   modelRef,
   repaint,
   diagnostics,
+  notifications = 'off',
   notice,
   lang: initialLang = 'en',
   themePref: initialThemePref = 'auto',
@@ -325,6 +328,16 @@ export const App: FC<AppProps> = ({
   const emit = useCallback((sequence: string) => {
     write(sequence)
   }, [write])
+  const [notificationMode, setNotificationPref] = useState(notifications)
+  const setNotificationMode = useCallback((mode: NotificationMode) => {
+    setNotificationPref(mode)
+    writeSettings({ notifications: mode })
+  }, [])
+  const notify = useCallback((title: string) => {
+    const sequence = notificationSequence(notificationMode, title)
+    if (sequence) emit(sequence)
+  }, [notificationMode, emit])
+  useEffect(() => watchNotifications(ctx, agent, notify, strings), [ctx, agent, notify, strings])
   // The animated "thinking" indicator. One interval per status
   // transition; both the StatusBar (right-side) and the Prompt
   // (placeholder) read from the same frame index so the spinner
@@ -665,7 +678,7 @@ export const App: FC<AppProps> = ({
         // can do anything at all, and nothing in the registry says which is
         // which. One rule with no unknowns beats a per-command allowlist that
         // is wrong the first time a plugin adds a row.
-        if (state.status === 'running' && !['/activity', '/mouse', '/search', '/jump', '/inspect', '/copy', '/export'].includes(trimmed.split(/\s+/)[0])) {
+        if (state.status === 'running' && !['/activity', '/mouse', '/notify', '/search', '/jump', '/inspect', '/copy', '/export'].includes(trimmed.split(/\s+/)[0])) {
           appendEntry({ kind: 'command', input: trimmed, text: strings.output.busyCommand, failed: true })
           return
         }
@@ -697,6 +710,7 @@ export const App: FC<AppProps> = ({
           cwd,
           exportState: fullState,
           historyReady,
+          notificationMode, setNotificationMode, testNotification: () => { notify(strings.notify.test) },
           mousePref,
           setMouse,
           setHistory,
@@ -793,7 +807,7 @@ export const App: FC<AppProps> = ({
         appendEntry({ kind: 'note', tone: 'error', text: `${strings.recovery.draftRestored}\n${error instanceof Error ? error.message : String(error)}` })
       })
     },
-    [restoreDraft, selectedIndex, searchMatches, mousePref, setMouse, setActivity, inspectEntry, jumpEntry, cwd, fullState, historyReady,
+    [notificationMode, setNotificationMode, notify, restoreDraft, selectedIndex, searchMatches, mousePref, setMouse, setActivity, inspectEntry, jumpEntry, cwd, fullState, historyReady,
       ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
       setTheme, themePref, appearance, emit, strings, state, shell, swapSession, forkSession,
       scroll.setExpanded, scroll.expanded, attach, statusRef,

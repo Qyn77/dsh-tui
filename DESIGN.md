@@ -37,3 +37,11 @@ Use bilingual frame tests across terminal dimensions and real PTY/VT replay.
 Treat Terminal.app and VS Code wheel behavior as separate manual acceptance
 items. Verify width, scroll anchoring, restored terminal modes, and unchanged
 agent/session data for every presentation change.
+
+## Background-work controls
+
+Notifications are generic, opt-in terminal signals, with no private task text.
+Queue operations address durable message identities rather than shifting list
+positions. Plain Enter keeps its immediate-steering behavior. Task summaries
+show recorded file/command counts and link to a scrollable detailed report;
+missing metadata remains explicitly unknown rather than a clean-worktree claim.

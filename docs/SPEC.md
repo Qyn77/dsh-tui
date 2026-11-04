@@ -1129,6 +1129,19 @@ cleanup fails after publication, report a warning while retaining the successful
 new handle. Conversation branching does not restore historical filesystem or
 external state. The original durable session remains resumable.
 
+### Task and approval notifications
+
+`/notify off|bell|desktop` selects a persisted terminal notification policy;
+`/notify test` sends a probe using the current mode. Default is off. Bell emits
+BEL through Ink's writer. Desktop uses OSC 9 on explicitly supported terminal
+identities (iTerm2, WezTerm, Warp), otherwise it falls back to BEL. Actual sound
+or desktop delivery depends on terminal/system settings and has no receipt.
+Only live `turn/end` and `approval/asked` events for the mounted session trigger
+alerts; history hydration never emits them. Messages contain generic bilingual
+chrome only, with no prompt, answer, paths or credentials. Non-success endings
+retain the runtime outcome. Closing or switching sessions detaches the listener.
+Notifications do not claim that the terminal is unfocused.
+
 ### Diagnostic output and readable chrome
 
 After Ink mounts, console log/info/debug messages go to `tui.log` under the

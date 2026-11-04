@@ -82,6 +82,17 @@ function makeStandWithoutExit(): Context {
 describe('slash command dispatch', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
+  it('sets and tests task notifications without waking the agent', async () => {
+    const { cmd } = makeCommand()
+    const setNotificationMode = vi.fn()
+    const testNotification = vi.fn()
+    await dispatch('/notify desktop', { ...cmd, setNotificationMode })
+    expect(setNotificationMode).toHaveBeenCalledWith('desktop')
+    await dispatch('/notify test', { ...cmd, testNotification })
+    expect(testNotification).toHaveBeenCalledOnce()
+    expect(await dispatch('/notify bad', cmd)).toMatchObject({ failed: true })
+  })
+
   it('branches only through the runner and validates the selected turn', async () => {
     const { cmd } = makeCommand()
     const forkSession = vi.fn().mockResolvedValue({ kind: 'switched', id: 'child' })
@@ -1499,7 +1510,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/activity', '/approval', '/branch', '/clear', '/context', '/copy', '/diff', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
-      '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
+      '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
       '/usage', '/verbose',
     ])
   })
@@ -1554,7 +1565,7 @@ describe('filterCommands', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/activity', '/approval', '/branch', '/clear', '/compact', '/context', '/copy', '/diff', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
         '/language',
-        '/mcp', '/model', '/mouse', '/plugins', '/provider', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
+        '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
         '/usage', '/verbose',
       ])
     })

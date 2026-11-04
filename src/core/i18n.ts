@@ -80,6 +80,7 @@ export const COMMAND_NAMES = [
   '/language',
   '/mcp',
   '/mouse',
+  '/notify',
   '/model',
   '/plugins',
   '/provider',
@@ -124,6 +125,10 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  notify: {
+    usage: string; status: (mode: string) => string; completed: string
+    approval: string; ended: (reason: string) => string; test: string
+  }
   diagnostics: { details: (path: string) => string }
   branch: { usage: string; unavailable: string; created: (id: string) => string }
   recovery: {
@@ -605,6 +610,12 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  notify: {
+    usage: '/notify off|bell|desktop|test',
+    status: mode => `Notifications: ${mode}. Desktop falls back to bell on unsupported terminals.`,
+    completed: 'dsh task completed', approval: 'dsh is waiting for approval',
+    ended: reason => `dsh task ended: ${reason}`, test: 'dsh notification test',
+  },
   diagnostics: { details: path => `Full diagnostic: ${path}` },
   branch: { usage: '/branch [turn number]', unavailable: 'Cannot branch while switching/running, or without session support.', created: id => `Created branch ${id}. Conversation history is inherited; working files are not rolled back.` },
   recovery: {
@@ -728,6 +739,7 @@ const EN: Catalog = {
     '/history': 'Show or hide resumed history',
     '/keybinds': 'Choose the editor keymap',
     '/language': 'Choose the interface language',
+    '/notify': 'Task and approval notifications',
     '/mouse': 'Mouse input and native text selection',
     '/mcp': 'Manage MCP servers',
     '/model': 'Choose the model',
@@ -926,6 +938,12 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  notify: {
+    usage: '/notify off|bell|desktop|test',
+    status: mode => `提醒模式：${mode}。不支持桌面通知的终端会退回响铃。`,
+    completed: 'dsh 任务已完成', approval: 'dsh 正在等待审批',
+    ended: reason => `dsh 任务已结束：${reason}`, test: 'dsh 提醒测试',
+  },
   diagnostics: { details: path => `完整诊断：${path}` },
   branch: { usage: '/branch [轮次编号]', unavailable: '运行中、切换中或缺少会话服务时无法创建分支。', created: id => `已创建分支 ${id}，继承对话历史；工作文件保持当前状态。` },
   recovery: {
@@ -1044,6 +1062,7 @@ const ZH: Catalog = {
     '/history': '显示或隐藏接续的历史',
     '/keybinds': '选择输入框键位',
     '/language': '选择界面语言',
+    '/notify': '任务和审批提醒',
     '/mouse': '鼠标模式与原生文字选择',
     '/mcp': '管理 MCP 服务器',
     '/model': '查看或切换模型',

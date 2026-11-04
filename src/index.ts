@@ -151,7 +151,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
   // place the process touches `~/.dsh/tui.json` on the way in; `/language`,
   // `/theme` and `/history` write it back out. It has moved up here because
   // the theme decides whether the appearance probe runs at all.
-  const { language, theme, history, keybinds, mouse = 'auto' } = readSettings()
+  const { language, theme, history, keybinds, mouse = 'auto', notifications = 'off' } = readSettings()
   // Asked here and read just before `render()`, with the loader await, the
   // resume plan, and agent creation in between — so the terminal's round trip
   // overlaps work that was happening anyway and costs the boot nothing. It has
@@ -349,6 +349,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           historyPref: history,
           keybinds,
           mouse,
+          notifications,
           onMousePreferenceChange: (next) => { internals.stdout.write(mouseModeSequence(resolveMouseMode(next, process.env))) },
           swapSession,
           forkSession,

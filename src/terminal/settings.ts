@@ -24,6 +24,7 @@
  * @module @qiao-qyn/dsh-tui/terminal/settings
  */
 
+import { isNotificationMode, type NotificationMode } from './notifications.ts'
 import { isMousePreference, type MousePreference } from './mouse.ts'
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dshHome } from '../mcp/mcp-patch.ts'
@@ -35,6 +36,7 @@ import { isKeybindPref, type KeybindPref } from '../prompt/vim.ts'
 
 /** Preferences this package reads and writes. */
 export interface Settings {
+  notifications?: NotificationMode
   mouse?: MousePreference
   /** Interface language for the TUI's own strings. */
   language: Lang
@@ -142,6 +144,7 @@ export function parseSettings(raw: string | undefined): Settings {
   const history = parsed['history']
   const keybinds = parsed['keybinds']
   return {
+    ...(isNotificationMode(parsed['notifications']) ? { notifications: parsed['notifications'] } : {}),
     ...(typeof parsed['mouse'] === 'string' && isMousePreference(parsed['mouse']) ? { mouse: parsed['mouse'] } : {}),
     language: isLang(language) ? language : DEFAULT_SETTINGS.language,
     theme: isThemePref(theme) ? theme : DEFAULT_SETTINGS.theme,
