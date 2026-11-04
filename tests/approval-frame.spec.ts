@@ -96,6 +96,18 @@ describe('ApprovalPrompt', () => {
     view.unmount()
   })
 
+  it('does not interpret editing shortcuts as an approval decision', async () => {
+    const view = await paint(one)
+    try {
+      await view.press('\u0019')
+      await view.press('\u000e')
+      await view.press('\u001by')
+      expect(view.answers).toEqual([])
+      await view.press('y')
+      expect(view.answers).toEqual([[1, 'allowed-once']])
+    } finally { view.unmount() }
+  })
+
   it('grants once on y', async () => {
     // `'allowed-once'` is the only grant the service defines; there is no
     // "always", so the card must not imply one.

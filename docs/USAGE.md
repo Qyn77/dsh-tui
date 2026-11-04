@@ -461,8 +461,8 @@ Words are split on whitespace, not on punctuation, so `~/.dsh/.env` is one
 `w`. Most of what you type into a prompt is paths and flags, and vim's usual
 word rules would make `w` crawl through them a character at a time.
 
-What does not: counts (`3w`), visual mode, and undo. Undo is the deliberate
-one — an undo that covered `dd` but not `Ctrl-W` would be worse than none.
+Counts (`3w`) and visual mode remain unsupported. Shared undo/redo covers both
+readline and Vim: Ctrl-Z or normal-mode `u` undoes, Ctrl-Y/Ctrl-R redo.
 
 `Esc` still cancels a running turn. In normal mode it is not claimed by the
 editor, so it falls through the way it always did; in insert mode it goes to
@@ -562,6 +562,8 @@ And every key:
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
 | `F2` | Toggle mouse reporting and native selection |
 | `Ctrl-X` | Remove the draft image under the caret, or the last image |
+| `Ctrl-Z` / `Ctrl-Y`, `Ctrl-R` | Undo / redo prompt edits; Vim normal-mode `u` also undoes |
+| `Ctrl-G` | Open session chooser without losing the draft |
 | `Ctrl-O` | Same switch as `/verbose`, without typing a command |
 | `y` / `n` / `Esc` | Answer a tool approval request — the card lists the call's arguments so the answer is about what it would actually do |
 | `Esc` | Cancel the in-flight turn or `!` command; never exits |
@@ -975,7 +977,7 @@ N what does this do?      ← normal 模式
 
 单词按空白切，不按标点切，所以 `~/.dsh/.env` 是一个 `w`。输入框里绝大部分内容是路径和参数，照 vim 平时那套规则，`w` 会一个字符一个字符地爬过去。
 
-不支持的：计数（`3w`）、visual 模式、撤销。撤销是有意不做的——一个管得了 `dd` 却管不了 `Ctrl-W` 的撤销，比没有更糟。
+不支持计数（`3w`）和 visual 模式。撤销重做统一覆盖 readline 与 Vim：Ctrl-Z 或 normal 模式的 `u` 撤销，Ctrl-Y/Ctrl-R 重做。
 
 `Esc` 仍然能中断正在跑的一轮。normal 模式下编辑器不认领它，它就照旧往上传；插入模式下第一下进 normal，第二下才中断。`/` 命令面板比这两者都优先。
 
@@ -1062,6 +1064,8 @@ DSH_TUI_RESUME=last dsh --profile tui
 | `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
 | `F2` | 切换鼠标上报与原生文字选择 |
 | `Ctrl-X` | 移除光标处的草稿图片，否则移除最后一张 |
+| `Ctrl-Z` / `Ctrl-Y`、`Ctrl-R` | 撤销 / 重做输入编辑；Vim normal 模式的 `u` 也可撤销 |
+| `Ctrl-G` | 保留草稿并打开会话选择器 |
 | `Ctrl-O` | 和 `/verbose` 是同一个开关，不用敲命令 |
 | `y` / `n` / `Esc` | 回答工具审批请求 —— 卡片会列出这次调用的参数，答的是它到底要干什么 |
 | `Esc` | 取消正在跑的 turn 或 `!` 命令；不会退出 |

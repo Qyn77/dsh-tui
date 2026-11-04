@@ -386,7 +386,7 @@ unbuilt either:
   byte for byte, so nothing that already worked in the prompt had to be
   reimplemented behind a flag. Motions `h j k l 0 ^ $ w b e gg G`, inserts
   `i a I A o O`, edits `x D C dd cc` and `d`/`c` with a motion, `p`/`P`. No
-  counts, no visual mode, no undo. The mode shows by changing the prompt marker
+  counts or visual mode. Shared prompt history now supplies undo/redo. The mode shows by changing the prompt marker
   from `>` to `N`, which costs no row and no column — the fixed-height frame
   overlaps anything that grows. See SPEC §1.19.
 

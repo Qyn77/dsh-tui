@@ -61,7 +61,7 @@ export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer, arg
   // Ink's `useInput` is a hook, so a return above it would change the hook
   // order between "a question is pending" and "none is".
   useInput((input, key) => {
-    if (current === undefined) return
+    if (current === undefined || key.ctrl || (key.meta && !key.escape)) return
     const ch = input.toLowerCase()
     if (ch === 'y') onAnswer(current.id, 'allowed-once')
     else if (ch === 'n' || key.escape) onAnswer(current.id, 'rejected')

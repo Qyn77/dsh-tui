@@ -1,3 +1,5 @@
+import { useEditorHistory } from '../hooks/useEditorHistory.ts'
+import type { EditorHistory } from '../prompt/edit-history.ts'
 import type { DraftChannel, DraftSnapshot } from '../terminal/drafts.ts'
 import { useDraftPersistence } from '../hooks/useDraftPersistence.ts'
 import { useImagePreviews } from '../hooks/useImagePreviews.ts'
@@ -59,9 +61,7 @@ import {
   deleteToEnd,
   deleteToStart,
   deleteWordBefore,
-  insertTextAtCursor,
   pushHistory,
-  removeCharBeforeCursor,
   wordEndAfter,
   wordStartBefore,
 } from '../prompt/prompt-editing.ts'
@@ -280,8 +280,9 @@ export const Prompt: FC<PromptProps> = ({
   const strings = useStrings()
   const [loadedDraft] = useState(() => draftChannel?.load())
   const initialDraft = loadedDraft?.draft ?? { text: '', cursor: 0 }
-  const [value, setValue] = useState(initialDraft.text)
-  const [cursorIndex, setCursorIndex] = useState(initialDraft.cursor)
+  const editor = useEditorHistory(initialDraft)
+  const { value, cursorIndex, setValue, setCursorIndex } = editor
+  const navigationHistory = useRef<EditorHistory>()
   const [navigationDraft, setNavigationDraft] = useState<DraftSnapshot>()
   const clearSavedDraft = useDraftPersistence(draftChannel, initialDraft,
     navigationDraft ?? { text: value, cursor: cursorIndex }, onDraftFailure)
@@ -303,8 +304,7 @@ export const Prompt: FC<PromptProps> = ({
   const pasting = useRef(false)
   useEffect(() => {
     if (restoreDraft && value === '') {
-      setValue(restoreDraft.text)
-      setCursorIndex(restoreDraft.text.length)
+      editor.apply({ type: 'reset', snapshot: { text: restoreDraft.text, cursor: restoreDraft.text.length } })
     }
     // A late failure must not overwrite a newer draft, or reappear after the
     // user clears it. Each explicit recovery request has its own revision.
@@ -631,16 +631,14 @@ export const Prompt: FC<PromptProps> = ({
   const submit = (submitted: string): void => {
     if (navigationDraft) {
       if (!/^\/resume\s+\S/.test(submitted) && submitted.trim() !== '/sessions') return
-      setValue(navigationDraft.text)
-      setCursorIndex(navigationDraft.cursor)
+      if (navigationHistory.current) editor.restore(navigationHistory.current)
       setNavigationDraft(undefined)
       setScrollTop(0)
       onSubmit(submitted)
       return
     }
     clearSavedDraft()
-    setValue('')
-    setCursorIndex(0)
+    editor.apply({ type: 'reset', snapshot: { text: '', cursor: 0 } })
     setScrollTop(0)
     setDismissed(null)
     setSkillDismissed(false)
@@ -743,6 +741,22 @@ export const Prompt: FC<PromptProps> = ({
       // unsolicited, and the background-colour probe during boot can also
       // leave a tail if the terminal answers more than once.
       if (isOscTail(input)) return
+      // Paste decoding comes first, ahead of every key branch. Inside a
+      // bracketed paste Ink has already labelled some bytes `return`, `tab`
+      // or `backspace` — a pasted newline is the same byte as Enter — so any
+      // dispatch that ran before this point would act on a keystroke the user
+      // never made. See `src/prompt/paste.ts`.
+      const wasPasting = pasting.current
+      const paste = readPaste(input, wasPasting)
+      if (paste.bracketed) {
+        if (!wasPasting) editor.apply({ type: 'begin' })
+        pasting.current = paste.open
+        if (paste.text !== '') {
+          editor.insert(paste.text)
+        }
+        if (!paste.open) editor.apply({ type: 'end' })
+        return
+      }
       if (key.ctrl && input === 'x' && imagePreviews.length > 0) {
         const chosen = imagePreviews.find(row => cursorIndex >= row.candidate.start && cursorIndex <= row.candidate.end)
           ?? imagePreviews.at(-1)
@@ -750,23 +764,6 @@ export const Prompt: FC<PromptProps> = ({
         const next = removePreview(value, chosen)
         setValue(next.text)
         setCursorIndex(next.cursor)
-        return
-      }
-      // Paste decoding comes first, ahead of every key branch. Inside a
-      // bracketed paste Ink has already labelled some bytes `return`, `tab`
-      // or `backspace` — a pasted newline is the same byte as Enter — so any
-      // dispatch that ran before this point would act on a keystroke the user
-      // never made. See `src/prompt/paste.ts`.
-      const paste = readPaste(input, pasting.current)
-      if (paste.bracketed) {
-        pasting.current = paste.open
-        if (paste.text !== '') {
-          setValue((current) => {
-            const next = insertTextAtCursor(current, cursorIndex, paste.text)
-            setCursorIndex(cursorIndex + paste.text.length)
-            return next
-          })
-        }
         return
       }
       // `Ctrl-` keystrokes are split with the layers above us, per the
@@ -786,12 +783,21 @@ export const Prompt: FC<PromptProps> = ({
       // Ctrl-J is not handled here and does not need to be: Ink parses it
       // as the linefeed it is, so it arrives as ordinary input '\n'.
       if (key.ctrl) {
+        if (input === 'z' || input === 'y' || input === 'r') {
+          editor.apply({ type: input === 'z' ? 'undo' : 'redo' })
+          desired.current = null
+          setHistoryIndex(null)
+          setVim(current => ({ ...current, pending: '' }))
+          return
+        }
         if (input === 'g') {
           if (navigationDraft) {
-            setValue(navigationDraft.text); setCursorIndex(navigationDraft.cursor); setNavigationDraft(undefined)
+            if (navigationHistory.current) editor.restore(navigationHistory.current)
+            setNavigationDraft(undefined)
           } else {
+            navigationHistory.current = editor.state
             setNavigationDraft({ text: value, cursor: cursorIndex })
-            setValue('/sessions '); setCursorIndex(10)
+            editor.apply({ type: 'reset', snapshot: { text: '/sessions ', cursor: 10 } })
             setVim(INITIAL_VIM)
           }
           setPaletteIndex(0)
@@ -830,7 +836,8 @@ export const Prompt: FC<PromptProps> = ({
       // (Esc has no other meaning in the prompt).
       if (key.escape) {
         if (navigationDraft) {
-          setValue(navigationDraft.text); setCursorIndex(navigationDraft.cursor); setNavigationDraft(undefined)
+          if (navigationHistory.current) editor.restore(navigationHistory.current)
+          setNavigationDraft(undefined)
           setPaletteIndex(0)
           return
         }
@@ -1009,6 +1016,13 @@ export const Prompt: FC<PromptProps> = ({
       // normal mode the vi answer is to move left — deleting instead would be
       // the one destructive key nobody pressed on purpose.
       if (normalMode) {
+        if (paste.text === 'u') {
+          editor.apply({ type: 'undo' })
+          desired.current = null
+          setHistoryIndex(null)
+          setVim(current => ({ ...current, pending: '' }))
+          return
+        }
         const vimInput = key.backspace || key.delete ? 'h' : paste.text
         if (applyVimKey({ input: vimInput, escape: false, return: key.return })) return
       }
@@ -1139,12 +1153,7 @@ export const Prompt: FC<PromptProps> = ({
         return
       }
       if (key.backspace || key.delete) {
-        setValue((current) => {
-          const nextCursor = Math.max(0, cursorIndex - 1)
-          const nextValue = removeCharBeforeCursor(current, cursorIndex)
-          setCursorIndex(nextCursor)
-          return nextValue
-        })
+        editor.backspace()
         return
       }
       // `paste.text`, not `input`: a terminal that ignores `?2004` still
@@ -1153,11 +1162,7 @@ export const Prompt: FC<PromptProps> = ({
       // wrapper only breaks on `\n`. A real Enter never arrives here — Ink
       // reports it as `key.return`, handled above.
       if (paste.text) {
-        setValue((current) => {
-          const nextValue = insertTextAtCursor(current, cursorIndex, paste.text)
-          setCursorIndex(cursorIndex + paste.text.length)
-          return nextValue
-        })
+        editor.insert(paste.text)
       }
     },
     { isActive: active },

@@ -104,6 +104,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/history` | show or hide the history a resumed session came with |
 | `!`, `!!` | run a shell command — `!!` also shows it to the model |
 | `/exit`, `/quit` | leave the REPL |
+| `Ctrl-Z` / `Ctrl-Y`, `Ctrl-R` | Undo / redo input; Vim normal-mode `u` also undoes |
 | `Ctrl-G` | Open the session chooser while preserving the draft; Esc returns |
 | `Ctrl-X` | Remove the draft image at the caret, or the last image; metadata preview appears before sending |
 | `Tab` | complete the highlighted `/` command or `@` path |

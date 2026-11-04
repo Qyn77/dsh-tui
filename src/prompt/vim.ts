@@ -26,12 +26,11 @@
  * key means what the person pressing it expects.
  *
  * **What is not here, and is not a TODO.** No counts (`3w`), no visual mode, no
- * undo, no named registers, no `:` commands, no search. Each is a real feature
+ * named registers, no `:` commands, no search. Each is a real feature
  * with a real cost, and none of them is what makes modal editing worth having
  * in a one-to-ten-row prompt — the win is `b`/`w`/`ciw`-shaped motion over a
- * line you are still composing. A build that shipped a half-working `u` would
- * be worse than one that never offered it, because the user would find out
- * which by losing a line.
+ * line you are still composing. Undo/redo is owned by the shared prompt
+ * editor history, covering readline and Vim edits together.
  * @module @qiao-qyn/dsh-tui/prompt/vim
  */
 

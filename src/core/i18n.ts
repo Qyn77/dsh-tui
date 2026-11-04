@@ -957,7 +957,7 @@ const EN: Catalog = {
     mouseUsage: '/mouse auto|on|off',
     mouseStatus: mode => `Mouse: ${mode}. F2 toggles wheel/click reporting and native text selection.`,
     keybindsUsage: current =>
-      `Usage: /keybinds <${KEYBIND_PREFS.join('|')}>\nCurrent: ${current}\n\ndefault is the readline editor: Ctrl-A/E, Ctrl-W, Alt-B/F. vim adds a normal mode on top of it — Esc leaves insert, i/a/I/A/o/O return, hjkl 0 ^ $ w b e gg G move, x D C dd cc and d/c with a motion delete, p/P paste the last deletion. No counts, no visual mode, no undo. Everything else — the palette, the file picker, history recall, paste — is unchanged in both. The setting is saved.`,
+      `Usage: /keybinds <${KEYBIND_PREFS.join('|')}>\nCurrent: ${current}\n\ndefault is the readline editor: Ctrl-A/E, Ctrl-W, Alt-B/F. vim adds a normal mode on top of it — Esc leaves insert, i/a/I/A/o/O return, hjkl 0 ^ $ w b e gg G move, x D C dd cc and d/c with a motion delete, p/P paste the last deletion. Ctrl-Z undoes; Ctrl-Y/Ctrl-R redo; normal-mode u also undoes. No counts or visual mode. Everything else — the palette, the file picker, history recall, paste — is unchanged in both. The setting is saved.`,
     keybindsSwitched: pref =>
       pref === 'vim'
         ? 'Vim keybinds are on. The prompt starts in insert mode; Esc leaves it, and the prompt marker turns from > to N while you are in normal mode.'
@@ -1294,7 +1294,7 @@ const ZH: Catalog = {
     mouseUsage: '/mouse auto|on|off',
     mouseStatus: mode => `鼠标模式：${mode}。F2 切换滚轮/点击上报与原生文字选择。`,
     keybindsUsage: current =>
-      `用法：/keybinds <${KEYBIND_PREFS.join('|')}>\n当前：${current}\n\ndefault 是 readline 那套编辑器：Ctrl-A/E、Ctrl-W、Alt-B/F。vim 在它之上加一层 normal 模式——Esc 离开插入，i/a/I/A/o/O 回去，hjkl 0 ^ $ w b e gg G 移动，x D C dd cc 以及 d/c 接一个 motion 删除，p/P 粘贴上一次删掉的东西。不支持计数（3w）、visual 模式和撤销。其余一切——命令面板、文件选择、历史回溯、粘贴——两种设置下都一样。这个设置会保存。`,
+      `用法：/keybinds <${KEYBIND_PREFS.join('|')}>\n当前：${current}\n\ndefault 是 readline 那套编辑器：Ctrl-A/E、Ctrl-W、Alt-B/F。vim 在它之上加一层 normal 模式——Esc 离开插入，i/a/I/A/o/O 回去，hjkl 0 ^ $ w b e gg G 移动，x D C dd cc 以及 d/c 接一个 motion 删除，p/P 粘贴上一次删掉的东西。Ctrl-Z 撤销，Ctrl-Y/Ctrl-R 重做，normal 模式的 u 也可撤销。不支持计数（3w）和 visual 模式。其余一切——命令面板、文件选择、历史回溯、粘贴——两种设置下都一样。这个设置会保存。`,
     keybindsSwitched: pref =>
       pref === 'vim'
         ? 'vim 键位已开启。提示框从插入模式开始，Esc 离开插入模式；处在 normal 模式时，提示符会从 > 变成 N。'

@@ -1017,7 +1017,7 @@ Preset words are deployment-configured table keys, so they are shown **verbatim,
 
 **The caret is a bar, not a block, and that changes the motions.** This prompt draws `▌` *between* two characters, so a caret at offset *n* sits before `text[n]`. `$`, `e` and the landing spot of a `dw` therefore all name the position *after* a character, and `Esc` does **not** step the caret left — that is a block-caret behaviour, and copying it here would move the caret away from the character the user was looking at.
 
-**What is implemented, and what deliberately is not.** Motions: `h j k l 0 ^ $ w b e gg G`. Entering insert: `i a I A o O`. Edits: `x D C dd cc` and `d`/`c` with any motion, with `p`/`P` pasting the last deletion. Words are whitespace-delimited, not vim's `iskeyword`, so `~/.dsh/.env` is one word — in a prompt where most text is paths and flags, splitting on punctuation would make `w` useless. **No counts** (`3w`), **no visual mode**, **no undo**. Undo is the one worth naming: an undo stack that covers the vim edits but not `Ctrl-W` would be a worse lie than no undo at all, and covering both is a rewrite of the buffer, not a keymap feature.
+**What is implemented, and what deliberately is not.** Motions: `h j k l 0 ^ $ w b e gg G`. Entering insert: `i a I A o O`. Edits: `x D C dd cc` and `d`/`c` with any motion, with `p`/`P` pasting the last deletion. Words are whitespace-delimited, not vim's `iskeyword`, so `~/.dsh/.env` is one word — in a prompt where most text is paths and flags, splitting on punctuation would make `w` useless. **No counts** (`3w`) and **no visual mode**. Undo/redo belongs to the shared editor history: normal-mode `u` or Ctrl-Z undoes, Ctrl-R/Ctrl-Y redoes, and readline deletions participate in that same history.
 
 **An unknown key in normal mode is swallowed, never typed.** `dq` abandons the operator; `q` alone does nothing. The alternative — falling through to the text path — means a mistyped normal-mode key silently appends a letter to a prompt the user believes they are navigating, and they find out when they press Enter.
 
@@ -1127,6 +1127,21 @@ after publication. Switching and branching share a concurrency guard. If prior
 cleanup fails after publication, report a warning while retaining the successful
 new handle. Conversation branching does not restore historical filesystem or
 external state. The original durable session remains resumable.
+
+### Shared prompt undo and redo
+
+One pure editor-history reducer owns text, caret, past and future snapshots for
+both keymaps. Ctrl-Z undoes, Ctrl-Y/Ctrl-R redo; Vim normal-mode `u` also undoes.
+Typing, deletion, completion, image-path removal and recalled-input replacement
+all participate. Caret motion alone creates no history entry and preserves redo;
+a new text edit invalidates redo. A bracketed paste spanning multiple input
+chunks is one undo transaction. The history is bounded to 100 operations and an
+8 MiB UTF-16 snapshot-text budget. It is local to the current prompt mount,
+not persisted with the draft. Submission clears history so Undo cannot resurrect
+a sent request. Session chooser queries use a separate temporary editor state
+and return to the original history on cancellation or failed resume.
+Approval cards ignore Ctrl/Alt letter chords, so Ctrl-Y/Ctrl-N cannot answer an
+approval question. Plain y/n and Esc retain their existing meanings.
 
 ### Per-session draft autosave
 
