@@ -1,5 +1,5 @@
 /**
- * The one place in the package that reads image bytes and commits them to the
+ * The submission boundary that reads image bytes and commits them to the
  * attachment store. Kept apart from [attachments.ts](./attachments.ts) so the
  * detection rules stay testable without a filesystem, following the same split
  * as [shell.ts](./shell.ts) / [shell-runner.ts](./shell-runner.ts).

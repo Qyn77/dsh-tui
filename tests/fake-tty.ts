@@ -219,6 +219,7 @@ export interface Painted {
 
 /** How to mount the `App` for a frame test. */
 export interface PaintOptions {
+  pasteImage?: import('../src/attachments/clipboard-image.ts').PasteImage
   sessionLibrary?: import('../src/terminal/session-library.ts').SessionLibrary
   drafts?: import('../src/terminal/drafts.ts').DraftRepository
   inbox?: import('@deepseek-ai/dsh-agent').Inbox
@@ -373,7 +374,7 @@ export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
     appearance = 'dark', themePref = 'auto', keybinds = 'default', steer, followup, cancel,
-    skills = DEFAULT_SKILLS, preset, directory, inbox, registryCommands: pluginCommands, models, drafts, sessionLibrary,
+    skills = DEFAULT_SKILLS, preset, directory, inbox, registryCommands: pluginCommands, models, drafts, sessionLibrary, pasteImage,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
@@ -452,6 +453,7 @@ export async function paintApp(
     React.createElement(App, {
       ctx,
       agent: agent as never,
+      pasteImage,
       drafts,
       sessionLibrary,
       exit: () => {},

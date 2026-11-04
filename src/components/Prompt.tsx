@@ -1,3 +1,4 @@
+import type { PasteImage } from '../attachments/clipboard-image.ts'
 import { sessionPickerQuery } from '../commands/session-picker.ts'
 import { useEditorHistory } from '../hooks/useEditorHistory.ts'
 import type { EditorHistory } from '../prompt/edit-history.ts'
@@ -111,6 +112,8 @@ import { useLang, useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link Prompt}. */
 export interface PromptProps {
+  pasteImage?: PasteImage
+  onInputNotice?: (message: string) => void
   draftChannel?: DraftChannel
   onDraftFailure?: () => void
   restoreDraft?: { text: string; revision: number }
@@ -256,6 +259,8 @@ function clampPaletteIndex(index: number, commands: readonly CommandMeta[]): num
 
 export const Prompt: FC<PromptProps> = ({
   active,
+  pasteImage,
+  onInputNotice,
   draftChannel,
   onDraftFailure,
   onSubmit,
@@ -283,6 +288,9 @@ export const Prompt: FC<PromptProps> = ({
   const initialDraft = loadedDraft?.draft ?? { text: '', cursor: 0 }
   const editor = useEditorHistory(initialDraft)
   const { value, cursorIndex, setValue, setCursorIndex } = editor
+  const inputPending = useRef(false)
+  const mounted = useRef(true)
+  useEffect(() => () => { mounted.current = false }, [])
   const navigationHistory = useRef<EditorHistory>()
   const [navigationDraft, setNavigationDraft] = useState<DraftSnapshot>()
   const clearSavedDraft = useDraftPersistence(draftChannel, initialDraft,
@@ -741,7 +749,7 @@ export const Prompt: FC<PromptProps> = ({
       // the buffer. The VS Code integrated terminal is known to send these
       // unsolicited, and the background-colour probe during boot can also
       // leave a tail if the terminal answers more than once.
-      if (isOscTail(input)) return
+      if (isOscTail(input) || inputPending.current) return
       // Paste decoding comes first, ahead of every key branch. Inside a
       // bracketed paste Ink has already labelled some bytes `return`, `tab`
       // or `backspace` — a pasted newline is the same byte as Enter — so any
@@ -756,6 +764,19 @@ export const Prompt: FC<PromptProps> = ({
           editor.insert(paste.text)
         }
         if (!paste.open) editor.apply({ type: 'end' })
+        return
+      }
+      if (key.ctrl && input === 'v') {
+        if (!pasteImage || navigationDraft) { onInputNotice?.(strings.clipboardImage.unavailable); return }
+        inputPending.current = true
+        void pasteImage().then(result => {
+          if (!mounted.current) return
+          if (result.kind === 'image') {
+            // Quote paths for the existing attachment scanner. No shell runs.
+            editor.insert(` '${result.path.replace(/'/g, "'\\''")}' `)
+          } else onInputNotice?.(strings.clipboardImage[result.kind])
+        }).catch(() => { if (mounted.current) onInputNotice?.(strings.clipboardImage.failed) })
+          .finally(() => { inputPending.current = false })
         return
       }
       if (key.ctrl && input === 'x' && imagePreviews.length > 0) {

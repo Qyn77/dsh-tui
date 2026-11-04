@@ -135,3 +135,9 @@ Drafts autosave per session under `DSH_HOME/tui-drafts` and restore when that se
 ## License
 
 MIT
+
+### Clipboard images
+
+Press **Ctrl-V** to import a clipboard screenshot into the attachment tray. Normal terminal text paste is unchanged; Cmd-V cannot deliver image bytes to a terminal. macOS uses its native pasteboard; Windows uses Windows PowerShell/WinForms; Linux needs `wl-paste` (Wayland) or `xclip` (X11). These read the clipboard on the machine running dsh (including a remote host over SSH). Missing support reports a message; pasting a file path still works.
+
+Images are private, content-addressed files in `DSH_HOME/tui-clipboard` (16 MiB per image, 64 files / 256 MiB cache). Ctrl-X removes a draft attachment, Ctrl-Z undoes the insertion. Cache files remain for restart recovery and undo; keep files referenced by saved drafts before manually cleaning that directory. Sending still checks the attachment store and model image capabilities.

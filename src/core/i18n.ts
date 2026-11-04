@@ -139,6 +139,7 @@ export interface Catalog {
     archivedTag: string
     failedTag: string
   }
+  clipboardImage: { empty: string; unavailable: string; failed: string; full: string }
   drafts: { failed: string }
   changes: {
     heading: (turn: number) => string
@@ -665,6 +666,7 @@ const EN: Catalog = {
     updated: id => `Updated session labels: ${id}. Conversation history and pending work are unchanged.`,
     favoriteTag: '★', archivedTag: '[archived]', failedTag: '[labels unavailable]',
   },
+  clipboardImage: { empty: 'No PNG image on the system clipboard.', unavailable: 'Clipboard image input is unavailable. Linux needs wl-paste (Wayland) or xclip (X11); use an image path instead.', failed: 'Could not read the clipboard image (16 MiB limit). Use an image path or check clipboard access.', full: 'Clipboard image cache is full (64 files / 256 MiB). Keep files referenced by drafts before cleaning DSH_HOME/tui-clipboard.' },
   drafts: { failed: 'Could not load or save this draft. Input remains available; check storage permissions or the 2 MiB draft limit.' },
   changes: {
     heading: turn => `Task ${turn}: recorded changes and commands`, empty: 'No recorded file changes or commands for this task.',
@@ -1020,6 +1022,7 @@ const ZH: Catalog = {
     updated: id => `已更新会话备注：${id}，对话历史和待执行任务保持不变。`,
     favoriteTag: '★', archivedTag: '[已归档]', failedTag: '[备注不可用]',
   },
+  clipboardImage: { empty: '系统剪贴板里没有 PNG 图片。', unavailable: '当前环境不支持图片粘贴；Linux 需安装 wl-paste（Wayland）或 xclip（X11），也可直接粘贴图片路径。', failed: '读取剪贴板图片失败（上限 16 MiB），请检查剪贴板权限或粘贴图片路径。', full: '图片缓存已满（64 个文件 / 256 MiB）；清理 DSH_HOME/tui-clipboard 前请保留草稿仍引用的图片。' },
   drafts: { failed: '无法读取或保存当前草稿；仍可继续输入，请检查存储权限或 2 MiB 草稿上限。' },
   changes: {
     heading: turn => `任务 ${turn}：已记录的修改与命令`, empty: '这项任务没有记录到文件修改或命令。',

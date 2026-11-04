@@ -1,3 +1,4 @@
+import { pasteClipboardImage } from './attachments/clipboard-image.ts'
 /**
  * The TUI runner Cordis plugin. It waits for the Loader to settle, creates
  * one long-lived Agent, and renders the Ink application. The Ink app drives
@@ -347,6 +348,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           exit: exitHook,
           repaint,
           diagnostics,
+          pasteImage: pasteClipboardImage,
           drafts,
           sessionLibrary,
           modelRef: ref,

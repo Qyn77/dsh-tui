@@ -134,3 +134,9 @@ Apple Terminal 在 `/mouse auto` 下使用鼠标上报传递滚轮。F2 或 `/mo
 ## License
 
 MIT
+
+### 剪贴板图片
+
+按 **Ctrl-V** 将截图加入附件预览；普通终端文本粘贴保持原样，Cmd-V 无法直接把图片字节交给终端。macOS 使用原生剪贴板，Windows 使用 Windows PowerShell/WinForms，Linux 需安装 `wl-paste`（Wayland）或 `xclip`（X11）。读取的是运行 dsh 的那台机器的剪贴板，SSH 连接时也是远端。环境不支持时会提示，仍可粘贴图片路径。
+
+图片私密保存在 `DSH_HOME/tui-clipboard`，按内容去重；单张上限 16 MiB，缓存上限 64 个文件 / 256 MiB。Ctrl-X 移除草稿附件，Ctrl-Z 撤销插入；缓存会保留以支持草稿恢复和撤销，手动清理前请保留草稿引用的图片。发送时仍检查附件服务和模型图片能力。

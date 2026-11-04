@@ -869,7 +869,9 @@ The chip is read off `message.content`, not tracked beside it, so a resumed tran
 
 Byte sizes use decimal units (`284 KB`, not `278 KiB`): the number is there to be checked against a file manager, and every file manager the user could check it against says `KB` for 1000.
 
-**Not done.** Clipboard image paste. `/copy`'s module explains why the terminal's clipboard cannot be *read* mid-session (OSC 52's reply needs a stdin listener while Ink owns the read loop); that argument does not cover a subprocess like `pngpaste`, but a per-platform external binary is its own decision rather than one that rides along.
+**Implemented.** Ctrl-V reads an image through a fixed native helper (macOS AppKit via JXA, Windows PowerShell/WinForms, Linux wl-paste or xclip), without querying stdin or invoking a shell. PNG bytes are bounded to 16 MiB and privately cached in `DSH_HOME/tui-clipboard`, content-addressed and deduplicated, with a 64-file / 256 MiB cap. Import is one undoable path insertion into the existing attachment flow; input is held during the bounded read so Enter cannot send a partial import. Session unmount discards late results. Cache files survive tray removal because drafts and undo can still reference them. Missing helpers and empty/error clipboard reads preserve input and report bilingual messages. Normal terminal text paste remains unchanged. The helper reads the clipboard of the host running dsh; it is not a local-client image transport across SSH.
+
+Historical design note: `/copy`'s module explains why the terminal's clipboard cannot be *read* mid-session (OSC 52's reply needs a stdin listener while Ink owns the read loop); that argument does not cover a subprocess like `pngpaste`, but a per-platform external binary is its own decision rather than one that rides along.
 
 ### 1.14 Invoking a skill
 
@@ -1411,7 +1413,7 @@ The following statuses track suggestions beyond the previous three-item round:
 - Implemented: per-session draft autosave and restart recovery on resuming the same session.
 - Implemented: local session names, favorites and archive filters.
 - Implemented: unified prompt undo/redo. An external-editor round trip remains proposed.
-- Direct clipboard image input, with platform-specific capability handling.
+- Implemented: direct clipboard image input, with platform-specific capability handling.
 - Context attachment inspection/management integrated with the runtime.
 - Selective file checkpoints/restoration, subject to a separate design protecting subsequent user edits.
 

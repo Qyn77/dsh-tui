@@ -1,3 +1,4 @@
+import type { PasteImage } from './attachments/clipboard-image.ts'
 /**
  * The Ink root component: composes the status bar, the message list, and
  * the prompt. Owns the live projection of the agent's session, the
@@ -56,6 +57,7 @@ import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  pasteImage?: PasteImage
   sessionLibrary?: SessionLibrary
   drafts?: DraftRepository
   notifications?: NotificationMode
@@ -164,6 +166,7 @@ const AppProviders: FC<{ lang: Lang; appearance: Appearance; children: ReactNode
 
 export const App: FC<AppProps> = ({
   ctx,
+  pasteImage,
   agent,
   exit,
   modelRef,
@@ -1031,6 +1034,8 @@ export const App: FC<AppProps> = ({
         />
         <Prompt
           key={agent.id}
+          pasteImage={pasteImage}
+          onInputNotice={text => appendEntry({ kind: 'note', tone: 'warn', text })}
           draftChannel={draftChannel}
           onDraftFailure={onDraftFailure}
           cwd={cwd}

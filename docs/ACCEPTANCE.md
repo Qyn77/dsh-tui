@@ -92,3 +92,7 @@ diff 依赖运行时提供的元数据；缺少旧内容时明确标记不可用
 2026-11-04 自动验证：95 个测试文件、1448 项通过；类型检查、构建与包检查通过；lint 无错误，仍有警告。真实 launcher + PTY + VT 累积屏幕通过 29 项组合流程检查，覆盖独立草稿/光标、Ctrl-G 切换、Ctrl-Z/Ctrl-Y、命名收藏归档、重启、缩放和退出。追加 8 项检查覆盖图片路径移除/撤销、保存后的 SIGKILL 恢复、提交后清除及重启边界。两组流程均未调用模型。
 
 本机 `tui-rc5` 已安装该构建。原生 Terminal.app / VS Code 的实际按键映射、颜色与触控板行为仍由用户体验验收；前面记录的偶发缩放空白没有据此标记为已定位修复。
+
+## Clipboard image input · 2026-11-04
+
+96 files / 1453 tests pass. Tests cover helper selection, bounds, deduplication, private cache permissions, storage failures, missing helper, empty/invalid output, undo/redo and pending-read submission exclusion. An actual macOS named-pasteboard integration round trip produced byte-identical PNG bytes in the private cache; the general user clipboard was neither read nor changed. The macOS test requires pasteboard IPC outside the sandbox. Windows/Linux adapters and native Cmd-V behavior remain platform/manual checks; Cmd-V is not an image transport.
