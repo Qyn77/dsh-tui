@@ -5,6 +5,7 @@
  * @module @qiao-qyn/dsh-tui/renderer
  */
 
+import type { DraftRepository } from './terminal/drafts.ts'
 import { notificationSequence, watchNotifications, type NotificationMode } from './terminal/notifications.ts'
 import { resolveMouseMode, type MousePreference } from './terminal/mouse.ts'
 import type { DiagnosticRef } from './terminal/diagnostics.ts'
@@ -53,6 +54,7 @@ import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  drafts?: DraftRepository
   notifications?: NotificationMode
   diagnostics?: DiagnosticRef
   forkSession?: (turn?: number) => Promise<SwapResult>
@@ -164,6 +166,7 @@ export const App: FC<AppProps> = ({
   modelRef,
   repaint,
   diagnostics,
+  drafts,
   notifications = 'off',
   notice,
   lang: initialLang = 'en',
@@ -202,11 +205,15 @@ export const App: FC<AppProps> = ({
   const { state, fullState, historyReady, resetView, appendEntry } = useSessionEvents(ctx, agent, {
     history: historyPref, historyError: strings.output.historyReadFailed,
   })
-  const [draftRequest, setDraftRequest] = useState<{ text: string; revision: number }>()
+  const [draftRequest, setDraftRequest] = useState<{ text: string; revision: number; sessionId: string }>()
   const failedDraftRef = useRef<string | undefined>()
   const restoreDraft = useCallback((text: string) => {
-    setDraftRequest(previous => ({ text, revision: (previous?.revision ?? 0) + 1 }))
-  }, [])
+    setDraftRequest(previous => ({ text, revision: (previous?.revision ?? 0) + 1, sessionId: agent.id }))
+  }, [agent.id])
+  const draftChannel = useMemo(() => drafts?.open(agent.id), [drafts, agent.id])
+  const onDraftFailure = useCallback(() => {
+    appendEntry({ kind: 'note', tone: 'warn', text: strings.drafts.failed })
+  }, [appendEntry, strings])
   const [sessionPickerOpen, setSessionPickerOpen] = useState(false)
   const sessionCommands = useSessionCatalog(ctx, agent, sessionPickerOpen)
   const onPromptValue = useCallback((value: string) => {
@@ -1015,6 +1022,9 @@ export const App: FC<AppProps> = ({
           diffsFor={diffsForCall}
         />
         <Prompt
+          key={agent.id}
+          draftChannel={draftChannel}
+          onDraftFailure={onDraftFailure}
           cwd={cwd}
           active={!shell.running && approvals.pending.length === 0}
           busy={state.status === 'running' || shell.running}
@@ -1028,7 +1038,7 @@ export const App: FC<AppProps> = ({
           extraCommands={registryRows}
           sessionCommands={sessionCommands}
           onValueChange={onPromptValue}
-          restoreDraft={draftRequest}
+          restoreDraft={draftRequest?.sessionId === agent.id ? draftRequest : undefined}
           skillCommands={skillRowsForPicker}
           permissionCommands={permissionRowsForPicker}
           onCyclePermission={permissionRowsForPicker.length > 1 ? cyclePermission : undefined}

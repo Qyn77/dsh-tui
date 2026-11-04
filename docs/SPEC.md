@@ -1128,6 +1128,27 @@ cleanup fails after publication, report a warning while retaining the successful
 new handle. Conversation branching does not restore historical filesystem or
 external state. The original durable session remains resumable.
 
+### Per-session draft autosave
+
+The runner supplies a private draft repository; tests inject their own storage.
+Each session has an independent hashed file under `DSH_HOME/tui-drafts`, with
+mode 0600 and atomic replacement. Drafts contain text (including attachment
+paths) and a Unicode-safe cursor, never image bytes. Save after 200 ms of quiet,
+flush on unmount/session change, and clear synchronously on submission. Forced
+termination can lose the last debounce interval; restarting and resuming the
+same session restores its draft. A newly created session starts with its own
+buffer. Storage errors or drafts exceeding 2 MiB of text produce a bounded
+warning without blocking editing; corrupt data is not erased merely by opening
+it. Different prompts/processes for the same session use last-writer-wins.
+
+Ctrl-G opens the session chooser while retaining the original draft as the
+persistence snapshot. Esc/Ctrl-G restores it; selecting a session restores the
+source draft before swapping and loads the target's draft on the new keyed
+Prompt mount. Failed/busy resume leaves the original text intact. This chooser
+is not a second general-purpose command editor. Ordinary typed `/resume` still
+submits the text currently in the prompt. Failed-send recovery remains guarded
+against overwriting newer input and is scoped to the originating session.
+
 ### Task modification overview
 
 Completed activity summaries include recorded file and command counts, unsuccessful

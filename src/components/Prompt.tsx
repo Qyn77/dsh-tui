@@ -1,3 +1,5 @@
+import type { DraftChannel, DraftSnapshot } from '../terminal/drafts.ts'
+import { useDraftPersistence } from '../hooks/useDraftPersistence.ts'
 import { useImagePreviews } from '../hooks/useImagePreviews.ts'
 import { removePreview } from '../attachments/preview.ts'
 import { formatBytes } from '../render/message-layout.ts'
@@ -108,6 +110,8 @@ import { useLang, useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link Prompt}. */
 export interface PromptProps {
+  draftChannel?: DraftChannel
+  onDraftFailure?: () => void
   restoreDraft?: { text: string; revision: number }
   cwd?: string
   /** Whether input is accepted (false while a shell runs or an approval waits). */
@@ -251,6 +255,8 @@ function clampPaletteIndex(index: number, commands: readonly CommandMeta[]): num
 
 export const Prompt: FC<PromptProps> = ({
   active,
+  draftChannel,
+  onDraftFailure,
   onSubmit,
   spinnerFrame,
   cwd = process.cwd(),
@@ -272,8 +278,17 @@ export const Prompt: FC<PromptProps> = ({
   const { stdout } = useStdout()
   const lang = useLang()
   const strings = useStrings()
-  const [value, setValue] = useState('')
-  const [cursorIndex, setCursorIndex] = useState(0)
+  const [loadedDraft] = useState(() => draftChannel?.load())
+  const initialDraft = loadedDraft?.draft ?? { text: '', cursor: 0 }
+  const [value, setValue] = useState(initialDraft.text)
+  const [cursorIndex, setCursorIndex] = useState(initialDraft.cursor)
+  const [navigationDraft, setNavigationDraft] = useState<DraftSnapshot>()
+  const clearSavedDraft = useDraftPersistence(draftChannel, initialDraft,
+    navigationDraft ?? { text: value, cursor: cursorIndex }, onDraftFailure)
+  const draftWarning = useRef(false)
+  useEffect(() => {
+    if (loadedDraft?.failed && !draftWarning.current) { draftWarning.current = true; onDraftFailure?.() }
+  }, [loadedDraft, onDraftFailure])
   const [paletteIndex, setPaletteIndex] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
   const [textWidth, setTextWidth] = useState(0)
@@ -477,7 +492,8 @@ export const Prompt: FC<PromptProps> = ({
   // and a second Esc — now in normal mode, where the claim drops — cancels it
   // even when there is.
   const claimsEsc = active && (
-    palette.length > 0
+    navigationDraft !== undefined
+    || palette.length > 0
     || (pickingSkill && skillMention !== undefined)
     || (pickingPermission && permissionMention !== undefined)
     || (pickingModel && modelMention !== undefined)
@@ -613,6 +629,16 @@ export const Prompt: FC<PromptProps> = ({
    * so a new entry point cannot quietly forget one of the resets.
    */
   const submit = (submitted: string): void => {
+    if (navigationDraft) {
+      if (!/^\/resume\s+\S/.test(submitted) && submitted.trim() !== '/sessions') return
+      setValue(navigationDraft.text)
+      setCursorIndex(navigationDraft.cursor)
+      setNavigationDraft(undefined)
+      setScrollTop(0)
+      onSubmit(submitted)
+      return
+    }
+    clearSavedDraft()
     setValue('')
     setCursorIndex(0)
     setScrollTop(0)
@@ -760,6 +786,17 @@ export const Prompt: FC<PromptProps> = ({
       // Ctrl-J is not handled here and does not need to be: Ink parses it
       // as the linefeed it is, so it arrives as ordinary input '\n'.
       if (key.ctrl) {
+        if (input === 'g') {
+          if (navigationDraft) {
+            setValue(navigationDraft.text); setCursorIndex(navigationDraft.cursor); setNavigationDraft(undefined)
+          } else {
+            setNavigationDraft({ text: value, cursor: cursorIndex })
+            setValue('/sessions '); setCursorIndex(10)
+            setVim(INITIAL_VIM)
+          }
+          setPaletteIndex(0)
+          return
+        }
         if (input === 'a') setCursorIndex(0)
         else if (input === 'e') setCursorIndex(value.length)
         else if (input === 'w') {
@@ -792,6 +829,11 @@ export const Prompt: FC<PromptProps> = ({
       // buffer. When the palette is closed, leave the buffer alone
       // (Esc has no other meaning in the prompt).
       if (key.escape) {
+        if (navigationDraft) {
+          setValue(navigationDraft.text); setCursorIndex(navigationDraft.cursor); setNavigationDraft(undefined)
+          setPaletteIndex(0)
+          return
+        }
         if (palette.length > 0) {
           setValue('')
           setCursorIndex(0)

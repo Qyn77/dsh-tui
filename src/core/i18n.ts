@@ -127,6 +127,7 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  drafts: { failed: string }
   changes: {
     heading: (turn: number) => string
     empty: string
@@ -642,6 +643,7 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  drafts: { failed: 'Could not load or save this draft. Input remains available; check storage permissions or the 2 MiB draft limit.' },
   changes: {
     heading: turn => `Task ${turn}: recorded changes and commands`, empty: 'No recorded file changes or commands for this task.',
     files: 'Files', commands: 'Commands and tool outcomes', unknown: 'line counts unavailable', edits: n => `${n} recorded edits`,
@@ -988,6 +990,7 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  drafts: { failed: '无法读取或保存当前草稿；仍可继续输入，请检查存储权限或 2 MiB 草稿上限。' },
   changes: {
     heading: turn => `任务 ${turn}：已记录的修改与命令`, empty: '这项任务没有记录到文件修改或命令。',
     files: '文件', commands: '命令及工具结果', unknown: '行数不可用', edits: n => `${n} 次记录的编辑`,

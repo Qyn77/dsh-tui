@@ -45,3 +45,11 @@ Queue operations address durable message identities rather than shifting list
 positions. Plain Enter keeps its immediate-steering behavior. Task summaries
 show recorded file/command counts and link to a scrollable detailed report;
 missing metadata remains explicitly unknown rather than a clean-worktree claim.
+
+## Draft and editor lifecycle
+
+Each session owns its prompt text and caret. Session navigation through Ctrl-G
+preserves the source draft and loads the destination draft. Navigation drafts
+are temporary query buffers, never persisted over the source. Undo/redo operates
+on the same editing state across keymaps, never across a submitted message or
+session switch. Session metadata overlays do not rewrite the canonical log.

@@ -219,6 +219,7 @@ export interface Painted {
 
 /** How to mount the `App` for a frame test. */
 export interface PaintOptions {
+  drafts?: import('../src/terminal/drafts.ts').DraftRepository
   inbox?: import('@deepseek-ai/dsh-agent').Inbox
   directory?: Pick<import('@deepseek-ai/dsh-working-directory').WorkingDirectoryService, 'get' | 'set'>
   /** Question/answer pairs to seed the log with. Default 0 (banner only). */
@@ -371,7 +372,7 @@ export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
     appearance = 'dark', themePref = 'auto', keybinds = 'default', steer, followup, cancel,
-    skills = DEFAULT_SKILLS, preset, directory, inbox, registryCommands: pluginCommands, models,
+    skills = DEFAULT_SKILLS, preset, directory, inbox, registryCommands: pluginCommands, models, drafts,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
@@ -450,6 +451,7 @@ export async function paintApp(
     React.createElement(App, {
       ctx,
       agent: agent as never,
+      drafts,
       exit: () => {},
       lang,
       appearance,

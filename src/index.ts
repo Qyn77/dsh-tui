@@ -20,6 +20,7 @@ import { appExit, service, type AppExit } from './core/services.ts'
 import { shortId } from './commands/sessions.ts'
 import { App } from './renderer.tsx'
 import { installResizeOwner, type RepaintRef } from './terminal/resize.ts'
+import { createDraftRepository } from './terminal/drafts.ts'
 import { installDiagnostics, type DiagnosticRef } from './terminal/diagnostics.ts'
 import { branchSeed } from './commands/session-branch.ts'
 import { planResume, requestFromEnv, type SwapSession, type SwapResult } from './commands/resume.ts'
@@ -248,6 +249,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       // force the settled frame onto the screen. See `resize.ts`.
       const repaint: RepaintRef = { current: undefined }
       const diagnostics: DiagnosticRef = {}
+      const drafts = createDraftRepository()
       // The probe was started before the hold, so its answer (or its deadline)
       // is already in by now under `auto`; an explicit preference never asked.
       // The App still receives the measurement — under `auto` it is what
@@ -343,6 +345,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           exit: exitHook,
           repaint,
           diagnostics,
+          drafts,
           modelRef: ref,
           lang: language,
           themePref: theme,

@@ -104,6 +104,7 @@ dsh --profile tui-rc5
 | `/history` | 显示或隐藏接续 session 带来的已存历史 |
 | `!`、`!!` | 跑一条系统命令 —— `!!` 还会把它给模型看 |
 | `/exit`, `/quit` | 退出 REPL |
+| `Ctrl-G` | 保留当前草稿并打开会话选择器；Esc 返回 |
 | `Ctrl-X` | 发送前显示图片名称、数量和大小；移除光标处或最后一张图片 |
 | `Tab` | 补全高亮的 `/` 命令或 `@` 路径 |
 | `@` | 打开文件选择器 |
@@ -125,6 +126,8 @@ Apple Terminal 在 `/mouse auto` 下使用鼠标上报传递滚轮。F2 或 `/mo
 后台诊断写入 `DSH_HOME` 下的 `tui.log`（默认 `~/.dsh/tui.log`）。开启鼠标上报后可点击任务摘要展开，F2 可恢复原生文字选择。
 
 人工验收：[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)。
+
+草稿按会话自动保存到 `DSH_HOME/tui-drafts`，接续同一会话时恢复；提交后清除对应草稿。
 
 ## License
 
