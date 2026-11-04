@@ -37,6 +37,7 @@ it('adds a compact recorded overview to completed task disclosure', async () => 
       meta: { diffs: [{ path: 'fixture.txt', oldText: 'before', newText: 'after' }] } })
     await tty.finalize('done', { turn: 1, step: 1 })
     await tty.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    expect(tty.screen()).toContain('◆')
     expect(tty.screen()).toContain('1 files · 1 commands')
     expect(tty.screen()).toContain('/changes 1')
     await tty.send('/changes 1'); await tty.send('\r')

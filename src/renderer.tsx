@@ -32,6 +32,7 @@ import { ApprovalPrompt } from './components/ApprovalPrompt.tsx'
 import { useRunningClock } from './hooks/useRunningClock.ts'
 import { useResizeRepaint } from './hooks/useResizeRepaint.ts'
 import { useMessageListScroll } from './hooks/useMessageListScroll.ts'
+import { liveFrameHeight } from './terminal/geometry.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { useRegistryCommands } from './hooks/useRegistryCommands.ts'
 import { useApprovalRequests } from './hooks/useApprovalRequests.ts'
@@ -908,16 +909,15 @@ export const App: FC<AppProps> = ({
   // the prompt reports its new overlay height. Ink switches to clear-and-append
   // when outputHeight reaches stdout.rows; that leaves old banner rows behind.
   // Non-TTY Static output stays intrinsic-height so the banner can scroll away.
-  const frameHeight = stdout?.isTTY || state.entries.length > 0
-    ? Math.max(1, (stdout?.rows ?? 24) - 3)
-    : undefined
+  const frameHeight = liveFrameHeight(stdout?.rows ?? 24, stdout?.isTTY ?? false, state.entries.length > 0)
 
   // The settled banner yields space to the prompt's floating list. The root's
   // height and clipping above also guard the earlier frame, before the passive
   // onOverlayRowsChange effect has updated this budget.
   // The reserve is the prompt box (3), the message list's placeholder row (1)
   // and the scroll/exit hint (1), plus whatever the floating list
-  // is currently taking.
+  // is currently taking. The one physical row below the live frame is already
+  // accounted for by `liveFrameHeight` and must not be charged twice here.
   const bannerRowBudget = Math.max(0, (frameHeight ?? stdout?.rows ?? 24) - 5 - promptOverlayRows)
 
   return (
@@ -957,7 +957,7 @@ export const App: FC<AppProps> = ({
       */}
         {/*
         The brand splash is generous (19 rows), and the live frame is only
-        `rows - 3` tall, so it can only be on screen while there is nothing
+        `rows - 1` tall, so it can only be on screen while there is nothing
         else to show. Once the first message lands the StatusBar takes over
         as the live header — same identity, plus the token counts — and those
         19 rows go back to the conversation. Leaving both on screen is what

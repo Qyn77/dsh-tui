@@ -13,16 +13,24 @@ foreground/background preferences. Cosmetic changes follow functional work.
 ## Layout
 
 A fixed status header and input surround one scrollable transcript. Reserve
-the terminal's last column and enough rows for Ink's eraser. No intermediate
+the terminal's last column and one bottom row for Ink's eraser. No intermediate
 frame may spill outside the viewport. User-message frames fill their content
 column. Shared pickers align with the input and retain width while filtering.
+
+Conversation hierarchy uses one strong accent per role: bold user text inside
+the blue frame, magenta assistant metadata, and a cyan `◆` task summary that
+turns yellow or red for interrupted and failed tasks. Secondary tool output and
+notes stay dim so the user request, current task and final answer remain the
+first scan targets.
 
 ## Interaction
 
 Keyboard operation is always available. Wheel events must reach the transcript
-without moving the complete terminal viewport. Mouse disclosure follows the terminal input policy; F2 restores native selection
-when tracking captures pointer events. Browsing
-history never loses the draft or changes the running agent's context.
+without moving the complete terminal viewport. Mouse disclosure follows the
+terminal input policy; Apple Terminal and VS Code use the same SGR pointer
+channel under `auto`, while F2 restores native selection when tracking captures
+pointer events. Browsing history never loses the draft or changes the running
+agent's context.
 
 ## Progressive disclosure
 

@@ -203,7 +203,7 @@ describe('paletteWindowRows', () => {
   })
 
   it('shrinks with the terminal, because an overflowing palette overlaps', () => {
-    // The App's root box has a fixed `rows - 3` height. A subtree taller
+    // The App's root box has a fixed `rows - 1` height. A subtree taller
     // than that does not scroll — Yoga draws the surplus rows on top of the
     // ones already there, which is the debris this cap exists to prevent.
     expect(paletteWindowRows(20)).toBe(7)

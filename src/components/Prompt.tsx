@@ -61,7 +61,7 @@ import { Box, Text, measureElement, useInput, useStdout, type DOMElement } from 
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { filterCommands, type CommandMeta } from '../commands/commands.ts'
 import { isMouseReport, isOscTail } from '../render/scroll.ts'
-import { readPaste } from '../prompt/paste.ts'
+import { isClipboardImageShortcut, readPaste } from '../prompt/paste.ts'
 import {
   deleteToEnd,
   deleteToStart,
@@ -830,11 +830,11 @@ export const Prompt: FC<PromptProps> = ({
         return
       }
       // Ctrl-V is the explicit cross-terminal binding. Some terminals that
-      // forward the platform shortcut expose it as Meta-V instead; consume
-      // that form too. Terminal.app keeps plain Command-V for its own paste
-      // menu, so its image-only clipboard path is handled by the empty
-      // bracketed-paste signal above (or Control-Command-V / Ctrl-V).
-      if ((key.ctrl || key.meta) && input === 'v') { requestClipboardImage(false); return }
+      // forward the platform shortcut expose it as Meta-V or keep the ESC
+      // prefix in the raw chunk; the pure decoder accepts all three forms.
+      // Terminal.app keeps plain Command-V for its own paste menu, so a press
+      // that emits no bytes remains outside the process's observable input.
+      if (isClipboardImageShortcut(input, key)) { requestClipboardImage(false); return }
       if (key.ctrl && input === 'x' && images.length > 0) {
         editor.apply({ type: 'edit', snapshot: { ...editor.state.present, images: images.slice(0, -1) } })
         return

@@ -12,9 +12,9 @@ const x10 = (button: number, x = 12, y = 4): string =>
   `${ESC}[M${String.fromCharCode(button + 32, x + 32, y + 32)}`
 
 describe('terminal mouse policy', () => {
-  it('uses reporting for Apple Terminal auto and alternate scroll elsewhere', () => {
+  it('uses reporting for Apple Terminal and VS Code auto', () => {
     expect(resolveMouseMode('auto', { TERM_PROGRAM: 'Apple_Terminal' })).toBe('mouse')
-    expect(resolveMouseMode('auto', { TERM_PROGRAM: 'vscode' })).toBe('alternate')
+    expect(resolveMouseMode('auto', { TERM_PROGRAM: 'vscode' })).toBe('mouse')
     expect(resolveMouseMode('auto', {})).toBe('alternate')
   })
 

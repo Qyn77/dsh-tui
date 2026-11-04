@@ -14,7 +14,13 @@ export function resolveMouseMode(
 ): MouseMode {
   if (preference === 'on') return 'mouse'
   if (preference === 'off') return 'alternate'
-  return env.TERM_PROGRAM === 'Apple_Terminal' ? 'mouse' : 'alternate'
+  // Apple Terminal and VS Code both expose a usable SGR pointer channel.
+  // Keeping VS Code on alternate-scroll made task disclosure mouse-only in
+  // one terminal and click-to-expand in the other, even though the renderer
+  // already understands the same reports from both.
+  return env.TERM_PROGRAM === 'Apple_Terminal' || env.TERM_PROGRAM === 'vscode'
+    ? 'mouse'
+    : 'alternate'
 }
 
 /** Disable only the mouse/alternate-scroll modes this application owns. */

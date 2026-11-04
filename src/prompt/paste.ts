@@ -49,6 +49,29 @@ const START = '[200~'
 /** Paste terminator, in the same bare form. */
 const END = '[201~'
 
+/** The key shape Ink gives a forwarded platform paste shortcut. */
+export interface PasteShortcutKey {
+  ctrl?: boolean
+  meta?: boolean
+}
+
+/**
+ * Recognise image-paste shortcuts across terminals.
+ *
+ * VS Code forwards Command-V as Meta-V, while raw terminal bridges may keep
+ * the escape prefix in the input chunk. A few terminals also expose the
+ * readline control byte directly. Plain macOS Terminal.app Command-V is a
+ * menu action and emits no input at all; no TUI can observe that case, but
+ * these forms cover every shortcut that reaches the process.
+ */
+export function isClipboardImageShortcut(input: string, key: PasteShortcutKey = {}): boolean {
+  const normalized = input.length === 1 ? input.toLowerCase() : input
+  return (Boolean(key.ctrl || key.meta) && normalized === 'v')
+    || input === `${ESC}v`
+    || input === `${ESC}V`
+    || input === String.fromCharCode(22)
+}
+
 /** What one input chunk contributed to the prompt buffer. */
 export interface PasteChunk {
   /** Text to insert at the caret, with every newline form collapsed to `\n`. */

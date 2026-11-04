@@ -12,6 +12,15 @@
 
 import { describe, expect, it } from 'vitest'
 import { paintApp } from './fake-tty.ts'
+import { liveFrameHeight } from '../src/terminal/geometry.ts'
+
+describe('live frame height', () => {
+  it('leaves one eraser row instead of a three-row bottom gap', () => {
+    expect(liveFrameHeight(31, true, true)).toBe(30)
+    expect(liveFrameHeight(2, true, true)).toBe(1)
+    expect(liveFrameHeight(31, false, false)).toBeUndefined()
+  })
+})
 
 /** The rows of the frame, newest turn last, as the screen has them. */
 const rowsOf = (screen: string): string[] => screen.split('\n')
@@ -63,14 +72,14 @@ describe('a user message is framed', () => {
   })
 
   it('fits a short terminal without overflowing the frame', async () => {
-    // The App's root box has a fixed `rows - 3` height and Yoga overlaps
+    // The App's root box has a fixed `rows - 1` height and Yoga overlaps
     // rather than scrolls whatever does not fit (SPEC §1.1). The viewport
     // clips, so the box must cost rows inside it and not beyond it.
     const painted = await paintApp({ turns: 6, rows: 24 })
     const rows = rowsOf(painted.screen())
     painted.unmount()
 
-    expect(rows.length).toBeLessThanOrEqual(24 - 3)
+    expect(rows.length).toBeLessThanOrEqual(24 - 1)
     // Nothing overlapped: the newest turn is whole and legible.
     expect(rows.some(row => row.includes('answer 06'))).toBe(true)
   })
