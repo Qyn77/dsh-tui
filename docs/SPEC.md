@@ -174,7 +174,7 @@ A tool call is **one line**, `Read(src/render/scroll.ts) ✓`, with a preview of
 
 Every row of a preview is drawn `wrap="truncate"`, and that is not a cosmetic choice: it makes the preview's height equal to its line count, independent of the terminal's width and of the interface language. That is what lets `estimateEntryRows` charge `lines + (hidden ? 1 : 0)` exactly rather than estimating, and what lets the withheld count be translated (§3.10).
 
-**Expanding is global, never per entry.** `/verbose` and `Ctrl-O` (§1.5.6, §1.6) flip one flag that raises the budget from `PREVIEW_MAX_LINES` (8) to `EXPANDED_MAX_LINES` (200) for the whole transcript at once. There is still no per-entry `▾ show more`, and that is the same refusal as before: reaching *one* entry to expand needs a focus/selection model, which is precisely the app-level state machine the roadmap warns against (roadmap §6). A global switch needs no such model, so it is the version that ships.
+**Inline preview expansion uses a global budget.** `/verbose` and `Ctrl-O` (§1.5.6, §1.6) flip one flag that raises the budget from `PREVIEW_MAX_LINES` (8) to `EXPANDED_MAX_LINES` (200) for the whole transcript at once. Per-task activity disclosure is separate from this inline preview budget. Use `/inspect N` for full inspection of one entry and `/copy N` to copy it. The inline budget remains independent of numbered entry inspection.
 
 The raised budget is a bigger cap, not the absence of one. `windowStart` keeps a minimum number of entries mounted whatever they cost in rows, so an uncapped preview means tens of thousands of Ink `Text` nodes laid out every frame. The flag also lives in `useMessageListScroll` rather than beside the other App state, because it is that hook's `reportGeometry` re-clamp that makes a height change safe mid-scroll — the flag and its consequence share an owner.
 
@@ -363,7 +363,7 @@ Both number columns are right-aligned in display columns rather than characters,
 
 `/copy` writes `ESC ] 52 ; c ; <base64> BEL` to the terminal, which is how a program inside a terminal reaches the *system* clipboard — including across SSH, which is the case that makes it worth having at all. `c` is the clipboard selection rather than `p`, the primary: the point is the paste the user is about to do in another application.
 
-**Two forms, and no third.** Bare `/copy` takes the newest assistant reply; `/copy code` takes the newest fenced block anywhere in the conversation, because "copy that snippet" usually arrives a few turns after the snippet. Anything else prints the usage line rather than guessing — `/copy codee` silently copying the whole reply instead would be discovered on paste, which is the worst place to discover it. There is no `/copy <n>`: naming an older entry needs the focus/selection model §1.2 and roadmap §6 both decline.
+**Three explicit forms.** Bare `/copy` takes the newest assistant reply; `/copy code` takes the newest fenced block anywhere in the conversation. `/copy N` sends the full available text of numbered entry N, including recorded reasoning or tool output. Invalid arguments print usage rather than guessing. Search results expose the entry numbers.
 
 What it copies is the reply's **markdown source**, not the terminal's rendering of it. Someone pasting into an editor or an issue wants what the model wrote. `/copy code` reuses `parseMarkdown` rather than re-matching fences, so the block it sends is byte-for-byte the one §1.9 drew.
 
@@ -399,7 +399,7 @@ What it copies is the reply's **markdown source**, not the terminal's rendering 
 
 **Ids are abbreviated to twelve characters, and `planResume` accepts a prefix.** The two are one decision: a listing that abbreviates further than resume can resolve would print ids that do not work. See §3.3.1 for the prefix rules and for why an over-wide row is allowed to overflow rather than give up a column.
 
-**Rows are not selectable, and the footer names the command instead.** Selecting one would need a focus model the app does not have — the same refusal `/verbose` is built around (§1.2). Typing `/resume <id>` costs one line and needs no such model.
+**The table remains read-only; the picker activates a selected session.** Typing `/resume <id>` still resumes directly. `/resume ` and `/sessions ` open the searchable keyboard picker described below.
 
 #### 1.5.8 `/resume`
 
@@ -1049,7 +1049,7 @@ activity, retaining user inputs, final answers, command output and unresolved
 failures. `/activity <turn>|all|none` controls disclosure independently. Plain
 replies show duration without an empty disclosure. Live elapsed time uses the
 event start when available; historical duration comes from the recorded pair.
-Click disclosure is pending coordinate/focus integration.
+With mouse reporting enabled, a primary-button press on a visible task disclosure toggles that task. Modified pointer events and bracketed paste are ignored; native selection remains available through F2 or `/mouse off`.
 
 `/mouse auto|on|off` persists the input policy. Auto selects SGR mouse reporting
 for `TERM_PROGRAM=Apple_Terminal` and alternate-scroll for other environments.
@@ -1129,9 +1129,23 @@ cleanup fails after publication, report a warning while retaining the successful
 new handle. Conversation branching does not restore historical filesystem or
 external state. The original durable session remains resumable.
 
+### Diagnostic output and readable chrome
+
+After Ink mounts, console log/info/debug messages go to `tui.log` under the
+active `DSH_HOME`. Routine provider model-listing completion also stays there.
+Warnings/errors become structured transcript notes, with a log path when a long
+message is abbreviated. Recognizable `sk-` keys are redacted before persistence.
+If diagnostic storage fails, fall back to Ink's managed console writer. Cleanup
+does not replace console methods that Ink has already restored.
+
+The shared picker uses compact bilingual descriptions, a full-width selected
+row, and one truncated footer row. Secondary prompt/picker text uses one dim
+foreground treatment instead of stacking gray and dim. Welcome artwork and all
+three responsive visible states are preserved.
+
 ## Part 2 · Roadmap
 
-The package is at **v0.1.0-rc.7**. Each milestone below lists what users see when it ships, not what's done internally.
+The current integration target is **v0.2.1-rc.5**. Historical milestones below retain the runtime versions used when they shipped. Current implementation and acceptance status follows those milestones.
 
 ### v0.1 — REPL core (shipped)
 
@@ -1179,7 +1193,7 @@ Still open: nothing — v0.3 is complete.
 - **Syntax highlighting.** *Shipped.* Assistant code blocks are tokenized by Shiki, loaded on first use and cached per line so a streaming block is not re-tokenized from the top on every delta — see §1.9. Two themes, chosen by the auto-theme item below.
 - **Auto theme.** *Shipped.* The terminal is asked its background color over OSC 11 at boot and the app picks a light or dark appearance from the reply's luminance; `/theme auto|dark|light` overrides it and persists. What changes is narrow on purpose — the code-block theme and the lighter brand tint, the only two colors that name an absolute value. See §1.10.
 - **Streaming markdown.** *Shipped.* The assistant text is re-parsed on each text delta of `agent/assistant-stream` and drawn as partial markdown, instead of waiting for `assistant/message` — see §1.9 for why the partial-parse churn the original plan feared does not happen.
-- **Truncation.** *Shipped, as a global switch.* The 8-line cap itself shipped in v0.3; `/verbose` and `Ctrl-O` now raise it to 200 lines for the whole transcript at once (§1.2, §1.5.6). The per-entry `▾ show more` this item originally named is **not** what shipped and stays refused — expanding *one* entry needs a focus/selection model this app does not have (roadmap §6). A global switch needs none, which is why it could ship without reversing that decision.
+- **Truncation.** *Shipped, as a global switch.* The 8-line cap itself shipped in v0.3; `/verbose` and `Ctrl-O` now raise it to 200 lines for the whole transcript at once (§1.2, §1.5.6). That milestone shipped the global budget. The later approved numbered `/inspect N` and per-task disclosure are separate surfaces; see the current implementation section.
 - **Clipboard.** *Shipped as `/copy`.* The newest reply, or the newest fenced block, goes to the system clipboard over OSC 52 — across SSH included. `/paste` is **not** coming: reading the clipboard needs a stdin listener mid-session, which is Ink's, and every terminal already pastes on its own. See §1.5.5.
 - **Task list.** *Shipped.* `todo/write` projects to a `todo` entry: a `⤷ todos · N/M done` header over one row per task, with only the in-progress row undimmed. Not on the original v0.4 list, and added because it was the single protocol event the projection ignored while the protocol's own comment said the payload is "shown in the UI". Consecutive writes collapse into one entry; see §1.11 for why it is neither appended per write nor pinned above the prompt.
 - **Image input.** *Shipped.* Image paths in a submitted line are committed to `ctx.attachments` and travel as `image` content blocks, drawn as a `⧉` chip inside the user's frame — see §1.13. Not on the original v0.4 list. It was also, twice, mis-sized in this document's own planning notes as needing a terminal image protocol; it needed none, and no new version line either — `ctx.attachments`, `ImageBlock` and `agent.followup(UserMessage)` are all on `0.1.0-rc.7`. Clipboard paste is the part that did not ship.
@@ -1217,7 +1231,7 @@ Still open: nothing — v0.3 is complete.
 
 ### Aspirational (no commitment)
 
-- Mouse support beyond the wheel (click to focus, drag to select rows)
+- Mouse-driven transcript focus/editing and drag-to-select rows (task-summary clicking is implemented)
 - Clipboard image paste (needs a per-platform external binary; see §1.13)
 - Multi-session tabs
 - Remote session attach (SSH in, see the same TUI)
@@ -1226,13 +1240,13 @@ Still open: nothing — v0.3 is complete.
 
 ### UI refinement backlog · width alignment and scroll ownership
 
-Recorded from user acceptance screenshots on 2026-11-04 at **120 columns × 31 rows**. These items are pending implementation. The user requested recording them first and addressing them together later.
+Recorded from user acceptance screenshots on 2026-11-04 at **120 columns × 31 rows**, then implemented in this branch. Automated geometry and real PTY checks have passed; native-terminal visual acceptance is still assigned to the user. See [the acceptance checklist](ACCEPTANCE.md).
 
 - [x] **User-message frames should fill the available transcript width.** Short messages currently appear in a small content-sized box, leaving most of the row empty and making their right edge inconsistent with the input frame. Stretch the message frame across its available content column, preserving the existing `>` gutter, padding, and terminal safety margin. Verify short Chinese and English messages, multiline text, and image attachments. Keep row measurement and scrolling consistent with the rendered frame.
 - [x] **The slash-command menu should fill the available prompt width.** The menu currently ends around the longest visible description, leaving a large unused area to its right. Align its outer left and right borders with the input frame and keep this width stable as filtering and selection change. Check selected-row highlighting, description truncation, the footer, and narrower terminals. Apply the same width policy to the shared picker family where it uses this menu component.
-- [ ] **Scrolling must move the transcript while the header and input stay fixed.** In the user's long-reply screenshots, scrolling moves the status header down into the window, reveals a large blank area above it, and carries the input frame out of view. Only part of the reply remains accessible. Expected behavior is a fixed top status area and bottom input area, with the middle transcript scrolling from its first row through its last row. The screenshots establish the symptom; whether it comes from terminal scrollback, wheel-event routing, or layout geometry still needs runtime diagnosis. Compare wheel/trackpad scrolling against PageUp/PageDown and history navigation in macOS Terminal.app, including a reply taller than the viewport, long tool output, and the visible startup diagnostic. Verify that returning to the tail restores the newest content without shifting the input, that new streaming chunks preserve a manually scrolled position, and that resizing does not hide any part of the history. Preserve native text selection while correcting scroll ownership. Address this in the same UI pass as the two width issues.
+- [x] **Transcript scroll ownership and stable input.** Apple Terminal defaults to explicit SGR mouse reporting; other terminals retain alternate-scroll delivery. Decode SGR and X10 vertical wheel bursts, ignore horizontal/release reports, and preserve manually scrolled positions as output grows. F2 switches to native selection, and all owned terminal modes reset on exit. Fixed header/input geometry, paging, selection changes and resize are covered by tests and PTY replay.
 
-**Scroll environment comparison, reported by the user:** transcript scrolling works in the VS Code integrated terminal; macOS Terminal.app exhibits the whole-interface movement described above. Treat this as a terminal-dependent reproduction clue. Prioritize comparing alternate-screen state and wheel delivery, including the `?1007` alternate-scroll request, before changing transcript layout. The underlying cause is still unconfirmed. Reproduce with the same profile, long reply, viewport size and input method in both terminals, and compare wheel/trackpad behavior against PageUp/PageDown. Acceptance must include real Terminal.app and VS Code runs; a generic PTY or VT-emulator replay alone does not establish Terminal.app wheel behavior.
+**Native acceptance remains open:** the user reported that VS Code scrolls correctly while Terminal.app moves the whole interface. The implementation addresses input routing, but a PTY cannot prove how Terminal.app delivers trackpad gestures or its profile's mouse-reporting setting. Compare both applications with the same profile, a long reply and tool output. Verify wheel/trackpad, PageUp/PageDown, return to tail, resize, streaming while browsing and F2 text selection. Do not label the original environment-specific report closed until that comparison passes.
 
 **Width implementation:** transcript entry rows explicitly fill their viewport content width, and the shared picker plus its prompt wrapper fill the input column. Borders retain the reserved terminal margin. `tests/width-alignment.spec.ts` covers short messages and filtering at 60/90/120 columns. Native-terminal visual acceptance remains scheduled with the user.
 
@@ -1240,46 +1254,46 @@ Acceptance requires checking the actual accumulated terminal screen, including o
 
 ### Approved product direction · usability and workflow extensions
 
-The user endorsed the following directions on **2026-11-04**. They are pending work, with no release dates assigned. Implementation starts with the width and terminal-specific scrolling issues above, then improves navigation and inspection before adding broader workflow capabilities. This section is the live backlog; historical milestone descriptions record what shipped at the time.
+The user endorsed the following directions on **2026-11-04**. Functional implementations are now in this branch and ready for user acceptance; limitations are explicit below. Optional artwork/border redesign remains deferred in accordance with the user’s function-first decision. This section is the live status; historical milestones record what shipped at the time.
 
 #### Optional visual refinement after functional work
 
 - [ ] **Polish the existing responsive welcome states.** The user explicitly approved keeping all three visible states on 2026-11-04: the full whale-and-wordmark banner, the wordmark-only banner for narrower windows, and the compact banner when height is limited. This supersedes the earlier suggestion to replace the default with a 3–5-line welcome area. Preserve the responsive states and brand artwork while considering improvements to spacing, alignment, color and typography. Keep input access and resize stability intact.
-- [ ] **Consistent visual hierarchy and spacing.** Give the input a clear primary role, reduce competing banner/menu borders, and keep menus close to the input with consistent gaps. Coordinate this with the approved full-width behavior.
-- [ ] **Readable secondary text.** Improve prompt placeholders, command descriptions and keyboard hints across light and dark terminal themes. Avoid combining gray and dim styling where the information must remain readable.
-- [ ] **Concise command discovery.** Use short descriptions in picker rows, present detailed syntax on demand, and make selected rows clear without an excessively dominant highlight. Improve built-in bilingual copy while retaining plugin-provided descriptions as supplied.
-- [ ] **Quiet diagnostics.** Route routine background discovery information to an appropriate diagnostic channel rather than leaving it in the main conversation. Present actionable errors concisely. Preserve Ink's ownership of any terminal output.
+- [ ] **Further visual hierarchy and spacing polish.** Full-width alignment and bounded menus are implemented. A broader border/spacing redesign remains optional; preserve the three approved welcome states.
+- [x] **Readable secondary text.** Prompt placeholders and shared picker descriptions/hints use a single dim foreground treatment instead of gray plus dim. Native light/dark readability remains a visual acceptance item.
+- [x] **Concise command discovery.** Built-in bilingual picker descriptions are shortened; selection fills the row, descriptions/footer truncate within the frame, and plugin descriptions remain as supplied.
+- [x] **Quiet diagnostics.** Post-mount routine console output is recorded in `DSH_HOME/tui.log`; actionable warnings/errors appear as bounded transcript notes through Ink. Startup output before mounting remains owned by the launcher/plugins.
 
 #### Functional priorities
 
-| Priority | Direction | Intended outcome and prerequisite |
+| Priority | Direction | Implemented surface and practical limit |
 | --- | --- | --- |
-| High | Task activity groups and elapsed time | Keyboard disclosure and durable timing implemented; click disclosure pending. Show execution progress live, collapse completed activity behind a duration summary, and keep the final answer visible. Provide an explicit way to inspect the activity again. See the contract below. |
-| High | Conversation search and navigation | Find keywords and jump to user messages, tool calls and errors in long conversations. Build on reliable transcript scrolling. |
-| High | Session management | Add a searchable session picker with titles, directories and last-activity information where available, building on `/sessions` and `/resume`. Verify persistence metadata support before designing updates. |
-| High | File-change previews | Show changed paths and line additions/deletions, including a diff at edit approval when the runtime exposes the proposed change. Verify tool and approval payloads before committing to coverage. |
-| High | Per-entry inspection and copying | Select a message or tool result, inspect its complete available content and copy it independently. First design keyboard focus/selection, scroll anchoring and key ownership. Preserve existing `/verbose` and `/copy` workflows. |
-| Medium | Attachment preview before sending | Show image names, counts and sizes, with removal before submission. Build on the existing image-path attachment flow. |
-| Medium | Failure recovery | Preserve drafts and offer a clear retry path for failed model requests. Show which tools already ran and respect runtime retry semantics so recovery does not repeat completed side effects. |
-| Medium | Conversation export | Export a whole session or selected content as Markdown for handoff and feedback. Selection export depends on the entry-selection design. |
-| Later | Conversation branches | Continue from an earlier turn while preserving the original path. Verify dsh session/fork semantics and tool-side-effect boundaries first. |
+| High | Task activity groups and elapsed time | Live activity; completed task disclosure via click or `/activity`; persisted event-derived duration. Missing historical timestamps stay unavailable. |
+| High | Conversation search and navigation | `/search`, `/jump N`, `next`, `prev`, `user`, `tool`, `error`; searches uncollapsed entry text and reveals the selected activity. |
+| High | Session management | `/sessions ` and `/resume ` searchable picker; first-prompt title, directory, activity time or marked creation fallback. Session headers are unchanged. |
+| High | File-change previews | `/diff [N]` renders recorded `FileDiff` metadata. Approval diff requires exposed arguments and a tool presenter; absent metadata falls back truthfully. |
+| High | Per-entry inspection and copying | `/inspect N`, Esc to return, `/copy N`; full available entry content, subject to existing clipboard transport limit. `/verbose` remains global. |
+| Medium | Attachment preview before sending | Existing image-path files show names/count/sizes; Ctrl-X removes the caret image or last image. Submission revalidates. |
+| Medium | Failure recovery | Draft restoration and `/retry` report; `/retry continue` requests a new continuation using recorded results. It does not directly replay tool calls or guarantee model decisions. |
+| Medium | Conversation export | `/export <path> [--entry=N]` writes hydrated full content to a new Markdown file, including hidden history. Existing files are preserved. |
+| Later | Conversation branches | Native `/branch [turn]` with fork seed, lineage and durable child before publication. Original history remains; filesystem/external effects are not rolled back. |
 
-**Decision update for per-entry actions.** Earlier sections and the historical roadmap rejected per-entry expansion because the TUI had no focus/selection model. The user's approval now makes that model and those actions a future product direction. Existing global expansion remains the current implementation. Revise the relevant interaction and reducer contracts when the new selection design is ready.
+**Decision update for per-entry actions.** The approved scope supersedes the earlier rejection of selection. Selection is a one-based transcript entry address exposed by search/navigation; it does not add a second editing cursor or independent runtime. Task disclosure, entry inspection and the global preview budget are distinct controls.
 
 #### Task activity groups and elapsed time · approved direction
 
-The user requested a Codex-like activity summary on 2026-11-04. The intended unit is one user request and its associated execution, rather than a separate task for every internal model step. Confirm how runtime turns, steering and follow-ups map to that unit before implementation.
+The user requested a Codex-like activity summary on 2026-11-04. The implemented unit is a durable runtime turn, including its steering messages and model/tool steps. A queued follow-up that starts a new turn receives its own activity group. Internal model steps do not become separate tasks.
 
 - **While running:** show progress messages, emitted reasoning text where available, tool activity and nested-agent progress. Display a live elapsed time. Pending approvals remain visible and actionable.
 - **After completion:** keep the user's request and final answer visible. Collapse intermediate activity under a compact disclosure row, for example `执行了 55 秒 · 读取 3 个文件 · 运行 2 条命令`. Counts must come from actual recorded activity. A plain chat reply without intermediate activity needs no empty disclosure group.
-- **On demand:** expand/collapse that task's activity without hiding its final answer. The user requested clicking the disclosure; evaluate terminal mouse hit testing alongside a keyboard focus/activation path, while preserving native text selection. Disclosure state belongs to each task and must not change other tasks.
+- **On demand:** expand/collapse that task's activity without hiding its final answer. Click the disclosure when mouse reporting is enabled, or use `/activity N`; F2 restores native text selection. Disclosure state belongs to each task and must not change other tasks.
 - **Timing:** use task start/end event timestamps to retain completed durations across session replay where the runtime supplies reliable data. The existing `useRunningClock` only measures the current mounted running interval and resets at idle; it cannot establish historical task duration. Proposed default is wall-clock elapsed time including tool execution and approval waits, with waiting state visibly identified. Missing historical timing should remain unavailable rather than be fabricated.
 - **Non-success endings:** make failed, cancelled and interrupted outcomes explicit in the summary. Keep unresolved failures or approval requests visible. When there is no final answer, show the actual outcome rather than inventing a completed result.
 - **Data and geometry:** collapsing changes presentation only. Preserve recorded activity for expansion, inspection and export. Update row measurement and scroll anchoring together so automatic collapse does not move the input or displace a user reading earlier history. Cover live completion, manual expansion, resumed sessions, nested activity and window resizing.
 
 **Priority clarification from the user, 2026-11-04:** functional completeness and reliable interaction come first. Cosmetic polish is optional and may be deferred. The current appearance feels rigid to the user; Codex and other comfortable interfaces are references for refinement, while the three approved responsive welcome states remain part of this product.
 
-Recommended sequence is layout/scroll correctness, task activity grouping and timing, search/session navigation, then diff and per-entry inspection. Attachment preview, recovery and export follow; session branches require a separate runtime feasibility check. Schedule optional visual polish around functional work without making it a prerequisite. Each implementation phase updates its matching behavior documentation and validates the actual user flow.
+The functional sequence above has been implemented and committed in phases. The native branch API was verified before integration. Remaining release work is native-terminal/user acceptance and any fixes it reveals; broader cosmetic refinement remains optional. [ACCEPTANCE.md](ACCEPTANCE.md) separates script evidence from those checks.
 
 ## Part 3 · Conventions
 

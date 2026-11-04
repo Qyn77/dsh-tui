@@ -124,6 +124,7 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  diagnostics: { details: (path: string) => string }
   branch: { usage: string; unavailable: string; created: (id: string) => string }
   recovery: {
     empty: string
@@ -604,6 +605,7 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  diagnostics: { details: path => `Full diagnostic: ${path}` },
   branch: { usage: '/branch [turn number]', unavailable: 'Cannot branch while switching/running, or without session support.', created: id => `Created branch ${id}. Conversation history is inherited; working files are not rolled back.` },
   recovery: {
     empty: 'No failed or interrupted request is available to continue.',
@@ -622,7 +624,7 @@ const EN: Catalog = {
     search: count => `${count} matches · /jump N to navigate · /inspect N to read full content`,
     inspect: entry => `Entry ${entry} · Esc returns to the conversation`,
     exported: path => `Exported to ${path}`,
-    copied: (entry, bytes, truncated) => `Copied entry ${entry}: ${bytes} bytes${truncated ? ' (clipboard limit reached)' : ''}`,
+    copied: (entry, bytes, truncated) => `Sent entry ${entry} to the clipboard: ${bytes} bytes${truncated ? ' (clipboard limit reached)' : ''}. OSC 52 has no acknowledgement.`,
   },
   activity: {
     summary: (turn, seconds, count, expanded, outcome) => `${count > 0 ? (expanded ? '▾ ' : '▸ ') : ''}Task ${turn} · ${seconds === undefined ? 'duration unknown' : `worked for ${seconds}s`} · ${outcome}${count > 0 ? ` · ${count} activities · /activity ${turn}` : ''}`,
@@ -718,36 +720,36 @@ const EN: Catalog = {
     tip: 'Tip: /help · /status · Tab completes',
   },
   commands: {
-    '/clear': 'Clear the visible chat (keeps the session log intact)',
-    '/context': 'Show model, context window, and token usage',
-    '/copy': 'Copy the newest reply to the clipboard; /copy code takes the newest code block',
-    '/exit': 'Leave the REPL',
-    '/help': 'Show the list of available commands',
-    '/history': 'Show or hide the resumed session\'s stored history: /history show or hide',
-    '/keybinds': 'Choose the prompt editor: /keybinds vim or default',
-    '/language': 'Switch the interface language: /language en or zh',
-    '/mouse': 'Mouse input: /mouse auto|on|off · F2 toggles native selection',
-    '/mcp': 'List connected MCP servers; /mcp add opens a preset picker or takes a pasted config, /mcp remove <server> takes one out',
-    '/model': 'Switch model: /model <name> or <provider>/<name>',
-    '/provider': 'List the mounted LLM provider routes and the live one (read-only)',
-    '/plugins': 'List loaded plugins; /plugins enable|disable <name> switches one',
-    '/quit': 'Alias for /exit',
-    '/sessions': 'List stored sessions and how to continue one',
-    '/skill': 'Pick a user-invocable skill — /skill opens a picker, /skill <name> [args] runs one',
-    '/resume': 'Continue a stored session: /resume <id>, or /resume last',
-    '/status': 'Print the current model and session id',
-    '/theme': 'Choose the background the colors assume: /theme auto, dark, or light',
-    '/usage': 'Break this session\'s token spend out turn by turn',
-    '/search': 'Search conversation text',
-    '/jump': 'Jump to a transcript entry',
-    '/inspect': 'Inspect one complete message or tool result',
-    '/branch': 'Branch the conversation at the current point or an earlier turn',
-    '/retry': 'Inspect failure, continue safely, or restore the request draft',
-    '/diff': 'Inspect recorded file changes: /diff [entry number]',
-    '/export': 'Export session or one entry as Markdown',
-    '/activity': 'Expand or collapse a completed task: /activity <number>|all|none',
-    '/approval': 'Show or switch this session\'s approval policy: /approval ask or never',
-    '/verbose': 'Show more of each long output: /verbose on, off, or bare to toggle',
+    '/clear': 'Clear the visible conversation',
+    '/context': 'Context window and occupancy',
+    '/copy': 'Copy a reply, code block or entry',
+    '/exit': 'Exit the REPL',
+    '/help': 'Commands and keyboard shortcuts',
+    '/history': 'Show or hide resumed history',
+    '/keybinds': 'Choose the editor keymap',
+    '/language': 'Choose the interface language',
+    '/mouse': 'Mouse input and native text selection',
+    '/mcp': 'Manage MCP servers',
+    '/model': 'Choose the model',
+    '/provider': 'List model providers',
+    '/plugins': 'Manage loaded plugins',
+    '/quit': 'Exit the REPL',
+    '/sessions': 'Browse saved sessions',
+    '/skill': 'Run a skill',
+    '/resume': 'Resume a stored session',
+    '/status': 'Current session status',
+    '/theme': 'Choose terminal appearance',
+    '/usage': 'Token usage by turn',
+    '/search': 'Search the conversation',
+    '/jump': 'Navigate conversation entries',
+    '/inspect': 'Read one complete entry',
+    '/branch': 'Branch the conversation',
+    '/retry': 'Recover incomplete work',
+    '/diff': 'Inspect recorded file changes',
+    '/export': 'Export conversation as Markdown',
+    '/activity': 'Expand task activity',
+    '/approval': 'Tool approval policy',
+    '/verbose': 'Expand or limit tool output',
   },
   output: {
     helpHeading: 'Available commands:',
@@ -898,7 +900,7 @@ const EN: Catalog = {
         : 'Vim keybinds are off — the prompt is the readline editor again.',
     keybindsUnknown: (given, prefs) =>
       `Not a keymap: ${given}. Try one of: ${prefs.join(', ')}.`,
-    copyUsage: 'Usage: /copy (the newest reply) or /copy code (the newest code block)',
+    copyUsage: 'Usage: /copy (newest reply), /copy code (newest code block), or /copy N (entry N)',
     copySent: (target, bytes, truncatedAt) =>
       `Sent the newest ${target === 'code' ? 'code block' : 'reply'} to the clipboard`
       + ` (${bytes} bytes${truncatedAt === undefined ? '' : `, truncated at ${truncatedAt}`}).`
@@ -924,6 +926,7 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  diagnostics: { details: path => `完整诊断：${path}` },
   branch: { usage: '/branch [轮次编号]', unavailable: '运行中、切换中或缺少会话服务时无法创建分支。', created: id => `已创建分支 ${id}，继承对话历史；工作文件保持当前状态。` },
   recovery: {
     empty: '当前没有可继续的失败或中断请求。',
@@ -942,7 +945,7 @@ const ZH: Catalog = {
     search: count => `${count} 条匹配 · /jump N 定位 · /inspect N 查看完整内容`,
     inspect: entry => `条目 ${entry} · Esc 返回对话`,
     exported: path => `已导出到 ${path}`,
-    copied: (entry, bytes, truncated) => `已复制条目 ${entry}：${bytes} 字节${truncated ? '（达到剪贴板上限）' : ''}`,
+    copied: (entry, bytes, truncated) => `已向剪贴板发送条目 ${entry}：${bytes} 字节${truncated ? '（达到剪贴板上限）' : ''}。OSC 52 没有回执。`,
   },
   activity: {
     summary: (turn, seconds, count, expanded, outcome) => `${count > 0 ? (expanded ? '▾ ' : '▸ ') : ''}任务 ${turn} · ${seconds === undefined ? '耗时未知' : `执行了 ${seconds} 秒`} · ${({ completed: '完成', error: '失败', cancelled: '取消', interrupted: '中断' } as Record<string, string>)[outcome] ?? outcome}${count > 0 ? ` · ${count} 项过程 · /activity ${turn}` : ''}`,
@@ -1033,36 +1036,36 @@ const ZH: Catalog = {
     tip: '提示：/help · /status · Tab 补全',
   },
   commands: {
-    '/clear': '清空可见的聊天区（session log 不变）',
-    '/context': '显示模型、上下文窗口和 token 用量',
-    '/copy': '把最新一条回复复制到剪贴板；/copy code 取最新的代码块',
-    '/exit': '退出 REPL',
-    '/help': '显示可用命令列表',
-    '/history': '显示或隐藏接续 session 的已存历史：/history show 或 hide',
-    '/keybinds': '选择提示框的编辑器：/keybinds vim 或 default',
-    '/language': '切换界面语言：/language en 或 zh',
-    '/mouse': '鼠标模式：/mouse auto|on|off · F2 切换原生文字选择',
-    '/mcp': '列出已连接的 MCP 服务器；/mcp add 打开预设选择器或接受粘贴的配置，/mcp remove <服务器> 移除一个',
-    '/model': '切换模型：/model <名称> 或 <提供方>/<名称>',
-    '/provider': '列出已挂载的 LLM 提供方路由和当前生效的那个（只读）',
-    '/plugins': '列出已加载的插件；/plugins enable|disable <名字> 可以开关某一个',
-    '/quit': '/exit 的别名',
-    '/sessions': '列出已存的 session，以及怎么接上其中一个',
-    '/skill': '挑选可由用户调用的 skill——/skill 打开选择器，/skill <名称> [参数] 直接运行',
-    '/resume': '接上一个已存的 session：/resume <id>，或者 /resume last',
-    '/status': '打印当前模型和 session id',
-    '/theme': '选择配色假定的背景：/theme auto、dark 或 light',
-    '/usage': '按轮次拆开本次 session 的 token 开销',
+    '/clear': '清空可见对话',
+    '/context': '上下文窗口与占用',
+    '/copy': '复制回复、代码或指定条目',
+    '/exit': '退出会话',
+    '/help': '命令与快捷键',
+    '/history': '显示或隐藏接续的历史',
+    '/keybinds': '选择输入框键位',
+    '/language': '选择界面语言',
+    '/mouse': '鼠标模式与原生文字选择',
+    '/mcp': '管理 MCP 服务器',
+    '/model': '查看或切换模型',
+    '/provider': '查看模型提供方',
+    '/plugins': '管理已加载插件',
+    '/quit': '退出会话',
+    '/sessions': '浏览已保存的会话',
+    '/skill': '选择并运行技能',
+    '/resume': '接续已保存的会话',
+    '/status': '查看当前会话状态',
+    '/theme': '选择终端主题',
+    '/usage': '按轮次查看 Token 用量',
     '/search': '搜索对话内容',
-    '/jump': '定位到对话条目',
-    '/inspect': '查看单条消息或工具结果的完整内容',
-    '/branch': '从当前对话或指定轮次创建会话分支',
-    '/retry': '查看失败情况、继续任务或恢复请求草稿',
-    '/diff': '查看已记录的文件修改：/diff [条目编号]',
-    '/export': '将会话或单条内容导出为 Markdown',
-    '/activity': '展开或收起任务过程：/activity <编号>|all|none',
-    '/approval': '查看或切换本 session 的审批策略：/approval ask 或 never',
-    '/verbose': '让每段长输出多显示一些：/verbose on、off，不带参数则切换',
+    '/jump': '定位对话条目',
+    '/inspect': '查看单条完整内容',
+    '/branch': '创建会话分支',
+    '/retry': '恢复未完成的请求',
+    '/diff': '查看已记录的文件修改',
+    '/export': '导出 Markdown 对话记录',
+    '/activity': '展开或收起任务过程',
+    '/approval': '设置工具审批策略',
+    '/verbose': '展开或精简工具输出',
   },
   output: {
     helpHeading: '可用命令：',
@@ -1209,7 +1212,7 @@ const ZH: Catalog = {
         : 'vim 键位已关闭——提示框回到 readline 那套编辑器。',
     keybindsUnknown: (given, prefs) =>
       `不是可选的键位：${given}。可选：${prefs.join('、')}。`,
-    copyUsage: '用法：/copy（最新一条回复）或 /copy code（最新的代码块）',
+    copyUsage: '用法：/copy（最新回复）、/copy code（最新代码块）或 /copy N（条目 N）',
     copySent: (target, bytes, truncatedAt) =>
       `已把最新的${target === 'code' ? '代码块' : '回复'}发往剪贴板`
       + `（${bytes} 字节${truncatedAt === undefined ? '' : `，在 ${truncatedAt} 字节处截断`}）。`

@@ -20,6 +20,7 @@ import { appExit, service, type AppExit } from './core/services.ts'
 import { shortId } from './commands/sessions.ts'
 import { App } from './renderer.tsx'
 import { installResizeOwner, type RepaintRef } from './terminal/resize.ts'
+import { installDiagnostics, type DiagnosticRef } from './terminal/diagnostics.ts'
 import { branchSeed } from './commands/session-branch.ts'
 import { planResume, requestFromEnv, type SwapSession, type SwapResult } from './commands/resume.ts'
 import { MOUSE_MODE_EXIT, mouseModeSequence, resolveMouseMode } from './terminal/mouse.ts'
@@ -235,6 +236,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
     const exitHook: AppExit = appExit(ctx) ?? ((code: number) => process.exit(code))
 
     const alternateScreen = process.stdout.isTTY
+    let restoreDiagnostics: (() => void) | undefined
     try {
       if (alternateScreen) {
         internals.stdout.write(ALT_SCREEN_ENTER)
@@ -245,6 +247,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       // Filled in by the App's mount effect; the resize owner borrows it to
       // force the settled frame onto the screen. See `resize.ts`.
       const repaint: RepaintRef = { current: undefined }
+      const diagnostics: DiagnosticRef = {}
       // The probe was started before the hold, so its answer (or its deadline)
       // is already in by now under `auto`; an explicit preference never asked.
       // The App still receives the measurement — under `auto` it is what
@@ -299,7 +302,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
         }
         return await publishHandle(next)
       }
-      const swapSession: SwapSession = async request => {
+      const swapSession: SwapSession = async (request) => {
         if (switchingSession) return { kind: 'busy' }
         switchingSession = true
         try { return await performSwap(request) }
@@ -339,6 +342,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           agent: handle.agent,
           exit: exitHook,
           repaint,
+          diagnostics,
           modelRef: ref,
           lang: language,
           themePref: theme,
@@ -366,6 +370,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
         // writes or its cursor-relative eraser leaves the old top border.
         patchConsole: true,
       })
+      restoreDiagnostics = installDiagnostics(diagnostics)
       redraw = () => { instance.rerender(element()) }
       // Resize repainting has exactly one owner and it lives outside React.
       // The primary screen never gets one: without the alternate screen there
@@ -391,6 +396,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       // paste, which would make the next shell echo `[200~` around every paste,
       // or with autowrap disabled, which would truncate every long line the
       // shell prints from then on.
+      restoreDiagnostics?.()
       if (alternateScreen) {
         internals.stdout.write(AUTOWRAP_ON)
         internals.stdout.write(BRACKETED_PASTE_EXIT)

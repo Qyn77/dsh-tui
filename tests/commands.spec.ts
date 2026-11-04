@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId, SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { dispatch, filterCommands, registryCommands, type CommandContext } from '../src/commands/commands.ts'
+import { dispatch, filterCommands, registryCommands, type CommandResult, type CommandContext } from '../src/commands/commands.ts'
 import { catalog } from '../src/core/i18n.ts'
 import type { UiState } from '../src/core/types.ts'
 import { OSC52_MAX_BYTES, osc52 } from '../src/commands/clipboard.ts'
@@ -29,6 +29,11 @@ function makeStand(): Stand {
     currentSelection: () => ({ provider: 'test-provider', model: 'test-model' }),
   } as never)
   return { ctx, exits }
+}
+
+function handledText(result: CommandResult): string | undefined {
+  expect(result.kind).toBe('handled')
+  return result.kind === 'handled' ? result.message : undefined
 }
 
 function emptyState(): UiState {
@@ -80,7 +85,7 @@ describe('slash command dispatch', () => {
   it('branches only through the runner and validates the selected turn', async () => {
     const { cmd } = makeCommand()
     const forkSession = vi.fn().mockResolvedValue({ kind: 'switched', id: 'child' })
-    expect(await dispatch('/branch 2', { ...cmd, forkSession })).toMatchObject({ message: expect.stringContaining('child') })
+    expect(handledText(await dispatch('/branch 2', { ...cmd, forkSession }))).toContain('child')
     expect(forkSession).toHaveBeenCalledWith(2)
     expect(await dispatch('/branch bad', { ...cmd, forkSession })).toMatchObject({ failed: true })
     expect(forkSession).toHaveBeenCalledOnce()
@@ -94,18 +99,18 @@ describe('slash command dispatch', () => {
       { kind: 'user', message: createUserMessage({ content: [{ type: 'text', text: 'original request' }], source: { kind: 'user' } }) },
     ] }
     const agent = { ...cmd.agent, status: 'idle', followup } as never
-    expect(await dispatch('/retry', { ...cmd, state, agent })).toMatchObject({ message: expect.stringContaining('/retry continue') })
+    expect(handledText(await dispatch('/retry', { ...cmd, state, agent }))).toContain('/retry continue')
     expect(followup).not.toHaveBeenCalled()
     await dispatch('/retry continue', { ...cmd, state, agent })
     expect(followup).toHaveBeenCalledOnce()
     await dispatch('/retry draft', { ...cmd, state, agent, restoreDraft })
     expect(restoreDraft).toHaveBeenCalledWith('original request')
-    expect(await dispatch('/retry', cmd)).toMatchObject({ message: expect.stringContaining('No failed') })
+    expect(handledText(await dispatch('/retry', cmd))).toContain('No failed')
   })
 
   it('renders persisted file diffs and rejects unknown entry numbers', async () => {
     const { cmd } = makeCommand()
-    expect(await dispatch('/diff', cmd)).toMatchObject({ message: expect.stringContaining('No recorded') })
+    expect(handledText(await dispatch('/diff', cmd))).toContain('No recorded')
     expect(await dispatch('/diff 99', cmd)).toMatchObject({ failed: true })
   })
 
@@ -114,14 +119,14 @@ describe('slash command dispatch', () => {
     const state: UiState = { entries: [{ kind: 'note', text: 'needle' }], status: 'idle', currentTurn: 0 }
     const inspectEntry = vi.fn()
     const jumpEntry = vi.fn()
-    expect(await dispatch('/search needle', { ...cmd, state })).toMatchObject({ message: expect.stringContaining('1. note') })
+    expect(handledText(await dispatch('/search needle', { ...cmd, state }))).toContain('1. note')
     await dispatch('/inspect 1', { ...cmd, state, inspectEntry })
     await dispatch('/jump 1', { ...cmd, state, jumpEntry })
     expect(inspectEntry).toHaveBeenCalledWith(0)
     expect(jumpEntry).toHaveBeenCalledWith(0)
     expect(await dispatch('/inspect 99', { ...cmd, state, inspectEntry })).toMatchObject({ failed: true })
     const emit = vi.fn()
-    expect(await dispatch('/copy 1', { ...cmd, state, emit })).toMatchObject({ message: expect.stringContaining('entry 1') })
+    expect(handledText(await dispatch('/copy 1', { ...cmd, state, emit }))).toContain('entry 1')
     expect(emit).toHaveBeenCalledOnce()
   })
 
@@ -1568,7 +1573,7 @@ describe('filterCommands', () => {
       const shadowing = [{ name: '/clear', description: 'something else entirely' }]
       const rows = filterCommands('/clear', shadowing)
       expect(rows).toHaveLength(1)
-      expect(rows[0]?.description).toMatch(/visible chat/)
+      expect(rows[0]?.description).toBe(catalog('en').commands['/clear'])
     })
   })
 })

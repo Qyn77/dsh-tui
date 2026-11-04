@@ -3,6 +3,7 @@ import type { UiState } from '../src/core/types.ts'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { activityView } from '../src/render/activity.ts'
 
+const task = { turn: 1, startIndex: 0, endIndex: 3, startedAt: 1000, endedAt: 56000, outcome: 'completed' }
 const state: UiState = {
   status: 'idle', currentTurn: 1,
   entries: [
@@ -10,7 +11,7 @@ const state: UiState = {
     { kind: 'assistant', turn: 1, step: 1, text: 'checking', finalized: true },
     { kind: 'assistant', turn: 1, step: 2, text: 'result', finalized: true },
   ],
-  tasks: [{ turn: 1, startIndex: 0, endIndex: 3, startedAt: 1000, endedAt: 56000, outcome: 'completed' }],
+  tasks: [task],
 }
 
 it('collapses completed intermediate activity and keeps the user and final answer', () => {
@@ -24,11 +25,12 @@ it('expands one task independently and keeps its disclosure', () => {
   expect(activityView(state, new Set([1])).entries.map(entry => entry.kind)).toEqual(['user', 'activity', 'assistant', 'assistant'])
 })
 it('never collapses a still-running task', () => {
-  expect(activityView({ ...state, tasks: [{ ...state.tasks![0], endedAt: undefined, endIndex: undefined }] }, new Set()).entries).toEqual(state.entries)
+  const running = { ...state, tasks: [{ ...task, endedAt: undefined, endIndex: undefined }] }
+  expect(activityView(running, new Set()).entries).toEqual(state.entries)
 })
 it('keeps failure notes visible outside the collapsed activity', () => {
   const failed: UiState = { ...state, entries: [...state.entries, { kind: 'note', text: 'failed', tone: 'error' }],
-    tasks: [{ ...state.tasks![0], endIndex: 4, outcome: 'error' }] }
+    tasks: [{ ...task, endIndex: 4, outcome: 'error' }] }
   expect(activityView(failed, new Set()).entries.at(-1)).toMatchObject({ kind: 'note', tone: 'error' })
 })
 
@@ -40,7 +42,8 @@ it('reconstructs task duration from recorded events after replay', async () => {
   const replayed = replay(events)
   const task = replayed.tasks?.[0]
   expect(task?.endIndex).toBe(replayed.entries.length)
-  expect(task?.endedAt! - task?.startedAt!).toBe(5000)
+  if (task?.startedAt === undefined || task.endedAt === undefined) throw new Error('missing event timestamps')
+  expect(task.endedAt - task.startedAt).toBe(5000)
 })
 
 it('renders a collapsed group and expands it through the live prompt', async () => {
@@ -63,13 +66,35 @@ it('renders a collapsed group and expands it through the live prompt', async () 
 it('retains emitted reasoning for disclosure without showing it beside the collapsed answer', () => {
   const withReasoning: UiState = { ...state, entries: [state.entries[0], {
     kind: 'assistant', turn: 1, step: 1, text: 'answer', reasoning: 'recorded reasoning', finalized: true,
-  }], tasks: [{ ...state.tasks![0], endIndex: 2 }] }
+  }], tasks: [{ ...task, endIndex: 2 }] }
   expect(activityView(withReasoning, new Set()).entries.at(-1)).toMatchObject({ reasoning: 'recorded reasoning', reasoningVisible: false })
   expect(activityView(withReasoning, new Set([1])).entries.at(-1)).toMatchObject({ reasoningVisible: true })
 })
 
 it('keeps a tool-only final result visible rather than hiding every outcome', () => {
   const tool = { kind: 'tool' as const, callId: 'last' as never, name: 'present', args: '{}', turn: 1, step: 1, status: 'ok' as const }
-  const toolOnly: UiState = { ...state, entries: [state.entries[0], tool], tasks: [{ ...state.tasks![0], endIndex: 2 }] }
+  const toolOnly: UiState = { ...state, entries: [state.entries[0], tool], tasks: [{ ...task, endIndex: 2 }] }
   expect(activityView(toolOnly, new Set()).entries.at(-1)).toBe(tool)
+})
+
+it('opens and closes a task disclosure with terminal mouse presses', async () => {
+  const { paintApp } = await import('./fake-tty.ts')
+  const tty = await paintApp({ rows: 40 })
+  try {
+    await tty.append('turn/start', { turn: 1 })
+    await tty.finalize('click detail', { turn: 1, step: 1 })
+    await tty.finalize('click final', { turn: 1, step: 2 })
+    await tty.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const click = async (): Promise<void> => {
+      const row = tty.screen().split('\n').findIndex(line => line.includes('Task 1')) + 1
+      expect(row).toBeGreaterThan(0)
+      await tty.send(`\u001B[<0;5;${row}M`)
+      await tty.send(`\u001B[<0;5;${row}m`)
+    }
+    expect(tty.screen()).not.toContain('click detail')
+    await click()
+    expect(tty.screen()).toContain('click detail')
+    await click()
+    expect(tty.screen()).not.toContain('click detail')
+  } finally { tty.unmount() }
 })

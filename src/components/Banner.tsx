@@ -16,15 +16,10 @@
  * what turned `/help` into `/hel` and `/status` into `/stat` in an
  * earlier revision.
  *
- * The banner is **static output**: `renderer.tsx` renders it inside
- * Ink's `<Static>`, so it is written to the terminal exactly once and
- * then scrolls away like any other past output. The compact
- * {@link StatusBar} takes over as the live header once there is a
- * message to head. Rendering it once is what keeps it intact — Ink
- * erases the previous dynamic frame by counting *logical* lines, so a
- * line the terminal has wrapped is under-erased, and every stdout
- * `resize` redraws the whole dynamic frame. Nineteen rows of art inside
- * that frame left a shredded copy of themselves behind on each resize.
+ * On a real TTY the banner belongs to the bounded alternate-screen frame.
+ * Its height tier yields to menus and the input, and the resize owner redraws
+ * the settled geometry. Non-TTY fixtures retain Ink's Static output path.
+ * The StatusBar takes over once the transcript has visible entries.
  *
  * On terminals too narrow for the block wordmark it degrades to a
  * compact form that keeps every fact and drops only the decoration.
@@ -79,12 +74,9 @@ export const Banner: FC<BannerProps> = ({ selection, sessionId, availableRows, c
   const { stdout } = useStdout()
   const strings = useStrings()
   const { brandTint } = usePalette()
-  // Read once, at the single paint this component gets: `useStdout` does
-  // not re-render on resize, and as static output the banner would not
-  // be redrawn even if it did. The width it was printed at is the width
-  // it keeps, which is exactly how the rest of the terminal's scrollback
-  // behaves. Ink does not surface the column count when stdout is piped;
-  // 80 is the safe assumption and is wide enough for the full banner.
+  // Read the live dimensions on each parent render. The real-TTY resize
+  // owner rerenders the tree after a drag settles; Static fixtures retain
+  // their initial width. Pipes have no column count, so fall back to 80.
   const columns = stdout?.columns ?? 80
   const tier = bannerTier(columns, availableRows)
   // Nothing fits. Drawing the box anyway would not clip it — a subtree taller

@@ -912,7 +912,7 @@ describe('the palette on a terminal too narrow for its longest description', () 
   })
 
   it('keeps them lined up when the widest description will not fit', async () => {
-    const painted = await paintApp({ turns: 0, columns: 90, rows: 40 })
+    const painted = await paintApp({ registryCommands: [{ name: 'aaaa', description: 'An intentionally long plugin description '.repeat(6) }], turns: 0, columns: 90, rows: 40 })
     await painted.send('/')
     const screen = painted.screen()
     painted.unmount()
@@ -920,7 +920,7 @@ describe('the palette on a terminal too narrow for its longest description', () 
     expect(bulletColumns(screen).size).toBe(1)
     // The description is what gives way, and it says so with an ellipsis.
     expect(screen).toContain('/copy')
-    expect(screen).toMatch(/Copy the newest reply .*…/)
+    expect(screen).toMatch(/An intentionally long plugin description.*…/)
   })
 
   it('never lets an over-long row cost a second line', async () => {

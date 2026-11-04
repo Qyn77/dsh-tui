@@ -93,7 +93,7 @@ dsh --profile tui-rc5
 | `/approval` | 查看或切换审批策略（`ask` / `never`） |
 | `/skill` | 挑选并运行一个可调用的 skill |
 | `/language`、`/theme` | `en` / `zh`；`auto` / `dark` / `light` |
-| `/copy` | 把最新回复放进剪贴板；`/copy code` / `/copy <条目编号>` 取最新代码块 |
+| `/copy` | 复制最新回复；`/copy code` 复制代码块；`/copy N` 复制指定条目 |
 | `/verbose` | 长输出多看几行（`Ctrl-O` 是同一个开关） |
 | `/keybinds` | 输入框键位：`default` 或 `vim` |
 | `/provider`、`/plugins` | 已挂载的 LLM 路由；已加载的插件 |
@@ -117,8 +117,12 @@ dsh --profile tui-rc5
 - **[docs/DEVELOP.md](docs/DEVELOP.md)** —— 改源码：link 模式 profile、编辑 / 重建 / 重启循环、项目结构、发版流程。
 - **[docs/SPEC.md](docs/SPEC.md)** —— 设计契约：视觉规则、路线图、贡献者约定。
 
+Apple Terminal 在 `/mouse auto` 下使用鼠标上报传递滚轮。F2 或 `/mouse off` 恢复原生文字选择，`/mouse on` 恢复上报；如果终端配置禁用了鼠标上报，请启用 Terminal.app 的 Allow Mouse Reporting。其他终端在 auto 下沿用备用屏幕滚轮输入。任务结束后保留事件计算的耗时并收起中间过程，最终答复和失败信息保持可见。
+
+后台诊断写入 `DSH_HOME` 下的 `tui.log`（默认 `~/.dsh/tui.log`）。开启鼠标上报后可点击任务摘要展开，F2 可恢复原生文字选择。
+
+人工验收：[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)。
+
 ## License
 
 MIT
-
-Apple Terminal 在 `/mouse auto` 下使用鼠标上报传递滚轮。F2 或 `/mouse off` 恢复原生文字选择，`/mouse on` 恢复上报；如果终端配置禁用了鼠标上报，请启用 Terminal.app 的 Allow Mouse Reporting。其他终端在 auto 下沿用备用屏幕滚轮输入。任务结束后保留事件计算的耗时并收起中间过程，最终答复和失败信息保持可见。

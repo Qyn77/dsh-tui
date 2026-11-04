@@ -4,9 +4,11 @@ import type { UiEntry } from '../core/types.ts'
 
 export function recordedDiffs(meta: unknown): FileDiff[] {
   if (!meta || typeof meta !== 'object' || !('diffs' in meta) || !Array.isArray(meta.diffs)) return []
-  return meta.diffs.filter((diff): diff is FileDiff => !!diff && typeof diff === 'object'
-    && typeof diff.path === 'string' && (diff.oldText === null || typeof diff.oldText === 'string')
-    && typeof diff.newText === 'string')
+  const values: readonly unknown[] = meta.diffs
+  return values.filter((diff): diff is FileDiff => !!diff && typeof diff === 'object'
+    && 'path' in diff && typeof diff.path === 'string'
+    && 'oldText' in diff && (diff.oldText === null || typeof diff.oldText === 'string')
+    && 'newText' in diff && typeof diff.newText === 'string')
 }
 
 /** Compact contextual changes, retaining a truthful unavailable-before state. */

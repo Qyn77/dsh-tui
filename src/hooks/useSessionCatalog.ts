@@ -9,7 +9,7 @@ export function useSessionCatalog(ctx: Context, agent: Agent, enabled: boolean):
   useEffect(() => {
     if (!enabled) return
     let active = true
-    void sessionCatalog(ctx, agent).then(next => { if (active) setRows(next) }, () => { if (active) setRows([]) })
+    void sessionCatalog(ctx, agent).then((next) => { if (active) setRows(next) }, () => { if (active) setRows([]) })
     return () => { active = false }
   }, [ctx, agent, enabled])
   return rows

@@ -20,8 +20,8 @@ column. Shared pickers align with the input and retain width while filtering.
 ## Interaction
 
 Keyboard operation is always available. Wheel events must reach the transcript
-without moving the complete terminal viewport. Mouse disclosure is opt-in
-where terminal tracking would otherwise capture native selection. Browsing
+without moving the complete terminal viewport. Mouse disclosure follows the terminal input policy; F2 restores native selection
+when tracking captures pointer events. Browsing
 history never loses the draft or changes the running agent's context.
 
 ## Progressive disclosure

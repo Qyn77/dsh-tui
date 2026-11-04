@@ -1,7 +1,8 @@
 # Using dsh-tui in detail
 
 The quick start lives in the [README](../README.md). This document is the
-long version of every surface, in English first and Chinese second.
+long version of every surface, in English first and Chinese second. For the current
+rc.5 additions and native-terminal checks, see [ACCEPTANCE.md](ACCEPTANCE.md).
 
 ### Run a shell command
 
@@ -530,7 +531,7 @@ Every slash command, with what it actually does:
 | `/approval` | Show this session's approval policy; `/approval ask` or `never` switches it |
 | `/permission` | Plugin command: pick a bundled sandbox + approval preset — `/permission ` opens a picker, or type `read-only` / `workspace-write` / `danger-full-access` directly |
 | `/theme` | Choose the background the colors assume: `/theme auto`, `dark`, or `light` |
-| `/copy` | Copy the newest reply to the clipboard; `/copy code` takes the newest code block |
+| `/copy` | Send the newest reply, `/copy code` for a code block, or `/copy N` for entry N |
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
 | `/sessions` | List the stored sessions, with the id to resume one by |
@@ -538,6 +539,15 @@ Every slash command, with what it actually does:
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide` |
 | `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`; bare reports which is on and changes nothing |
+| `/mouse` | `auto`, `on`, `off`; F2 switches reporting/native text selection |
+| `/activity` | Toggle task N, or expand/collapse all: `/activity N`, `all`, `none` |
+| `/search` | Search full recorded entry text: `/search <text>` |
+| `/jump` | Navigate to N, `next`, `prev`, or preceding `user`, `tool`, `error` |
+| `/inspect` | Read complete entry N; Esc returns |
+| `/diff` | Inspect recorded file changes; optional entry number |
+| `/retry` | Report failed work; `continue` requests continuation, `draft` restores text |
+| `/export` | Write new Markdown file: `/export <path> [--entry=N]` |
+| `/branch` | Native conversation fork at current cut or ended turn N; files stay current |
 | `/exit`, `/quit` | Leave the REPL |
 
 And every key:
@@ -547,6 +557,8 @@ And every key:
 | `Enter` | Send the current input as a user message — while a turn is running it steers that turn instead of queuing a new one |
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
+| `F2` | Toggle mouse reporting and native selection |
+| `Ctrl-X` | Remove the draft image under the caret, or the last image |
 | `Ctrl-O` | Same switch as `/verbose`, without typing a command |
 | `y` / `n` / `Esc` | Answer a tool approval request — the card lists the call's arguments so the answer is about what it would actually do |
 | `Esc` | Cancel the in-flight turn or `!` command; never exits |
@@ -1016,7 +1028,7 @@ DSH_TUI_RESUME=last dsh --profile tui
 | `/approval` | 查看这条 session 的审批策略；`/approval ask` 或 `never` 切换 |
 | `/permission` | 插件命令：选择「沙箱 + 审批」打包预设——`/permission ` 打开选择器，也可直接打 `read-only` / `workspace-write` / `danger-full-access` |
 | `/theme` | 选择配色假定的背景：`/theme auto`、`dark` 或 `light` |
-| `/copy` | 把最新一条回复复制到剪贴板；`/copy code` 取最新的代码块 |
+| `/copy` | 发送最新回复到剪贴板；`/copy code` 取代码，`/copy N` 取条目 N |
 | `/verbose` | 让每段长输出多显示一些：`/verbose on`、`off`，不带参数则切换 |
 | `/plugins` | 列出本进程加载的插件，以及各自的生命周期状态；`/plugins enable\|disable <名字>` 开关某一个，并写回 loader 配置 |
 | `/sessions` | 列出已存的 session，以及接上其中一个要用的 id |
@@ -1024,6 +1036,15 @@ DSH_TUI_RESUME=last dsh --profile tui
 | `/resume` | 切到某个已存的 session：`/resume <id>`，或者 `/resume last` |
 | `/history` | 显示或隐藏接续 session 带来的已存历史：`/history show` 或 `hide` |
 | `/keybinds` | 选择输入框的键位：`/keybinds default` 或 `vim`；不带参数只报告当前是哪一种，不做切换 |
+| `/mouse` | `auto`、`on`、`off`；F2 切换鼠标上报与原生文字选择 |
+| `/activity` | `/activity N` 切换第 N 轮过程；`all` 展开全部，`none` 收起全部 |
+| `/search` | `/search <文字>` 搜索完整的已记录内容 |
+| `/jump` | 跳到 N、`next`、`prev`，或前一条 `user`、`tool`、`error` |
+| `/inspect` | 查看完整条目 N；Esc 返回 |
+| `/diff` | 查看已记录的文件修改，可指定条目编号 |
+| `/retry` | 查看失败情况；`continue` 请求继续，`draft` 恢复文本 |
+| `/export` | 写入新 Markdown 文件：`/export <路径> [--entry=N]` |
+| `/branch` | 从当前记录或结束的第 N 轮分支；文件仍保持当前状态 |
 | `/exit`, `/quit` | 退出 REPL |
 
 所有按键：
@@ -1033,6 +1054,8 @@ DSH_TUI_RESUME=last dsh --profile tui
 | `Enter` | 把当前输入作为用户消息发给模型——有一轮在跑时，是插话到这一轮，而不是新排一轮 |
 | `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
 | `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
+| `F2` | 切换鼠标上报与原生文字选择 |
+| `Ctrl-X` | 移除光标处的草稿图片，否则移除最后一张 |
 | `Ctrl-O` | 和 `/verbose` 是同一个开关，不用敲命令 |
 | `y` / `n` / `Esc` | 回答工具审批请求 —— 卡片会列出这次调用的参数，答的是它到底要干什么 |
 | `Esc` | 取消正在跑的 turn 或 `!` 命令；不会退出 |

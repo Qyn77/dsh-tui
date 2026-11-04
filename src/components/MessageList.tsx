@@ -29,8 +29,11 @@
  * @module @qiao-qyn/dsh-tui/components/MessageList
  */
 
+import { readPaste } from '../prompt/paste.ts'
+import { parseMouseEvents } from '../terminal/mouse.ts'
+import { cellBounds, containsCell } from '../terminal/geometry.ts'
 import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'
-import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
+import { Box, Text, measureElement, useStdin, useStdout, type DOMElement } from 'ink'
 import type { SubCall, UiEntry, UiState, WorkflowMember } from '../core/types.ts'
 import { userMessageImages, userMessageText } from '../core/types.ts'
 import { windowStart } from '../render/scroll.ts'
@@ -70,6 +73,7 @@ import { Markdown } from './Markdown.tsx'
 
 /** Props for {@link MessageList}. */
 export interface MessageListProps {
+  onToggleActivity?: (turn: number) => void
   jumpIndex?: number
   onJump?: (offset: number) => void
   state: UiState
@@ -781,6 +785,7 @@ export const MessageList: FC<MessageListProps> = ({
   pinTop,
   expanded,
   onGeometry,
+  onToggleActivity,
   jumpIndex,
   onJump,
 }) => {
@@ -789,6 +794,29 @@ export const MessageList: FC<MessageListProps> = ({
   const viewportRef = useRef<DOMElement | null>(null)
   const contentRef = useRef<DOMElement | null>(null)
   const entryRefs = useRef(new Map<number, DOMElement>())
+  const { internal_eventEmitter: events } = useStdin()
+  const mousePaste = useRef(false)
+  useEffect(() => {
+    const onInput = (chunk: Buffer | string): void => {
+      const paste = readPaste(String(chunk), mousePaste.current)
+      mousePaste.current = paste.open
+      if (paste.bracketed || !viewportRef.current || !onToggleActivity) return
+      const viewport = cellBounds(viewportRef.current)
+      for (const event of parseMouseEvents(String(chunk))) {
+        if (event.kind !== 'press' || event.button !== 0 || event.shift || event.ctrl || event.alt || !containsCell(viewport, event.x - 1, event.y - 1)) continue
+        for (const [index, node] of entryRefs.current) {
+          const entry = state.entries[index]
+          if (entry?.kind === 'activity' && entry.count > 0 && containsCell(cellBounds(node), event.x - 1, event.y - 1)) {
+            onToggleActivity(entry.turn)
+            break
+          }
+        }
+      }
+    }
+    events?.on('input', onInput)
+    return () => { events?.off('input', onInput) }
+  }, [events, state.entries, onToggleActivity])
+
   const [viewportRows, setViewportRows] = useState(0)
   const maxLines = previewLimit(expanded)
 
@@ -854,7 +882,7 @@ export const MessageList: FC<MessageListProps> = ({
     >
       <Box ref={contentRef} flexDirection="column" flexShrink={0} marginBottom={-offset}>
         {visible.map((entry, idx) => (
-          <Box key={start + idx} flexShrink={0} width="100%" ref={node => {
+          <Box key={start + idx} flexShrink={0} width="100%" ref={(node) => {
             if (node) entryRefs.current.set(start + idx, node)
             else entryRefs.current.delete(start + idx)
           }}>

@@ -25,8 +25,8 @@
  */
 
 import { displayWidth } from '../core/width.ts'
-import React, { type FC } from 'react'
-import { Box, Text } from 'ink'
+import React, { useEffect, useRef, useState, type FC } from 'react'
+import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
 import type { CommandMeta } from '../commands/commands.ts'
 import { MAX_PALETTE_ROWS, visibleStart } from '../prompt/prompt-layout.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
@@ -63,6 +63,15 @@ function nameColumnWidth(commands: readonly CommandMeta[]): number {
 
 export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint, maxRows }) => {
   const strings = useStrings()
+  const { stdout } = useStdout()
+  const frame = useRef<DOMElement | null>(null)
+  const [bodyWidth, setBodyWidth] = useState(Math.max(1, (stdout?.columns ?? 80) - 5))
+  useEffect(() => {
+    if (!frame.current) return
+    const width = Math.max(1, measureElement(frame.current).width - 4)
+    if (width !== bodyWidth) setBodyWidth(width)
+  })
+
   if (commands.length === 0) return null
   // The window is derived, never stored: `selected` is the only thing that
   // moves it, so a sticky `previous` would be memory with nothing to
@@ -77,6 +86,7 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint, 
   const colWidth = nameColumnWidth(shown)
   return (
     <Box
+      ref={frame}
       width="100%"
       borderStyle="round"
       borderColor="cyan"
@@ -93,46 +103,20 @@ export const SlashPalette: FC<SlashPaletteProps> = ({ commands, selected, hint, 
         const described = cmd.description !== ''
         const label = cmd.displayName ?? cmd.name
         const paddedName = described ? label + ' '.repeat(Math.max(0, colWidth - displayWidth(label))) : label
-        if (isSelected) {
-          return (
-            <Box key={cmd.name}>
-              <Text backgroundColor="cyan" color="black" bold wrap="truncate-end">
-                {' '}
-                {paddedName}
-                {described ? ` · ${cmd.description}` : ''}
-                {' '}
-              </Text>
-            </Box>
-          )
-        }
+        const line = ` ${paddedName}${described ? ` · ${cmd.description}` : ''} `
+        const padding = isSelected ? ' '.repeat(Math.max(0, bodyWidth - displayWidth(line))) : ''
         return (
-          <Box key={cmd.name}>
-            {/*
-              `flexShrink={0}` and the leading space are both load-bearing.
-              Without the space this row starts one column left of the
-              selected row, which carries one inside its background block —
-              so the `·` column would step sideways as the selection moved.
-              Without the shrink guard Yoga balances an over-long row by
-              taking columns off *both* children, and the name is the one
-              that cannot spare them: `/copy` came out as `/cop`.
-            */}
-            <Box flexShrink={0}>
-              <Text color="cyan" bold>
-                {' '}
-                {paddedName}
-              </Text>
-            </Box>
-            {described && (
-              <Text color="gray" wrap="truncate-end">
-                {' · '}
-                {cmd.description}
-              </Text>
-            )}
-          </Box>
+          <Text key={cmd.name} backgroundColor={isSelected ? 'cyan' : undefined}
+            color={isSelected ? 'black' : undefined} bold={isSelected} wrap="truncate-end">
+            {' '}
+            <Text color={isSelected ? 'black' : 'cyan'} bold>{paddedName}</Text>
+            {described ? <Text dimColor={!isSelected}>{` · ${cmd.description}`}</Text> : null}
+            {' '}{padding}
+          </Text>
         )
       })}
       <Box marginTop={1}>
-        <Text color="gray" dimColor>
+        <Text dimColor wrap="truncate">
           {hint ?? strings.palette.hint}
           {hidden > 0 ? strings.palette.more(hidden) : ''}
         </Text>

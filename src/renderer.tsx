@@ -6,11 +6,12 @@
  */
 
 import { resolveMouseMode, type MousePreference } from './terminal/mouse.ts'
+import type { DiagnosticRef } from './terminal/diagnostics.ts'
 import { useSessionCatalog } from './hooks/useSessionCatalog.ts'
 import { activityView } from './render/activity.ts'
 import { Box, Static, Text, useApp, useInput, useStdin, useStdout } from 'ink'
 import { readFile } from 'node:fs/promises'
-import React, { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
@@ -51,6 +52,7 @@ import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  diagnostics?: DiagnosticRef
   forkSession?: (turn?: number) => Promise<SwapResult>
   mouse?: MousePreference
   onMousePreferenceChange?: (pref: MousePreference) => void
@@ -159,6 +161,7 @@ export const App: FC<AppProps> = ({
   exit,
   modelRef,
   repaint,
+  diagnostics,
   notice,
   lang: initialLang = 'en',
   themePref: initialThemePref = 'auto',
@@ -206,6 +209,14 @@ export const App: FC<AppProps> = ({
   const onPromptValue = useCallback((value: string) => {
     setSessionPickerOpen(/^\/(?:resume|sessions)\s/i.test(value))
   }, [])
+  useLayoutEffect(() => {
+    if (!diagnostics) return
+    diagnostics.current = (entry) => {
+      appendEntry({ kind: 'note', tone: entry.level === 'error' ? 'error' : 'warn',
+        text: entry.text + (entry.truncated ? `\n${strings.diagnostics.details(entry.path)}` : '') })
+    }
+    return () => { diagnostics.current = undefined }
+  }, [diagnostics, appendEntry, strings])
   const registryRows = useRegistryCommands(ctx, agent)
   const permissionPreset = usePermissionPreset(ctx, agent)
   const approvals = useApprovalRequests(ctx, agent)
@@ -375,7 +386,7 @@ export const App: FC<AppProps> = ({
   const [jumpTarget, setJumpTarget] = useState<UiEntry | undefined>()
   const [expandedTasks, setExpandedTasks] = useState<ReadonlySet<number>>(new Set())
   const setActivity = useCallback((value: number | 'all' | 'none') => {
-    setExpandedTasks(previous => {
+    setExpandedTasks((previous) => {
       if (value === 'none') return new Set()
       if (value === 'all') return new Set(state.tasks?.map(task => task.turn))
       const next = new Set(previous)
@@ -402,7 +413,15 @@ export const App: FC<AppProps> = ({
     setExpandedTasks(new Set(state.tasks?.map(task => task.turn)))
     setJumpTarget(state.entries[index])
   }, [state.entries, state.tasks])
-  useEffect(() => { setInspection(undefined); setJumpTarget(undefined); setBrowseFull(false) }, [agent.session])
+  useEffect(() => {
+    setInspection(undefined)
+    setJumpTarget(undefined)
+    setBrowseFull(false)
+    setSelectedIndex(undefined)
+    setSearchMatches([])
+    setDraftRequest(undefined)
+    failedDraftRef.current = undefined
+  }, [agent.session])
 
   // An approval request names the call it is about but not what the call would
   // do; the arguments are in the entry the App already streamed. Searching from
@@ -918,8 +937,9 @@ export const App: FC<AppProps> = ({
           pinTop={scroll.pinTop || browseFull}
           expanded={scroll.expanded}
           onGeometry={scroll.reportGeometry}
+          onToggleActivity={setActivity}
           jumpIndex={jumpTarget ? transcript.entries.findIndex(entry => entry === jumpTarget || (entry.kind === 'assistant' && jumpTarget.kind === 'assistant' && entry.turn === jumpTarget.turn && entry.step === jumpTarget.step)) : undefined}
-          onJump={offset => { scroll.jumpToOffset(offset); setJumpTarget(undefined) }}
+          onJump={(offset) => { scroll.jumpToOffset(offset); setJumpTarget(undefined) }}
         />
         {/*
         The only cue that the view is not at the live tail. A terminal

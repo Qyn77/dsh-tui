@@ -93,7 +93,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/approval` | show or switch the approval policy (`ask` / `never`) |
 | `/skill` | pick and run an invocable skill |
 | `/language`, `/theme` | `en` / `zh`; `auto` / `dark` / `light` |
-| `/copy` | newest reply to the clipboard; `/copy code` / `/copy <entry number>` for the newest block |
+| `/copy` | Copy the latest reply; `/copy code` copies a code block; `/copy N` copies entry N |
 | `/verbose` | show more of long output (`Ctrl-O` is the same switch) |
 | `/keybinds` | `default` or `vim` prompt mode |
 | `/provider`, `/plugins` | mounted LLM routes; loaded plugins |
@@ -118,8 +118,12 @@ images, skills, hooks, approvals, session resume, known limitations:
 - **[docs/DEVELOP.md](docs/DEVELOP.md)** — hack on the source: link-mode profile, the edit / rebuild / restart loop, project layout, publish flow.
 - **[docs/SPEC.md](docs/SPEC.md)** — the design contract: visual rules, roadmap, contributor conventions.
 
+Apple Terminal uses mouse reporting under `/mouse auto` to deliver wheel events. F2 or `/mouse off` restores native selection; `/mouse on` restores reporting. Enable Terminal.app’s Allow Mouse Reporting setting if reports are disabled in its profile. Other terminals keep alternate-scroll input under auto. Completed tasks retain event-derived elapsed time and collapse intermediate activity while final answers and failures stay visible.
+
+Background diagnostics are recorded in `tui.log` under `DSH_HOME` (normally `~/.dsh/tui.log`). With mouse reporting enabled, click a task summary to expand it; F2 restores native text selection.
+
+Manual acceptance: [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).
+
 ## License
 
 MIT
-
-Apple Terminal uses mouse reporting under `/mouse auto` to deliver wheel events. F2 or `/mouse off` restores native selection; `/mouse on` restores reporting. Enable Terminal.app’s Allow Mouse Reporting setting if reports are disabled in its profile. Other terminals keep alternate-scroll input under auto. Completed tasks retain event-derived elapsed time and collapse intermediate activity while final answers and failures stay visible.

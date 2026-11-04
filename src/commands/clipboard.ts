@@ -124,9 +124,8 @@ export interface CopySelection {
  * few turns after the snippet. It reuses {@link parseMarkdown} instead of
  * matching fences here, so what it copies is byte-for-byte what §1.9 drew.
  *
- * There is no way to name an *older* reply or block. Reaching one needs the
- * focus/selection model SPEC §1.2 and roadmap §6 both decline; see the
- * truncation item for the same wall.
+ * Numbered `/copy N` is handled by the transcript inspection path. This helper
+ * retains the original newest-reply/newest-code selection semantics.
  * @param entries - the visible conversation, oldest first.
  * @param target - which of the two to look for.
  * @returns the selection, or `undefined` when the conversation holds no such thing.

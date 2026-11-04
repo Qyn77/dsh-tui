@@ -65,7 +65,7 @@ export function parseMouseEvents(input: string): MouseEvent[] {
   const reports = /\[<([0-9]+);([0-9]+);([0-9]+)([Mm])|\[M([\s\S])([\s\S])([\s\S])/g
   for (const match of input.matchAll(reports)) {
     const event = match[1] === undefined
-      ? decodeMouse(match[5]!.charCodeAt(0) - 32, match[6]!.charCodeAt(0) - 32, match[7]!.charCodeAt(0) - 32, false)
+      ? decodeMouse(match[5].charCodeAt(0) - 32, match[6].charCodeAt(0) - 32, match[7].charCodeAt(0) - 32, false)
       : decodeMouse(Number(match[1]), Number(match[2]), Number(match[3]), match[4] === 'm')
     if (event !== undefined) events.push(event)
   }

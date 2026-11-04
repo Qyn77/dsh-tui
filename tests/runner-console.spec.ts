@@ -1,10 +1,13 @@
 /** Delayed plugin diagnostics must not move the cursor behind Ink's back. */
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type * as Ink from 'ink'
 import { Context } from '@deepseek-ai/cordis'
 import { fakeStdout, fakeTtyStdin, provideHistory, seedSession, strip } from './fake-tty.ts'
 
-vi.mock('ink', async (original) => ({ ...await original<typeof Ink>(), render: vi.fn() }))
+vi.mock('ink', async original => ({ ...await original<typeof Ink>(), render: vi.fn() }))
 vi.mock('../src/terminal/settings.ts', () => ({
   readSettings: () => ({ language: 'en', theme: 'dark', history: 'show', keybinds: 'default' }),
 }))
@@ -12,9 +15,11 @@ vi.mock('../src/terminal/settings.ts', () => ({
 import { render } from 'ink'
 import { apply, internals } from '../src/index.ts'
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
-it('redraws the live frame after a model-listing log arriving after startup', async () => {
+it('keeps a provider warning inside the live frame after startup', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'dsh-diagnostics-'))
+  vi.stubEnv('DSH_HOME', home)
   const stdout = fakeStdout(120, 31)
   const stdin = fakeTtyStdin()
   vi.spyOn(process, 'stdout', 'get').mockReturnValue(stdout as never)
@@ -46,7 +51,7 @@ it('redraws the live frame after a model-listing log arriving after startup', as
     apply(ctx, {})
     await settle()
     expect(instance).toBeDefined()
-    const marker = '[llm-deepseek-api-key] model listing loaded 2 models'
+    const marker = '[llm-deepseek-api-key] model listing failed temporarily'
     console.error(marker)
     await settle()
     stdin.send('/')
@@ -54,16 +59,16 @@ it('redraws the live frame after a model-listing log arriving after startup', as
     const output = stdout.frames.join('')
     const logAt = output.indexOf(marker)
     expect(logAt).toBeGreaterThan(-1)
-    // A managed log clears the old frame BEFORE the diagnostic, then redraws
-    // it immediately. Waiting for the next key leaves the old top border.
-    expect(output.slice(logAt + marker.length).split('/approval')[0]).toContain('╭')
-    const diagnostic = stdout.frames.findIndex(chunk => chunk.includes(marker))
-    expect(stdout.frames[diagnostic - 1]).toContain('\u001B[2K')
-    expect(strip(stdout.frames[diagnostic + 1] ?? '')).toContain('Ask dsh anything')
+    const diagnosticFrame = stdout.frames.find(chunk => chunk.includes(marker)) ?? ''
+    expect(diagnosticFrame).toContain('╭')
+    expect(diagnosticFrame).toContain('Ask dsh anything')
+    expect(strip(diagnosticFrame)).toContain(marker)
+
   } finally {
     instance?.unmount()
     await settle()
     expect(console.error).toBe(originalError)
     Object.assign(internals, oldIo)
+    rmSync(home, { recursive: true, force: true })
   }
 })

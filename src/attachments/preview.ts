@@ -5,7 +5,7 @@ export interface ImagePreview { candidate: ImageCandidate; name: string; bytes: 
 
 /** Metadata only; the attachment store revalidates bytes at submission. */
 export async function previewImages(text: string, cwd: string, home?: string): Promise<ImagePreview[]> {
-  const rows = await Promise.all(findImageCandidates(text).map(async candidate => {
+  const rows = await Promise.all(findImageCandidates(text).map(async (candidate) => {
     const path = resolveCandidate(candidate, { cwd, home })
     if (!path) return undefined
     try {

@@ -617,15 +617,17 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       if (parts.length > 2) return { kind: 'handled', message: catalog(lang).recovery.usage, failed: true }
       const plan = recoveryPlan(cmd.state)
       const labels = catalog(lang).recovery
-      if (action === 'draft' && (cmd.failedDraft !== undefined || plan)) {
-        cmd.restoreDraft?.(cmd.failedDraft ?? plan!.text)
+      const draft = cmd.failedDraft ?? plan?.text
+      if (action === 'draft' && draft !== undefined) {
+        cmd.restoreDraft?.(draft)
         return { kind: 'handled' }
       }
       if (!plan) return { kind: 'handled', message: labels.empty, failed: action !== undefined }
       if (action === undefined) return { kind: 'handled', message: labels.report(plan.reason, plan.completed) }
       if (action !== 'continue') return { kind: 'handled', message: labels.usage, failed: true }
       if (cmd.agent.status !== 'idle') return { kind: 'handled', message: labels.usage, failed: true }
-      cmd.agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: labels.continuePrompt }] }))
+      cmd.agent.followup(createUserMessage({ source: { kind: 'user' },
+        content: [{ type: 'text', text: labels.continuePrompt }] }))
       return { kind: 'handled' }
     }
 
@@ -676,7 +678,9 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
     case '/activity': {
       const value = raw.trim().split(/\s+/)[1]
       if (value === 'all' || value === 'none') cmd.setActivity?.(value)
-      else if (value && /^[1-9]\d*$/.test(value) && cmd.state?.tasks?.some(task => task.turn === Number(value))) cmd.setActivity?.(Number(value))
+      else if (value && /^[1-9]\d*$/.test(value) && cmd.state.tasks?.some(task => task.turn === Number(value))) {
+        cmd.setActivity?.(Number(value))
+      }
       else return { kind: 'handled', message: catalog(lang).activity.usage, failed: value !== undefined }
       return { kind: 'handled' }
     }
@@ -893,7 +897,7 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
         cmd.emit?.(osc52(text.text, { multiplexer: multiplexerFromEnv() }))
         return { kind: 'handled', message: catalog(lang).transcript.copied(index + 1, byteLength(text.text), text.truncated) }
       }
-      // Exactly two forms, and an unrecognised argument is the usage line rather
+      // Remaining forms select newest reply/code; an unrecognised argument is usage rather
       // than a guess. `/copy code` is one keystroke from `/copy codee`, and
       // silently copying the whole reply instead would be discovered on paste.
       const target: CopyTarget | undefined =

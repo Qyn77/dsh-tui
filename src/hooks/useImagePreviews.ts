@@ -6,7 +6,7 @@ export function useImagePreviews(text: string, cwd: string): readonly ImagePrevi
   useEffect(() => {
     let active = true
     const timer = setTimeout(() => {
-      void previewImages(text, cwd, process.env['HOME']).then(rows => {
+      void previewImages(text, cwd, process.env['HOME']).then((rows) => {
         if (active) setResult({ text, rows })
       })
     }, 100)

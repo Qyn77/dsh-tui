@@ -718,7 +718,9 @@ export const Prompt: FC<PromptProps> = ({
       // leave a tail if the terminal answers more than once.
       if (isOscTail(input)) return
       if (key.ctrl && input === 'x' && imagePreviews.length > 0) {
-        const chosen = imagePreviews.find(row => cursorIndex >= row.candidate.start && cursorIndex <= row.candidate.end) ?? imagePreviews.at(-1)!
+        const chosen = imagePreviews.find(row => cursorIndex >= row.candidate.start && cursorIndex <= row.candidate.end)
+          ?? imagePreviews.at(-1)
+        if (!chosen) return
         const next = removePreview(value, chosen)
         setValue(next.text)
         setCursorIndex(next.cursor)
@@ -1226,7 +1228,7 @@ export const Prompt: FC<PromptProps> = ({
           {value === '' ? (
             <Text wrap="truncate">
               {cursor}
-              <Text color="gray" dimColor>
+              <Text dimColor>
                 {placeholder}
               </Text>
             </Text>

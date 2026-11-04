@@ -3,7 +3,7 @@ import { paintApp } from './fake-tty.ts'
 import { displayWidth } from '../src/core/width.ts'
 
 describe('full-width interaction surfaces', () => {
-  it.each([60, 90, 120])('keeps picker borders aligned with the input at %i columns', async columns => {
+  it.each([60, 90, 120])('keeps picker borders aligned with the input at %i columns', async (columns) => {
     const tty = await paintApp({ columns, rows: 40 })
     try {
       for (const input of ['/', 'h']) {
@@ -15,7 +15,7 @@ describe('full-width interaction surfaces', () => {
     } finally { tty.unmount() }
   })
 
-  it.each([60, 120])('fills the transcript column for short user messages at %i columns', async columns => {
+  it.each([60, 120])('fills the transcript column for short user messages at %i columns', async (columns) => {
     const tty = await paintApp({ columns, rows: 40, turns: 1 })
     try {
       const frame = tty.screen().split('\n').find(line => line.includes('╭') && !line.startsWith('╭'))

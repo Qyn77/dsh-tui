@@ -257,10 +257,9 @@ Priority features:
 **Still open:** nothing — v0.4 is complete. The last item was the truncation
 affordance, and it shipped as a *global* switch: `/verbose` and `Ctrl-O` raise
 the preview budget from 8 lines to 200 for every entry at once (SPEC §1.5.6).
-The per-entry `▾ show more` originally written down here did not ship and is
-still blocked on the focus/selection model §6 refuses. Finding that a global
-toggle needs no such model is what unblocked the item without reversing the
-refusal — the bullet in §6 stands unchanged.
+Per-entry inspection and task disclosure were approved and added later. The
+historical v0.4 switch remains global; current `/inspect N` and `/activity`
+behavior is documented in SPEC.
 
 **Two items were added here that this list never named:** `/sessions`, which
 prints the stored sessions and the ids to resume them by, and `/resume`, which
@@ -464,17 +463,14 @@ These are not the right next steps unless they are required by a concrete user s
 - broad app-level state machines not tied to the REPL
 - large feature work that hides the core chat experience
 - plugin UIs that require independent routing or custom terminal hosts
-- **a focus or selection model over log entries** — no "current entry", no
-  cursor in the transcript, no per-entry expand state. The log is a stream you
-  read and scroll, and the prompt is the only thing that holds focus
 
-That last one is load-bearing and gets cited from outside this document, so it
-is spelled out rather than left implied by "broad app-level state machines".
-SPEC §1.2 states the same refusal, `/copy <n>` was dropped because of it
-(SPEC §1.5.5, `src/commands/clipboard.ts`), and the v0.4 truncation item shipped as a
-global `/verbose` switch rather than a per-entry `▾ show more` precisely to
-stay on this side of it. Reversing it is a deliberate decision to make here first, not
-something to discover halfway into implementing an affordance.
+The original refusal of per-entry selection was superseded by the user's
+2026-11-04 approval. Search exposes numbered entries; navigation, inspection,
+copying and export use those numbers. Task disclosure has a separate toggle.
+The prompt remains the only text editor and the dsh runtime still owns execution.
+See SPEC Part 2 for implementation status and [ACCEPTANCE.md](ACCEPTANCE.md)
+for the manual checks still required. Broader mouse-driven editing and independent
+panels remain outside scope.
 
 ## 7. Acceptance rules
 
@@ -486,10 +482,10 @@ A feature is ready when all of the following are true:
 - it is documented in the relevant design docs
 - it is covered by tests when behavior is logic-heavy
 
-The first rule is the one the test suite cannot check for you. Everything in
-`tests/` runs with no TTY and with color forced off, so anything that queries
-the terminal or depends on a color being legible is discharged by running
-`pnpm tty-check` in a real terminal and answering its questions. See SPEC §3.4.
+The first rule needs separate runtime evidence. Frame tests use fake TTYs;
+PTY/VT scripts exercise the real launcher and accumulated screen. Neither proves
+native trackpad delivery or light/dark legibility. Run `pnpm tty-check` and the
+acceptance checklist in the actual terminal applications. See SPEC §3.4.
 
 For plugin-related work, the feature is also ready only when it is clear that:
 
