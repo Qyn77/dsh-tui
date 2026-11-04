@@ -100,7 +100,8 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/verbose` | show more of long output (`Ctrl-O` is the same switch) |
 | `/keybinds` | `default` or `vim` prompt mode |
 | `/provider`, `/plugins` | mounted LLM routes; loaded plugins |
-| `/sessions`, `/resume` | list stored sessions; `/resume <id>` or `/resume last` |
+| `/sessions` | List sessions; `all` / `archived` filter; `rename <id\|current> <title>`; `favorite` / `archive <id\|current> on|off` organize |
+| `/resume` | Resume by id or `last`; Ctrl-G opens the picker while preserving the draft |
 | `/history` | show or hide the history a resumed session came with |
 | `!`, `!!` | run a shell command — `!!` also shows it to the model |
 | `/exit`, `/quit` | leave the REPL |

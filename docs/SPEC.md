@@ -1128,6 +1128,28 @@ cleanup fails after publication, report a warning while retaining the successful
 new handle. Conversation branching does not restore historical filesystem or
 external state. The original durable session remains resumable.
 
+### Session organization overlays
+
+`/sessions rename <id|current> <title>` stores a local display name; `--reset`
+in place of the title restores the first-prompt fallback. Titles are single-line,
+control-free and at most 120 display columns. `/sessions favorite <id|current>
+on|off` pins a session before the normal time sort. `/sessions archive
+<id|current> on|off` hides/shows it in the default picker and listing. `/sessions
+all` includes archives; `/sessions archived` lists only archives. Archive is a
+list filter, not deletion, cancellation or disposal. Explicit `/resume <id>` and
+runtime `/resume last` retain their native semantics, including archived logs.
+Management commands require an idle agent under the existing dispatch policy.
+
+Metadata lives in atomic private per-session files under `DSH_HOME/tui-sessions`;
+it does not rewrite canonical headers, runtime-generated titles, events, drafts
+or pending input. IDs are exact or unambiguous prefixes of at least eight
+characters. A corrupt label file leaves its session discoverable with an
+unavailable marker, and edits refuse to overwrite that file. Known metadata is
+validated, unknown same-version fields survive updates. Picker refreshes are
+scoped to the current agent, language and metadata revision. Favorites and
+renamed titles apply consistently in the table and picker. Management keywords
+and `/resume last` are reserved from fuzzy picker activation.
+
 ### Shared prompt undo and redo
 
 One pure editor-history reducer owns text, caret, past and future snapshots for
@@ -1384,11 +1406,11 @@ The next round implements task/approval notifications, native next-turn queue
 management and task-level modification overviews. Their behavior is specified
 in Part 1 above. Script evidence and manual checks live in ACCEPTANCE.md.
 
-The remaining suggestions are recorded as proposed follow-up work, not shipped:
+The following statuses track suggestions beyond the previous three-item round:
 
-- Per-session draft autosave and restart recovery, beyond current submission-failure restoration.
-- Session rename, favorite and archive metadata, beyond the current searchable picker.
-- Prompt undo/redo and an external-editor round trip.
+- Implemented: per-session draft autosave and restart recovery on resuming the same session.
+- Implemented: local session names, favorites and archive filters.
+- Implemented: unified prompt undo/redo. An external-editor round trip remains proposed.
 - Direct clipboard image input, with platform-specific capability handling.
 - Context attachment inspection/management integrated with the runtime.
 - Selective file checkpoints/restoration, subject to a separate design protecting subsequent user edits.

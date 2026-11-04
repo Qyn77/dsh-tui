@@ -885,6 +885,35 @@ describe('slash command dispatch', () => {
       }
     }
 
+    it('organizes existing sessions and uses local labels in filtered listings', async () => {
+      const cmd = withStore([{ id: 'first', createdAt: 1 }, { id: 'second', createdAt: 2 }, { id: 'old', createdAt: 3 }])
+      const metadata: Record<string, { title: string; favorite?: boolean; archived?: boolean }> = {
+        first: { title: 'Pinned project', favorite: true }, second: { title: 'Recent work' }, old: { title: 'Archived project', archived: true },
+      }
+      const update = vi.fn().mockReturnValue(true)
+      const onLibraryChange = vi.fn()
+      const live = { ...cmd, sessionLibrary: { read: (id: string) => ({ metadata: metadata[id] ?? {} }), update }, onLibraryChange }
+      const normal = handledText(await dispatch('/sessions', live)) ?? ''
+      expect(normal.indexOf('Pinned project')).toBeLessThan(normal.indexOf('Recent work'))
+      expect(normal).not.toContain('Archived project')
+      expect(handledText(await dispatch('/sessions all', live))).toContain('Archived project')
+      const archived = handledText(await dispatch('/sessions archived', live)) ?? ''
+      expect(archived).toContain('Archived project')
+      expect(archived).not.toContain('Recent work')
+      await dispatch('/sessions rename first New name', live)
+      expect(update).toHaveBeenCalledWith('first', { title: 'New name' })
+      await dispatch('/sessions favorite current on', live)
+      expect(update).toHaveBeenCalledWith(cmd.agent.session.id, { favorite: true })
+      await dispatch('/sessions archive first off', live)
+      expect(update).toHaveBeenCalledWith('first', { archived: false })
+      await dispatch('/sessions rename first --reset', live)
+      expect(update).toHaveBeenCalledWith('first', { title: null })
+      expect(onLibraryChange).toHaveBeenCalledTimes(4)
+      expect(await dispatch('/sessions rename missing Name', live)).toMatchObject({ failed: true })
+      expect(await dispatch('/sessions archive first maybe', live)).toMatchObject({ failed: true })
+      expect(await dispatch('/sessions rename first bad\nname', live)).toMatchObject({ failed: true })
+    })
+
     it('reports the missing service rather than throwing', async () => {
       // An embedded assembly can store nothing at all. That is a missing
       // feature, not a failure, and the same shape `/plugins` uses for a

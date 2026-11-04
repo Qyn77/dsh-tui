@@ -27,3 +27,19 @@ it('sorts by actual activity and keeps unreadable sessions discoverable', async 
   expect(rows[1].name).toBe('/resume broken')
   expect(close).toHaveBeenCalledTimes(2)
 })
+
+it('pins favorites, uses renamed titles and hides archives before opening logs', async () => {
+  const ctx = new Context()
+  const open = vi.fn().mockResolvedValue({ read: async () => ({ events: [] }), close: async () => {} })
+  ctx.provide('sessionPersistence', { list: async () => ['new', 'favorite', 'archived'].map((id, index) => ({
+    header: { id, createdAt: 1000 - index, cwd: '/workspace' },
+  })), open } as never)
+  const library = { read: (id: string) => ({ metadata: { title: `Renamed ${id}`, favorite: id === 'favorite', archived: id === 'archived' } }),
+    update: () => true }
+  const agent = { id: 'current', session: seedSession(0) } as never
+  const rows = await sessionCatalog(ctx, agent, { library })
+  expect(rows.map(row => row.name)).toEqual(['/resume favorite', '/resume new'])
+  expect(rows[0].displayName).toContain('★')
+  expect(rows[0].description).toContain('Renamed favorite')
+  expect(open).toHaveBeenCalledTimes(2)
+})

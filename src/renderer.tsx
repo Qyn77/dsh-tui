@@ -5,6 +5,8 @@
  * @module @qiao-qyn/dsh-tui/renderer
  */
 
+import { sessionPickerQuery } from './commands/session-picker.ts'
+import type { SessionLibrary } from './terminal/session-library.ts'
 import type { DraftRepository } from './terminal/drafts.ts'
 import { notificationSequence, watchNotifications, type NotificationMode } from './terminal/notifications.ts'
 import { resolveMouseMode, type MousePreference } from './terminal/mouse.ts'
@@ -54,6 +56,7 @@ import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  sessionLibrary?: SessionLibrary
   drafts?: DraftRepository
   notifications?: NotificationMode
   diagnostics?: DiagnosticRef
@@ -167,6 +170,7 @@ export const App: FC<AppProps> = ({
   repaint,
   diagnostics,
   drafts,
+  sessionLibrary,
   notifications = 'off',
   notice,
   lang: initialLang = 'en',
@@ -215,9 +219,11 @@ export const App: FC<AppProps> = ({
     appendEntry({ kind: 'note', tone: 'warn', text: strings.drafts.failed })
   }, [appendEntry, strings])
   const [sessionPickerOpen, setSessionPickerOpen] = useState(false)
-  const sessionCommands = useSessionCatalog(ctx, agent, sessionPickerOpen)
+  const [libraryRevision, setLibraryRevision] = useState(0)
+  const onLibraryChange = useCallback(() => { setLibraryRevision(current => current + 1) }, [])
+  const sessionCommands = useSessionCatalog(ctx, agent, sessionPickerOpen, { library: sessionLibrary, revision: libraryRevision, lang })
   const onPromptValue = useCallback((value: string) => {
-    setSessionPickerOpen(/^\/(?:resume|sessions)\s/i.test(value))
+    setSessionPickerOpen(sessionPickerQuery(value) !== undefined)
   }, [])
   useLayoutEffect(() => {
     if (!diagnostics) return
@@ -746,6 +752,7 @@ export const App: FC<AppProps> = ({
           cwd,
           exportState: fullState,
           historyReady,
+          sessionLibrary, onLibraryChange,
           enqueueText: text => deliverInput(text, true).catch((error: unknown) => {
             if (activeAgent.current === agent) { failedDraftRef.current = text; restoreDraft(text) }
             throw error
@@ -829,7 +836,8 @@ export const App: FC<AppProps> = ({
         appendEntry({ kind: 'note', tone: 'error', text: `${strings.recovery.draftRestored}\n${error instanceof Error ? error.message : String(error)}` })
       })
     },
-    [deliverInput, notificationMode, setNotificationMode, notify, restoreDraft, selectedIndex, searchMatches,
+    [sessionLibrary, onLibraryChange, deliverInput, notificationMode, setNotificationMode, notify, restoreDraft,
+      selectedIndex, searchMatches,
       mousePref, setMouse, setActivity, inspectEntry, jumpEntry, cwd, fullState, historyReady,
       ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
       setTheme, themePref, appearance, emit, strings, state, shell, swapSession, forkSession,

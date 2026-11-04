@@ -25,6 +25,7 @@
  */
 
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { validSessionTitle, type SessionLibrary } from '../terminal/session-library.ts'
 import { taskOverview } from '../render/task-overview.ts'
 import { queueMessage, replaceQueueText } from './queue.ts'
 import { userMessageText } from '../core/types.ts'
@@ -421,32 +422,44 @@ async function summarize(
 async function listSessions(
   cmd: CommandContext,
   strings: Catalog['output'],
+  mode: 'active' | 'all' | 'archived' = 'active',
 ): Promise<CommandResult> {
   const persistence = service(cmd.ctx, 'sessionPersistence')
   if (persistence === undefined) return { kind: 'handled', message: strings.noPersistence }
-  const headers = (await persistence.list()).map(snapshot => snapshot.header)
-  if (headers.length === 0) return { kind: 'handled', message: strings.noStoredSessions }
-  const newest = [...headers].sort((a, b) => b.createdAt - a.createdAt)
+  const labels = catalog(cmd.lang ?? 'en').library
+  const records = (await persistence.list()).map(snapshot => ({ header: snapshot.header,
+    labels: cmd.sessionLibrary?.read(snapshot.header.id) }))
+  if (records.length === 0) return { kind: 'handled', message: strings.noStoredSessions }
+  const visible = records.filter(row => mode === 'all' || (mode === 'archived'
+    ? row.labels?.metadata.archived : !row.labels?.metadata.archived))
+  if (visible.length === 0) return { kind: 'handled', message: labels.empty }
+  const newest = visible.sort((a, b) => Number(b.labels?.metadata.favorite ?? false) - Number(a.labels?.metadata.favorite ?? false)
+    || b.header.createdAt - a.header.createdAt)
   const shown = newest.slice(0, MAX_SESSION_ROWS)
-  const rows: SessionRow[] = await Promise.all(shown.map(async (header) => {
-    const summary = await summarize(persistence, header.id)
+  const rows: SessionRow[] = await Promise.all(shown.map(async ({ header, labels: stored }) => {
+    const metadata = stored?.metadata
+    const summary = metadata?.title ?? await summarize(persistence, header.id)
+    const decorated = [metadata?.favorite ? labels.favoriteTag : '', metadata?.archived ? labels.archivedTag : '',
+      stored?.failed ? labels.failedTag : '', summary ?? ''].filter(Boolean).join(' ')
     return {
       id: header.id,
       createdAt: header.createdAt,
       ...header.cwd === undefined ? {} : { cwd: header.cwd },
-      ...summary === undefined ? {} : { summary },
+      ...decorated ? { summary: decorated } : {},
       current: header.id === cmd.agent.session.id,
     }
   }))
   const table = formatSessions(rows, newest.length - shown.length, strings.sessionLabels)
   return {
     kind: 'handled',
-    message: `${strings.sessionsHeading(headers.length)}\n${table}\n\n${strings.sessionsFooter}`,
+    message: `${strings.sessionsHeading(visible.length)}\n${table}\n\n${strings.sessionsFooter}`,
   }
 }
 
 /** Snapshot one command from the registry. */
 export interface CommandContext {
+  sessionLibrary?: SessionLibrary
+  onLibraryChange?: () => void
   forkSession?: (turn?: number) => Promise<SwapResult>
   restoreDraft?: (text: string) => void
   failedDraft?: string
@@ -787,8 +800,35 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       }
     }
 
-    case '/sessions':
-      return await listSessions(cmd, strings)
+    case '/sessions': {
+      const rest = raw.trim().slice('/sessions'.length).trim()
+      if (rest === '' || rest === 'all' || rest === 'archived') {
+        return await listSessions(cmd, strings, rest === '' ? 'active' : rest)
+      }
+      const labels = catalog(lang).library
+      const match = /^(rename|favorite|archive)\s+(\S+)\s+([\s\S]+)$/.exec(rest)
+      if (!match) return { kind: 'handled', message: labels.usage, failed: true }
+      if (!cmd.sessionLibrary) return { kind: 'handled', message: labels.unavailable, failed: true }
+      const [, action, target, value] = match
+      if ((action !== 'rename' && value !== 'on' && value !== 'off')
+        || (action === 'rename' && value !== '--reset' && !validSessionTitle(value))) {
+        return { kind: 'handled', message: action === 'rename' ? labels.invalidTitle : labels.usage, failed: true }
+      }
+      let id: string | undefined
+      if (target === 'current') id = cmd.agent.session.id
+      else {
+        const snapshots = await service(cmd.ctx, 'sessionPersistence')?.list() ?? []
+        const ids = snapshots.map(row => String(row.header.id))
+        const matches = ids.includes(target) ? [target] : target.length >= 8 ? ids.filter(id => id.startsWith(target)) : []
+        if (matches.length === 1) id = matches[0]
+      }
+      if (!id) return { kind: 'handled', message: labels.missing, failed: true }
+      const patch = action === 'rename' ? { title: value === '--reset' ? null : value }
+        : action === 'favorite' ? { favorite: value === 'on' } : { archived: value === 'on' }
+      if (!cmd.sessionLibrary.update(id, patch)) return { kind: 'handled', message: labels.failed, failed: true }
+      cmd.onLibraryChange?.()
+      return { kind: 'handled', message: labels.updated(id) }
+    }
 
     case '/skill': {
       // Bare `/skill` cannot open the picker — dispatch means the line was

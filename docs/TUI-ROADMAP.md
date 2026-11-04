@@ -527,5 +527,6 @@ Task/approval notifications, durable next-turn queue management and per-task
 recorded file/command overviews are implemented on the rc.5 branch. SPEC Part 1
 owns their contracts; SPEC Part 2 lists the remaining proposed extensions.
 [ACCEPTANCE.md](ACCEPTANCE.md) records script evidence and native-terminal checks.
-Prompt autosave, session organization, undo/external editing, clipboard image
-input, context management and selective checkpoints remain future proposals.
+Prompt autosave, unified undo/redo and local session organization are also
+implemented. External editing, clipboard image input, context management and
+selective checkpoints remain future proposals.

@@ -534,7 +534,7 @@ Every slash command, with what it actually does:
 | `/copy` | Send the newest reply, `/copy code` for a code block, or `/copy N` for entry N |
 | `/verbose` | Show more of each long output: `/verbose on`, `off`, or bare to toggle |
 | `/plugins` | List the plugins this host loaded, with the lifecycle phase of each; `/plugins enable\|disable <name>` switches one and saves that to the loader config |
-| `/sessions` | List the stored sessions, with the id to resume one by |
+| `/sessions` | List sessions; `all` / `archived`; `rename`, `favorite`, `archive` manage local labels |
 | `/skill` | Pick a user-invocable skill: `/skill ` opens a picker, `/skill <name> [args]` runs one |
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide` |
@@ -1036,7 +1036,7 @@ DSH_TUI_RESUME=last dsh --profile tui
 | `/copy` | 发送最新回复到剪贴板；`/copy code` 取代码，`/copy N` 取条目 N |
 | `/verbose` | 让每段长输出多显示一些：`/verbose on`、`off`，不带参数则切换 |
 | `/plugins` | 列出本进程加载的插件，以及各自的生命周期状态；`/plugins enable\|disable <名字>` 开关某一个，并写回 loader 配置 |
-| `/sessions` | 列出已存的 session，以及接上其中一个要用的 id |
+| `/sessions` | 列出会话；`all` / `archived` 筛选；`rename`、`favorite`、`archive` 管理本地备注 |
 | `/skill` | 挑选可由用户调用的 skill：`/skill ` 打开选择器，`/skill <名称> [参数]` 直接运行 |
 | `/resume` | 切到某个已存的 session：`/resume <id>`，或者 `/resume last` |
 | `/history` | 显示或隐藏接续 session 带来的已存历史：`/history show` 或 `hide` |

@@ -1,16 +1,23 @@
+import type { SessionLibrary } from '../terminal/session-library.ts'
+import type { Lang } from '../core/i18n.ts'
 import { useEffect, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CommandMeta } from '../commands/commands.ts'
 import { sessionCatalog } from '../commands/session-catalog.ts'
 
-export function useSessionCatalog(ctx: Context, agent: Agent, enabled: boolean): readonly CommandMeta[] {
-  const [rows, setRows] = useState<readonly CommandMeta[]>([])
+export function useSessionCatalog(ctx: Context, agent: Agent, enabled: boolean,
+  options: { library?: SessionLibrary; revision?: number; lang?: Lang } = {}): readonly CommandMeta[] {
+  const { library, revision, lang } = options
+  const [result, setResult] = useState<{ agent: Agent; rows: readonly CommandMeta[] }>()
   useEffect(() => {
     if (!enabled) return
     let active = true
-    void sessionCatalog(ctx, agent).then((next) => { if (active) setRows(next) }, () => { if (active) setRows([]) })
+    void sessionCatalog(ctx, agent, { library, lang }).then(
+      (rows) => { if (active) setResult({ agent, rows }) },
+      () => { if (active) setResult({ agent, rows: [] }) },
+    )
     return () => { active = false }
-  }, [ctx, agent, enabled])
-  return rows
+  }, [ctx, agent, enabled, library, revision, lang])
+  return result?.agent === agent ? result.rows : []
 }

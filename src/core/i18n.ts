@@ -127,6 +127,18 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  library: {
+    usage: string
+    unavailable: string
+    empty: string
+    missing: string
+    failed: string
+    invalidTitle: string
+    updated: (id: string) => string
+    favoriteTag: string
+    archivedTag: string
+    failedTag: string
+  }
   drafts: { failed: string }
   changes: {
     heading: (turn: number) => string
@@ -643,6 +655,16 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  library: {
+    usage: '/sessions [all|archived] · rename <id|current> <title|--reset> · favorite <id|current> on|off · archive <id|current> on|off',
+    empty: 'No sessions in this view.',
+    unavailable: 'Session organization is unavailable in this host.',
+    missing: 'Session not found or id prefix ambiguous. Use the full id or an unambiguous prefix of at least 8 characters.',
+    failed: 'Could not read or save session labels. Existing metadata has been preserved.',
+    invalidTitle: 'Use a nonempty single-line title of at most 120 terminal columns, without control characters.',
+    updated: id => `Updated session labels: ${id}. Conversation history and pending work are unchanged.`,
+    favoriteTag: '★', archivedTag: '[archived]', failedTag: '[labels unavailable]',
+  },
   drafts: { failed: 'Could not load or save this draft. Input remains available; check storage permissions or the 2 MiB draft limit.' },
   changes: {
     heading: turn => `Task ${turn}: recorded changes and commands`, empty: 'No recorded file changes or commands for this task.',
@@ -798,7 +820,7 @@ const EN: Catalog = {
     '/provider': 'List model providers',
     '/plugins': 'Manage loaded plugins',
     '/quit': 'Exit the REPL',
-    '/sessions': 'Browse saved sessions',
+    '/sessions': 'Browse, rename, favorite or archive sessions',
     '/skill': 'Run a skill',
     '/resume': 'Resume a stored session',
     '/status': 'Current session status',
@@ -990,6 +1012,14 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  library: {
+    usage: '/sessions [all|archived] · rename <id|current> <标题|--reset> · favorite <id|current> on|off · archive <id|current> on|off',
+    empty: '当前列表没有会话。',
+    unavailable: '当前环境未提供会话整理存储。', missing: '未找到会话或 ID 前缀不唯一，请使用完整 ID 或至少 8 个字符的唯一前缀。',
+    failed: '无法读取或保存会话备注，原有元数据已保留。', invalidTitle: '标题应为非空单行文字，不含控制字符，最多 120 个终端列宽。',
+    updated: id => `已更新会话备注：${id}，对话历史和待执行任务保持不变。`,
+    favoriteTag: '★', archivedTag: '[已归档]', failedTag: '[备注不可用]',
+  },
   drafts: { failed: '无法读取或保存当前草稿；仍可继续输入，请检查存储权限或 2 MiB 草稿上限。' },
   changes: {
     heading: turn => `任务 ${turn}：已记录的修改与命令`, empty: '这项任务没有记录到文件修改或命令。',
@@ -1139,7 +1169,7 @@ const ZH: Catalog = {
     '/provider': '查看模型提供方',
     '/plugins': '管理已加载插件',
     '/quit': '退出会话',
-    '/sessions': '浏览已保存的会话',
+    '/sessions': '浏览、命名、收藏或归档会话',
     '/skill': '选择并运行技能',
     '/resume': '接续已保存的会话',
     '/status': '查看当前会话状态',

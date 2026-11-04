@@ -100,7 +100,8 @@ dsh --profile tui-rc5
 | `/verbose` | 长输出多看几行（`Ctrl-O` 是同一个开关） |
 | `/keybinds` | 输入框键位：`default` 或 `vim` |
 | `/provider`、`/plugins` | 已挂载的 LLM 路由；已加载的插件 |
-| `/sessions`、`/resume` | 列出已存 session；`/resume <id>` 或 `/resume last` |
+| `/sessions` | 列出会话；`all` / `archived` 筛选；`rename <id\|current> <标题>` 命名；`favorite` / `archive <id\|current> on|off` 整理 |
+| `/resume` | 按 ID 或 `last` 接续；Ctrl-G 打开选择器并保留草稿 |
 | `/history` | 显示或隐藏接续 session 带来的已存历史 |
 | `!`、`!!` | 跑一条系统命令 —— `!!` 还会把它给模型看 |
 | `/exit`, `/quit` | 退出 REPL |

@@ -1,3 +1,4 @@
+import { sessionPickerQuery } from '../commands/session-picker.ts'
 import { useEditorHistory } from '../hooks/useEditorHistory.ts'
 import type { EditorHistory } from '../prompt/edit-history.ts'
 import type { DraftChannel, DraftSnapshot } from '../terminal/drafts.ts'
@@ -334,7 +335,7 @@ export const Prompt: FC<PromptProps> = ({
   // selection index is clamped on every keystroke so an out-of-range
   // cursor from rapid input never escapes.
   useEffect(() => { onValueChange?.(value) }, [value, onValueChange])
-  const sessionQuery = /^\/(?:resume|sessions)\s+(.*)$/i.exec(value)?.[1].trim().toLocaleLowerCase()
+  const sessionQuery = sessionPickerQuery(value)
   const imagePreviews = useImagePreviews(value, cwd)
   const shownImages = Math.min(imagePreviews.length, Math.max(1, Math.min(3, (stdout?.rows ?? 24) - 20)))
   const imageTrayRows = shownImages > 0 ? shownImages + 1 : 0
