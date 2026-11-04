@@ -1,3 +1,4 @@
+import type { EditExternally } from '../terminal/external-editor.ts'
 import type { PasteImage } from '../attachments/clipboard-image.ts'
 import { sessionPickerQuery } from '../commands/session-picker.ts'
 import { useEditorHistory } from '../hooks/useEditorHistory.ts'
@@ -112,6 +113,7 @@ import { useLang, useStrings } from '../hooks/useStrings.tsx'
 
 /** Props for {@link Prompt}. */
 export interface PromptProps {
+  editExternally?: EditExternally
   pasteImage?: PasteImage
   onInputNotice?: (message: string) => void
   draftChannel?: DraftChannel
@@ -260,6 +262,7 @@ function clampPaletteIndex(index: number, commands: readonly CommandMeta[]): num
 export const Prompt: FC<PromptProps> = ({
   active,
   pasteImage,
+  editExternally,
   onInputNotice,
   draftChannel,
   onDraftFailure,
@@ -764,6 +767,18 @@ export const Prompt: FC<PromptProps> = ({
           editor.insert(paste.text)
         }
         if (!paste.open) editor.apply({ type: 'end' })
+        return
+      }
+      if (key.ctrl && input === 't') {
+        if (!editExternally || busy || navigationDraft) { onInputNotice?.(strings.externalEditor.busy); return }
+        if (draftChannel && !draftChannel.save({ text: value, cursor: cursorIndex })) onDraftFailure?.()
+        inputPending.current = true
+        void editExternally(value).then(result => {
+          if (!mounted.current) return
+          if (result.kind === 'edited') editor.apply({ type: 'edit', snapshot: { text: result.text, cursor: result.text.length } })
+          else onInputNotice?.(strings.externalEditor[result.kind])
+        }).catch(() => { if (mounted.current) onInputNotice?.(strings.externalEditor.failed) })
+          .finally(() => { inputPending.current = false })
         return
       }
       if (key.ctrl && input === 'v') {

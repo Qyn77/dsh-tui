@@ -1,3 +1,4 @@
+import type { EditExternally } from './terminal/external-editor.ts'
 import type { PasteImage } from './attachments/clipboard-image.ts'
 /**
  * The Ink root component: composes the status bar, the message list, and
@@ -57,6 +58,7 @@ import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  editExternally?: EditExternally
   pasteImage?: PasteImage
   sessionLibrary?: SessionLibrary
   drafts?: DraftRepository
@@ -167,6 +169,7 @@ const AppProviders: FC<{ lang: Lang; appearance: Appearance; children: ReactNode
 export const App: FC<AppProps> = ({
   ctx,
   pasteImage,
+  editExternally,
   agent,
   exit,
   modelRef,
@@ -1034,6 +1037,7 @@ export const App: FC<AppProps> = ({
         />
         <Prompt
           key={agent.id}
+          editExternally={editExternally}
           pasteImage={pasteImage}
           onInputNotice={text => appendEntry({ kind: 'note', tone: 'warn', text })}
           draftChannel={draftChannel}

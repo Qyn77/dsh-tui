@@ -1,3 +1,5 @@
+import { createTerminalHandoff } from './terminal/handoff.ts'
+import { editExternal, type EditExternally } from './terminal/external-editor.ts'
 import { pasteClipboardImage } from './attachments/clipboard-image.ts'
 /**
  * The TUI runner Cordis plugin. It waits for the Loader to settle, creates
@@ -240,6 +242,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
 
     const alternateScreen = process.stdout.isTTY
     let restoreDiagnostics: (() => void) | undefined
+    let disposeTerminal: (() => void) | undefined
     try {
       if (alternateScreen) {
         internals.stdout.write(ALT_SCREEN_ENTER)
@@ -341,6 +344,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           return { kind: 'refused', notice: error instanceof Error ? error.message : String(error) }
         } finally { switchingSession = false }
       }
+      let editExternally: EditExternally | undefined
       const element = (): React.ReactElement =>
         React.createElement(App, {
           ctx,
@@ -348,6 +352,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           exit: exitHook,
           repaint,
           diagnostics,
+          editExternally: text => editExternally?.(text) ?? Promise.resolve({ kind: 'busy' }),
           pasteImage: pasteClipboardImage,
           drafts,
           sessionLibrary,
@@ -372,13 +377,31 @@ async function run(ctx: Context, config: Config): Promise<void> {
             ? { notice: `Resumed ${shortId(plan.id)} with its history hidden — the model still reads it. /history show draws it.` }
             : {},
         })
+      const terminal = createTerminalHandoff(process.stdin, process.stdout)
+      disposeTerminal = terminal.dispose
       const instance = inkRender(element(), {
+        stdin: terminal.stdin,
+        stdout: terminal.stdout,
+        stderr: terminal.stdout,
         exitOnCtrlC: false,
         // Providers finish discovery after the first frame and log through
         // console.error/warn. Ink must clear and replay its frame around those
         // writes or its cursor-relative eraser leaves the old top border.
         patchConsole: true,
       })
+      editExternally = text => {
+        if (handle.agent.status === 'running' || switchingSession) return Promise.resolve({ kind: 'busy' })
+        return editExternal(text, undefined, action => terminal.run(action, () => {
+          internals.stdout.write(AUTOWRAP_ON + BRACKETED_PASTE_EXIT + MOUSE_MODE_EXIT + '\u001B[?25h' + (alternateScreen ? ALT_SCREEN_EXIT : ''))
+        }, () => {
+          internals.stdout.write((alternateScreen ? ALT_SCREEN_ENTER : '\u001B[2J\u001B[H') + AUTOWRAP_OFF + BRACKETED_PASTE_ENTER
+            + mouseModeSequence(resolveMouseMode(readSettings().mouse ?? 'auto', process.env)) + '\u001B[?25l')
+        })).finally(() => {
+          instance.clear()
+          instance.rerender(element())
+          repaint.current?.('\u001B[2J\u001B[H')
+        })
+      }
       restoreDiagnostics = installDiagnostics(diagnostics)
       redraw = () => { instance.rerender(element()) }
       // Resize repainting has exactly one owner and it lives outside React.
@@ -387,7 +410,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       let detachResize: (() => void) | undefined
       if (alternateScreen) {
         detachResize = installResizeOwner({
-          stdout: process.stdout,
+          stdout: terminal.stdout,
           clear: instance.clear,
           rerender: () => { instance.rerender(element()) },
           repaint,
@@ -399,6 +422,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       detachResize?.()
       instance.unmount()
     } finally {
+      disposeTerminal?.()
       // If Ink exits through an error, never leave the shell in the alternate
       // screen buffer — or in alternate scroll mode, which would leave the
       // user's wheel sending arrow keys to whatever runs next, or in bracketed

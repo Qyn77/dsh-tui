@@ -96,3 +96,7 @@ diff 依赖运行时提供的元数据；缺少旧内容时明确标记不可用
 ## Clipboard image input · 2026-11-04
 
 96 files / 1453 tests pass. Tests cover helper selection, bounds, deduplication, private cache permissions, storage failures, missing helper, empty/invalid output, undo/redo and pending-read submission exclusion. An actual macOS named-pasteboard integration round trip produced byte-identical PNG bytes in the private cache; the general user clipboard was neither read nor changed. The macOS test requires pasteboard IPC outside the sandbox. Windows/Linux adapters and native Cmd-V behavior remain platform/manual checks; Cmd-V is not an image transport.
+
+## External editor · 2026-11-04
+
+98 files / 1458 tests, typecheck and build pass. Pure command parsing does not evaluate shell expressions. Private temp-file round trips, cleanup, nonzero/missing commands, invalid UTF-8 and oversized files are exercised, together with prompt undo/redo and cancel preservation. A failing handoff test exposed the readable-mode pause transition; the fix now passes. Actual installed rc.5 launcher + node-pty + xterm/headless + vi passed save/return, whole-edit undo/redo, a second round trip, Ctrl-C while vi owns the TTY, resize during editing, nonzero cancellation, and normal /exit. The model fixture is local; no paid requests. Windows notepad and GUI editor waiting remain platform/manual checks.

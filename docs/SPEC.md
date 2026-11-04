@@ -1250,6 +1250,12 @@ row, and one truncated footer row. Secondary prompt/picker text uses one dim
 foreground treatment instead of stacking gray and dim. Welcome artwork and all
 three responsive visible states are preserved.
 
+### External-editor handoff
+
+Ctrl-T is available while idle, outside temporary session navigation. It flushes the draft, holds prompt input, runs VISUAL / EDITOR (fallback vi, Windows notepad.exe), and applies successful UTF-8 output as one edit without submitting. Nonzero exit, launch/read failure, invalid text and oversized (>2 MiB) files preserve the original draft and cursor. Arguments are parsed without a shell; private temporary directories/files are removed in finally. GUI editors must wait for editing to end.
+
+`terminal/handoff.ts` supplies public Ink input/output streams. During handoff it removes the real TTY input reader, allows Readable to update its listener state, forces a flowing-to-paused transition, and waits for process.stdin's pause hook to stop the underlying fd reader. Only then is canonical input enabled and the editor spawned with inherited stdio. A parent SIGINT listener keeps Ctrl-C directed at the editor from terminating the TUI. UI writes and resize forwarding are gated; the React tree remains mounted. Return restores terminal modes, raw input, resize forwarding and an unconditional repaint. No Ink internals, listener-count manipulation or component unmount is involved. This is a dedicated editor subprocess boundary, separate from the user's `!` shell commands and their noninteractive stdin.
+
 ## Part 2 · Roadmap
 
 The current integration target is **v0.2.1-rc.5**. Historical milestones below retain the runtime versions used when they shipped. Current implementation and acceptance status follows those milestones.
@@ -1412,7 +1418,7 @@ The following statuses track suggestions beyond the previous three-item round:
 
 - Implemented: per-session draft autosave and restart recovery on resuming the same session.
 - Implemented: local session names, favorites and archive filters.
-- Implemented: unified prompt undo/redo. An external-editor round trip remains proposed.
+- Implemented: unified prompt undo/redo and Ctrl-T external-editor round trip.
 - Implemented: direct clipboard image input, with platform-specific capability handling.
 - Context attachment inspection/management integrated with the runtime.
 - Selective file checkpoints/restoration, subject to a separate design protecting subsequent user edits.
