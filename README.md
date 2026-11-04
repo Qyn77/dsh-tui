@@ -125,6 +125,7 @@ images, skills, hooks, approvals, session resume, known limitations:
 - **[docs/USAGE.md](docs/USAGE.md)** — every feature in detail, plus the full key and command reference.
 - **[docs/DEVELOP.md](docs/DEVELOP.md)** — hack on the source: link-mode profile, the edit / rebuild / restart loop, project layout, publish flow.
 - **[docs/SPEC.md](docs/SPEC.md)** — the design contract: visual rules, roadmap, contributor conventions.
+- **[docs/OCR-CI.md](docs/OCR-CI.md)** — configure the GitHub Actions PR review workflow and its required secrets.
 
 Apple Terminal and VS Code use mouse reporting under `/mouse auto` to deliver wheel and task-disclosure clicks. F2 or `/mouse off` restores native selection; `/mouse on` restores reporting. Enable Terminal.app’s Allow Mouse Reporting setting if reports are disabled in its profile. Other terminals keep alternate-scroll input under auto. Completed tasks retain event-derived elapsed time and collapse intermediate activity while final answers and failures stay visible.
 
