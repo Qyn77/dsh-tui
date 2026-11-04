@@ -138,6 +138,19 @@ describe('slash command dispatch', () => {
     expect(handledText(await dispatch('/retry', cmd))).toContain('No failed')
   })
 
+  it('reports task-scoped file changes and commands from full history', async () => {
+    const { cmd } = makeCommand()
+    const source: UiState = { ...emptyState(), tasks: [{ turn: 1, startIndex: 0, endIndex: 1 }], entries: [{ kind: 'tool',
+      callId: 'call' as never, name: 'edit', args: '{"command":"pnpm test"}', turn: 1, step: 1, status: 'error',
+      resultMeta: { diffs: [{ path: 'file.ts', oldText: 'old', newText: 'new' }] } }] }
+    const output = handledText(await dispatch('/changes 1', { ...cmd, exportState: source }))
+    expect(output).toContain('file.ts · +1 −1')
+    expect(output).toContain('[error] pnpm test')
+    expect(output).toContain('/inspect 1')
+    expect(await dispatch('/changes 99', { ...cmd, exportState: source })).toMatchObject({ failed: true })
+    expect(await dispatch('/changes', { ...cmd, historyReady: false })).toMatchObject({ failed: true })
+  })
+
   it('renders persisted file diffs and rejects unknown entry numbers', async () => {
     const { cmd } = makeCommand()
     expect(handledText(await dispatch('/diff', cmd))).toContain('No recorded')
@@ -1528,7 +1541,7 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/activity', '/approval', '/branch', '/clear', '/context', '/copy', '/diff', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
+      '/activity', '/approval', '/branch', '/changes', '/clear', '/context', '/copy', '/diff', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
       '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
       '/usage', '/verbose',
     ])
@@ -1542,7 +1555,7 @@ describe('filterCommands', () => {
   it('distinguishes /clear from /context under a shared prefix', () => {
     // Both start with `/c`, so the palette must offer both rather than
     // silently completing to the first.
-    expect(filterCommands('/c').map(c => c.name)).toEqual(['/clear', '/context', '/copy'])
+    expect(filterCommands('/c').map(c => c.name)).toEqual(['/changes', '/clear', '/context', '/copy'])
     expect(filterCommands('/co').map(c => c.name)).toEqual(['/context', '/copy'])
   })
 
@@ -1582,7 +1595,7 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/activity', '/approval', '/branch', '/clear', '/compact', '/context', '/copy', '/diff', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
+        '/activity', '/approval', '/branch', '/changes', '/clear', '/compact', '/context', '/copy', '/diff', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
         '/language',
         '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
         '/usage', '/verbose',
@@ -1593,7 +1606,7 @@ describe('filterCommands', () => {
       // `/compact` shares `/c` with two built-ins and must land between them,
       // not in a separate block — the palette is one list to arrow through.
       expect(filterCommands('/c', extra).map(c => c.name))
-        .toEqual(['/clear', '/compact', '/context', '/copy'])
+        .toEqual(['/changes', '/clear', '/compact', '/context', '/copy'])
     })
 
     it('lets a built-in win a name collision', () => {

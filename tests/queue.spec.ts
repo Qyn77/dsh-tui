@@ -22,19 +22,18 @@ it('replaces pending text without changing identity or removing nontext blocks',
 it('queues a request during a running turn while ordinary Enter still steers', async () => {
   const { paintApp } = await import('./fake-tty.ts')
   const { vi } = await import('vitest')
-  const { userMessageText } = await import('../src/core/types.ts')
-  const followup = vi.fn()
-  const steer = vi.fn()
+  const followup = vi.fn<(message: unknown) => void>()
+  const steer = vi.fn<(message: unknown) => void>()
   const inbox = { nextTurn: [], nextStep: [] } as never
   const tty = await paintApp({ followup, steer, inbox })
   try {
     await tty.append('turn/start', { turn: 1 })
     await tty.send('/queue add do this later'); await tty.send('\r')
     expect(followup).toHaveBeenCalledOnce()
-    expect(userMessageText(followup.mock.calls[0][0])).toBe('do this later')
+    expect(followup.mock.calls[0]?.[0]).toMatchObject({ content: [{ type: 'text', text: 'do this later' }] })
     expect(steer).not.toHaveBeenCalled()
     await tty.send('change direction now'); await tty.send('\r')
     expect(steer).toHaveBeenCalledOnce()
-    expect(userMessageText(steer.mock.calls[0][0])).toBe('change direction now')
+    expect(steer.mock.calls[0]?.[0]).toMatchObject({ content: [{ type: 'text', text: 'change direction now' }] })
   } finally { tty.unmount() }
 })

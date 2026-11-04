@@ -539,6 +539,9 @@ Every slash command, with what it actually does:
 | `/resume` | Switch to a stored session: `/resume <id>`, or `/resume last` |
 | `/history` | Show or hide the stored history a resumed session came with: `/history show` or `hide` |
 | `/keybinds` | Choose the prompt's keymap: `/keybinds default` or `vim`; bare reports which is on and changes nothing |
+| `/notify` | Persist `off`, `bell`, or `desktop`; `/notify test` probes delivery |
+| `/queue` | Native pending tasks: `add <text>`, `edit <id> <text>`, `remove <id>`, `clear` |
+| `/changes` | Recorded file and command overview, optionally for task N |
 | `/mouse` | `auto`, `on`, `off`; F2 switches reporting/native text selection |
 | `/activity` | Toggle task N, or expand/collapse all: `/activity N`, `all`, `none` |
 | `/search` | Search full recorded entry text: `/search <text>` |
@@ -592,7 +595,7 @@ conversation.
 ## Known limitations
 
 - **`@` mentions complete a path, they do not attach a file.** Typing `@src/pro` and pressing `Tab` writes `@src/prompt/prompt-layout.ts` into the message; the file's contents are not read or inlined. Deciding what goes into a prompt belongs to the harness, not to a text box — and the model has file tools to open the path with.
-- **Switching sessions ends the turn you are in.** Every slash command is refused while a turn is running — `/resume` included; cancel with Esc first. There is no way to keep two sessions open side by side.
+- **Switching sessions ends the turn you are in.** Session-changing commands such as `/resume` require idle; local view controls and `/queue` remain available while running. Cancel with Esc before resuming. There is no way to keep two sessions open side by side.
 - **Long tool output is previewed, not expandable.** The first 8 lines are shown with a `… +N lines` marker; there is no `show more` affordance, because reaching one would need a selection model the app deliberately does not have.
 - **`ctx.appExit` is launcher-owned.** Outside the `dsh` CLI, the bundle fails loud until the host provides an exit hook.
 
@@ -1036,6 +1039,9 @@ DSH_TUI_RESUME=last dsh --profile tui
 | `/resume` | 切到某个已存的 session：`/resume <id>`，或者 `/resume last` |
 | `/history` | 显示或隐藏接续 session 带来的已存历史：`/history show` 或 `hide` |
 | `/keybinds` | 选择输入框的键位：`/keybinds default` 或 `vim`；不带参数只报告当前是哪一种，不做切换 |
+| `/notify` | 保存 `off`、`bell` 或 `desktop` 提醒方式；`test` 测试 |
+| `/queue` | 原生待执行任务：`add <文字>`、`edit <id> <文字>`、`remove <id>`、`clear` |
+| `/changes` | 文件修改与命令结果总览，可指定任务 N |
 | `/mouse` | `auto`、`on`、`off`；F2 切换鼠标上报与原生文字选择 |
 | `/activity` | `/activity N` 切换第 N 轮过程；`all` 展开全部，`none` 收起全部 |
 | `/search` | `/search <文字>` 搜索完整的已记录内容 |
@@ -1086,7 +1092,7 @@ DSH_TUI_RESUME=last dsh --profile tui
 ## 已知限制
 
 - **`@` 只补全路径，不会把文件塞进消息。** 输入 `@src/pro` 再按 `Tab`，写进消息的是 `@src/prompt/prompt-layout.ts` 这段文字，文件内容不会被读取或内联。往 prompt 里放什么是 harness 的决定，不该由一个输入框替它做——何况模型自己就有文件工具，拿到路径就能打开。
-- **切 session 得先结束当前这一轮。** 有一轮在跑的时候所有斜杠命令都会被拒绝，`/resume` 也一样，先按 Esc 取消。也没法同时开着两个 session。
+- **切 session 得先结束当前这一轮。** 运行时可使用查看类命令和 `/queue`；`/resume` 等会话切换操作要求空闲，需先按 Esc 取消。也没法同时开着两个 session。
 - **长工具输出只给预览，展不开。** 会显示前 8 行，末尾加一条 `… 还有 N 行` 的标记；没有展开入口——要做展开就得引入这个应用刻意不要的选中模型。
 - **`ctx.appExit` 由 launcher 提供。** 在 `dsh` CLI 外面跑会大声报错，直到 host 提供 exit hook。
 

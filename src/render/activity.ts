@@ -1,4 +1,5 @@
 /** Completed task disclosure is a view projection, never a session mutation. */
+import { taskOverview } from './task-overview.ts'
 import type { TaskRun, UiEntry, UiState } from '../core/types.ts'
 
 function taskEntries(entries: UiEntry[], task: TaskRun, expanded: boolean): UiEntry[] {
@@ -17,7 +18,10 @@ function taskEntries(entries: UiEntry[], task: TaskRun, expanded: boolean): UiEn
   const count = entries.filter(isDetail).length + (last?.kind === 'assistant' && last.reasoning ? 1 : 0)
   const durationMs = task.startedAt !== undefined && task.endedAt !== undefined
     ? Math.max(0, task.endedAt - task.startedAt) : undefined
-  const summary: UiEntry = { kind: 'activity', turn: task.turn, count, expanded, durationMs,
+  const overview = taskOverview(entries, 0, false)
+  const overviewCounts = { files: overview.files.length, commands: overview.commands.length,
+    failed: overview.commands.filter(command => !['ok', 'exit 0', 'running'].includes(command.outcome)).length }
+  const summary: UiEntry = { overview: overviewCounts, kind: 'activity', turn: task.turn, count, expanded, durationMs,
     outcome: task.outcome ?? 'interrupted' }
   let disclosed = false
   const visible = entries.flatMap((entry, index) => {

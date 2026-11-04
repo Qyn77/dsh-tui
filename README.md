@@ -74,6 +74,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 
 | | |
 | --- | --- |
+| `/changes` | Show recorded files, line changes and command outcomes for the latest task or `/changes N` |
 | `/queue` | List pending input; `add <text>`, `edit <id> <text>`, `remove <id>`, `clear` manage separate turns |
 | `/notify` | `/notify off` / `bell` / `desktop`; `/notify test` probes delivery; default off |
 | `/mouse` | `auto` / `on` / `off`; F2 toggles mouse reporting and native text selection |

@@ -639,13 +639,12 @@ Three consequences, each of which had to be paid for:
   file picker is open, reported through `onEscClaimChange` — the same
   negotiation shape as the arrows and `Ctrl-U`, and newly necessary only
   because a palette can be open during a turn at all now.
-- **Slash commands are refused mid-turn** rather than queued, with a note
-  saying so. The refusal is coarse on purpose: `/clear`, `/resume` and `/model`
-  reach into the session the running turn is writing to, a plugin-registered
-  command can do anything at all, and nothing in the registry says which is
-  which. One rule with no unknowns beats an allowlist that is wrong the first
-  time a plugin adds a row. A `!` escape is *not* refused — it spawns a child
-  process and never touches the agent.
+- **Session-changing slash commands are refused mid-turn** rather than queued.
+  Local viewing/input controls remain available: `/activity`, `/mouse`, `/notify`,
+  `/queue`, `/changes`, `/search`, `/jump`, `/inspect`, `/copy`, and `/export`.
+  `/clear`, `/resume`, `/model` and unclassified plugin commands still require
+  an idle agent. A `!` escape keeps its own shell lifecycle.
+
 
 Nothing is echoed locally on submit. A steered line reaches the log the same
 way a follow-up does, as the session's own `user/message` event, so it appears
@@ -1129,6 +1128,22 @@ cleanup fails after publication, report a warning while retaining the successful
 new handle. Conversation branching does not restore historical filesystem or
 external state. The original durable session remains resumable.
 
+### Task modification overview
+
+Completed activity summaries include recorded file and command counts, unsuccessful
+command counts, and `/changes <turn>` when available. This suffix stays in the
+existing truncated summary row; its row measurement remains two rows including
+the margin. `/changes [turn]` opens a scrollable command report for the selected
+or latest task, using hydrated history even when hidden. Native and nested PTC
+file-diff metadata is grouped by path. A continuous sequence reports net changes
+from the first before-image to the final after-image using exact LCS line counts.
+Missing before-images, discontinuous edits or a bounded calculation exceeding
+its work budget report unavailable counts. Summary rendering skips LCS work.
+Command arguments and local shell escapes expose recorded outcomes and an
+`/inspect N` reference. A tool's `ok` means the call settled successfully, not
+that the invoked tests all passed. This surface never scans or mutates Git or
+the worktree and cannot establish that no other files changed.
+
 ### Pending next-turn input
 
 Plain Enter keeps immediate steering during a running turn. `/queue add <text>`
@@ -1327,6 +1342,21 @@ The user requested a Codex-like activity summary on 2026-11-04. The implemented 
 
 The functional sequence above has been implemented and committed in phases. The native branch API was verified before integration. Remaining release work is native-terminal/user acceptance and any fixes it reveals; broader cosmetic refinement remains optional. [ACCEPTANCE.md](ACCEPTANCE.md) separates script evidence from those checks.
 
+### Next usability round · agreed execution scope
+
+The next round implements task/approval notifications, native next-turn queue
+management and task-level modification overviews. Their behavior is specified
+in Part 1 above. Script evidence and manual checks live in ACCEPTANCE.md.
+
+The remaining suggestions are recorded as proposed follow-up work, not shipped:
+
+- Per-session draft autosave and restart recovery, beyond current submission-failure restoration.
+- Session rename, favorite and archive metadata, beyond the current searchable picker.
+- Prompt undo/redo and an external-editor round trip.
+- Direct clipboard image input, with platform-specific capability handling.
+- Context attachment inspection/management integrated with the runtime.
+- Selective file checkpoints/restoration, subject to a separate design protecting subsequent user edits.
+
 ## Part 3 · Conventions
 
 Rules contributors must follow. Breaking any of them needs a PR that updates this file in the same diff.
@@ -1466,7 +1496,7 @@ What *is* typed and is projected by the reducer: `TurnEndReasonMap.blocked`, whi
 - Unknown `/foo` returns `{ kind: 'unknown' }`. The renderer turns it into a failed `command` entry in the log; it is **not** forwarded to the model, which would spend a turn having the model guess at a typo.
 - A `handled` result with no `message` prints nothing. Output that exists is appended as a `command` entry — never written to `stdout`/`stderr`, see §1.5.
 - Reserved prefixes (`/`, `!`) cannot be redefined.
-- A slash command typed while a turn is running never reaches the dispatcher: the renderer refuses it with a note and the line is not steered either (§1.6). `!` escapes are unaffected.
+- During a running turn, only the explicitly listed local/input commands in §1.6 reach dispatch. Other slash commands are refused with a note and are never steered to the model. `!` escapes are unaffected.
 - Adding a slash command requires:
   1. A case in `commands.ts`
   2. A test in `tests/commands.spec.ts` (every command, every invalid input shape)

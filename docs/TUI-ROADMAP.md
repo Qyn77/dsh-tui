@@ -520,3 +520,12 @@ The TUI is not a replacement for the dsh runtime; it is the terminal presentatio
 7. Add polish and optional ergonomics
 
 This order reduces the chance of regressions where a prompt, a timer, or a terminal viewport artifact creates the illusion that the chat log itself is broken, and it ensures the TUI remains a thin presentation layer over the real dsh agent runtime.
+
+## 9. Next usability round
+
+Task/approval notifications, durable next-turn queue management and per-task
+recorded file/command overviews are implemented on the rc.5 branch. SPEC Part 1
+owns their contracts; SPEC Part 2 lists the remaining proposed extensions.
+[ACCEPTANCE.md](ACCEPTANCE.md) records script evidence and native-terminal checks.
+Prompt autosave, session organization, undo/external editing, clipboard image
+input, context management and selective checkpoints remain future proposals.

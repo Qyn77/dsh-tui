@@ -707,7 +707,7 @@ export const App: FC<AppProps> = ({
         // can do anything at all, and nothing in the registry says which is
         // which. One rule with no unknowns beats a per-command allowlist that
         // is wrong the first time a plugin adds a row.
-        if (state.status === 'running' && !['/activity', '/mouse', '/notify', '/queue', '/search', '/jump', '/inspect', '/copy', '/export'].includes(trimmed.split(/\s+/)[0])) {
+        if (state.status === 'running' && !['/activity', '/mouse', '/notify', '/queue', '/changes', '/search', '/jump', '/inspect', '/copy', '/export'].includes(trimmed.split(/\s+/)[0])) {
           appendEntry({ kind: 'command', input: trimmed, text: strings.output.busyCommand, failed: true })
           return
         }
@@ -822,7 +822,8 @@ export const App: FC<AppProps> = ({
         appendEntry({ kind: 'note', tone: 'error', text: `${strings.recovery.draftRestored}\n${error instanceof Error ? error.message : String(error)}` })
       })
     },
-    [deliverInput, notificationMode, setNotificationMode, notify, restoreDraft, selectedIndex, searchMatches, mousePref, setMouse, setActivity, inspectEntry, jumpEntry, cwd, fullState, historyReady,
+    [deliverInput, notificationMode, setNotificationMode, notify, restoreDraft, selectedIndex, searchMatches,
+      mousePref, setMouse, setActivity, inspectEntry, jumpEntry, cwd, fullState, historyReady,
       ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
       setTheme, themePref, appearance, emit, strings, state, shell, swapSession, forkSession,
       scroll.setExpanded, scroll.expanded, attach, statusRef,

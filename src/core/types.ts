@@ -116,7 +116,7 @@ export interface WorkflowMember {
 
 /** Visible entry in the chat list. The reducer grows a list of these. */
 export type UiEntry =
-  | { kind: 'activity'; turn: number; count: number; expanded: boolean; durationMs?: number; outcome: string }
+  | { kind: 'activity'; overview?: { files: number; commands: number; failed: number }; turn: number; count: number; expanded: boolean; durationMs?: number; outcome: string }
   | { kind: 'user'; message: UserMessage }
   | {
     kind: 'assistant'

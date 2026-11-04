@@ -366,7 +366,8 @@ function ActivityRow({ entry }: { entry: Extract<UiEntry, { kind: 'activity' }> 
   return <Row glyph="" color="gray"><Text wrap="truncate">{strings.activity.summary(
     entry.turn, entry.durationMs === undefined ? undefined : Math.floor(entry.durationMs / 1000),
     entry.count, entry.expanded, entry.outcome,
-  )}</Text></Row>
+  )}{entry.overview && entry.overview.files + entry.overview.commands > 0
+    ? strings.changes.brief(entry.overview.files, entry.overview.commands, entry.overview.failed, entry.turn) : ''}</Text></Row>
 }
 
 function UserBlock({ entry }: { entry: Extract<UiEntry, { kind: 'user' }> }) {

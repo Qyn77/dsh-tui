@@ -25,6 +25,7 @@
  */
 
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { taskOverview } from '../render/task-overview.ts'
 import { queueMessage, replaceQueueText } from './queue.ts'
 import { userMessageText } from '../core/types.ts'
 import { recoveryPlan } from './recovery.ts'
@@ -638,6 +639,24 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       return { kind: 'handled' }
     }
 
+    case '/changes': {
+      const labels = catalog(lang).changes
+      const args = raw.trim().split(/\s+/).slice(1)
+      if (args.length > 1 || (args[0] !== undefined && !/^[1-9]\d*$/.test(args[0]))) {
+        return { kind: 'handled', message: labels.usage, failed: true }
+      }
+      if (cmd.historyReady === false) return { kind: 'handled', message: catalog(lang).transcript.loading, failed: true }
+      const source = cmd.exportState ?? cmd.state
+      const task = args[0] === undefined ? source.tasks?.at(-1) : source.tasks?.find(task => task.turn === Number(args[0]))
+      if (!task) return { kind: 'handled', message: args[0] ? catalog(lang).transcript.invalid : labels.empty, failed: args[0] !== undefined }
+      const overview = taskOverview(source.entries.slice(task.startIndex, task.endIndex), task.startIndex)
+      return { kind: 'handled', message: [labels.heading(task.turn),
+        ...(overview.files.length ? [labels.files, ...overview.files.map(file =>
+          `${file.path} · ${file.added === undefined ? labels.unknown : `+${file.added} −${file.removed}`} · ${labels.edits(file.edits)}`)] : []),
+        ...(overview.commands.length ? [labels.commands, ...overview.commands.map(command =>
+          `[${command.outcome}] ${command.command} · /inspect ${command.entry}`)] : []),
+        ...(!overview.files.length && !overview.commands.length ? [labels.empty] : []), labels.note].join('\n') }
+    }
     case '/diff': {
       const value = raw.trim().split(/\s+/)[1]
       const index = value ? entryNumber(value, cmd.state.entries.length) : undefined

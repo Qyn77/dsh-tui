@@ -82,6 +82,7 @@ export const COMMAND_NAMES = [
   '/mouse',
   '/notify',
   '/queue',
+  '/changes',
   '/model',
   '/plugins',
   '/provider',
@@ -126,13 +127,39 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  changes: {
+    heading: (turn: number) => string
+    empty: string
+    files: string
+    commands: string
+    unknown: string
+    edits: (n: number) => string
+    usage: string
+    note: string
+    brief: (files: number, commands: number, failed: number, turn: number) => string
+  }
   queue: {
-    usage: string; unavailable: string; missing: string; notSubmitted: string; submitted: string; updated: string; removed: string; cleared: string
-    sessionChanged: string; heading: string; steering: string; empty: string; pending: (turns: number, steps: number) => string
+    usage: string
+    unavailable: string
+    missing: string
+    notSubmitted: string
+    submitted: string
+    updated: string
+    removed: string
+    cleared: string
+    sessionChanged: string
+    heading: string
+    steering: string
+    empty: string
+    pending: (turns: number, steps: number) => string
   }
   notify: {
-    usage: string; status: (mode: string) => string; completed: string
-    approval: string; ended: (reason: string) => string; test: string
+    usage: string
+    status: (mode: string) => string
+    completed: string
+    approval: string
+    ended: (reason: string) => string
+    test: string
   }
   diagnostics: { details: (path: string) => string }
   branch: { usage: string; unavailable: string; created: (id: string) => string }
@@ -615,6 +642,12 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  changes: {
+    heading: turn => `Task ${turn}: recorded changes and commands`, empty: 'No recorded file changes or commands for this task.',
+    files: 'Files', commands: 'Commands and tool outcomes', unknown: 'line counts unavailable', edits: n => `${n} recorded edits`,
+    usage: '/changes [turn number]', note: 'Tool outcomes are not test-suite verdicts. Files reflect recorded metadata, not the current worktree.',
+    brief: (files, commands, failed, turn) => ` · ${files} files · ${commands} commands${failed ? ` · ${failed} unsuccessful` : ''} · /changes ${turn}`,
+  },
   queue: {
     usage: '/queue · /queue add <text> · /queue edit <id> <text> · /queue remove <id> · /queue clear',
     unavailable: 'This agent has no pending-input interface.', missing: 'Message already claimed, missing, or prefix ambiguous. Refresh /queue.',
@@ -754,6 +787,7 @@ const EN: Catalog = {
     '/history': 'Show or hide resumed history',
     '/keybinds': 'Choose the editor keymap',
     '/language': 'Choose the interface language',
+    '/changes': 'Task file and command overview',
     '/queue': 'Manage next-turn messages',
     '/notify': 'Task and approval notifications',
     '/mouse': 'Mouse input and native text selection',
@@ -954,6 +988,12 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  changes: {
+    heading: turn => `任务 ${turn}：已记录的修改与命令`, empty: '这项任务没有记录到文件修改或命令。',
+    files: '文件', commands: '命令及工具结果', unknown: '行数不可用', edits: n => `${n} 次记录的编辑`,
+    usage: '/changes [轮次编号]', note: '工具调用结果不等于测试全数通过；文件统计来自记录的元数据，不是当前工作区扫描。',
+    brief: (files, commands, failed, turn) => ` · ${files} 个文件 · ${commands} 条命令${failed ? ` · ${failed} 条未成功` : ''} · /changes ${turn}`,
+  },
   queue: {
     usage: '/queue · /queue add <文字> · /queue edit <id> <文字> · /queue remove <id> · /queue clear',
     unavailable: '当前 Agent 未提供待执行输入接口。', missing: '消息已被领取、不存在或前缀不唯一，请刷新 /queue。',
@@ -1087,6 +1127,7 @@ const ZH: Catalog = {
     '/history': '显示或隐藏接续的历史',
     '/keybinds': '选择输入框键位',
     '/language': '选择界面语言',
+    '/changes': '任务文件修改与命令总览',
     '/queue': '管理后续任务队列',
     '/notify': '任务和审批提醒',
     '/mouse': '鼠标模式与原生文字选择',

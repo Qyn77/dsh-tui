@@ -24,9 +24,11 @@ it('notifies only live events for the active session and detaches on cleanup', (
   expect(send).toHaveBeenCalledWith(catalog('en').notify.completed)
   ctx.emit('session/event', session, { type: 'approval/asked', data: {} } as never)
   expect(send).toHaveBeenCalledWith(catalog('en').notify.approval)
+  ctx.emit('session/event', session, { type: 'turn/end', data: { turn: 2, reason: { kind: 'error' } } } as never)
+  expect(send).toHaveBeenCalledWith(catalog('en').notify.ended('error'))
   stop()
   ctx.emit('session/event', session, event)
-  expect(send).toHaveBeenCalledTimes(2)
+  expect(send).toHaveBeenCalledTimes(3)
 })
 
 it('validates notification preferences independently of older settings', async () => {

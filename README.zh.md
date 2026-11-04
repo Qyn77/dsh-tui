@@ -74,6 +74,7 @@ dsh --profile tui-rc5
 
 | | |
 | --- | --- |
+| `/changes` | 查看最近任务或 `/changes N` 的文件、增删行和命令结果总览 |
 | `/queue` | 查看待执行输入；`add <文字>`、`edit <id> <文字>`、`remove <id>`、`clear` 管理后续独立任务 |
 | `/notify` | `off` / `bell` / `desktop`；`/notify test` 测试提醒，默认关闭 |
 | `/mouse` | `auto` / `on` / `off`；F2 切换鼠标上报与原生文字选择 |
