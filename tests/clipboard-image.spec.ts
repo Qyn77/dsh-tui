@@ -5,7 +5,7 @@ import { afterEach, expect, it } from 'vitest'
 import { cacheClipboardImage, imageHelper, pasteClipboardImage, pngBytes } from '../src/attachments/clipboard-image.ts'
 import { paintApp } from './fake-tty.ts'
 const roots: string[] = []
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j6b8AAAAASUVORK5CYII=', 'base64')
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==', 'base64')
 function root(): string { const path = mkdtempSync(join(tmpdir(), 'dsh-clipboard-')); roots.push(path); return path }
 afterEach(() => { for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true }) })
 it('selects fixed native commands and validates binary/base64 boundaries', () => {
@@ -41,7 +41,7 @@ it('runs a helper without a shell and handles empty, missing and invalid output'
 })
 it('inserts an image as one undoable edit; pending reads cannot submit half an attachment', async () => {
   let resolve!: (result: { kind: 'image'; path: string }) => void
-  const tty = await paintApp({ pasteImage: () => new Promise(done => { resolve = done }) })
+  const tty = await paintApp({ pasteImage: () => new Promise((done) => { resolve = done }) })
   try {
     await tty.send('draft')
     await tty.send('\u0016')

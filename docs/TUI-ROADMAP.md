@@ -528,5 +528,6 @@ recorded file/command overviews are implemented on the rc.5 branch. SPEC Part 1
 owns their contracts; SPEC Part 2 lists the remaining proposed extensions.
 [ACCEPTANCE.md](ACCEPTANCE.md) records script evidence and native-terminal checks.
 Prompt autosave, unified undo/redo and local session organization are also
-implemented. External editing and clipboard image input are now implemented; context management and
-selective checkpoints remain future proposals.
+implemented. This round also adds external editing, clipboard image input and
+read-only context inspection. Context mutation and selective checkpoints remain
+future proposals.

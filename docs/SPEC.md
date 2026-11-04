@@ -1256,6 +1256,14 @@ Ctrl-T is available while idle, outside temporary session navigation. It flushes
 
 `terminal/handoff.ts` supplies public Ink input/output streams. During handoff it removes the real TTY input reader, allows Readable to update its listener state, forces a flowing-to-paused transition, and waits for process.stdin's pause hook to stop the underlying fd reader. Only then is canonical input enabled and the editor spawned with inherited stdio. A parent SIGINT listener keeps Ctrl-C directed at the editor from terminating the TUI. UI writes and resize forwarding are gated; the React tree remains mounted. Return restores terminal modes, raw input, resize forwarding and an unconditional repaint. No Ink internals, listener-count manipulation or component unmount is involved. This is a dedicated editor subprocess boundary, separate from the user's `!` shell commands and their noninteractive stdin.
 
+### Read-only context viewer
+
+Bare `/context` retains the occupancy gauge and advertises inspection. `/context view [N|tools]` reads the canonical `Session.deriveMessages()` and last `requestHeader()`; recorded compaction replacements and projections apply, while human transcript collapse/clear preferences do not affect it. The route and tools are labelled as the last recorded header, not a guarantee about the next request. Drafts and pending inbox rows are explicitly excluded.
+
+`/context request [N|tools]` reads the last process-local snapshot observed at `llm/stream` for the active session's marked loop request, excluding auxiliary calls. The immutable assembled request is retained by reference; observation calls `next()` unchanged. Other sessions cannot replace the snapshot. This is the provider-neutral request before adapter-specific wire conversion and does not assert delivery. Restart/resume has no captured request until the next live call. The viewer never calls prompt assembly and never writes session/model state.
+
+Numbered rows show role, declared source/form and block kinds, clipped using display columns; detail preserves the full available message text and whitelisted provenance, tool calls, attachment references and offload flags. Provider-private replay state is excluded. Tool schema inspection displays the captured/recorded declarations, not guessed registry contents. Full details use the existing scrollable inspection viewport, open at the top, and Esc returns to conversation. No attachment bytes are read and no context is removed or edited.
+
 ## Part 2 · Roadmap
 
 The current integration target is **v0.2.1-rc.5**. Historical milestones below retain the runtime versions used when they shipped. Current implementation and acceptance status follows those milestones.
@@ -1420,7 +1428,7 @@ The following statuses track suggestions beyond the previous three-item round:
 - Implemented: local session names, favorites and archive filters.
 - Implemented: unified prompt undo/redo and Ctrl-T external-editor round trip.
 - Implemented: direct clipboard image input, with platform-specific capability handling.
-- Context attachment inspection/management integrated with the runtime.
+- Implemented: read-only context/message/attachment and tool-schema inspection, plus live request capture. Context removal/mutation is not part of this round.
 - Selective file checkpoints/restoration, subject to a separate design protecting subsequent user edits.
 
 ## Part 3 · Conventions

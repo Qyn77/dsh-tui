@@ -9,14 +9,20 @@ export function createTerminalHandoff(stdin: NodeJS.ReadStream, stdout: NodeJS.W
   input.setRawMode = (mode: boolean) => { raw = mode; if (!suspended) stdin.setRawMode(mode); return input as never }
   input.ref = () => { stdin.ref(); return input as never }
   input.unref = () => { stdin.unref(); return input as never }
-  const output = new Writable({ write(chunk, encoding, done) {
+  const output = new Writable({ write(chunk: Buffer, encoding, done) {
     if (suspended) done()
     else stdout.write(chunk, encoding, done)
   } }) as Writable & Pick<NodeJS.WriteStream, 'isTTY' | 'columns' | 'rows'>
   Object.defineProperties(output, {
     isTTY: { get: () => stdout.isTTY }, columns: { get: () => stdout.columns }, rows: { get: () => stdout.rows },
   })
-  const read = () => { let chunk: string | Buffer | null; while ((chunk = stdin.read()) !== null) input.write(chunk) }
+  const read = () => {
+    for (;;) {
+      const chunk: unknown = stdin.read()
+      if (chunk === null) break
+      if (typeof chunk === 'string' || Buffer.isBuffer(chunk)) input.write(chunk)
+    }
+  }
   const resize = () => { if (!suspended) output.emit('resize') }
   stdin.on('readable', read)
   stdout.on('resize', resize)

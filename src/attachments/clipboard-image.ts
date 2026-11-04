@@ -21,7 +21,7 @@ function run(argv) {
   }
   return data && !data.isNil() ? ObjC.unwrap(data.base64EncodedStringWithOptions(0)) : '';
 }`
-const WINDOWS_IMAGE_SCRIPT = `Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; if ([Windows.Forms.Clipboard]::ContainsImage()) { $image = [Windows.Forms.Clipboard]::GetImage(); $stream = New-Object IO.MemoryStream; try { $image.Save($stream, [Drawing.Imaging.ImageFormat]::Png); [Console]::Out.Write([Convert]::ToBase64String($stream.ToArray())) } finally { $stream.Dispose(); $image.Dispose() } }`
+const WINDOWS_IMAGE_SCRIPT = 'Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; if ([Windows.Forms.Clipboard]::ContainsImage()) { $image = [Windows.Forms.Clipboard]::GetImage(); $stream = New-Object IO.MemoryStream; try { $image.Save($stream, [Drawing.Imaging.ImageFormat]::Png); [Console]::Out.Write([Convert]::ToBase64String($stream.ToArray())) } finally { $stream.Dispose(); $image.Dispose() } }'
 export interface ImageHelper { file: string; args: string[]; base64: boolean }
 export function imageHelper(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): ImageHelper | undefined {
   if (platform === 'darwin') return { file: '/usr/bin/osascript', args: ['-l', 'JavaScript', '-e', MAC_IMAGE_SCRIPT], base64: true }
@@ -34,7 +34,8 @@ export function pngBytes(output: Buffer, base64: boolean): Buffer | undefined {
   const text = base64 ? output.toString('utf8').trim() : ''
   if (base64 && (text.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(text))) return undefined
   const bytes = base64 ? Buffer.from(text, 'base64') : output
-  if (bytes.length > CLIPBOARD_IMAGE_LIMIT || bytes.length < 8 || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return undefined
+  if (bytes.length > CLIPBOARD_IMAGE_LIMIT || bytes.length < 8
+    || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return undefined
   return bytes
 }
 /** Cache remains referenced by saved drafts and undo history; removal from the tray does not delete it. */
@@ -54,13 +55,14 @@ export function cacheClipboardImage(bytes: Buffer, root = dshHome()): ClipboardI
   } catch { return { kind: 'failed' } }
   finally { try { rmSync(temp, { force: true }) } catch { /* Keep the original outcome. */ } }
 }
-export async function pasteClipboardImage(root = dshHome(), helper = imageHelper(process.platform, process.env)): Promise<ClipboardImageResult> {
+export async function pasteClipboardImage(root = dshHome(),
+  helper = imageHelper(process.platform, process.env)): Promise<ClipboardImageResult> {
   if (!helper) return { kind: 'unavailable' }
   try {
     const output = await new Promise<Buffer>((resolve, reject) => {
       const child = execFile(helper.file, helper.args, { encoding: 'buffer', timeout: 10000,
         maxBuffer: Math.ceil(CLIPBOARD_IMAGE_LIMIT * 4 / 3) + 1024, windowsHide: true },
-      (error, stdout) => error ? reject(error) : resolve(stdout))
+      (error, stdout) => { if (error) reject(error instanceof Error ? error : new Error('Clipboard helper failed')); else resolve(stdout) })
       child.stdin?.end()
     })
     if (output.length === 0 || (helper.base64 && output.toString('utf8').trim() === '')) return { kind: 'empty' }

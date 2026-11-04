@@ -90,7 +90,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/status` | model, session id, permission preset |
 | `/model` | show the model; `/model <name>` switches it, `/model ` opens a picker |
 | `/clear` | clear the visible transcript (the session log is untouched) |
-| `/context` / `/usage` | context window, and this session's token spend |
+| `/context` / `/usage` | context window and token spend; `/context view [N\|tools]` inspects the recorded surface, `/context request [N\|tools]` the last captured request |
 | `/mcp` | connected MCP servers; `/mcp add`, `/mcp remove <server>` |
 | `/permission` | pick a sandbox + approval preset |
 | `/approval` | show or switch the approval policy (`ask` / `never`) |
@@ -106,6 +106,8 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `!`, `!!` | run a shell command — `!!` also shows it to the model |
 | `/exit`, `/quit` | leave the REPL |
 | `Ctrl-Z` / `Ctrl-Y`, `Ctrl-R` | Undo / redo input; Vim normal-mode `u` also undoes |
+| `Ctrl-T` | Edit the idle draft in VISUAL / EDITOR; save and exit to return |
+| `Ctrl-V` | Import a clipboard image into the attachment tray |
 | `Ctrl-G` | Open the session chooser while preserving the draft; Esc returns |
 | `Ctrl-X` | Remove the draft image at the caret, or the last image; metadata preview appears before sending |
 | `Tab` | complete the highlighted `/` command or `@` path |
@@ -145,3 +147,9 @@ Images are private, content-addressed files in `DSH_HOME/tui-clipboard` (16 MiB 
 ### External draft editor
 
 While idle, press **Ctrl-T** to edit the current draft in `$VISUAL`, then `$EDITOR`, falling back to `vi` (`notepad.exe` on Windows). Executable paths and arguments can be quoted; no shell expansion runs. Use a waiting command such as `code --wait` for GUI editors. Save and exit to return; nonzero exit or errors keep the original draft. Returning never submits automatically and is one Ctrl-Z undo step. UTF-8 output is limited to 2 MiB. The temporary file is private and removed after the editor exits. The draft is flushed before handoff; terminal input, alternate screen, mouse modes and repainting are restored afterward.
+
+### Read-only context inspection
+
+`/context view` lists the current canonical session surface: recorded system instructions, conversation, injected context, attachments and compaction replacements that remain effective. It reads `Session.deriveMessages()`; it never assembles a new prompt or changes model context. Drafts and pending inbox items are excluded and labelled separately. The route/tools belong to the last recorded request header, which can differ from a model selection awaiting its next turn.
+
+`/context request` shows the most recent loop request observed for this session in this process, before provider-specific wire conversion. It excludes later replies and auxiliary title/compaction calls; it does not prove network delivery. After a restart it is unavailable until a new request is observed. Add a numbered row to either command to inspect its full available text, or `tools` to inspect schemas. Scroll normally, then Esc to return. Attachment references are shown without reading image bytes, and adapter-private replay metadata is omitted.

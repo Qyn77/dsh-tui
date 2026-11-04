@@ -21,8 +21,8 @@ it('parses quoted executable/args without evaluating a shell and respects editor
 })
 it('round-trips multiline UTF-8 using a private file then removes it', async () => {
   let file = ''
-  const command = fixture(`const fs=require('fs');const f=process.argv[2];fs.writeFileSync(f,fs.readFileSync(f,'utf8')+'\\n中文');`)
-  const result = await editExternal('original', command, async action => {
+  const command = fixture('const fs=require(\'fs\');const f=process.argv[2];fs.writeFileSync(f,fs.readFileSync(f,\'utf8\')+\'\\n中文\');')
+  const result = await editExternal('original', command, async (action) => {
     const success = await action()
     // Fixture records are verified separately below; real process and cleanup run here.
     return success

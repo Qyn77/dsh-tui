@@ -82,6 +82,43 @@ function makeStandWithoutExit(): Context {
 describe('slash command dispatch', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
+  it('validates context inspection commands without calling prompt assembly or mutating the session', async () => {
+    const { cmd } = makeCommand()
+    const inspectContext = vi.fn()
+    const before = cmd.agent.session.seq
+    const live = { ...cmd, inspectContext }
+    const request = await dispatch('/context request', live)
+    expect(request.kind).toBe('handled')
+    if (request.kind === 'handled') expect(request.message).toContain('No loop request captured')
+    const view = await dispatch('/context view', live)
+    expect(view.kind).toBe('handled')
+    if (view.kind === 'handled') expect(view.message).toContain('No effective messages')
+    const tools = await dispatch('/context view tools', live)
+    expect(tools.kind).toBe('handled')
+    if (tools.kind === 'handled') expect(tools.message).toContain('Opened read-only')
+    expect(inspectContext).toHaveBeenCalledWith('/context view tools', expect.stringContaining('Tool declarations'))
+    for (const input of ['/context bad', '/context view 0', '/context view 999', '/context view 1 extra']) {
+      const result = await dispatch(input, live)
+      expect(result.kind).toBe('handled')
+      if (result.kind === 'handled') expect(result.message).toContain('/context view [N|tools]')
+    }
+    expect(cmd.agent.session.seq).toBe(before)
+  })
+
+  it('context view reads the canonical replaced surface rather than the expanded human transcript', async () => {
+    const { cmd } = makeCommand()
+    const session = cmd.agent.session
+    const old = session.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'shadowed old content' }] }), { surfaceOp: 'append' })
+    session.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'effective compacted summary' }] }),
+      { surfaceOp: { op: 'replace', startSeq: old.seq, endSeq: old.seq }, sourceEventSeqs: [old.seq] })
+    const before = session.seq
+    const result = await dispatch('/context view', cmd)
+    expect(result.kind).toBe('handled')
+    if (result.kind === 'handled') expect(result.message).toContain('effective compacted summary')
+    if (result.kind === 'handled') expect(result.message).not.toContain('shadowed old content')
+    expect(session.seq).toBe(before)
+  })
+
   it('lists and mutates only pending next-turn messages by stable identity', async () => {
     const message = createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'later' }] })
     const inbox = { nextTurn: [message], nextStep: [], replace: vi.fn().mockReturnValue(true),

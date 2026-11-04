@@ -1,3 +1,4 @@
+import { contextMessageText, contextRows, type ContextRequestReader, type ContextSnapshot } from './context-view.ts'
 /**
  * Slash command registry and dispatch for the TUI prompt. The same
  * {@link commands} table feeds the in-progress `/` palette (see
@@ -466,6 +467,9 @@ export interface CommandContext {
   selectedIndex?: number
   searchMatches?: readonly number[]
   setSearchMatches?: (matches: number[]) => void
+  inspectContext?: (title: string, text: string) => void
+  contextRequest?: ContextRequestReader
+  contextWidth?: number
   inspectEntry?: (index: number) => void
   jumpEntry?: (index: number) => void
   cwd?: string
@@ -1150,6 +1154,31 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
     }
 
     case '/context': {
+      const args = raw.trim().split(/\s+/).slice(1)
+      if (args.length) {
+        const labels = catalog(lang).contextView
+        if (!['view', 'request'].includes(args[0]) || args.length > 2
+          || (args[1] !== undefined && args[1] !== 'tools' && !/^[1-9]\d*$/.test(args[1]))) return { kind: 'handled', message: labels.usage }
+        const header = cmd.agent.session.requestHeader()
+        const snapshot: ContextSnapshot | undefined = args[0] === 'request'
+          ? cmd.contextRequest?.(cmd.agent.id)
+          : { sessionId: cmd.agent.id, seq: cmd.agent.session.seq, messages: cmd.agent.session.deriveMessages(),
+            tools: header?.tools ?? [], provider: header?.config.provider, model: header?.config.model }
+        if (!snapshot) return { kind: 'handled', message: labels.unavailable }
+        const provenance = args[0] === 'request' ? labels.request : labels.current
+        const route = labels.route(snapshot.provider ?? strings.unknown, snapshot.model ?? strings.unknown, snapshot.seq)
+        const prefix = [provenance, route, labels.counts(snapshot.messages.length, snapshot.tools.length)]
+        if (args[0] === 'view') prefix.push(labels.pending(cmd.agent.inbox?.nextStep.length ?? 0, cmd.agent.inbox?.nextTurn.length ?? 0))
+        if (args[1] !== undefined) {
+          const index = Number(args[1]) - 1
+          if (args[1] !== 'tools' && (!Number.isSafeInteger(index) || !snapshot.messages[index])) return { kind: 'handled', message: labels.usage }
+          const text = args[1] === 'tools' ? `${labels.tools}\n${JSON.stringify(snapshot.tools, null, 2)}` : contextMessageText(snapshot.messages[index])
+          const result = [...prefix, '', text].join('\n')
+          if (cmd.inspectContext) { cmd.inspectContext(raw, result); return { kind: 'handled', message: labels.opened } }
+          return { kind: 'handled', message: result }
+        }
+        return { kind: 'handled', message: [...prefix, '', ...(snapshot.messages.length ? contextRows(snapshot, labels, cmd.contextWidth ?? 90) : [labels.empty]), '', labels.usage].join('\n') }
+      }
       const selection = service(cmd.ctx, 'agentDefaultModel')?.currentSelection()
       const model = selection ? `${selection.provider}/${selection.model}` : strings.unknown
       // Read the latest advertised context window from the session's
@@ -1177,7 +1206,7 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
           output: output.toLocaleString(),
           ...(occupied === undefined ? {} : { inContext: occupied.toLocaleString() }),
           ...(usable ? { usagePercent: Math.round((occupied / contextWindow) * 100) } : {}),
-        }),
+        }) + `\n\n${catalog(lang).contextView.usage}`,
       }
     }
 

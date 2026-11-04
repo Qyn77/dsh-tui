@@ -773,7 +773,7 @@ export const Prompt: FC<PromptProps> = ({
         if (!editExternally || busy || navigationDraft) { onInputNotice?.(strings.externalEditor.busy); return }
         if (draftChannel && !draftChannel.save({ text: value, cursor: cursorIndex })) onDraftFailure?.()
         inputPending.current = true
-        void editExternally(value).then(result => {
+        void editExternally(value).then((result) => {
           if (!mounted.current) return
           if (result.kind === 'edited') editor.apply({ type: 'edit', snapshot: { text: result.text, cursor: result.text.length } })
           else onInputNotice?.(strings.externalEditor[result.kind])
@@ -784,7 +784,7 @@ export const Prompt: FC<PromptProps> = ({
       if (key.ctrl && input === 'v') {
         if (!pasteImage || navigationDraft) { onInputNotice?.(strings.clipboardImage.unavailable); return }
         inputPending.current = true
-        void pasteImage().then(result => {
+        void pasteImage().then((result) => {
           if (!mounted.current) return
           if (result.kind === 'image') {
             // Quote paths for the existing attachment scanner. No shell runs.

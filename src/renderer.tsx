@@ -1,3 +1,4 @@
+import type { ContextRequestReader } from './commands/context-view.ts'
 import type { EditExternally } from './terminal/external-editor.ts'
 import type { PasteImage } from './attachments/clipboard-image.ts'
 /**
@@ -58,6 +59,7 @@ import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  contextRequest?: ContextRequestReader
   editExternally?: EditExternally
   pasteImage?: PasteImage
   sessionLibrary?: SessionLibrary
@@ -168,6 +170,7 @@ const AppProviders: FC<{ lang: Lang; appearance: Appearance; children: ReactNode
 
 export const App: FC<AppProps> = ({
   ctx,
+  contextRequest,
   pasteImage,
   editExternally,
   agent,
@@ -430,8 +433,14 @@ export const App: FC<AppProps> = ({
   useEffect(() => { setExpandedTasks(new Set()) }, [agent.session])
   const transcript = useMemo(() => inspection ? {
     ...state, entries: [{ kind: 'command' as const,
-      input: strings.transcript.inspect(inspectionIndex + 1), text: entryText(inspection), failed: false }],
+      input: inspectionIndex < 0 ? strings.contextView.inspector : strings.transcript.inspect(inspectionIndex + 1),
+      text: entryText(inspection), failed: false }],
   } : activityView(state, expandedTasks), [state, expandedTasks, inspection, inspectionIndex, strings])
+  const inspectContext = useCallback((title: string, text: string) => {
+    setInspection({ kind: 'command', input: title, text, failed: false })
+    setInspectionIndex(-1)
+    setJumpTarget(undefined)
+  }, [])
   const inspectEntry = useCallback((index: number) => {
     setSelectedIndex(index)
     setInspection(state.entries[index])
@@ -500,6 +509,8 @@ export const App: FC<AppProps> = ({
   // rows already on screen when the window narrows leaves debris behind
   // that no width arithmetic can prevent. Once a resize settles, throw the
   // screen away and let Ink lay the frame down again.
+
+  useEffect(() => { if (inspection) scroll.jumpToOffset(Number.MAX_SAFE_INTEGER) }, [inspection])
 
   const clearView = useCallback(() => {
     resetView()
@@ -726,7 +737,7 @@ export const App: FC<AppProps> = ({
         // can do anything at all, and nothing in the registry says which is
         // which. One rule with no unknowns beats a per-command allowlist that
         // is wrong the first time a plugin adds a row.
-        if (state.status === 'running' && !['/activity', '/mouse', '/notify', '/queue', '/changes', '/search', '/jump', '/inspect', '/copy', '/export'].includes(trimmed.split(/\s+/)[0])) {
+        if (state.status === 'running' && !['/context', '/activity', '/mouse', '/notify', '/queue', '/changes', '/search', '/jump', '/inspect', '/copy', '/export'].includes(trimmed.split(/\s+/)[0])) {
           appendEntry({ kind: 'command', input: trimmed, text: strings.output.busyCommand, failed: true })
           return
         }
@@ -753,6 +764,9 @@ export const App: FC<AppProps> = ({
           selectedIndex,
           searchMatches,
           setSearchMatches,
+          inspectContext,
+          contextRequest,
+          contextWidth: stdout.columns ? stdout.columns - 10 : 90,
           inspectEntry,
           jumpEntry,
           cwd,
@@ -844,7 +858,8 @@ export const App: FC<AppProps> = ({
     },
     [sessionLibrary, onLibraryChange, deliverInput, notificationMode, setNotificationMode, notify, restoreDraft,
       selectedIndex, searchMatches,
-      mousePref, setMouse, setActivity, inspectEntry, jumpEntry, cwd, fullState, historyReady,
+      mousePref, setMouse, setActivity, inspectContext, contextRequest, stdout.columns, inspectEntry, jumpEntry, cwd, fullState,
+      historyReady,
       ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
       setTheme, themePref, appearance, emit, strings, state, shell, swapSession, forkSession,
       scroll.setExpanded, scroll.expanded, attach, statusRef,
@@ -1039,7 +1054,7 @@ export const App: FC<AppProps> = ({
           key={agent.id}
           editExternally={editExternally}
           pasteImage={pasteImage}
-          onInputNotice={text => appendEntry({ kind: 'note', tone: 'warn', text })}
+          onInputNotice={(text) => { appendEntry({ kind: 'note', tone: 'warn', text }) }}
           draftChannel={draftChannel}
           onDraftFailure={onDraftFailure}
           cwd={cwd}

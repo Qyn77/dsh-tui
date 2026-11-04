@@ -2,14 +2,15 @@ import { PassThrough } from 'node:stream'
 import { expect, it, vi } from 'vitest'
 import { createTerminalHandoff } from '../src/terminal/handoff.ts'
 it('hands off input/output and restores both after a failed editor, without replacing Ink readers', async () => {
-  const stdin = Object.assign(new PassThrough(), { isTTY: true, isRaw: true, setRawMode: vi.fn(), ref: vi.fn(), unref: vi.fn() })
+  const stdin = Object.assign(new PassThrough(), { isTTY: true, isRaw: true,
+    setRawMode: vi.fn<(mode: boolean) => void>(), ref: vi.fn(), unref: vi.fn() })
   const stdout = Object.assign(new PassThrough(), { isTTY: true, columns: 80, rows: 24 })
   stdin.pause()
   const pause = vi.fn()
   stdin.on('pause', pause)
   const bridge = createTerminalHandoff(stdin as unknown as NodeJS.ReadStream, stdout as unknown as NodeJS.WriteStream)
   let written = ''
-  stdout.on('data', chunk => { written += String(chunk) })
+  stdout.on('data', (chunk) => { written += String(chunk) })
   const leave = vi.fn(), enter = vi.fn(), read = vi.fn()
   bridge.stdin.on('readable', read)
   const readers = bridge.stdin.listeners('readable')

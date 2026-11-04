@@ -37,7 +37,7 @@ export async function editExternal(text: string, command = selectedEditor(),
     const success = await run(() => new Promise<boolean>((resolve, reject) => {
       const child = spawn(args[0], [...args.slice(1), file], { stdio: 'inherit', shell: false })
       child.once('error', reject)
-      child.once('exit', (code, signal) => resolve(code === 0 && signal === null))
+      child.once('exit', (code, signal) => { resolve(code === 0 && signal === null) })
     }))
     if (!success) return { kind: 'cancelled' }
     const info = await lstat(file)
