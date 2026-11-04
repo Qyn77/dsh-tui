@@ -25,6 +25,8 @@
  */
 
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { queueMessage, replaceQueueText } from './queue.ts'
+import { userMessageText } from '../core/types.ts'
 import { recoveryPlan } from './recovery.ts'
 import { diffLines, transcriptDiffs } from '../render/file-diffs.ts'
 import { entryNumber, entryText, navigationIndex, searchTranscript } from './transcript.ts'
@@ -456,6 +458,7 @@ export interface CommandContext {
   exportState?: UiState
   historyReady?: boolean
   setActivity?: (value: number | 'all' | 'none') => void
+  enqueueText?: (text: string) => Promise<void>
   notificationMode?: NotificationMode
   setNotificationMode?: (mode: NotificationMode) => void
   testNotification?: () => void
@@ -689,6 +692,38 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       return { kind: 'handled' }
     }
 
+    case '/queue': {
+      const labels = catalog(lang).queue
+      const inbox = cmd.agent.inbox
+      if (!inbox) return { kind: 'handled', message: labels.unavailable, failed: true }
+      const match = /^\/queue(?:\s+(\S+))?(?:\s+([\s\S]*))?$/.exec(raw.trim())
+      const action = match?.[1]
+      const body = match?.[2]?.trim() ?? ''
+      if (action === undefined) {
+        const rows = (messages: typeof inbox.nextTurn): string[] => messages.map(message => `${message.id} · ${userMessageText(message)}`)
+        const lines = [...(inbox.nextTurn.length ? [labels.heading, ...rows(inbox.nextTurn)] : []),
+          ...(inbox.nextStep.length ? [labels.steering, ...rows(inbox.nextStep)] : [])]
+        return { kind: 'handled', message: lines.length ? lines.join('\n') : labels.empty }
+      }
+      if (action === 'add' && body && cmd.enqueueText) {
+        await cmd.enqueueText(body)
+        return { kind: 'handled', message: labels.submitted }
+      }
+      if (action === 'clear' && !body) {
+        inbox.splice('next-turn', 0, inbox.nextTurn.length, [])
+        return { kind: 'handled', message: labels.cleared }
+      }
+      const edit = /^(\S+)\s+([\s\S]+)$/.exec(body)
+      const id = action === 'edit' ? edit?.[1] : body
+      if ((action !== 'edit' && action !== 'remove') || !id || (action === 'edit' && !edit) || (action === 'remove' && /\s/.test(id))) {
+        return { kind: 'handled', message: labels.usage, failed: true }
+      }
+      const pending = queueMessage(inbox.nextTurn, id)
+      if (!pending) return { kind: 'handled', message: labels.missing, failed: true }
+      const done = action === 'edit' && edit
+        ? inbox.replace(pending.id, replaceQueueText(pending, edit[2])) : inbox.remove(pending.id)
+      return { kind: 'handled', message: done ? (action === 'edit' ? labels.updated : labels.removed) : labels.missing, failed: !done }
+    }
     case '/notify': {
       const args = raw.trim().split(/\s+/).slice(1)
       const labels = catalog(lang).notify

@@ -219,6 +219,7 @@ export interface Painted {
 
 /** How to mount the `App` for a frame test. */
 export interface PaintOptions {
+  inbox?: import('@deepseek-ai/dsh-agent').Inbox
   directory?: Pick<import('@deepseek-ai/dsh-working-directory').WorkingDirectoryService, 'get' | 'set'>
   /** Question/answer pairs to seed the log with. Default 0 (banner only). */
   turns?: number
@@ -370,7 +371,7 @@ export async function paintApp(
   {
     turns = 0, rows = 40, columns = 100, notice, tty = true, lang = 'en', inject, debug = true,
     appearance = 'dark', themePref = 'auto', keybinds = 'default', steer, followup, cancel,
-    skills = DEFAULT_SKILLS, preset, directory, registryCommands: pluginCommands, models,
+    skills = DEFAULT_SKILLS, preset, directory, inbox, registryCommands: pluginCommands, models,
   }: PaintOptions = {},
 ): Promise<Painted> {
   const stdout = fakeStdout(columns, rows)
@@ -434,6 +435,7 @@ export async function paintApp(
   // would let a Ctrl-C test pass for the wrong reason.
   let running = false
   const agent = {
+    inbox,
     id: session.id,
     session,
     get status() { return running ? 'running' : 'idle' },

@@ -74,6 +74,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 
 | | |
 | --- | --- |
+| `/queue` | List pending input; `add <text>`, `edit <id> <text>`, `remove <id>`, `clear` manage separate turns |
 | `/notify` | `/notify off` / `bell` / `desktop`; `/notify test` probes delivery; default off |
 | `/mouse` | `auto` / `on` / `off`; F2 toggles mouse reporting and native text selection |
 | `/activity` | Expand/collapse a completed task: `/activity <number>`, `all`, or `none` |

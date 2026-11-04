@@ -82,6 +82,25 @@ function makeStandWithoutExit(): Context {
 describe('slash command dispatch', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
+  it('lists and mutates only pending next-turn messages by stable identity', async () => {
+    const message = createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'later' }] })
+    const inbox = { nextTurn: [message], nextStep: [], replace: vi.fn().mockReturnValue(true),
+      remove: vi.fn().mockReturnValue(false), splice: vi.fn() }
+    const { cmd } = makeCommand()
+    const live = { ...cmd, agent: { ...cmd.agent, inbox } as never }
+    expect(handledText(await dispatch('/queue', live))).toContain(message.id)
+    await dispatch(`/queue edit ${message.id} new task`, live)
+    expect(inbox.replace).toHaveBeenCalledWith(message.id, expect.objectContaining({ id: message.id }))
+    expect(await dispatch(`/queue remove ${message.id}`, live)).toMatchObject({ failed: true })
+    await dispatch('/queue clear', live)
+    expect(inbox.splice).toHaveBeenCalledWith('next-turn', 0, 1, [])
+    const enqueueText = vi.fn().mockResolvedValue(undefined)
+    await dispatch('/queue add next task', { ...live, enqueueText })
+    expect(enqueueText).toHaveBeenCalledWith('next task')
+    expect(await dispatch('/queue edit bad', live)).toMatchObject({ failed: true })
+    expect(await dispatch('/queue', cmd)).toMatchObject({ failed: true })
+  })
+
   it('sets and tests task notifications without waking the agent', async () => {
     const { cmd } = makeCommand()
     const setNotificationMode = vi.fn()
@@ -1510,7 +1529,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/activity', '/approval', '/branch', '/clear', '/context', '/copy', '/diff', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
-      '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
+      '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
       '/usage', '/verbose',
     ])
   })
@@ -1533,7 +1552,7 @@ describe('filterCommands', () => {
 
   it('matches /quit under /Q prefix', () => {
     const result = filterCommands('/Q').map(c => c.name)
-    expect(result).toEqual(['/quit'])
+    expect(result).toEqual(['/queue', '/quit'])
   })
 
   it('returns an empty list when no command matches', () => {
@@ -1565,7 +1584,7 @@ describe('filterCommands', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/activity', '/approval', '/branch', '/clear', '/compact', '/context', '/copy', '/diff', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
         '/language',
-        '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
+        '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
         '/usage', '/verbose',
       ])
     })

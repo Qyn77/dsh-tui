@@ -850,7 +850,7 @@ describe('the palette on a terminal too short to hold it', () => {
     expect(screen).toContain('/exit')
     expect(screen).not.toContain('/plugins')
     expect(screen).not.toContain('/verbose')
-    expect(screen).toContain('+22 more')
+    expect(screen).toContain(`+${commands().length - 8} more`)
   })
 
   it('leaves the StatusBar and the prompt box whole underneath it', async () => {

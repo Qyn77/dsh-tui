@@ -1129,6 +1129,25 @@ cleanup fails after publication, report a warning while retaining the successful
 new handle. Conversation branching does not restore historical filesystem or
 external state. The original durable session remains resumable.
 
+### Pending next-turn input
+
+Plain Enter keeps immediate steering during a running turn. `/queue add <text>`
+uses the same attachment validation as ordinary input, but calls the native
+`agent.followup` to request a separate turn. At idle that turn may start
+immediately; this is not a paused local scheduler. `/queue` lists native
+next-turn and next-step messages separately. Next-step steering is read-only.
+`/queue edit <id> <text>` preserves message identity, source and existing
+nontext blocks; newly typed paths in an edit remain text. To replace attachments,
+remove and re-add the task. `/queue remove <id>` and `/queue clear` remove only
+unclaimed next-turn work. IDs must match exactly or by an unambiguous prefix of
+at least eight characters. A claim racing an edit/removal produces a refusal,
+never an edit to a different numbered row. Native durable inbox splices own
+persistence and cancellation: ordinary turn cancellation can discard queued
+work according to the runtime's policy. Switching sessions reads that session's
+inbox and never transfers pending work. A delayed attachment read cannot deliver
+input to an agent that was switched away. The existing one-row navigation hint
+shows queue/steering counts at the tail without stealing transcript height.
+
 ### Task and approval notifications
 
 `/notify off|bell|desktop` selects a persisted terminal notification policy;

@@ -81,6 +81,7 @@ export const COMMAND_NAMES = [
   '/mcp',
   '/mouse',
   '/notify',
+  '/queue',
   '/model',
   '/plugins',
   '/provider',
@@ -125,6 +126,10 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  queue: {
+    usage: string; unavailable: string; missing: string; notSubmitted: string; submitted: string; updated: string; removed: string; cleared: string
+    sessionChanged: string; heading: string; steering: string; empty: string; pending: (turns: number, steps: number) => string
+  }
   notify: {
     usage: string; status: (mode: string) => string; completed: string
     approval: string; ended: (reason: string) => string; test: string
@@ -610,6 +615,16 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  queue: {
+    usage: '/queue · /queue add <text> · /queue edit <id> <text> · /queue remove <id> · /queue clear',
+    unavailable: 'This agent has no pending-input interface.', missing: 'Message already claimed, missing, or prefix ambiguous. Refresh /queue.',
+    notSubmitted: 'Nothing could be submitted. Check attachment refusals.',
+    submitted: 'Submitted for a separate turn.', updated: 'Pending message updated (text only; existing attachments retained).',
+    removed: 'Pending message removed.', cleared: 'Next-turn messages cleared; current work and steering retained.',
+    sessionChanged: 'Session changed before input could be delivered.', heading: 'Next-turn messages (stable ids):',
+    steering: 'Next-step steering (read-only):', empty: 'No pending input.',
+    pending: (turns, steps) => `${turns} queued · ${steps} steering · /queue`,
+  },
   notify: {
     usage: '/notify off|bell|desktop|test',
     status: mode => `Notifications: ${mode}. Desktop falls back to bell on unsupported terminals.`,
@@ -739,6 +754,7 @@ const EN: Catalog = {
     '/history': 'Show or hide resumed history',
     '/keybinds': 'Choose the editor keymap',
     '/language': 'Choose the interface language',
+    '/queue': 'Manage next-turn messages',
     '/notify': 'Task and approval notifications',
     '/mouse': 'Mouse input and native text selection',
     '/mcp': 'Manage MCP servers',
@@ -938,6 +954,15 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  queue: {
+    usage: '/queue · /queue add <文字> · /queue edit <id> <文字> · /queue remove <id> · /queue clear',
+    unavailable: '当前 Agent 未提供待执行输入接口。', missing: '消息已被领取、不存在或前缀不唯一，请刷新 /queue。',
+    notSubmitted: '没有可提交的内容，请检查附件拒绝信息。',
+    submitted: '已提交为后续独立的一轮任务。', updated: '已更新待执行消息的文字，保留已有附件。', removed: '已移除待执行消息。',
+    cleared: '已清空后续任务；当前执行和插话保持不变。', sessionChanged: '输入交付前会话已切换。',
+    heading: '后续独立任务（使用稳定 ID）：', steering: '下一步插话（只读）：', empty: '没有待执行输入。',
+    pending: (turns, steps) => `${turns} 项排队 · ${steps} 条插话 · /queue`,
+  },
   notify: {
     usage: '/notify off|bell|desktop|test',
     status: mode => `提醒模式：${mode}。不支持桌面通知的终端会退回响铃。`,
@@ -1062,6 +1087,7 @@ const ZH: Catalog = {
     '/history': '显示或隐藏接续的历史',
     '/keybinds': '选择输入框键位',
     '/language': '选择界面语言',
+    '/queue': '管理后续任务队列',
     '/notify': '任务和审批提醒',
     '/mouse': '鼠标模式与原生文字选择',
     '/mcp': '管理 MCP 服务器',
