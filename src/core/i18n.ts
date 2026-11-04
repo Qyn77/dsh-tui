@@ -199,7 +199,13 @@ export interface Catalog {
     continuePrompt: string
     draftRestored: string
   }
-  attachPreview: { summary: (count: number, bytes: string) => string }
+  attachPreview: {
+    summary: (count: number, bytes: string) => string
+    image: (index: number) => string
+    checking: string
+    missing: string
+    limit: string
+  }
   diff: { preview: string; noBefore: string; empty: string }
   transcript: {
     loading: string
@@ -716,7 +722,7 @@ const EN: Catalog = {
     continuePrompt: 'Continue the previous incomplete request using the recorded conversation and tool results. Do not blindly repeat successful tools. Before repeating any operation that can change files or external state, first verify its current state.',
     draftRestored: 'Submission failed. The request is retained; /retry draft restores it without replacing a newer draft.',
   },
-  attachPreview: { summary: (count, bytes) => `${count} image${count === 1 ? '' : 's'} · ${bytes} · Ctrl-X removes image at cursor or last image` },
+  attachPreview: { summary: (count, bytes) => `${count} image${count === 1 ? '' : 's'} · ${bytes} · Ctrl-X removes the last image`, image: index => `Image ${index}`, checking: 'checking', missing: 'file unavailable', limit: 'A draft can hold at most 64 images.' },
   diff: { preview: 'Proposed change (preview)', noBefore: 'Previous content is unavailable; additions show the proposed content.', empty: 'No recorded file changes. Applied diff metadata is required.' },
   transcript: {
     loading: 'Stored history is not available yet; export cannot produce a complete session.',
@@ -1073,7 +1079,7 @@ const ZH: Catalog = {
     continuePrompt: '请根据已有对话和工具结果继续上次未完成的请求。不要盲目重复成功执行的工具。再次执行可能修改文件或外部状态的操作前，先核对当前状态。',
     draftRestored: '发送失败，请求已保留；/retry draft 可恢复文本，并会保留你新输入的草稿。',
   },
-  attachPreview: { summary: (count, bytes) => `${count} 张图片 · ${bytes} · Ctrl-X 移除光标处或最后一张图片` },
+  attachPreview: { summary: (count, bytes) => `${count} 张图片 · ${bytes} · Ctrl-X 移除最后一张图片`, image: index => `图片 ${index}`, checking: '检查中', missing: '文件不可用', limit: '一条草稿最多保留 64 张图片。' },
   diff: { preview: '拟修改内容（预览）', noBefore: '无法取得原内容；新增行显示拟写入内容。', empty: '没有已记录的文件修改，需要工具提供已应用的 diff 元数据。' },
   transcript: {
     loading: '已存历史尚不可用，当前无法导出完整会话。',

@@ -1,3 +1,6 @@
+import { EMPTY_IMAGES, MAX_DRAFT_IMAGES, imageSubmission } from '../attachments/draft-images.ts'
+import { useDraftImagePreviews } from '../hooks/useDraftImagePreviews.ts'
+import { resolveCandidate } from '../attachments/attachments.ts'
 import type { EditExternally } from '../terminal/external-editor.ts'
 import type { PasteImage } from '../attachments/clipboard-image.ts'
 import { sessionPickerQuery } from '../commands/session-picker.ts'
@@ -6,7 +9,6 @@ import type { EditorHistory } from '../prompt/edit-history.ts'
 import type { DraftChannel, DraftSnapshot } from '../terminal/drafts.ts'
 import { useDraftPersistence } from '../hooks/useDraftPersistence.ts'
 import { useImagePreviews } from '../hooks/useImagePreviews.ts'
-import { removePreview } from '../attachments/preview.ts'
 import { formatBytes } from '../render/message-layout.ts'
 /**
  * The bottom input box. It grows with the buffer up to
@@ -294,10 +296,11 @@ export const Prompt: FC<PromptProps> = ({
   const inputPending = useRef(false)
   const mounted = useRef(true)
   useEffect(() => () => { mounted.current = false }, [])
+  const images = editor.state.present.images ?? EMPTY_IMAGES
   const navigationHistory = useRef<EditorHistory>()
   const [navigationDraft, setNavigationDraft] = useState<DraftSnapshot>()
-  const clearSavedDraft = useDraftPersistence(draftChannel, initialDraft,
-    navigationDraft ?? { text: value, cursor: cursorIndex }, onDraftFailure)
+  const persistImmediately = useDraftPersistence(draftChannel, initialDraft,
+    navigationDraft ?? editor.state.present, onDraftFailure)
   const draftWarning = useRef(false)
   useEffect(() => {
     if (loadedDraft?.failed && !draftWarning.current) { draftWarning.current = true; onDraftFailure?.() }
@@ -315,7 +318,7 @@ export const Prompt: FC<PromptProps> = ({
   // spanning three chunks must not cost three renders to track.
   const pasting = useRef(false)
   useEffect(() => {
-    if (restoreDraft && value === '') {
+    if (restoreDraft && value === '' && images.length === 0) {
       editor.apply({ type: 'reset', snapshot: { text: restoreDraft.text, cursor: restoreDraft.text.length } })
     }
     // A late failure must not overwrite a newer draft, or reappear after the
@@ -347,7 +350,26 @@ export const Prompt: FC<PromptProps> = ({
   // cursor from rapid input never escapes.
   useEffect(() => { onValueChange?.(value) }, [value, onValueChange])
   const sessionQuery = sessionPickerQuery(value)
-  const imagePreviews = useImagePreviews(value, cwd)
+  const pathPreviews = useImagePreviews(value, cwd)
+  const imagePreviews = useDraftImagePreviews(images)
+  useEffect(() => {
+    if (!pathPreviews.length || navigationDraft || /^(?:!|\/[a-z][a-z-]*(?:\s|$))/i.test(value.trim())) return
+    let text = value, cursor = cursorIndex
+    for (const row of [...pathPreviews].reverse()) {
+      text = text.slice(0, row.candidate.start) + text.slice(row.candidate.end)
+      cursor -= Math.max(0, Math.min(cursor, row.candidate.end) - row.candidate.start)
+    }
+    if (text.trim() === '') { text = ''; cursor = 0 }
+    const additions = pathPreviews.flatMap((row) => {
+      const path = resolveCandidate(row.candidate, { cwd, home: process.env['HOME'] })
+      if (!path) return []
+      // Clipboard cache hashes are storage details, not attachment names.
+      const cached = /[/\\]tui-clipboard[/\\][a-f0-9]{64}\.png$/.test(path)
+      return [{ path, ...(cached ? {} : { name: row.name }) }]
+    })
+    if (images.length + additions.length > MAX_DRAFT_IMAGES) { onInputNotice?.(strings.attachPreview.limit); return }
+    editor.apply({ type: 'normalize', snapshot: { text, cursor, images: [...images, ...additions] } })
+  }, [pathPreviews])
   const shownImages = Math.min(imagePreviews.length, Math.max(1, Math.min(3, (stdout?.rows ?? 24) - 20)))
   const imageTrayRows = shownImages > 0 ? shownImages + 1 : 0
   const palette = sessionQuery !== undefined
@@ -542,7 +564,7 @@ export const Prompt: FC<PromptProps> = ({
   // lose. `active` is part of it: while the box is closed (a shell, an
   // approval) the prompt takes no keys at all, so a buffer left over from
   // before must not keep Ctrl-C from reaching the App.
-  const filled = active && value !== ''
+  const filled = active && (value !== '' || images.length > 0)
   useEffect(() => {
     onFilledChange?.(filled)
   }, [filled, onFilledChange])
@@ -649,15 +671,18 @@ export const Prompt: FC<PromptProps> = ({
       onSubmit(submitted)
       return
     }
-    clearSavedDraft()
-    editor.apply({ type: 'reset', snapshot: { text: '', cursor: 0 } })
+    const command = /^(?:!|\/[a-z][a-z-]*(?:\s|$))/i.test(submitted.trim())
+    const next = { text: '', cursor: 0, ...(command && images.length ? { images } : {}) }
+    const payload = command ? submitted : imageSubmission(submitted, images)
+    persistImmediately(next)
+    editor.apply({ type: 'reset', snapshot: next })
     setScrollTop(0)
     setDismissed(null)
     setSkillDismissed(false)
     setPermissionDismissed(false)
     setModelDismissed(false)
     rememberSubmission(submitted)
-    onSubmit(submitted)
+    onSubmit(payload)
   }
 
   /**
@@ -745,6 +770,24 @@ export const Prompt: FC<PromptProps> = ({
   // Keep it stable instead of blinking: the prompt is already visually
   // distinct while active, and a 500ms re-render loop is unnecessary churn
   // on a terminal UI that has to stay smooth while scrolling the log.
+  const pasteHasText = useRef(false)
+  const requestClipboardImage = (quiet: boolean): void => {
+    if (!pasteImage || navigationDraft) { if (!quiet) onInputNotice?.(strings.clipboardImage.unavailable); return }
+    if (inputPending.current) return
+    inputPending.current = true
+    void pasteImage().then((result) => {
+      if (!mounted.current) return
+      if (result.kind === 'image') {
+        editor.change((current) => {
+          const currentImages = current.images ?? EMPTY_IMAGES
+          if (currentImages.length >= MAX_DRAFT_IMAGES) { onInputNotice?.(strings.attachPreview.limit); return current }
+          return { ...current, images: [...currentImages, { path: result.path }] }
+        })
+      } else if (!quiet || result.kind !== 'empty') onInputNotice?.(strings.clipboardImage[result.kind])
+    }).catch(() => { if (mounted.current && !quiet) onInputNotice?.(strings.clipboardImage.failed) })
+      .finally(() => { inputPending.current = false })
+  }
+
   useInput(
     (input, key) => {
       // Spontaneous terminal reports (OSC sequences whose leading ESC Ink's
@@ -761,17 +804,22 @@ export const Prompt: FC<PromptProps> = ({
       const wasPasting = pasting.current
       const paste = readPaste(input, wasPasting)
       if (paste.bracketed) {
-        if (!wasPasting) editor.apply({ type: 'begin' })
+        if (!wasPasting) { editor.apply({ type: 'begin' }); pasteHasText.current = false }
         pasting.current = paste.open
         if (paste.text !== '') {
+          pasteHasText.current = true
           editor.insert(paste.text)
         }
-        if (!paste.open) editor.apply({ type: 'end' })
+        if (!paste.open) {
+          editor.apply({ type: 'end' })
+          // A completed empty terminal paste is the observable Cmd-V image signal.
+          if (!pasteHasText.current) requestClipboardImage(true)
+        }
         return
       }
       if (key.ctrl && input === 't') {
         if (!editExternally || busy || navigationDraft) { onInputNotice?.(strings.externalEditor.busy); return }
-        if (draftChannel && !draftChannel.save({ text: value, cursor: cursorIndex })) onDraftFailure?.()
+        if (draftChannel && !draftChannel.save(editor.state.present)) onDraftFailure?.()
         inputPending.current = true
         void editExternally(value).then((result) => {
           if (!mounted.current) return
@@ -781,26 +829,14 @@ export const Prompt: FC<PromptProps> = ({
           .finally(() => { inputPending.current = false })
         return
       }
-      if (key.ctrl && input === 'v') {
-        if (!pasteImage || navigationDraft) { onInputNotice?.(strings.clipboardImage.unavailable); return }
-        inputPending.current = true
-        void pasteImage().then((result) => {
-          if (!mounted.current) return
-          if (result.kind === 'image') {
-            // Quote paths for the existing attachment scanner. No shell runs.
-            editor.insert(` '${result.path.replace(/'/g, "'\\''")}' `)
-          } else onInputNotice?.(strings.clipboardImage[result.kind])
-        }).catch(() => { if (mounted.current) onInputNotice?.(strings.clipboardImage.failed) })
-          .finally(() => { inputPending.current = false })
-        return
-      }
-      if (key.ctrl && input === 'x' && imagePreviews.length > 0) {
-        const chosen = imagePreviews.find(row => cursorIndex >= row.candidate.start && cursorIndex <= row.candidate.end)
-          ?? imagePreviews.at(-1)
-        if (!chosen) return
-        const next = removePreview(value, chosen)
-        setValue(next.text)
-        setCursorIndex(next.cursor)
+      // Ctrl-V is the explicit cross-terminal binding. Some terminals that
+      // forward the platform shortcut expose it as Meta-V instead; consume
+      // that form too. Terminal.app keeps plain Command-V for its own paste
+      // menu, so its image-only clipboard path is handled by the empty
+      // bracketed-paste signal above (or Control-Command-V / Ctrl-V).
+      if ((key.ctrl || key.meta) && input === 'v') { requestClipboardImage(false); return }
+      if (key.ctrl && input === 'x' && images.length > 0) {
+        editor.apply({ type: 'edit', snapshot: { ...editor.state.present, images: images.slice(0, -1) } })
         return
       }
       // `Ctrl-` keystrokes are split with the layers above us, per the
@@ -833,7 +869,7 @@ export const Prompt: FC<PromptProps> = ({
             setNavigationDraft(undefined)
           } else {
             navigationHistory.current = editor.state
-            setNavigationDraft({ text: value, cursor: cursorIndex })
+            setNavigationDraft(editor.state.present)
             editor.apply({ type: 'reset', snapshot: { text: '/sessions ', cursor: 10 } })
             setVim(INITIAL_VIM)
           }
@@ -850,14 +886,13 @@ export const Prompt: FC<PromptProps> = ({
         else if (input === 'u' && value !== '') {
           setValue(deleteToStart(value, cursorIndex))
           setCursorIndex(0)
-        } else if (input === 'c' && value !== '' && !busy) {
+        } else if (input === 'c' && (value !== '' || images.length > 0) && !busy) {
           // Abandon the line, stay in the app. The App's exit path checks the
           // same emptiness through `onFilledChange`, so exactly one of us acts.
           // While a turn runs the App's branch outranks this one — the press
           // means "stop the model", and eating the line as well would answer
           // one keystroke twice.
-          setValue('')
-          setCursorIndex(0)
+          editor.apply({ type: 'edit', snapshot: { text: '', cursor: 0, images: [] } })
           setHistoryIndex(null)
         } else if (input === 'p') recallHistory(-1)
         else if (input === 'n') recallHistory(1)
@@ -1290,9 +1325,9 @@ export const Prompt: FC<PromptProps> = ({
         </Box>
       ) : null}
       {imageTrayRows > 0 && <Box flexDirection="column" paddingX={1}>
-        <Text wrap="truncate">{strings.attachPreview.summary(imagePreviews.length, formatBytes(imagePreviews.reduce((sum, row) => sum + row.bytes, 0)))}</Text>
-        {imagePreviews.slice(0, shownImages).map((row, index) => <Text key={row.candidate.start} wrap="truncate" color="cyan">
-          {`${index + 1}. ${row.name} · ${formatBytes(row.bytes)}`}
+        <Text wrap="truncate">{strings.attachPreview.summary(imagePreviews.length, formatBytes(imagePreviews.reduce((sum, row) => sum + (row.bytes ?? 0), 0)))}</Text>
+        {imagePreviews.slice(0, shownImages).map((row, index) => <Text key={`${index}-${row.image.path}`} wrap="truncate" color="cyan">
+          {`${index + 1}. ${row.image.name ?? strings.attachPreview.image(index + 1)} · ${row.missing ? strings.attachPreview.missing : row.bytes === undefined ? strings.attachPreview.checking : formatBytes(row.bytes)}`}
         </Text>)}
       </Box>}
       <Box borderStyle="round" borderColor={active ? 'cyan' : 'gray'} paddingX={1}>

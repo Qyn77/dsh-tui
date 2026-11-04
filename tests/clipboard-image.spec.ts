@@ -49,12 +49,14 @@ it('inserts an image as one undoable edit; pending reads cannot submit half an a
     expect(tty.screen()).toContain('draft')
     resolve({ kind: 'image', path: '/tmp/qa screen.png' })
     await tty.settle()
-    expect(tty.screen()).toContain('qa screen.png')
+    expect(tty.screen()).toContain('Image 1')
+    expect(tty.screen()).not.toContain('/tmp/qa screen.png')
     await tty.send('\u001a')
-    expect(tty.screen()).not.toContain('qa screen.png')
+    expect(tty.screen()).not.toContain('Image 1')
     expect(tty.screen()).toContain('draft')
     await tty.send('\u0019')
-    expect(tty.screen()).toContain('qa screen.png')
+    expect(tty.screen()).toContain('Image 1')
+    expect(tty.screen()).not.toContain('/tmp/qa screen.png')
   } finally { tty.unmount() }
 })
 it('keeps text intact when no image is available', async () => {

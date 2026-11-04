@@ -107,7 +107,7 @@ dsh --profile tui-rc5
 | `/exit`, `/quit` | 退出 REPL |
 | `Ctrl-Z` / `Ctrl-Y`、`Ctrl-R` | 撤销 / 重做输入；Vim normal 模式的 `u` 也可撤销 |
 | `Ctrl-T` | 空闲时用 VISUAL / EDITOR 编辑草稿，保存退出后返回 |
-| `Ctrl-V` | 将剪贴板图片加入附件预览 |
+| `Ctrl-V` / 终端转发的 `Meta-V` | 将剪贴板图片加入附件预览 |
 | `Ctrl-G` | 保留当前草稿并打开会话选择器；Esc 返回 |
 | `Ctrl-X` | 发送前显示图片名称、数量和大小；移除光标处或最后一张图片 |
 | `Tab` | 补全高亮的 `/` 命令或 `@` 路径 |
@@ -139,7 +139,7 @@ MIT
 
 ### 剪贴板图片
 
-按 **Ctrl-V** 将截图加入附件预览；普通终端文本粘贴保持原样，Cmd-V 无法直接把图片字节交给终端。macOS 使用原生剪贴板，Windows 使用 Windows PowerShell/WinForms，Linux 需安装 `wl-paste`（Wayland）或 `xclip`（X11）。读取的是运行 dsh 的那台机器的剪贴板，SSH 连接时也是远端。环境不支持时会提示，仍可粘贴图片路径。
+按 **Ctrl-V** 将截图加入附件预览；能把平台快捷键转发为 `Meta-V` 的终端也支持该方式。完成的空 bracketed paste 会被当作图片粘贴信号，因此 macOS Terminal.app 可用 **Control-Command-V**（Paste Escaped Text）或 Ctrl-V；普通 Command-V 由 Terminal.app 自己的菜单接管，不会作为按键事件传给程序。普通终端文本粘贴保持原样。macOS 使用原生剪贴板，Windows 使用 Windows PowerShell/WinForms，Linux 需安装 `wl-paste`（Wayland）或 `xclip`（X11）。读取的是运行 dsh 的那台机器的剪贴板，SSH 连接时也是远端。环境不支持时会提示，仍可粘贴图片路径。图片加入后只显示紧凑的附件行，缓存路径不会出现在输入框正文里。
 
 图片私密保存在 `DSH_HOME/tui-clipboard`，按内容去重；单张上限 16 MiB，缓存上限 64 个文件 / 256 MiB。Ctrl-X 移除草稿附件，Ctrl-Z 撤销插入；缓存会保留以支持草稿恢复和撤销，手动清理前请保留草稿引用的图片。发送时仍检查附件服务和模型图片能力。
 

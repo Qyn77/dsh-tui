@@ -95,7 +95,7 @@ diff 依赖运行时提供的元数据；缺少旧内容时明确标记不可用
 
 ## Clipboard image input · 2026-11-04
 
-96 files / 1453 tests pass. Tests cover helper selection, bounds, deduplication, private cache permissions, storage failures, missing helper, empty/invalid output, undo/redo and pending-read submission exclusion. An actual macOS named-pasteboard integration round trip produced byte-identical PNG bytes in the private cache; the general user clipboard was neither read nor changed. The macOS test requires pasteboard IPC outside the sandbox. Windows/Linux adapters and native Cmd-V behavior remain platform/manual checks; Cmd-V is not an image transport.
+101 files / 1476 tests pass. Tests cover helper selection, bounds, deduplication, private cache permissions, storage failures, missing helper, empty/invalid output, empty bracketed-paste signals, forwarded Meta-V, compact attachment rendering, undo/redo and pending-read submission exclusion. An actual macOS named-pasteboard integration round trip produced byte-identical PNG bytes in the private cache; the general user clipboard was neither read nor changed. The macOS test requires pasteboard IPC outside the sandbox. Windows/Linux adapters remain platform/manual checks. In Terminal.app, plain Cmd-V is owned by the terminal; Control-Command-V or Ctrl-V is the supported image shortcut.
 
 ## External editor · 2026-11-04
 

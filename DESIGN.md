@@ -53,3 +53,17 @@ preserves the source draft and loads the destination draft. Navigation drafts
 are temporary query buffers, never persisted over the source. Undo/redo operates
 on the same editing state across keymaps, never across a submitted message or
 session switch. Session metadata overlays do not rewrite the canonical log.
+
+## Draft attachments
+
+Images are independent draft items, kept above the text editor as compact,
+truncated attachment rows. Clipboard imports use localized image numbers rather
+than cache filenames. Text editing, external editors and caret movement operate
+on the body; attachment add/remove participates in the same undo history and
+per-session autosave. Commands preserve pending images. Internal file paths never
+appear in the editor body for an imported image.
+
+Command-V compatibility consumes terminal paste signals (including completed
+empty bracketed paste); ordinary nonempty text paste remains text. A terminal
+that emits no signal cannot be observed by the TUI. Ctrl-V remains the explicit
+image import fallback; no global keyboard or clipboard settings are changed.

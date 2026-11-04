@@ -199,8 +199,14 @@ big, too many, a model that does not take images, no attachment service in your
 assembly — you get a note saying why, **and the message is still sent.** A bad
 attachment never costs you the line you typed.
 
-There is no clipboard paste for images yet, and nothing renders the picture
-itself in the terminal; the chip is the confirmation.
+Press **Ctrl-V** to import an image from the host clipboard. Terminals that
+forward the platform shortcut as `Meta-V` work too. An empty bracketed paste is
+also treated as an image signal, which makes **Control-Command-V** (Terminal.app's
+Paste Escaped Text) a reliable macOS shortcut; plain Command-V is owned by
+Terminal.app and does not reach the TUI as a key event. Text paste remains text.
+The image is shown as a compact attachment row while its private cache path is
+kept out of the input body. Nothing renders the picture itself in the terminal;
+the row is the confirmation.
 
 ### Running a skill
 
@@ -561,6 +567,7 @@ And every key:
 | `Tab` | Complete the highlighted slash command in the `/` palette |
 | `@` | Open the file picker; `Tab` or `Enter` inserts the highlighted path |
 | `F2` | Toggle mouse reporting and native selection |
+| `Ctrl-V` / forwarded `Meta-V` | Import a clipboard image into the attachment tray |
 | `Ctrl-X` | Remove the draft image under the caret, or the last image |
 | `Ctrl-Z` / `Ctrl-Y`, `Ctrl-R` | Undo / redo prompt edits; Vim normal-mode `u` also undoes |
 | `Ctrl-G` | Open session chooser without losing the draft |
@@ -757,7 +764,11 @@ patch 文件，`/mcp add` 会告诉你它刚刚明文写下了哪几个变量。
 发出去一张图。如果某张图带不上——太大、张数超限、模型不收图片、你的装配里没挂附件
 服务——会有一条说明原因的提示，**而且消息照发**。附件出问题绝不会让你白打一行字。
 
-暂时还不支持从剪贴板贴图，终端里也不会真的把图画出来；那行 chip 就是确认。
+按 **Ctrl-V** 从运行 dsh 的机器剪贴板读取图片；能把平台快捷键转发为 `Meta-V` 的终端也支持。
+空的 bracketed paste 同样会触发图片读取，因此 macOS Terminal.app 可用
+**Control-Command-V**（Paste Escaped Text）；普通 Command-V 由 Terminal.app 接管，不会把按键事件
+交给 TUI。普通文本粘贴仍是文本。图片只在附件行里紧凑显示，缓存路径不会进入输入正文；终端不绘制
+图片本身，那一行就是确认。
 
 ### 跑一个 skill
 
@@ -1063,6 +1074,7 @@ DSH_TUI_RESUME=last dsh --profile tui
 | `Tab` | 补全 `/` 面板里高亮的那条斜杠命令 |
 | `@` | 打开文件选择器；`Tab` 或 `Enter` 插入高亮的路径 |
 | `F2` | 切换鼠标上报与原生文字选择 |
+| `Ctrl-V` / 终端转发的 `Meta-V` | 将剪贴板图片加入附件预览 |
 | `Ctrl-X` | 移除光标处的草稿图片，否则移除最后一张 |
 | `Ctrl-Z` / `Ctrl-Y`、`Ctrl-R` | 撤销 / 重做输入编辑；Vim normal 模式的 `u` 也可撤销 |
 | `Ctrl-G` | 保留草稿并打开会话选择器 |

@@ -107,7 +107,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/exit`, `/quit` | leave the REPL |
 | `Ctrl-Z` / `Ctrl-Y`, `Ctrl-R` | Undo / redo input; Vim normal-mode `u` also undoes |
 | `Ctrl-T` | Edit the idle draft in VISUAL / EDITOR; save and exit to return |
-| `Ctrl-V` | Import a clipboard image into the attachment tray |
+| `Ctrl-V` / forwarded `Meta-V` | Import a clipboard image into the attachment tray |
 | `Ctrl-G` | Open the session chooser while preserving the draft; Esc returns |
 | `Ctrl-X` | Remove the draft image at the caret, or the last image; metadata preview appears before sending |
 | `Tab` | complete the highlighted `/` command or `@` path |
@@ -140,7 +140,7 @@ MIT
 
 ### Clipboard images
 
-Press **Ctrl-V** to import a clipboard screenshot into the attachment tray. Normal terminal text paste is unchanged; Cmd-V cannot deliver image bytes to a terminal. macOS uses its native pasteboard; Windows uses Windows PowerShell/WinForms; Linux needs `wl-paste` (Wayland) or `xclip` (X11). These read the clipboard on the machine running dsh (including a remote host over SSH). Missing support reports a message; pasting a file path still works.
+Press **Ctrl-V** to import a clipboard screenshot into the attachment tray. Terminals that forward the platform shortcut as `Meta-V` are supported too. A completed empty bracketed paste is treated as an image-paste signal, so Terminal.app users can use **Control-Command-V** (Paste Escaped Text) or Ctrl-V; plain Command-V remains Terminal.app's own paste menu and is not delivered to programs as a key event. Normal terminal text paste is unchanged. macOS uses its native pasteboard; Windows uses Windows PowerShell/WinForms; Linux needs `wl-paste` (Wayland) or `xclip` (X11). These read the clipboard on the machine running dsh (including a remote host over SSH). Missing support reports a message; pasting a file path still works. Imported images appear as compact attachment rows; their cache paths stay out of the input text.
 
 Images are private, content-addressed files in `DSH_HOME/tui-clipboard` (16 MiB per image, 64 files / 256 MiB cache). Ctrl-X removes a draft attachment, Ctrl-Z undoes the insertion. Cache files remain for restart recovery and undo; keep files referenced by saved drafts before manually cleaning that directory. Sending still checks the attachment store and model image capabilities.
 

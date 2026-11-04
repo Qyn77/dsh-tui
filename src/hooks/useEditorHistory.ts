@@ -10,6 +10,9 @@ export function useEditorHistory(initial: EditSnapshot) {
     current.current = next
     setState(next)
   }, [])
+  const change = useCallback((update: (snapshot: EditSnapshot) => EditSnapshot) => {
+    apply({ type: 'edit', snapshot: update(current.current.present) })
+  }, [apply])
   const setValue = useCallback((text: string) => {
     apply({ type: 'edit', snapshot: { text, cursor: current.current.present.cursor } })
   }, [apply])
@@ -26,5 +29,5 @@ export function useEditorHistory(initial: EditSnapshot) {
   }, [apply])
   const restore = useCallback((saved: EditorHistory) => { current.current = saved; setState(saved) }, [])
   return { state, value: state.present.text, cursorIndex: state.present.cursor,
-    setValue, setCursorIndex, insert, backspace, apply, restore }
+    setValue, setCursorIndex, insert, backspace, apply, restore, change }
 }

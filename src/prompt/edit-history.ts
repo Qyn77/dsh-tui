@@ -1,5 +1,6 @@
+import { sameImages, type DraftImage } from '../attachments/draft-images.ts'
 /** One editor history for all prompt editing paths; clocks and I/O stay outside. */
-export interface EditSnapshot { text: string; cursor: number }
+export interface EditSnapshot { text: string; cursor: number; images?: readonly DraftImage[] }
 export interface EditorHistory {
   present: EditSnapshot
   past: readonly EditSnapshot[]
@@ -8,12 +9,12 @@ export interface EditorHistory {
   grouped: boolean
 }
 export type EditorAction =
-  | { type: 'edit' | 'reset'; snapshot: EditSnapshot }
+  | { type: 'edit' | 'reset' | 'normalize'; snapshot: EditSnapshot }
   | { type: 'cursor'; cursor: number }
   | { type: 'begin' | 'end' | 'undo' | 'redo' }
 
 function safe(snapshot: EditSnapshot): EditSnapshot {
-  return { text: snapshot.text, cursor: Math.max(0, Math.min(snapshot.cursor, snapshot.text.length)) }
+  return { ...snapshot, cursor: Math.max(0, Math.min(snapshot.cursor, snapshot.text.length)) }
 }
 export function newEditorHistory(snapshot: EditSnapshot): EditorHistory {
   return { present: safe(snapshot), past: [], future: [], grouping: false, grouped: false }
@@ -21,11 +22,11 @@ export function newEditorHistory(snapshot: EditSnapshot): EditorHistory {
 function bounded(state: EditorHistory): EditorHistory {
   const past = [...state.past]
   const future = [...state.future]
-  let bytes = [...past, ...future].reduce((sum, item) => sum + item.text.length * 2, 0)
+  let bytes = [...past, ...future].reduce((sum, item) => sum + (item.text.length + JSON.stringify(item.images ?? []).length) * 2, 0)
   while (past.length + future.length > 100 || bytes > 8 * 1024 * 1024) {
     const removed = past.length ? past.shift() : future.shift()
     if (!removed) break
-    bytes -= removed.text.length * 2
+    bytes -= (removed.text.length + JSON.stringify(removed.images ?? []).length) * 2
   }
   return { ...state, past, future }
 }
@@ -38,9 +39,10 @@ export function editorHistory(state: EditorHistory, action: EditorAction): Edito
     }
     case 'begin': return { ...state, grouping: true, grouped: false }
     case 'end': return { ...state, grouping: false, grouped: false }
+    case 'normalize': return { ...state, present: safe({ ...state.present, ...action.snapshot }) }
     case 'edit': {
-      const present = safe(action.snapshot)
-      if (present.text === state.present.text) return editorHistory(state, { type: 'cursor', cursor: present.cursor })
+      const present = safe({ ...state.present, ...action.snapshot })
+      if (present.text === state.present.text && sameImages(present.images, state.present.images)) return editorHistory(state, { type: 'cursor', cursor: present.cursor })
       return bounded({ ...state, present, future: [],
         past: state.grouping && state.grouped ? state.past : [...state.past, state.present], grouped: state.grouping })
     }
