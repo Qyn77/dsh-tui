@@ -23,8 +23,14 @@ export async function checkpointCommand(raw: string, cwd: string, labels: Catalo
       else {
         const item = await repository.read(args[0])
         const decode = (value: typeof item.before) => value === null ? null : Buffer.from(value.data, 'base64').toString('utf8')
-        const diff = item.after === undefined ? labels.unsealed : diffLines({ path: item.path,
-          oldText: decode(item.before), newText: decode(item.after) ?? '' }).join('\n')
+        const safeText = (value: typeof item.before) => {
+          if (value === null) return true
+          const bytes = Buffer.from(value.data, 'base64'), text = bytes.toString('utf8')
+          return bytes.equals(Buffer.from(text, 'utf8')) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(text)
+        }
+        const diff = item.after === undefined ? labels.unsealed
+          : !safeText(item.before) || !safeText(item.after) ? labels.binary
+            : diffLines({ path: item.path, oldText: decode(item.before), newText: decode(item.after) ?? '' }).join('\n')
         message = `${checkpointDescription(item, labels)}\n${labels.preview}\n${diff}\n${action === 'restore' ? labels.confirm : ''}`
       }
     } else message = labels.usage

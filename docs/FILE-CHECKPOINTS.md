@@ -26,3 +26,7 @@ ordinary later edits, but cannot guarantee exclusion of a simultaneous editor.
 Both snapshots remain available after restoration for recovery. No whole-tree
 snapshot, automatic tool interception, binary diff display or external rollback
 is implied. This design limits the initial feature to user-selected files.
+
+Binary/non-UTF-8 or terminal-control-byte snapshots can be restored losslessly,
+but are never printed as a text diff. Control characters in target paths are
+refused, preventing a filename or preview from acting as terminal output.

@@ -45,6 +45,7 @@ export function checkpointRepository(cwd: string, home = process.env['DSH_HOME']
     return join(directory, `${id}.json`)
   }
   const safePath = async (path: string) => {
+    if (/[\u0000-\u001f\u007f-\u009f]/u.test(path)) throw new CheckpointError('unsafe')
     const target = resolve(root, path)
     const rel = relative(root, target)
     if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new CheckpointError('unsafe')

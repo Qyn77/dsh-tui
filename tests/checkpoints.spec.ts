@@ -75,3 +75,22 @@ it('requires explicit confirmation before restoring through the command handler'
     expect(await readFile(file, 'utf8')).toBe('original')
   } finally { vi.unstubAllEnvs() }
 })
+
+it('keeps binary bytes lossless without emitting terminal controls in previews', async () => {
+  const { checkpointCommand } = await import('../src/commands/checkpoints.ts')
+  const { catalog } = await import('../src/core/i18n.ts')
+  const { vi } = await import('vitest')
+  const { root, file, repo } = await fixture()
+  vi.stubEnv('DSH_HOME', join(root, 'store'))
+  try {
+    const bytes = Buffer.from([0, 255, 27, 93, 53, 50])
+    await writeFile(file, bytes); const item = await repo.save('work.txt')
+    await writeFile(file, 'changed'); await repo.seal(item.id)
+    const report = await checkpointCommand(`/checkpoint show ${item.id}`, root, catalog('en').checkpoint, false)
+    expect(report.message).toContain('text preview is unavailable')
+    expect(report.message).not.toContain('\u001b')
+    await repo.restore(item.id)
+    expect(await readFile(file)).toEqual(bytes)
+    await expect(repo.save('bad\u001b.png')).rejects.toMatchObject({ code: 'unsafe' })
+  } finally { vi.unstubAllEnvs() }
+})
