@@ -31,3 +31,9 @@ uses remaining measured rows. Search matches are inverse-highlighted in previews
 Esc backs out without dispatch. A selected message is a snapshot: inspection
 and export refer to that message even while new output arrives. Export asks for
 a free-text path and never overwrites. No motion or new color tokens.
+
+Message actions bind to the selected snapshot, including copy and recorded diff;
+incoming stream replacements cannot silently change what the user selected.
+Navigation resolves the message identity against the current transcript, then
+falls back to inspecting the snapshot if it no longer exists. Selected searches
+also populate next/previous match navigation.

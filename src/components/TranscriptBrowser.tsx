@@ -13,7 +13,7 @@ export interface BrowserRequest { mode: 'search' | 'messages'; query: string; en
 export function TranscriptBrowser({ request, onClose, onAction }: {
   request: BrowserRequest
   onClose: () => void
-  onAction: (action: MessageAction, entry: UiEntry, index: number, path?: string) => void
+  onAction: (action: MessageAction, entry: UiEntry, index: number, path?: string, query?: string) => void
 }) {
   const s = useStrings().browser
   const frame = useRef<DOMElement>(null)
@@ -64,7 +64,7 @@ export function TranscriptBrowser({ request, onClose, onAction }: {
       } else if (matches[index]) {
         const chosen = matches[index]
         const entry = request.entries[chosen.index]
-        if (request.mode === 'search') onAction('jump', entry, chosen.index)
+        if (request.mode === 'search') onAction('jump', entry, chosen.index, undefined, query)
         else { setTarget({ entry, index: chosen.index }); setSelected(0) }
       }
       return

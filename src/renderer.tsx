@@ -30,7 +30,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
-import { entryText } from './commands/transcript.ts'
+import { entryText, searchTranscript } from './commands/transcript.ts'
 import type { HistoryPref, UiEntry } from './core/types.ts'
 import { MessageList } from './components/MessageList.tsx'
 import { Prompt } from './components/Prompt.tsx'
@@ -747,7 +747,7 @@ const AppBody: FC<AppProps> = ({
   }, [agent, attach, appendEntry, strings, statusRef])
 
   const onSubmit = useCallback(
-    (text: string) => {
+    (text: string, sourceEntries?: readonly UiEntry[]) => {
       const trimmed = text.trim()
       if (trimmed === '') return
       const escape = parseShellInput(trimmed)
@@ -825,7 +825,7 @@ const AppBody: FC<AppProps> = ({
           swapSession,
           forkSession,
           tabs,
-          state,
+          state: sourceEntries ? { ...state, entries: [...sourceEntries] } : state,
         }).then((result) => {
           // Command output goes into the log, not to stderr. Inside the
           // alternate screen a stderr write lands on the same rows Ink is
@@ -931,7 +931,7 @@ const AppBody: FC<AppProps> = ({
     [permissionPreset, onSubmit],
   )
 
-  const browserAction = (action: MessageAction, entry: UiEntry, index: number, path?: string) => {
+  const browserAction = (action: MessageAction, entry: UiEntry, index: number, path?: string, query?: string) => {
     setBrowser(undefined)
     if (action === 'export' && path) {
       void exportTranscript(path, cwd, [entry]).then((target) => {
@@ -942,8 +942,15 @@ const AppBody: FC<AppProps> = ({
     } else if (action === 'inspect') {
       setInspection(entry)
       setInspectionIndex(index)
-    } else if (action === 'jump') jumpEntry(index)
-    else onSubmit(`/${action} ${index + 1}`)
+    } else if (action === 'jump') {
+      const liveIndex = state.entries.findIndex(candidate => candidate === entry ||
+        (candidate.kind === 'assistant' && entry.kind === 'assistant' && candidate.turn === entry.turn && candidate.step === entry.step) ||
+        (candidate.kind === 'user' && entry.kind === 'user' && candidate.message.id === entry.message.id) ||
+        (candidate.kind === 'tool' && entry.kind === 'tool' && candidate.callId === entry.callId))
+      if (query) setSearchMatches(searchTranscript(state.entries, query).map(match => match.index))
+      if (liveIndex >= 0) jumpEntry(liveIndex)
+      else { setInspection(entry); setInspectionIndex(index) }
+    } else onSubmit(`/${action} 1`, [entry])
   }
 
   if (selection === undefined) {

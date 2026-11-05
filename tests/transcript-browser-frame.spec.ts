@@ -46,3 +46,17 @@ describe('transcript browser', () => {
     } finally { app.unmount() }
   })
 })
+
+it('copies the selected snapshot even if a streamed entry is replaced while the menu is open', async () => {
+  const app = await paintApp({ turns: 1 })
+  try {
+    await app.send(`${ESC}OS`)
+    await app.send('\r')
+    await app.finalize('replacement after opening', { turn: 1, step: 1 })
+    await app.send(`${ESC}[B`)
+    await app.send(`${ESC}[B`)
+    await app.send('\r')
+    expect(app.written()).toContain(Buffer.from('answer 01').toString('base64'))
+    expect(app.written()).not.toContain(Buffer.from('replacement after opening').toString('base64'))
+  } finally { app.unmount() }
+})
