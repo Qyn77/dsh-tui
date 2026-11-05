@@ -2130,3 +2130,11 @@ Closing a tab never deletes the durable session and the last tab stays open.
 Running tasks refuse switches. These are sequential tabs, not concurrent agents.
 The verified runtime and remote-attachment boundary is in
 [SESSION-LIFECYCLE.md](SESSION-LIFECYCLE.md); remote attachment remains unimplemented.
+
+### Performance acceptance
+
+[PERFORMANCE.md](PERFORMANCE.md) defines the 10k-entry and real Ink frame
+benchmarks, explicit budgets and reproducible command. The measured baseline
+passes without dropping durable history. Native GUI acceptance is separate;
+`scripts/terminal-acceptance.mjs` emits only allowlisted environment facts and an
+unfilled checklist, never fabricating observed native results.
