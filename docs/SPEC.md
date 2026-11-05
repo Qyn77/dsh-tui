@@ -1961,3 +1961,10 @@ Remote image helpers are disabled unless `DSH_TUI_REMOTE_CLIPBOARD=host` explici
 selects the execution host. `DSH_TUI_WSL_CLIPBOARD=windows` opts into Windows
 clipboard interop. See [TERMINAL-ADAPTERS.md](TERMINAL-ADAPTERS.md) for rollout and
 acceptance gates.
+
+The shared input decoder streams paste bodies, buffers only incomplete protocol
+prefixes, and isolates terminal replies from typing. It emits semantic pointer,
+navigation, paste and key events. The boundary retains Ink-compatible legacy key
+flags without importing private Ink parsers. Extended keyboard modes remain off.
+One lifecycle owner restores wrapping, paste, mouse, cursor and alternate screen
+on handoff/exit, with idempotent disposal and cleanup after failed entry.

@@ -8,7 +8,7 @@ implementation checklist; SPEC remains the rendering contract.
 One terminal service owns environment detection, input normalization, terminal
 mode transitions, clipboard transport and diagnostics. App, Prompt and
 MessageList consume semantic operations; they do not select terminal brands or
-construct control sequences. Ink remains the renderer and key parser. Session
+construct control sequences. Ink remains the renderer and raw-mode owner; the adapter decodes legacy key flags. Session
 reducers, task hit testing and layout arithmetic remain independent of adapters.
 
 Adapters share VT protocol implementations. A terminal profile describes
@@ -43,7 +43,7 @@ image reading, text-copy encoding, notification encoding, appearance detection,
 frame bounds and a diagnostic snapshot. Side effects use injected streams/helpers.
 The Ink integration owns one raw-event subscription. It normalizes fragmented
 control sequences before Ink dispatch and publishes pointer/navigation events;
-ordinary keys remain Ink keys. Pasted escape sequences never become commands.
+ordinary keys retain the existing Ink-compatible key flags. Pasted escape sequences never become commands.
 
 Clipboard results distinguish empty, unsupported and failed. Images remain
 independent draft attachments. An empty bracketed paste is not universal proof
@@ -58,7 +58,7 @@ key decoder; baseline compatibility must not regress to obtain extra keys.
 
 - [x] M1: profile registry, deterministic detection, capability/transport model,
       generic fallback, fixture coverage for every named profile.
-- [ ] M2: shared input stream decoder and mode lifecycle, bounded buffering,
+- [x] M2: shared input stream decoder and mode lifecycle, bounded buffering,
       paste/OSC isolation, suspend/resume/dispose tests.
 - [ ] M3: wire Ink/App/Prompt/MessageList through the boundary; route clipboard,
       notifications and appearance through it; preserve task and scroll logic.
