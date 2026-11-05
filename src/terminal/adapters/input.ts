@@ -64,7 +64,7 @@ export class TerminalInputDecoder {
   private pasting = false
   private pasteHasText = false
   private previousCR = false
-  private discard: 'osc' | 'csi' | undefined
+  private discard: 'osc' | 'string' | 'csi' | undefined
 
   get awaitingEscape(): boolean { return this.pending === ESC && !this.pasting && !this.discard }
 
@@ -92,7 +92,8 @@ export class TerminalInputDecoder {
     }
     while (this.pending) {
       if (this.discard) {
-        const match = this.discard === 'osc' ? /\u0007|\u001b\\/.exec(this.pending) : /[\x40-\x7e]/.exec(this.pending)
+        const match = (this.discard === 'osc' ? /\u0007|\u001b\\/
+          : this.discard === 'string' ? /\u001b\\/ : /[\x40-\x7e]/).exec(this.pending)
         if (!match) { this.pending = this.pending.endsWith(ESC) ? ESC : ''; break }
         this.pending = this.pending.slice(match.index + match[0].length); this.discard = undefined
         events.push({ kind: 'report' }); continue
@@ -121,10 +122,12 @@ export class TerminalInputDecoder {
         events.push(keyEvent(text)); this.pending = this.pending.slice(text.length); continue
       }
       if (this.pending.length === 1) break
-      if (this.pending[1] === ']' || this.pending[1] === 'P') {
-        const end = /\u0007|\u001b\\/.exec(this.pending.slice(2))
+      if ([']', 'P', '_', '^', 'X'].includes(this.pending[1])) {
+        // OSC permits BEL; DCS/APC/PM/SOS require ST, including after overflow.
+        const osc = this.pending[1] === ']'
+        const end = (osc ? /\u0007|\u001b\\/ : /\u001b\\/).exec(this.pending.slice(2))
         if (!end) {
-          if (this.pending.length > 4096) { this.discard = 'osc'; this.pending = this.pending.endsWith(ESC) ? ESC : '' }
+          if (this.pending.length > 4096) { this.discard = osc ? 'osc' : 'string'; this.pending = this.pending.endsWith(ESC) ? ESC : '' }
           break
         }
         this.pending = this.pending.slice(2 + end.index + end[0].length)

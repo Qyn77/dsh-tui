@@ -2003,3 +2003,8 @@ Terminal handoff disposal is final. If the UI closes before or during an
 external editor, the late completion cannot re-enter the screen, restore raw
 mode, reconnect input readers or repaint the unmounted App. SIGINT forwarding
 cleanup runs on disposal and on editor completion, including rejected handoffs.
+
+The input decoder isolates OSC, DCS, APC, PM and SOS control strings before
+key dispatch. Only OSC accepts BEL as a terminator; other strings wait for ST.
+The same rule applies after the bounded buffer enters discard mode. Protocol
+reply payloads (including Kitty graphics replies) must never enter the draft.

@@ -60,3 +60,22 @@ it('preserves legacy newline, modified arrows and double-Escape semantics', () =
   expect(decoder.feed('\u001b\u001b')).toMatchObject([{ kind: 'key', key: { escape: true } }])
   expect(decoder.feed('\u001b\u007f')).toMatchObject([{ kind: 'key', key: { meta: true, backspace: true } }])
 })
+
+it.each(['\u001b_Gi=1;OK', '\u001bPpayload\u0007inside', '\u001b^private', '\u001bXmessage'])(
+  'keeps terminal string replies out of the prompt across every split: %s', (reply) => {
+    const bytes = Buffer.from(reply + '\u001b\\after')
+    for (let cut = 0; cut <= bytes.length; cut++) {
+      const decoder = new TerminalInputDecoder()
+      const events = [...decoder.feed(bytes.subarray(0, cut)), ...decoder.feed(bytes.subarray(cut))]
+      expect(events.filter(e => e.kind === 'key').map(e => e.input).join('')).toBe('after')
+      expect(events.filter(e => e.kind === 'report')).toHaveLength(1)
+    }
+  },
+)
+it('does not end oversized DCS/APC replies at BEL or flush their ST prefix as Escape', () => {
+  const decoder = new TerminalInputDecoder()
+  expect(decoder.feed('\u001bP' + 'a'.repeat(5000))).toEqual([])
+  expect(decoder.feed('\u0007hidden\u001b')).toEqual([])
+  expect(decoder.flushEscape()).toEqual([])
+  expect(decoder.feed('\\visible')).toMatchObject([{ kind: 'report' }, { kind: 'key', input: 'visible' }])
+})
