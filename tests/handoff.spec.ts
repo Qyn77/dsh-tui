@@ -29,3 +29,38 @@ it('hands off input/output and restores both after a failed editor, without repl
   bridge.dispose()
   expect(stdin.listeners('readable')).toHaveLength(0)
 })
+
+it('does not revive readers, raw mode or screen after disposal during an editor', async () => {
+  const stdin = Object.assign(new PassThrough(), { isTTY: true, isRaw: true,
+    setRawMode: vi.fn(), ref: vi.fn(), unref: vi.fn() })
+  const stdout = Object.assign(new PassThrough(), { isTTY: true, columns: 80, rows: 24 })
+  const bridge = createTerminalHandoff(stdin as unknown as NodeJS.ReadStream, stdout as unknown as NodeJS.WriteStream)
+  const before = process.listenerCount('SIGINT')
+  let release!: () => void
+  let started!: () => void
+  const ready = new Promise<void>((resolve) => { started = resolve })
+  const enter = vi.fn()
+  const done = bridge.run(() => new Promise<void>((resolve) => { release = resolve; started() }), () => {}, enter)
+  await ready
+  bridge.dispose()
+  release()
+  await done
+  expect(enter).not.toHaveBeenCalled()
+  expect(stdin.setRawMode.mock.calls).toEqual([[false]])
+  expect(stdin.listenerCount('readable')).toBe(0)
+  expect(process.listenerCount('SIGINT')).toBe(before)
+  await expect(bridge.run(async () => {}, () => {}, enter)).rejects.toThrow('disposed')
+})
+it('does not start an editor when disposal wins the asynchronous handoff', async () => {
+  const stdin = Object.assign(new PassThrough(), { isTTY: true, isRaw: true,
+    setRawMode: vi.fn(), ref: vi.fn(), unref: vi.fn() })
+  const stdout = Object.assign(new PassThrough(), { isTTY: true, columns: 80, rows: 24 })
+  const bridge = createTerminalHandoff(stdin as unknown as NodeJS.ReadStream, stdout as unknown as NodeJS.WriteStream)
+  const action = vi.fn(async () => {})
+  const enter = vi.fn()
+  const done = bridge.run(action, () => {}, enter)
+  bridge.dispose()
+  await expect(done).rejects.toThrow('disposed')
+  expect(action).not.toHaveBeenCalled()
+  expect(enter).not.toHaveBeenCalled()
+})

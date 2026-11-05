@@ -305,6 +305,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
         return editExternal(text, undefined, action => terminal.run(action,
           () => { terminalService.suspend() }, () => { terminalService.resume() },
         )).finally(() => {
+          if (terminal.disposed) return
           instance.clear()
           instance.rerender(element())
           repaint.current?.(terminalService.clearSequence)

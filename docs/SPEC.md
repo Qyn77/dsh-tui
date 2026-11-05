@@ -1998,3 +1998,8 @@ Content-addressed clipboard cache files are reused only after their bytes match
 the requested image and their permissions are private. A corrupt entry is
 atomically replaced, including when the cache has 64 entries; capacity checks
 exclude the entry being replaced. Cache validation does not follow symlinks.
+
+Terminal handoff disposal is final. If the UI closes before or during an
+external editor, the late completion cannot re-enter the screen, restore raw
+mode, reconnect input readers or repaint the unmounted App. SIGINT forwarding
+cleanup runs on disposal and on editor completion, including rejected handoffs.
