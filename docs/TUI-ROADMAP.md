@@ -531,3 +531,11 @@ Prompt autosave, unified undo/redo and local session organization are also
 implemented. This round also adds external editing, clipboard image input and
 read-only context inspection. Context mutation and selective checkpoints remain
 future proposals.
+
+## 10. Terminal adapter boundary
+
+The approved cross-terminal implementation plan and per-platform acceptance
+matrix live in [TERMINAL-ADAPTERS.md](TERMINAL-ADAPTERS.md). Implement in milestone
+order, preserving the common Ink renderer and keeping session logic independent
+of terminal brands. Native terminal verification is recorded separately from
+protocol fixture tests.
