@@ -465,6 +465,7 @@ export interface CommandContext {
   failedDraft?: string
   selectedIndex?: number
   searchMatches?: readonly number[]
+  openSearch?: (query: string) => void
   setSearchMatches?: (matches: number[]) => void
   inspectContext?: (title: string, text: string) => void
   contextRequest?: ContextRequestReader
@@ -686,6 +687,7 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
 
     case '/search': {
       const query = raw.trim().slice('/search'.length).trim()
+      if (cmd.openSearch) { cmd.openSearch(query); return { kind: 'handled' } }
       if (!query) return { kind: 'handled', message: catalog(lang).transcript.usage }
       const matches = searchTranscript(cmd.state.entries, query)
       cmd.setSearchMatches?.(matches.map(match => match.index))

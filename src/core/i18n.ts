@@ -128,6 +128,7 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  browser: Record<'search' | 'messages' | 'actions' | 'path' | 'query' | 'exportHint' | 'empty' | 'hint' | 'jump' | 'copy' | 'inspect' | 'diff' | 'export', string>
   contextView: {
     usage: string
     current: string
@@ -682,6 +683,7 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  browser: { search: 'Search conversation', messages: 'Select a message', actions: 'Message actions', path: 'Export path:', query: 'Filter:', exportHint: 'Enter a new file path; existing files are never overwritten.', empty: 'No matching messages', hint: '↑↓ select · Enter open · Esc back/close', jump: 'Jump to message', copy: 'Copy text', inspect: 'Read full content', diff: 'Recorded changes', export: 'Export Markdown' },
   library: {
     usage: '/sessions [all|archived] · rename <id|current> <title|--reset> · favorite <id|current> on|off · archive <id|current> on|off',
     empty: 'No sessions in this view.',
@@ -1113,6 +1115,7 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  browser: { search: '搜索对话', messages: '选择消息', actions: '消息操作', path: '导出路径：', query: '筛选：', exportHint: '输入新文件路径；不会覆盖已有文件。', empty: '没有匹配的消息', hint: '↑↓ 选择 · Enter 打开 · Esc 返回/关闭', jump: '跳到消息', copy: '复制文本', inspect: '查看完整内容', diff: '记录的变更', export: '导出 Markdown' },
   library: {
     usage: '/sessions [all|archived] · rename <id|current> <标题|--reset> · favorite <id|current> on|off · archive <id|current> on|off',
     empty: '当前列表没有会话。',

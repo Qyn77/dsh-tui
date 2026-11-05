@@ -2086,3 +2086,17 @@ and fingerprint come from the loaded bundle, never the user's working directory.
 not a claim that a default profile was discovered. Installed node_modules and
 source/local builds are distinguished. Missing build metadata is null; packaged
 builds without Git remain usable. No environment dump or credential is included.
+
+### Transcript browsing and contextual actions
+
+F3 or `/search <text>` opens editable search results with highlighted previews,
+arrow selection and Enter navigation. F4 opens message-first actions: navigate,
+inspect full text, copy, recorded diff and export Markdown. Queries and export
+paths remain free text. Esc returns one level or closes; Ctrl-C closes the
+browser without cancelling the agent. The prompt stays mounted and retains its
+draft. Opening/closing without selecting preserves the reading offset. Selecting
+a hit expands collapsed tasks and navigates to the original message. Export
+uses the selected message snapshot, not an index into a different history view.
+The browser replaces the transcript viewport, using its measured height so
+short terminals cannot grow a second scrolling screen. F3/F4 support both
+legacy SS3 and numbered CSI encodings; native-terminal verification is pending.

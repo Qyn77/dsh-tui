@@ -1,3 +1,5 @@
+import { TranscriptBrowser, type BrowserRequest, type MessageAction } from './components/TranscriptBrowser.tsx'
+import { exportTranscript } from './commands/transcript-export.ts'
 import { userMessageText } from './core/types.ts'
 import { describePlugins } from './commands/plugins.ts'
 import { listPatchedServers } from './mcp/mcp-patch.ts'
@@ -421,6 +423,14 @@ const AppBody: FC<AppProps> = ({
   // opposite ends of a frame neither of them can measure alone — see
   // `Prompt.onOverlayRowsChange` and `bannerRowBudget`.
   const [promptOverlayRows, setPromptOverlayRows] = useState(0)
+  const [browser, setBrowser] = useState<BrowserRequest>()
+  useEffect(() => { if (approvals.pending.length > 0) setBrowser(undefined) }, [approvals.pending.length])
+  const openSearch = useCallback((query: string) => { setBrowser({ mode: 'search', query, entries: state.entries }) }, [state.entries])
+  useTerminalEvent((event) => {
+    if (event.kind === 'transcript-browser' && approvals.pending.length === 0 && !shell.running) {
+      setBrowser({ mode: event.mode, query: '', entries: state.entries })
+    }
+  })
   const [selectedIndex, setSelectedIndex] = useState<number | undefined>()
   const [searchMatches, setSearchMatches] = useState<number[]>([])
   const [browseFull, setBrowseFull] = useState(false)
@@ -468,6 +478,7 @@ const AppBody: FC<AppProps> = ({
     setBrowseFull(false)
     setSelectedIndex(undefined)
     setSearchMatches([])
+    setBrowser(undefined)
     setDraftRequest(undefined)
     failedDraftRef.current = undefined
   }, [agent.session])
@@ -508,6 +519,7 @@ const AppBody: FC<AppProps> = ({
   const pendingTurns = agent.inbox?.nextTurn.length ?? 0
   const pendingSteps = agent.inbox?.nextStep.length ?? 0
   const scroll = useMessageListScroll({
+    active: !browser,
     arrowsScroll: !promptClaimsArrows,
     ctrlUScrolls: !promptFilled,
   })
@@ -536,6 +548,7 @@ const AppBody: FC<AppProps> = ({
   // here. This runs even when the prompt is "inactive" (a shell is running,
   // an approval is waiting) so the user can always cancel.
   useTerminalInput((input, key) => {
+    if (browser) return
     if (inspection && key.escape) { setInspection(undefined); return }
     if (key.ctrl && input === 'c') {
       handleInterrupt({
@@ -772,6 +785,7 @@ const AppBody: FC<AppProps> = ({
           selectedIndex,
           searchMatches,
           setSearchMatches,
+          openSearch,
           inspectContext,
           contextRequest,
           contextWidth: stdout.columns ? stdout.columns - 10 : 90,
@@ -867,7 +881,7 @@ const AppBody: FC<AppProps> = ({
       })
     },
     [terminal, sessionLibrary, onLibraryChange, deliverInput, notificationMode, setNotificationMode, notify, restoreDraft,
-      selectedIndex, searchMatches,
+      selectedIndex, searchMatches, openSearch,
       mousePref, setMouse, setActivity, inspectContext, contextRequest, stdout.columns, inspectEntry, jumpEntry, cwd, fullState,
       historyReady,
       ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
@@ -903,6 +917,21 @@ const AppBody: FC<AppProps> = ({
     },
     [permissionPreset, onSubmit],
   )
+
+  const browserAction = (action: MessageAction, entry: UiEntry, index: number, path?: string) => {
+    setBrowser(undefined)
+    if (action === 'export' && path) {
+      void exportTranscript(path, cwd, [entry]).then((target) => {
+        appendEntry({ kind: 'note', text: strings.transcript.exported(target) })
+      }).catch((error: unknown) => {
+        appendEntry({ kind: 'note', tone: 'error', text: String(error) })
+      })
+    } else if (action === 'inspect') {
+      setInspection(entry)
+      setInspectionIndex(index)
+    } else if (action === 'jump') jumpEntry(index)
+    else onSubmit(`/${action} ${index + 1}`)
+  }
 
   if (selection === undefined) {
     return (
@@ -1006,7 +1035,7 @@ const AppBody: FC<AppProps> = ({
             preset={permissionPreset}
           />
         )}
-        <MessageList
+        {browser ? <TranscriptBrowser key={`browser-${agent.id}`} request={browser} onClose={() => { setBrowser(undefined) }} onAction={browserAction} /> : <MessageList
           state={transcript}
           offset={scroll.offset}
           pinTop={scroll.pinTop || browseFull}
@@ -1015,7 +1044,7 @@ const AppBody: FC<AppProps> = ({
           onToggleActivity={setActivity}
           jumpIndex={jumpTarget ? transcript.entries.findIndex(entry => entry === jumpTarget || (entry.kind === 'assistant' && jumpTarget.kind === 'assistant' && entry.turn === jumpTarget.turn && entry.step === jumpTarget.step)) : undefined}
           onJump={(offset) => { scroll.jumpToOffset(offset); setJumpTarget(undefined) }}
-        />
+        />}
         {/*
         The only cue that the view is not at the live tail. A terminal
         scrollbar would say this for free, but the alternate screen has
@@ -1067,7 +1096,7 @@ const AppBody: FC<AppProps> = ({
           draftChannel={draftChannel}
           onDraftFailure={onDraftFailure}
           cwd={cwd}
-          active={!shell.running && approvals.pending.length === 0}
+          active={!browser && !shell.running && approvals.pending.length === 0}
           busy={state.status === 'running' || shell.running}
           onSubmit={onSubmit}
           spinnerFrame={spinnerFrame}

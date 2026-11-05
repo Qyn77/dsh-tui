@@ -7,6 +7,7 @@ export type TerminalEvent =
   | { kind: 'pointer'; event: MouseEvent }
   | { kind: 'navigation'; key: 'home' | 'end' }
   | { kind: 'interaction-toggle' }
+  | { kind: 'transcript-browser'; mode: 'search' | 'messages' }
   | { kind: 'paste-start' }
   | { kind: 'paste-text'; text: string }
   | { kind: 'paste-end'; empty: boolean }
@@ -27,6 +28,8 @@ function keyEvent(sequence: string): TerminalEvent {
     : /^(?:\u001b\[(?:F|[48]~)|\u001bOF)$/.test(sequence) ? 'end' : undefined
   if (nav) return { kind: 'navigation', key: nav }
   if (sequence === `${ESC}[12~` || sequence === `${ESC}OQ`) return { kind: 'interaction-toggle' }
+  if (sequence === `${ESC}[13~` || sequence === `${ESC}OR`) return { kind: 'transcript-browser', mode: 'search' }
+  if (sequence === `${ESC}[14~` || sequence === `${ESC}OS`) return { kind: 'transcript-browser', mode: 'messages' }
   const control = sequence.charCodeAt(0)
   if (sequence === ESC || sequence === ESC + ESC) return { kind: 'key', input: '', key: keyFlags({ escape: true, meta: true }) }
   if (sequence === '\n') return { kind: 'key', input: '\n', key: keyFlags() }

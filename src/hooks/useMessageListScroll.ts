@@ -89,6 +89,7 @@ export interface MessageListScroll {
 
 /** Optional wiring for {@link useMessageListScroll}. */
 export interface MessageListScrollOptions {
+  active?: boolean
   /**
    * Whether ↑/↓ scroll the log. The Prompt claims those keys while its
    * slash palette is open or its buffer occupies more than one row, and Ink
@@ -118,7 +119,7 @@ export interface MessageListScrollOptions {
 
 /** Own the conversation viewport's scroll position and its bindings. */
 export function useMessageListScroll(
-  { arrowsScroll = true, ctrlUScrolls = true }: MessageListScrollOptions = {},
+  { arrowsScroll = true, ctrlUScrolls = true, active = true }: MessageListScrollOptions = {},
 ): MessageListScroll {
   const [offset, setOffset] = useState(0)
   const [pinTop, setPinTop] = useState(false)
@@ -171,6 +172,7 @@ export function useMessageListScroll(
   )
 
   useTerminalInput((input, key) => {
+    if (!active) return
     const { viewportRows } = geometry.current
     // ↑/↓ scroll a row at a time, and that is also how the *wheel* arrives:
     // The adapter's selection mode requests alternate scroll rather than
@@ -226,6 +228,7 @@ export function useMessageListScroll(
   })
 
   useTerminalEvent((event) => {
+    if (!active) return
     if (event.kind === 'pointer' && event.event.kind === 'wheel') {
       scrollBy(event.event.delta * MOUSE_WHEEL_ROWS)
     }

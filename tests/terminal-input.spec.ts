@@ -89,3 +89,11 @@ it('decodes control-key bursts as keys instead of inserting control bytes into t
     { kind: 'key', input: 'v', key: { ctrl: true } },
   ])
 })
+
+it('normalizes F3/F4 browser keys and isolates them in pasted text', () => {
+  for (const [suffix, mode] of [['OR', 'search'], ['[13~', 'search'], ['OS', 'messages'], ['[14~', 'messages']]) {
+    const sequence = `\u001b${suffix}`
+    expect(new TerminalInputDecoder().feed(sequence)).toEqual([{ kind: 'transcript-browser', mode }])
+    expect(new TerminalInputDecoder().feed(`\u001b[200~${sequence}\u001b[201~`).every(e => e.kind.startsWith('paste-'))).toBe(true)
+  }
+})

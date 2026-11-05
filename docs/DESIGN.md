@@ -21,3 +21,13 @@ Tab fills a leaf without execution. Complete manually typed commands remain vali
 All strings use the bilingual catalog. Existing model, skill, permission and MCP
 preset pickers remain available. Tests render real Ink frames at narrow and short
 sizes as the state showcase; the real PTY script covers terminal input routing.
+
+## Transcript browser
+
+F3 opens search; F4 opens message selection. The browser temporarily occupies
+the measured transcript viewport, leaving the prompt mounted and its draft
+intact. One-row title, query and keyboard hint remain fixed; the choice list
+uses remaining measured rows. Search matches are inverse-highlighted in previews.
+Esc backs out without dispatch. A selected message is a snapshot: inspection
+and export refer to that message even while new output arrives. Export asks for
+a free-text path and never overwrites. No motion or new color tokens.

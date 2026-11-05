@@ -174,3 +174,9 @@ remain editable. For example, `/export` → choose a message fills
 `/export --entry=N `; type the destination path and press Enter. Existing complete
 commands still work; dismiss a menu with Esc to use manual syntax. Terminal.app
 image imports continue to use Control-V.
+
+Conversation browsing: **F3** opens interactive search (also `/search <text>`),
+**F4** selects a message and then offers navigation, full inspection, copy,
+recorded changes and Markdown export. Arrow keys select, Enter opens, Esc backs
+out; your draft stays intact. Export requires a new file path. `/terminal`
+reports the loaded build commit, dirty flag, module path and SHA-256 fingerprint.
