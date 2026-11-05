@@ -176,7 +176,7 @@ The script cleans its temporary output and session files.
 The implementation is complete at the adapter boundary. This table deliberately
 keeps simulated profile coverage separate from terminal-application validation.
 
-Final automated gate: 105 test files / 1,549 tests pass; TypeScript and runtime
+Adapter implementation gate (before the follow-up bug audit): 105 test files / 1,549 tests pass; TypeScript and runtime
 build pass; lint has no errors (warning-level diagnostics remain);
 package verification passes with 106 allowed files. The real PTY fixture passes
 for apple, vscode and generic. Native GUI rows above remain pending.
@@ -195,3 +195,6 @@ system permissions. The user declined that approach: retain Ctrl-V, no native
 keyboard monitor or permission request. Terminal.app Command-V image paste is
 **not implemented**, rather than merely waiting for GUI acceptance. Do not use
 PTY-injected paste events as evidence that this shortcut works.
+
+The subsequent 2026-11-06 bug fixes and 1,563-test acceptance record are in
+[ACCEPTANCE.md](ACCEPTANCE.md#focused-terminalclipboard-bug-audit--2026-11-06).

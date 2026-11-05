@@ -119,3 +119,36 @@ mode and observed events. Repeat task disclosure, text selection, multiline/imag
 paste, streaming scroll, short-window resize, editor handoff and exit cleanup.
 Native terminal shortcut interception and actual OS clipboard behavior still
 require real application testing; see [the adapter matrix](TERMINAL-ADAPTERS.md).
+
+## Focused terminal/clipboard bug audit — 2026-11-06
+
+Each confirmed bug has its own fix commit and a failing-before/passing-after regression:
+
+| Commit | Reproduction and corrected behavior |
+| --- | --- |
+| `bbc9b58` | Delayed clipboard provider used to discard typed/pasted text; editing remains live, send waits, Ctrl-C invalidates late results. |
+| `862a62e` | A same-size corrupted hash-named PNG was reused; bytes are now verified and repaired even in a full cache. Symlink targets remain unchanged. |
+| `1848f41` | Disposing an external-editor handoff used to reattach input/raw mode when the editor returned; disposal is now final. |
+| `6bdffe8` | APC payloads and DCS content following BEL leaked into the draft; control strings remain isolated across all byte splits and overflow. |
+| `23d2507` | Coalesced Ctrl-A/Ctrl-K and other control keys became text; each key is now decoded in order outside paste. |
+
+Final gates: 105 files / 1,563 tests pass; typecheck, declaration/runtime build
+and package verification pass (106 allowed files). Lint exits successfully with
+zero errors; warning-level diagnostics remain. The real Unix PTY replay passes
+apple, vscode and generic profiles, including coalesced controls and raw-mode
+restoration. It uses a fixture agent, not a model call.
+
+Native macOS check: a unique named NSPasteboard containing fixture PNG bytes was
+read through the production `MAC_IMAGE_SCRIPT` and `pasteClipboardImage`; the
+cached bytes matched. After corrupting the file, another read repaired it. The
+board was released and the temporary cache removed. The general clipboard was
+not accessed or modified.
+
+Terminal.app Command-V image paste remains **unsupported without a native
+bridge**. The user chose Ctrl-V and declined extra system permissions; this
+round installs no bridge and does not claim Command-V is fixed. GUI acceptance
+for actual terminal-specific shortcuts remains separate from PTY coverage.
+
+Protocol references for control-string framing:
+[Kitty graphics replies](https://sw.kovidgoyal.net/kitty/graphics-protocol/) and
+[XTerm control sequences](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html).
