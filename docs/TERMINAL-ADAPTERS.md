@@ -187,3 +187,11 @@ ordering and the approval test's Escape deadline. The adapter now preserves LF
 as text, snapshots subscribers per event and tests the 25 ms Escape window; all
 previously failing cases pass. These are adapter contract regressions, not proof
 of a native terminal's Command-V behavior.
+
+### User decision: Terminal.app image shortcut
+
+Native Command-V interception would require additional host integration and
+system permissions. The user declined that approach: retain Ctrl-V, no native
+keyboard monitor or permission request. Terminal.app Command-V image paste is
+**not implemented**, rather than merely waiting for GUI acceptance. Do not use
+PTY-injected paste events as evidence that this shortcut works.

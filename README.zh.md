@@ -156,3 +156,5 @@ MIT
 `/context request` 查看本进程对此会话最近捕获的模型请求，处于供应商协议转换之前；不会混入之后的回复或标题、压缩等辅助调用，也不表示网络已送达。重启后需等新请求才有此快照。在任一命令后加条目编号可查看完整可用内容，加 `tools` 可查看工具定义；支持正常滚动，Esc 返回。附件只显示引用信息，不读取图片字节，供应商内部重放元数据不展示。
 
 终端行为通过统一适配器服务组合；实现与验收计划见[终端适配器](docs/TERMINAL-ADAPTERS.md)。SSH 图片剪贴板读取需显式设置 `DSH_TUI_REMOTE_CLIPBOARD=host`，读取远端主机而不是 SSH 客户端；WSL 访问 Windows 剪贴板需设置 `DSH_TUI_WSL_CLIPBOARD=windows`。
+
+macOS Terminal.app 图片粘贴采用 **Ctrl-V**。本项目不安装需要系统权限的 Command-V 桥接，也不把 Terminal.app 的 Command-V 图片粘贴标为已支持。读取图片时可以继续打字；完成后再发送，Ctrl-C 可取消这次导入。

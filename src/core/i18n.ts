@@ -155,7 +155,7 @@ export interface Catalog {
     failedTag: string
   }
   externalEditor: { busy: string; cancelled: string; failed: string; invalid: string }
-  clipboardImage: { empty: string; unavailable: string; failed: string; full: string }
+  clipboardImage: { reading: string; empty: string; unavailable: string; failed: string; full: string }
   drafts: { failed: string }
   changes: {
     heading: (turn: number) => string
@@ -693,7 +693,7 @@ const EN: Catalog = {
   },
   contextView: { usage: '/context view [N|tools] · /context request [N|tools] · Esc returns from inspection', current: 'Current effective session surface (after recorded compaction/projections); not a prediction of the next request. Tool schemas and route are from the last recorded header.', request: 'Last observed assembled loop request in this process (before provider-specific wire conversion); this does not prove provider delivery.', unavailable: 'No loop request captured for this session in this process. Use /context view for the current recorded surface.', empty: 'No effective messages yet. Prompt assembly may add context on the next turn.', unknownSource: 'undeclared', tools: 'Tool declarations', inspector: 'Context inspection · Esc returns', opened: 'Opened read-only context inspection.', pending: (steps, turns) => `Pending inbox, not included in the surface: next-step ${steps}, next-turn ${turns}. The unsent draft is also excluded.`, route: (provider, model, seq) => `${provider}/${model}${seq === undefined ? '' : ` · session seq ${seq}`}`, counts: (messages, tools) => `${messages} messages · ${tools} tools` },
   externalEditor: { busy: 'External editing is available while idle, outside the session chooser.', cancelled: 'Editor cancelled; original draft kept.', failed: 'Could not run or read the editor. Check VISUAL / EDITOR; original draft kept.', invalid: 'Editor command or output is invalid (UTF-8 text, 2 MiB limit); original draft kept.' },
-  clipboardImage: { empty: 'No PNG image on the system clipboard.', unavailable: 'Clipboard image input is unavailable. Linux needs wl-paste (Wayland) or xclip (X11); use an image path instead.', failed: 'Could not read the clipboard image (16 MiB limit). Use an image path or check clipboard access.', full: 'Clipboard image cache is full (64 files / 256 MiB). Keep files referenced by drafts before cleaning DSH_HOME/tui-clipboard.' },
+  clipboardImage: { reading: 'Importing image — keep typing; send when ready. Ctrl-C cancels.', empty: 'No PNG image on the system clipboard.', unavailable: 'Clipboard image input is unavailable. Linux needs wl-paste (Wayland) or xclip (X11); use an image path instead.', failed: 'Could not read the clipboard image (16 MiB limit). Use an image path or check clipboard access.', full: 'Clipboard image cache is full (64 files / 256 MiB). Keep files referenced by drafts before cleaning DSH_HOME/tui-clipboard.' },
   drafts: { failed: 'Could not load or save this draft. Input remains available; check storage permissions or the 2 MiB draft limit.' },
   changes: {
     heading: turn => `Task ${turn}: recorded changes and commands`, empty: 'No recorded file changes or commands for this task.',
@@ -1055,7 +1055,7 @@ const ZH: Catalog = {
   },
   contextView: { usage: '/context view [N|tools] · /context request [N|tools] · Esc 返回对话', current: '当前有效会话消息（已应用记录的压缩和投影）；不是下一次请求的预测。工具定义及路由来自最近记录的请求头。', request: '本进程最近观察到的完整模型请求（供应商协议转换之前）；不代表供应商已收到。', unavailable: '本进程尚未捕获此会话的模型请求。可用 /context view 查看当前有效记录。', empty: '暂无有效消息；下一轮组装提示词时可能加入上下文。', unknownSource: '未声明', tools: '工具定义', inspector: '上下文查看 · Esc 返回对话', opened: '已打开只读上下文查看。', pending: (steps, turns) => `待处理队列不包含在会话消息中：本轮待处理 ${steps}，下一轮 ${turns}；尚未发送的草稿也不包含在内。`, route: (provider, model, seq) => `${provider}/${model}${seq === undefined ? '' : ` · 会话序号 ${seq}`}`, counts: (messages, tools) => `${messages} 条消息 · ${tools} 个工具` },
   externalEditor: { busy: '请在空闲状态且关闭会话选择器后使用外部编辑器。', cancelled: '编辑器已取消，原草稿保留。', failed: '无法启动编辑器或读取结果，请检查 VISUAL / EDITOR；原草稿保留。', invalid: '编辑器命令或返回内容无效（需为 UTF-8 文本，上限 2 MiB）；原草稿保留。' },
-  clipboardImage: { empty: '系统剪贴板里没有 PNG 图片。', unavailable: '当前环境不支持图片粘贴；Linux 需安装 wl-paste（Wayland）或 xclip（X11），也可直接粘贴图片路径。', failed: '读取剪贴板图片失败（上限 16 MiB），请检查剪贴板权限或粘贴图片路径。', full: '图片缓存已满（64 个文件 / 256 MiB）；清理 DSH_HOME/tui-clipboard 前请保留草稿仍引用的图片。' },
+  clipboardImage: { reading: '正在导入图片，可继续输入；完成后再发送，Ctrl-C 取消。', empty: '系统剪贴板里没有 PNG 图片。', unavailable: '当前环境不支持图片粘贴；Linux 需安装 wl-paste（Wayland）或 xclip（X11），也可直接粘贴图片路径。', failed: '读取剪贴板图片失败（上限 16 MiB），请检查剪贴板权限或粘贴图片路径。', full: '图片缓存已满（64 个文件 / 256 MiB）；清理 DSH_HOME/tui-clipboard 前请保留草稿仍引用的图片。' },
   drafts: { failed: '无法读取或保存当前草稿；仍可继续输入，请检查存储权限或 2 MiB 草稿上限。' },
   changes: {
     heading: turn => `任务 ${turn}：已记录的修改与命令`, empty: '这项任务没有记录到文件修改或命令。',

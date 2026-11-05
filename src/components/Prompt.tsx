@@ -293,8 +293,13 @@ export const Prompt: FC<PromptProps> = ({
   const editor = useEditorHistory(initialDraft)
   const { value, cursorIndex, setValue, setCursorIndex } = editor
   const inputPending = useRef(false)
+  const clipboardRequest = useRef<object>()
+  const [clipboardPending, setClipboardPending] = useState(false)
   const mounted = useRef(true)
-  useEffect(() => () => { mounted.current = false }, [])
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false; clipboardRequest.current = undefined }
+  }, [])
   const images = editor.state.present.images ?? EMPTY_IMAGES
   const navigationHistory = useRef<EditorHistory>()
   const [navigationDraft, setNavigationDraft] = useState<DraftSnapshot>()
@@ -554,7 +559,7 @@ export const Prompt: FC<PromptProps> = ({
             : picking
               ? Math.min(Math.max(fileRows.length, 1), paletteRows)
               : 0
-  const overlayRows = (overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS) + imageTrayRows
+  const overlayRows = (overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS) + imageTrayRows + (clipboardPending ? 1 : 0)
   useEffect(() => {
     onOverlayRowsChange?.(overlayRows)
   }, [overlayRows, onOverlayRowsChange])
@@ -563,7 +568,7 @@ export const Prompt: FC<PromptProps> = ({
   // lose. `active` is part of it: while the box is closed (a shell, an
   // approval) the prompt takes no keys at all, so a buffer left over from
   // before must not keep Ctrl-C from reaching the App.
-  const filled = active && (value !== '' || images.length > 0)
+  const filled = active && (value !== '' || images.length > 0 || clipboardPending)
   useEffect(() => {
     onFilledChange?.(filled)
   }, [filled, onFilledChange])
@@ -662,6 +667,7 @@ export const Prompt: FC<PromptProps> = ({
    * so a new entry point cannot quietly forget one of the resets.
    */
   const submit = (submitted: string): void => {
+    if (clipboardRequest.current) { onInputNotice?.(strings.clipboardImage.reading); return }
     if (navigationDraft) {
       if (!/^\/resume\s+\S/.test(submitted) && submitted.trim() !== '/sessions') return
       if (navigationHistory.current) editor.restore(navigationHistory.current)
@@ -771,10 +777,12 @@ export const Prompt: FC<PromptProps> = ({
   // on a terminal UI that has to stay smooth while scrolling the log.
   const requestClipboardImage = (quiet: boolean): void => {
     if (!pasteImage || navigationDraft) { if (!quiet) onInputNotice?.(strings.clipboardImage.unavailable); return }
-    if (inputPending.current) return
-    inputPending.current = true
-    void pasteImage().then((result) => {
-      if (!mounted.current) return
+    if (inputPending.current || clipboardRequest.current) return
+    const request = {}
+    clipboardRequest.current = request
+    setClipboardPending(true)
+    void Promise.resolve().then(() => pasteImage()).then((result) => {
+      if (!mounted.current || clipboardRequest.current !== request) return
       if (result.kind === 'image') {
         editor.change((current) => {
           const currentImages = current.images ?? EMPTY_IMAGES
@@ -782,8 +790,13 @@ export const Prompt: FC<PromptProps> = ({
           return { ...current, images: [...currentImages, { path: result.path }] }
         })
       } else if (!quiet || result.kind !== 'empty') onInputNotice?.(strings.clipboardImage[result.kind])
-    }).catch(() => { if (mounted.current && !quiet) onInputNotice?.(strings.clipboardImage.failed) })
-      .finally(() => { inputPending.current = false })
+    }).catch(() => {
+      if (mounted.current && clipboardRequest.current === request && !quiet) onInputNotice?.(strings.clipboardImage.failed)
+    }).finally(() => {
+      if (!mounted.current || clipboardRequest.current !== request) return
+      clipboardRequest.current = undefined
+      setClipboardPending(false)
+    })
   }
 
   useTerminalEvent((event) => {
@@ -799,6 +812,10 @@ export const Prompt: FC<PromptProps> = ({
   useTerminalInput(
     (input, key) => {
       if (inputPending.current) return
+      if (clipboardRequest.current && (key.return || (key.ctrl && (input === 't' || input === 'g')))) {
+        onInputNotice?.(strings.clipboardImage.reading)
+        return
+      }
       if (key.ctrl && input === 't') {
         if (!editExternally || busy || navigationDraft) { onInputNotice?.(strings.externalEditor.busy); return }
         if (draftChannel && !draftChannel.save(editor.state.present)) onDraftFailure?.()
@@ -868,12 +885,14 @@ export const Prompt: FC<PromptProps> = ({
         else if (input === 'u' && value !== '') {
           setValue(deleteToStart(value, cursorIndex))
           setCursorIndex(0)
-        } else if (input === 'c' && (value !== '' || images.length > 0) && !busy) {
+        } else if (input === 'c' && (value !== '' || images.length > 0 || clipboardRequest.current) && !busy) {
           // Abandon the line, stay in the app. The App's exit path checks the
           // same emptiness through `onFilledChange`, so exactly one of us acts.
           // While a turn runs the App's branch outranks this one — the press
           // means "stop the model", and eating the line as well would answer
           // one keystroke twice.
+          clipboardRequest.current = undefined
+          setClipboardPending(false)
           editor.apply({ type: 'edit', snapshot: { text: '', cursor: 0, images: [] } })
           setHistoryIndex(null)
         } else if (input === 'p') recallHistory(-1)
@@ -1299,6 +1318,7 @@ export const Prompt: FC<PromptProps> = ({
           />
         </Box>
       ) : null}
+      {clipboardPending && <Text color="cyan" wrap="truncate">{strings.clipboardImage.reading}</Text>}
       {imageTrayRows > 0 && <Box flexDirection="column" paddingX={1}>
         <Text wrap="truncate">{strings.attachPreview.summary(imagePreviews.length, formatBytes(imagePreviews.reduce((sum, row) => sum + (row.bytes ?? 0), 0)))}</Text>
         {imagePreviews.slice(0, shownImages).map((row, index) => <Text key={`${index}-${row.image.path}`} wrap="truncate" color="cyan">

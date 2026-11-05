@@ -199,11 +199,11 @@ big, too many, a model that does not take images, no attachment service in your
 assembly — you get a note saying why, **and the message is still sent.** A bad
 attachment never costs you the line you typed.
 
-Press **Ctrl-V** to import an image from the host clipboard. Terminals that
-forward the platform shortcut as `Meta-V` work too. An empty bracketed paste is
-also treated as an image signal, which makes **Control-Command-V** (Terminal.app's
-Paste Escaped Text) a reliable macOS shortcut; plain Command-V is owned by
-Terminal.app and does not reach the TUI as a key event. Text paste remains text.
+Press **Ctrl-V** to import a host clipboard image. Terminal.app Command-V image
+paste is not supported without a native bridge; this project does not install one
+or request system permissions. VS Code and other terminals may send a usable
+paste signal. Recognized profiles accept forwarded Meta-V or empty bracketed
+paste as compatibility hints, not guaranteed shortcuts. Text paste remains text.
 The image is shown as a compact attachment row while its private cache path is
 kept out of the input body. Nothing renders the picture itself in the terminal;
 the row is the confirmation.
@@ -764,11 +764,11 @@ patch 文件，`/mcp add` 会告诉你它刚刚明文写下了哪几个变量。
 发出去一张图。如果某张图带不上——太大、张数超限、模型不收图片、你的装配里没挂附件
 服务——会有一条说明原因的提示，**而且消息照发**。附件出问题绝不会让你白打一行字。
 
-按 **Ctrl-V** 从运行 dsh 的机器剪贴板读取图片；能把平台快捷键转发为 `Meta-V` 的终端也支持。
-空的 bracketed paste 同样会触发图片读取，因此 macOS Terminal.app 可用
-**Control-Command-V**（Paste Escaped Text）；普通 Command-V 由 Terminal.app 接管，不会把按键事件
-交给 TUI。普通文本粘贴仍是文本。图片只在附件行里紧凑显示，缓存路径不会进入输入正文；终端不绘制
-图片本身，那一行就是确认。
+按 **Ctrl-V** 从运行 dsh 的机器剪贴板读取图片。Terminal.app 的 Command-V 图片粘贴未支持；
+按当前约定不安装需要系统权限的原生桥接。VS Code 等终端可能发送可用的粘贴信号，适配器会处理。
+已识别适配器的 Meta-V/空 bracketed paste 仅为兼容入口，不保证对应某个系统快捷键。
+普通文本粘贴仍是文本。图片显示在附件行里，缓存路径不会进入输入正文。
+读取期间可继续编辑，完成后再发送；Ctrl-C 取消导入，取消后的迟到图片不会重新加入。
 
 ### 跑一个 skill
 

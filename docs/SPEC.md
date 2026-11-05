@@ -1987,3 +1987,9 @@ environment values are included. Unknown terminals and multiplexers default to
 selection/alternate scrolling; known direct profiles request mouse reporting.
 `DSH_TUI_TERMINAL` overrides detection; it does not override native terminal key
 bindings. Legacy prompt paste parsing is retired in favor of the adapter decoder.
+
+Clipboard image reads do not lock ordinary draft editing or text paste. A single
+measured status row shows import progress. Sending, external editing and session
+selector entry wait for import completion without automatically sending later.
+Idle Ctrl-C abandons both the draft and its pending image request; a late result
+from an abandoned request or unmounted session cannot restore an attachment.

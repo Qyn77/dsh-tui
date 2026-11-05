@@ -85,3 +85,47 @@ it('keeps text intact when no image is available', async () => {
   try { await tty.send('keep draft'); await tty.send('\u0016'); expect(tty.screen()).toContain('keep draft'); expect(tty.screen()).toContain('No PNG image') }
   finally { tty.unmount() }
 })
+
+it('keeps typing and text paste responsive while a clipboard helper is pending', async () => {
+  let finish!: (result: { kind: 'image'; path: string }) => void
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: () => new Promise((resolve) => { finish = resolve }) })
+  try {
+    await tty.send('before ')
+    await tty.send('\u0016')
+    await tty.send('during ')
+    await tty.send('\u001b[200~pasted\u001b[201~')
+    expect(tty.screen()).toContain('before during pasted')
+    finish({ kind: 'image', path: '/tmp/late.png' })
+    await tty.settle()
+    expect(tty.screen()).toContain('before during pasted')
+    expect(tty.screen()).toContain('Image 1')
+  } finally { tty.unmount() }
+})
+it('cancels a pending image on Ctrl-C without restoring it into a new draft', async () => {
+  let finish!: (result: { kind: 'image'; path: string }) => void
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: () => new Promise((resolve) => { finish = resolve }) })
+  try {
+    await tty.send('\u0016')
+    await tty.send('\u0003')
+    await tty.send('new draft')
+    finish({ kind: 'image', path: '/tmp/stale.png' })
+    await tty.settle()
+    expect(tty.screen()).toContain('new draft')
+    expect(tty.screen()).not.toContain('Image 1')
+    expect(tty.screen()).not.toContain('again to exit')
+  } finally { tty.unmount() }
+})
+
+it('ignores completion of a cancelled read while a newer image request is pending', async () => {
+  const finishes: ((value: { kind: 'image'; path: string }) => void)[] = []
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: () => new Promise((resolve) => { finishes.push(resolve) }) })
+  try {
+    await tty.send('\u0016'); await tty.send('\u0003'); await tty.send('\u0016')
+    finishes[0]({ kind: 'image', path: '/tmp/old.png' }); await tty.settle()
+    await tty.send('\u0016')
+    expect(finishes).toHaveLength(2)
+    expect(tty.screen()).not.toContain('Image 1')
+    finishes[1]({ kind: 'image', path: '/tmp/new.png' }); await tty.settle()
+    expect(tty.screen()).toContain('Image 1')
+  } finally { tty.unmount() }
+})
