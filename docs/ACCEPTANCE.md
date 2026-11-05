@@ -152,3 +152,27 @@ for actual terminal-specific shortcuts remains separate from PTY coverage.
 Protocol references for control-string framing:
 [Kitty graphics replies](https://sw.kovidgoyal.net/kitty/graphics-protocol/) and
 [XTerm control sequences](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html).
+
+## Guided command menus — 2026-11-06
+
+- `25878c4`: reusable command tree, keyboard navigation, filtering, current
+  settings, non-executable empty pages, bilingual labels and design contract.
+- `d7a054d`: runtime task/message/session/queue choices, provider → model,
+  MCP/plugin actions, context records, recovery/branch/export choices; free-text
+  handoff and complete-command input remain available. Fixed the short-terminal
+  palette budget and preserved Ctrl-G quick resume with its draft.
+- Automated suite: 107 files / 1,578 tests passed. Typecheck and lint passed
+  (zero lint errors; existing warnings remain). Declaration/runtime build and
+  package allowlist check passed.
+- Frame regressions exercise Enter/Tab/Esc, localized filtering, empty results,
+  nested session navigation, free-title/path handoff, manual command dispatch,
+  and a 50-entry menu at 70×19 with the first selection visible and executable.
+- Real Unix PTY: apple, vscode and generic profiles passed. The script now
+  selects a theme, navigates nested session rename menus, discards the draft,
+  and checks clean shutdown/raw-mode restoration alongside the existing paste,
+  pointer and resize checks. It uses a fixture agent and never calls a model.
+- These are automated terminal checks, not native Terminal.app / VS Code GUI
+  acceptance. Human checks: try `/theme`, `/sessions`, `/activity`, `/copy`,
+  `/provider`, `/queue` and `/export` in both terminals; verify readability,
+  keyboard navigation and actual runtime catalogs. Terminal.app image import
+  remains Control-V; no macOS permission bridge was added.

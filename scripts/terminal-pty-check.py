@@ -62,6 +62,21 @@ def run(profile, entry):
             send(b'\x1b[F')
             fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
             read_for(0.15)
+            menu_start = len(output)
+            send(b'/theme')
+            send(b'\r')
+            assert b'Automatic' in output[menu_start:]
+            send(b'light')
+            send(b'\r')
+            assert b'/theme light' in output[menu_start:]
+            send(b'/sessions')
+            send(b'\r')
+            send(b'rename')
+            send(b'\r')
+            send(b'\r')  # current session
+            send(b'\r')  # editable title
+            assert b'/sessions rename' in output[menu_start:]
+            send(b'\x03')  # discard title, no session write
             send(b'/terminal')
             send(b'\r', 0.25)
             assert b'Terminal adapter diagnostics' in output
@@ -83,7 +98,7 @@ def run(profile, entry):
             assert result['diagnostics']['requestedMode'] == 'inactive', result
             assert not result['raw'], result
             assert '\x1b[?2004l' in text and '\x1b[?1049l' in text, result
-            print(f'PASS {profile}: paste, coalesced controls, Ctrl-C draft clear, image trigger, F2, pointer, resize, /terminal, /exit; raw mode restored')
+            print(f'PASS {profile}: paste, coalesced controls, Ctrl-C draft clear, image trigger, F2, pointer, resize, nested menus, /terminal, /exit; raw mode restored')
         finally:
             if process.poll() is None:
                 process.kill()
