@@ -43,13 +43,14 @@ export const MAX_PALETTE_ROWS = 8
  * viewport, so it is the one that has to yield.
  *
  * The reserve covers everything the palette shares the frame with: the
- * StatusBar (3), the prompt box (3), the palette's own border, blank row and
- * hint (4), and the App's one-row gap to the bottom of the screen.
+ * StatusBar (4), the prompt box (3), the palette's border, blank row,
+ * hint and bottom margin (5), the scroll hint (1), and the final TTY row (1).
+ * Callers subtract extra prompt/tray rows before asking for the list budget.
  * @param terminalRows - `stdout.rows`.
  * @returns at least one row, never more than {@link MAX_PALETTE_ROWS}.
  */
 export function paletteWindowRows(terminalRows: number): number {
-  const RESERVED = 13
+  const RESERVED = 14
   const available = Math.floor(terminalRows) - RESERVED
   return Math.max(1, Math.min(MAX_PALETTE_ROWS, available))
 }

@@ -157,7 +157,7 @@ describe('! shell escape', () => {
       await run(painted, thirtyRows, 'row-1')
       expect(painted.screen()).not.toContain('row-30')
 
-      await painted.send('/verbose')
+      await painted.send('/verbose on')
       await painted.send('\r')
       await painted.settle(80)
       const screen = painted.screen()

@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 /**
  * Slash command dispatch. The commands run asynchronously against a real Cordis
  * context (minimal: only the services each command consults) and a real
@@ -209,6 +212,21 @@ describe('slash command dispatch', () => {
     const emit = vi.fn()
     expect(handledText(await dispatch('/copy 1', { ...cmd, state, emit }))).toContain('entry 1')
     expect(emit).toHaveBeenCalledOnce()
+  })
+
+  it('exports a menu-selected entry with a leading selector and a user-entered quoted path', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'tui-menu-export-'))
+    try {
+      const { cmd } = makeCommand()
+      const state: UiState = { entries: [{ kind: 'note', text: 'include-me' }, { kind: 'note', text: 'exclude-me' }], status: 'idle', currentTurn: 0 }
+      expect(await dispatch('/export --entry=1 "chosen message.md"', { ...cmd, state, cwd: root })).not.toMatchObject({ failed: true })
+      const content = readFileSync(join(root, 'chosen message.md'), 'utf8')
+      expect(content).toContain('include-me')
+      expect(content).not.toContain('exclude-me')
+      expect(await dispatch('/export --entry=1', { ...cmd, state, cwd: root })).toMatchObject({ failed: true })
+      expect(await dispatch('/export --entry=0 invalid.md', { ...cmd, state, cwd: root })).toMatchObject({ failed: true })
+      expect(await dispatch('/export --entry=99 invalid.md', { ...cmd, state, cwd: root })).toMatchObject({ failed: true })
+    } finally { rmSync(root, { recursive: true, force: true }) }
   })
 
   it('requires a path for exporting and waits for history hydration', async () => {

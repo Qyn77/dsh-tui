@@ -26,6 +26,10 @@ const strings = catalog('en').output
 async function run(app: Painted, command: string): Promise<void> {
   await app.send(command)
   await app.send('\r')
+  if (command === '/copy') {
+    expect(app.screen()).toContain('Latest code block')
+    await app.send('\r')
+  }
 }
 
 describe('/copy', () => {

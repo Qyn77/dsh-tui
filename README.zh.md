@@ -158,3 +158,14 @@ MIT
 终端行为通过统一适配器服务组合；实现与验收计划见[终端适配器](docs/TERMINAL-ADAPTERS.md)。SSH 图片剪贴板读取需显式设置 `DSH_TUI_REMOTE_CLIPBOARD=host`，读取远端主机而不是 SSH 客户端；WSL 访问 Windows 剪贴板需设置 `DSH_TUI_WSL_CLIPBOARD=windows`。
 
 macOS Terminal.app 图片粘贴采用 **Ctrl-V**。本项目不安装需要系统权限的 Command-V 桥接，也不把 Terminal.app 的 Command-V 图片粘贴标为已支持。读取图片时可以继续打字；完成后再发送，Ctrl-C 可取消这次导入。
+
+### 分级命令选择
+
+选择命令后按 Enter，继续选择已知参数。设置标记当前值；任务和消息显示摘要，
+不用记编号。会话整理、队列、MCP、插件、提供方模型和上下文记录也支持逐级选择。
+↑/↓ 选择，Enter 确定，Tab 只填入不执行，Esc 清除筛选、返回上一级，再关闭菜单。
+输入文字可以筛选选项；Ctrl-G 仍保留原来的快速接续和草稿恢复行为。
+
+搜索词、新标题、队列正文、自定义 MCP 配置和保存路径继续手动输入。
+例如 `/export` → 选择消息后会填入 `/export --entry=N `，只需输入保存路径再回车。
+原有完整命令仍可使用；需要手写语法时按 Esc 关闭菜单。Terminal.app 图片导入仍用 Control-V。

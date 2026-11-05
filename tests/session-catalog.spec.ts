@@ -43,3 +43,15 @@ it('pins favorites, uses renamed titles and hides archives before opening logs',
   expect(rows[0].description).toContain('Renamed favorite')
   expect(open).toHaveBeenCalledTimes(2)
 })
+
+it('includes current and archived sessions in the management catalog only', async () => {
+  const ctx = new Context()
+  ctx.provide('sessionPersistence', { list: async () => ['current', 'archived'].map(id => ({ header: { id, createdAt: 1000 } })),
+    open: async () => ({ read: async () => ({ events: [] }), close: async () => {} }) } as never)
+  const library = { read: (id: string) => ({ metadata: { archived: id === 'archived' } }), update: () => true }
+  const agent = { id: 'current', session: seedSession(0) } as never
+  expect(await sessionCatalog(ctx, agent, { library })).toEqual([])
+  const rows = await sessionCatalog(ctx, agent, { library, management: true })
+  expect(rows.map(row => row.name)).toEqual(['/resume current', '/resume archived'])
+  expect(rows[1].description).toContain('Archived sessions')
+})

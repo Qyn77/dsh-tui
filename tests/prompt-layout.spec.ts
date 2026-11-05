@@ -206,8 +206,8 @@ describe('paletteWindowRows', () => {
     // The App's root box has a fixed `rows - 1` height. A subtree taller
     // than that does not scroll — Yoga draws the surplus rows on top of the
     // ones already there, which is the debris this cap exists to prevent.
-    expect(paletteWindowRows(20)).toBe(7)
-    expect(paletteWindowRows(18)).toBe(5)
+    expect(paletteWindowRows(20)).toBe(6)
+    expect(paletteWindowRows(18)).toBe(4)
   })
 
   it('never returns less than one row, however short the terminal', () => {

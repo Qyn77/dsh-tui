@@ -1271,6 +1271,39 @@ Bare `/context` retains the occupancy gauge and advertises inspection. `/context
 
 Numbered rows show role, declared source/form and block kinds, clipped using display columns; detail preserves the full available message text and whitelisted provenance, tool calls, attachment references and offload flags. Provider-private replay state is excluded. Tool schema inspection displays the captured/recorded declarations, not guessed registry contents. Full details use the existing scrollable inspection viewport, open at the top, and Esc returns to conversation. No attachment bytes are read and no context is removed or edited.
 
+### Known-argument command menus
+
+The Prompt accepts declarative command trees (`pickers/command-menu.ts`). Enter
+on a settings command opens choices; branches navigate without dispatch, Enter
+on a leaf dispatches the existing command, and Tab fills it without executing.
+Esc clears a filter, returns to the parent, then dismisses. Empty pages cannot
+execute. Complete manually typed commands remain supported. Language, theme,
+keymap, mouse, notifications, approval, verbosity and history expose explicit
+values with the current setting marked. The shared SlashPalette retains its
+width/height budget and bilingual labels; see DESIGN.md for interaction states.
+
+Command trees also cover `/activity`, `/copy`, `/inspect`, `/jump`, `/changes`,
+`/diff`, `/retry`, `/branch`, `/sessions`, `/resume`, `/queue`, `/mcp`, `/plugins`,
+`/provider`, `/context`, and `/export`. Dynamic choices come from the current
+uncollapsed projection, complete history where required, runtime catalogs, and
+stable session/queue IDs. Management includes archived and current sessions;
+Ctrl-G retains its draft-preserving quick resume picker. Provider selection
+leads to the provider's models and dispatches `/model provider/model`, never
+asks for credentials. Locked plugins remain non-executable. Removal and plugin
+switches use a target-specific confirmation page. Menu-generated actions still
+run through dispatch, retaining runtime validation and unavailable-service errors.
+
+Search terms, message text, session titles, custom MCP configuration and export
+paths remain editable text. Export accepts `/export --entry=N <path>` in addition
+to the existing trailing selector, so choosing a message leaves only the path to
+enter. A complete known command typed into an open menu may dispatch on a filter
+miss; unknown filters never execute. Esc dismisses the menu for manual syntax.
+
+Palette height reserves 14 rows for fixed chrome (four status rows, three prompt
+rows, five palette chrome rows, the scroll hint and final TTY row). Extra prompt
+lines, attachment rows and clipboard-pending status further reduce its budget.
+The first choice must remain visible and executable at 70×19 as well as 120×31.
+
 ## Part 2 · Roadmap
 
 The current integration target is **v0.2.1-rc.5**. Historical milestones below retain the runtime versions used when they shipped. Current implementation and acceptance status follows those milestones.
@@ -1300,6 +1333,9 @@ Known gaps (deferred, not bugs):
 Shipped here but not planned here: the bilingual catalog and `/language` (§3.10), and the `!` shell escape (Part 4).
 
 ### v0.3 — Discoverability (partly shipped)
+
+- Shipped: guided hierarchical choices for known command arguments and runtime
+  objects; free-text input remains editable (see Known-argument command menus).
 
 Shipped:
 
@@ -2013,14 +2049,3 @@ Coalesced control-key bursts are decoded as individual semantic keys, preserving
 their order; non-whitespace C0/DEL bytes must not become draft text. Bracketed
 paste still treats all contents as text, and multiline unbracketed paste keeps
 its existing newline normalization fallback.
-
-### Known-argument command menus
-
-The Prompt accepts declarative command trees (`pickers/command-menu.ts`). Enter
-on a settings command opens choices; branches navigate without dispatch, Enter
-on a leaf dispatches the existing command, and Tab fills it without executing.
-Esc clears a filter, returns to the parent, then dismisses. Empty pages cannot
-execute. Complete manually typed commands remain supported. Language, theme,
-keymap, mouse, notifications, approval, verbosity and history expose explicit
-values with the current setting marked. The shared SlashPalette retains its
-width/height budget and bilingual labels; see DESIGN.md for interaction states.

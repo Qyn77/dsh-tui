@@ -54,8 +54,8 @@ describe('/theme', () => {
     const screen = screenOf(painted.screen())
     painted.unmount()
 
-    expect(screen).toContain('Current: light')
-    expect(screen).not.toContain('Current: auto')
+    expect(screen).toContain('✓ Light')
+    expect(screen).not.toContain('✓ Automatic')
   })
 
   it('goes back to auto and reports the measurement again', async () => {
@@ -78,7 +78,7 @@ describe('/theme', () => {
     painted.unmount()
 
     expect(screen).toContain('solarized')
-    expect(screen).toContain('Current: auto')
+    expect(screen).toContain('✓ Automatic')
   })
 
   it('keeps the frame width when the appearance changes', async () => {

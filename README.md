@@ -159,3 +159,18 @@ While idle, press **Ctrl-T** to edit the current draft in `$VISUAL`, then `$EDIT
 Terminal behavior is composed by a shared adapter service; the implementation and acceptance plan is in [Terminal adapters](docs/TERMINAL-ADAPTERS.md). Remote image clipboard reads now require `DSH_TUI_REMOTE_CLIPBOARD=host` (the remote host clipboard, not the SSH client). WSL Windows clipboard access requires `DSH_TUI_WSL_CLIPBOARD=windows`.
 
 Use **Ctrl-V** for clipboard images in macOS Terminal.app. No permission-requiring native Command-V bridge is installed, and Terminal.app Command-V image paste is not a supported guarantee. Keep typing during image reads; send after completion, or cancel the import with Ctrl-C.
+
+### Guided command choices
+
+Select a command and press Enter to choose its known arguments. Settings show
+current values; task/message menus show previews instead of requiring numbers.
+Sessions, queue items, MCP servers, plugins, provider models and context records
+can be selected through nested menus. ↑/↓ select, Enter chooses, Tab fills without
+executing, and Esc clears a filter, goes back, then closes. Type to filter rows.
+Ctrl-G keeps the quick resume picker and preserves your draft.
+
+Search words, new titles, queue text, custom MCP configuration and output paths
+remain editable. For example, `/export` → choose a message fills
+`/export --entry=N `; type the destination path and press Enter. Existing complete
+commands still work; dismiss a menu with Esc to use manual syntax. Terminal.app
+image imports continue to use Control-V.

@@ -8,18 +8,27 @@ import type { CommandMeta } from './commands.ts'
 
 /** Load only on picker demand; each handle is closed even after read failure. */
 export async function sessionCatalog(ctx: Context, agent: Agent,
-  options: { library?: SessionLibrary; lang?: Lang } = {}): Promise<CommandMeta[]> {
+  options: { library?: SessionLibrary; lang?: Lang; management?: boolean } = {}): Promise<CommandMeta[]> {
   const persistence = service(ctx, 'sessionPersistence')
   if (!persistence) return []
   await service(ctx, 'sessions')?.flush(agent.session)
   const snapshots = await persistence.list()
   const strings = catalog(options.lang ?? 'en').library
-  const rows: Array<{ id: string; title: string; cwd: string; time: number; activity: boolean; favorite: boolean; failed: boolean }> = []
+  const rows: Array<{
+    id: string
+    title: string
+    cwd: string
+    time: number
+    activity: boolean
+    favorite: boolean
+    archived: boolean
+    failed: boolean
+  }> = []
   // Sequential handles avoid exhausting descriptors on large session libraries.
   for (const snapshot of snapshots) {
     const header = snapshot.header
     const labels = options.library?.read(header.id)
-    if (labels?.metadata.archived) continue
+    if (labels?.metadata.archived && !options.management) continue
     let title = ''
     let lastActivity: number | undefined
     let handle: Awaited<ReturnType<typeof persistence.open>> | undefined
@@ -34,12 +43,13 @@ export async function sessionCatalog(ctx: Context, agent: Agent,
       // Keep unreadable sessions discoverable by id so their resume error is
       // reachable; one broken log must not hide the rest of the catalog.
     } finally { await handle?.close() }
-    rows.push({ id: header.id, title: labels?.metadata.title ?? title, favorite: labels?.metadata.favorite ?? false, failed: labels?.failed ?? false, cwd: header.cwd ?? '',
+    rows.push({ archived: labels?.metadata.archived ?? false, id: header.id, title: labels?.metadata.title ?? title, favorite: labels?.metadata.favorite ?? false, failed: labels?.failed ?? false, cwd: header.cwd ?? '',
       time: lastActivity ?? header.createdAt, activity: lastActivity !== undefined })
   }
-  return rows.sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.time - a.time).filter(row => row.id !== agent.id).map(row => ({
-    name: `/resume ${row.id}`,
-    displayName: `${row.favorite ? strings.favoriteTag + ' ' : ''}${shortId(row.id as never)}`,
-    description: `${row.failed ? strings.failedTag + ' ' : ''}${row.title || row.id} · ${row.cwd} · ${new Date(row.time).toISOString().slice(0, 16).replace('T', ' ')}${row.activity ? '' : ' *'}`,
-  }))
+  return rows.sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.time - a.time)
+    .filter(row => options.management || row.id !== agent.id).map(row => ({
+      name: `/resume ${row.id}`,
+      displayName: `${row.favorite ? strings.favoriteTag + ' ' : ''}${shortId(row.id as never)}`,
+      description: `${row.archived ? catalog(options.lang ?? 'en').menu.archived + ' · ' : ''}${row.failed ? strings.failedTag + ' ' : ''}${row.title || row.id} · ${row.cwd} · ${new Date(row.time).toISOString().slice(0, 16).replace('T', ' ')}${row.activity ? '' : ' *'}`,
+    }))
 }

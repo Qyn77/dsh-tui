@@ -1,4 +1,4 @@
-import { menuPage, menuChoices, menuRows, type MenuItem } from '../pickers/command-menu.ts'
+import { menuPage, menuChoices, menuRows, acceptsManualCommand, type MenuItem } from '../pickers/command-menu.ts'
 import { EMPTY_IMAGES, MAX_DRAFT_IMAGES, imageSubmission } from '../attachments/draft-images.ts'
 import { useDraftImagePreviews } from '../hooks/useDraftImagePreviews.ts'
 import { resolveCandidate } from '../attachments/attachments.ts'
@@ -358,8 +358,8 @@ export const Prompt: FC<PromptProps> = ({
   useEffect(() => { onValueChange?.(value) }, [value, onValueChange])
   const [menuPath, setMenuPath] = useState<readonly string[]>()
   const [menuDismissed, setMenuDismissed] = useState<string>()
-  const automaticMenu = commandMenus.find(root => value === `${root.id} ` && menuDismissed !== value)
-  const activeMenuPath = menuPath && value.startsWith(`${menuPath[0]} `)
+  const automaticMenu = navigationDraft ? undefined : commandMenus.find(root => value === `${root.id} ` && menuDismissed !== root.id)
+  const activeMenuPath = !navigationDraft && menuPath && value.startsWith(`${menuPath[0]} `)
     ? menuPath : automaticMenu ? [automaticMenu.id] : undefined
   const page = activeMenuPath ? menuPage(commandMenus, activeMenuPath) : undefined
   const menuQuery = activeMenuPath ? value.slice(activeMenuPath[0].length + 1) : ''
@@ -367,7 +367,7 @@ export const Prompt: FC<PromptProps> = ({
   useEffect(() => {
     if (automaticMenu && !menuPath) setMenuPath([automaticMenu.id])
     if (menuPath && !value.startsWith(`${menuPath[0]} `)) setMenuPath(undefined)
-    if (menuDismissed !== undefined && value !== menuDismissed) setMenuDismissed(undefined)
+    if (menuDismissed !== undefined && !value.startsWith(`${menuDismissed} `)) setMenuDismissed(undefined)
   }, [value, menuPath, menuDismissed, automaticMenu?.id])
   const sessionQuery = activeMenuPath ? undefined : sessionPickerQuery(value)
   const pathPreviews = useImagePreviews(value, cwd)
@@ -401,7 +401,9 @@ export const Prompt: FC<PromptProps> = ({
   // height rather than fixed, because the App's root box has a fixed height
   // and an overflowing subtree overlaps instead of scrolling — see
   // `paletteWindowRows`. Ink re-renders the tree on resize, so this tracks.
-  const paletteRows = paletteWindowRows(stdout?.rows ?? 24)
+  const width = textWidth > 0 ? textWidth : Math.max(1, (stdout?.columns ?? 80) - CHROME_COLUMNS)
+  const extraPromptRows = Math.min(MAX_PROMPT_ROWS, wrapBuffer(value, width).length) - 1
+  const paletteRows = paletteWindowRows((stdout?.rows ?? 24) - imageTrayRows - extraPromptRows - (clipboardPending ? 1 : 0))
 
   // The `/skill ` picker, between the `/` palette and the `@` picker in
   // precedence: suppressed while the palette is open, and it suppresses the
@@ -510,7 +512,6 @@ export const Prompt: FC<PromptProps> = ({
   // The fold, the caret and the window are all derived on every render —
   // never stored. `scrollTop` is the one piece of memory, and it is only
   // *read* here; the handlers below are what move it.
-  const width = textWidth > 0 ? textWidth : Math.max(1, (stdout?.columns ?? 80) - CHROME_COLUMNS)
   const rows = wrapBuffer(value, width)
   const caret = cursorAt(rows, cursorIndex)
   const start = visibleStart(rows.length, caret.row, MAX_PROMPT_ROWS, scrollTop)
@@ -694,7 +695,7 @@ export const Prompt: FC<PromptProps> = ({
     } else if (chosen.action) {
       if (fillOnly || chosen.action.kind === 'input') {
         const text = chosen.action.value
-        setMenuDismissed(text)
+        setMenuDismissed(activeMenuPath[0])
         setMenuPath(undefined)
         setValue(text)
         setCursorIndex(text.length)
@@ -956,7 +957,7 @@ export const Prompt: FC<PromptProps> = ({
           } else if (activeMenuPath.length > 1) {
             setMenuPath(activeMenuPath.slice(0, -1))
           } else {
-            setMenuDismissed(`${root} `)
+            setMenuDismissed(root)
             setMenuPath(undefined)
           }
           setPaletteIndex(0)
@@ -1017,7 +1018,8 @@ export const Prompt: FC<PromptProps> = ({
       // after a trailing space so the user can keep typing arguments
       // without an extra keystroke.
       if (activeMenuPath && (key.tab || key.return)) {
-        chooseMenu(key.tab)
+        if (key.return && choices.length === 0 && acceptsManualCommand(commandMenus, value)) submit(value)
+        else chooseMenu(key.tab)
         return
       }
       if (key.tab && palette.length > 0) {
@@ -1329,7 +1331,7 @@ export const Prompt: FC<PromptProps> = ({
       {palette.length > 0 ? (
         <Box marginBottom={1} width="100%">
           <SlashPalette commands={palette} selected={activeMenuPath && choices.length === 0 ? -1 : safePaletteIndex} maxRows={paletteRows}
-            hint={activeMenuPath ? `${activeMenuPath.map((_, i) => menuPage(commandMenus, activeMenuPath.slice(0, i + 1))?.label ?? '').join(' › ')} · ${strings.menu.hint}` : undefined} />
+            hint={activeMenuPath ? `${strings.menu.hint} · ${activeMenuPath.map((_, i) => menuPage(commandMenus, activeMenuPath.slice(0, i + 1))?.label ?? '').join(' › ')}` : undefined} />
         </Box>
       ) : null}
       {pickingSkill ? (

@@ -708,10 +708,11 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
 
     case '/export': {
       const input = raw.trim().slice('/export'.length).trim()
-      const selection = /\s+--entry=(\d+)$/.exec(input)
-      const path = (selection ? input.slice(0, selection.index) : input).replace(/^(["'])(.*)\1$/, '$2')
+      const leading = /^--entry=([1-9]\d*)\s+([\s\S]+)$/.exec(input)
+      const selection = leading ?? /\s+--entry=(\d+)$/.exec(input)
+      const path = (leading ? leading[2] : selection ? input.slice(0, selection.index) : input).replace(/^(["'])(.*)\1$/, '$2')
       if (cmd.historyReady === false) return { kind: 'handled', message: catalog(lang).transcript.loading, failed: true }
-      if (!path || (/\s+--entry=/.test(input) && !selection)) return { kind: 'handled', message: catalog(lang).transcript.usage, failed: true }
+      if (!path || (/(?:^|\s)--entry=/.test(input) && !selection)) return { kind: 'handled', message: catalog(lang).transcript.usage, failed: true }
       const entries = (cmd.exportState ?? cmd.state).entries
       const index = selection ? entryNumber(selection[1], entries.length) : undefined
       if (selection && index === undefined) return { kind: 'handled', message: catalog(lang).transcript.invalid, failed: true }

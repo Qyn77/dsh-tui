@@ -1,4 +1,8 @@
-import { settingMenus } from './pickers/command-menu.ts'
+import { userMessageText } from './core/types.ts'
+import { describePlugins } from './commands/plugins.ts'
+import { listPatchedServers } from './mcp/mcp-patch.ts'
+import { mcpPresetRows } from './pickers/mcp-picker.ts'
+import { commandMenus } from './pickers/command-menu.ts'
 import type { ContextRequestReader } from './commands/context-view.ts'
 import type { EditExternally } from './terminal/external-editor.ts'
 import type { PasteImage } from './attachments/clipboard-image.ts'
@@ -226,11 +230,16 @@ const AppBody: FC<AppProps> = ({
   const onDraftFailure = useCallback(() => {
     appendEntry({ kind: 'note', tone: 'warn', text: strings.drafts.failed })
   }, [appendEntry, strings])
+  const [promptCommand, setPromptCommand] = useState('')
   const [sessionPickerOpen, setSessionPickerOpen] = useState(false)
   const [libraryRevision, setLibraryRevision] = useState(0)
   const onLibraryChange = useCallback(() => { setLibraryRevision(current => current + 1) }, [])
   const sessionCommands = useSessionCatalog(ctx, agent, sessionPickerOpen, { library: sessionLibrary, revision: libraryRevision, lang })
+  const managementCommands = useSessionCatalog(ctx, agent, promptCommand === '/sessions',
+    { library: sessionLibrary, revision: libraryRevision, lang, management: true })
+  const patchedServers = useMemo(() => promptCommand === '/mcp' ? listPatchedServers() : [], [promptCommand])
   const onPromptValue = useCallback((value: string) => {
+    setPromptCommand(value.trim().split(/\s+/)[0]?.toLowerCase() ?? '')
     setSessionPickerOpen(sessionPickerQuery(value) !== undefined)
   }, [])
   useLayoutEffect(() => {
@@ -1068,9 +1077,19 @@ const AppBody: FC<AppProps> = ({
           keybinds={keybindPref}
           onOverlayRowsChange={setPromptOverlayRows}
           extraCommands={registryRows}
-          commandMenus={settingMenus(strings.menu, { language: lang, theme: themePref, keybinds: keybindPref,
+          commandMenus={commandMenus(strings, { language: lang, theme: themePref, keybinds: keybindPref,
             mouse: mousePref, notify: notificationMode, verbose: scroll.expanded ? 'on' : 'off', history: historyPref,
-            approval: service(ctx, 'approval')?.overrideOf(agent.session) })}
+            approval: service(ctx, 'approval')?.overrideOf(agent.session) }, {
+            root: promptCommand, state, fullState, historyReady, sessionId: agent.id,
+            sessions: managementCommands, resumeSessions: sessionCommands,
+            models: modelRowsForPicker, providers: service(ctx, 'llm')?.listProviders(),
+            plugins: promptCommand === '/plugins' ? describePlugins(service(ctx, 'loader')?.entries() ?? []) : [],
+            mcpServers: patchedServers, mcpPresets: mcpPresetRows(preset => strings.output.mcpPresets[preset.descriptionKey]),
+            queue: agent.inbox?.nextTurn.map(message => ({ id: message.id, text: userMessageText(message) })),
+            currentContext: promptCommand === '/context' ? agent.session.deriveMessages() : [],
+            requestContext: promptCommand === '/context' ? contextRequest?.(agent.id)?.messages : [],
+            failedDraft: failedDraftRef.current !== undefined, activity: expandedTasks,
+          })}
           sessionCommands={sessionCommands}
           onValueChange={onPromptValue}
           restoreDraft={draftRequest?.sessionId === agent.id ? draftRequest : undefined}
