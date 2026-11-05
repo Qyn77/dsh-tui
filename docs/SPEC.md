@@ -1332,7 +1332,7 @@ Known gaps (deferred, not bugs):
 
 Shipped here but not planned here: the bilingual catalog and `/language` (§3.10), and the `!` shell escape (Part 4).
 
-### v0.3 — Discoverability (partly shipped)
+### v0.3 — Discoverability (shipped)
 
 - Shipped: guided hierarchical choices for known command arguments and runtime
   objects; free-text input remains editable (see Known-argument command menus).
@@ -1360,7 +1360,7 @@ Still open: nothing — v0.3 is complete.
 - **Truncation.** *Shipped, as a global switch.* The 8-line cap itself shipped in v0.3; `/verbose` and `Ctrl-O` now raise it to 200 lines for the whole transcript at once (§1.2, §1.5.6). That milestone shipped the global budget. The later approved numbered `/inspect N` and per-task disclosure are separate surfaces; see the current implementation section.
 - **Clipboard.** *Shipped as `/copy`.* The newest reply, or the newest fenced block, goes to the system clipboard over OSC 52 — across SSH included. `/paste` is **not** coming: reading the clipboard needs a stdin listener mid-session, which is Ink's, and every terminal already pastes on its own. See §1.5.5.
 - **Task list.** *Shipped.* `todo/write` projects to a `todo` entry: a `⤷ todos · N/M done` header over one row per task, with only the in-progress row undimmed. Not on the original v0.4 list, and added because it was the single protocol event the projection ignored while the protocol's own comment said the payload is "shown in the UI". Consecutive writes collapse into one entry; see §1.11 for why it is neither appended per write nor pinned above the prompt.
-- **Image input.** *Shipped.* Image paths in a submitted line are committed to `ctx.attachments` and travel as `image` content blocks, drawn as a `⧉` chip inside the user's frame — see §1.13. Not on the original v0.4 list. It was also, twice, mis-sized in this document's own planning notes as needing a terminal image protocol; it needed none, and no new version line either — `ctx.attachments`, `ImageBlock` and `agent.followup(UserMessage)` are all on `0.1.0-rc.7`. Clipboard paste is the part that did not ship.
+- **Image input.** *Shipped.* Image paths in a submitted line are committed to `ctx.attachments` and travel as `image` content blocks, drawn as a `⧉` chip inside the user's frame — see §1.13. Not on the original v0.4 list. It was also, twice, mis-sized in this document's own planning notes as needing a terminal image protocol; it needed none, and no new version line either — `ctx.attachments`, `ImageBlock` and `agent.followup(UserMessage)` are all on `0.1.0-rc.7`. Clipboard paste did not ship at that milestone; direct clipboard image input has since shipped (see Draft image attachments and Terminal adapter boundary).
 - **Session listing.** *Shipped as `/sessions`.* Not on the original v0.4 list, and added because v0.3's resume turned out to be unreachable: it wants ids that were printed nowhere. The listing shows them abbreviated and `planResume` accepts a prefix. See §1.5.7.
 - **In-session resume.** *Shipped as `/resume`.* Also unplanned, and the direct consequence of the item above: once the ids were on screen, relaunching to use one was the only remaining obstacle. §3.3.1 had sized this as an agent-swap project; most of it was already built, and the missing piece was a re-seed of the projection. See §1.5.8.
 
@@ -1396,7 +1396,7 @@ Still open: nothing — v0.3 is complete.
 ### Aspirational (no commitment)
 
 - Mouse-driven transcript focus/editing and drag-to-select rows (task-summary clicking is implemented)
-- Clipboard image paste (needs a per-platform external binary; see §1.13)
+- Clipboard image paste: implemented through platform helpers; Terminal.app uses Control-V. Command-V without a forwarded event is intentionally unsupported under the no-system-permission decision.
 - Multi-session tabs
 - Remote session attach (SSH in, see the same TUI)
 
@@ -1473,6 +1473,33 @@ The following statuses track suggestions beyond the previous three-item round:
 - Implemented: direct clipboard image input, with platform-specific capability handling.
 - Implemented: read-only context/message/attachment and tool-schema inspection, plus live request capture. Context removal/mutation is not part of this round.
 - Selective file checkpoints/restoration, subject to a separate design protecting subsequent user edits.
+
+### Follow-up direction · recorded 2026-11-06
+
+The user asked to retain the following directions after the guided command-menu
+round. These are backlog items, not implementation claims or a new commitment
+to implement them in this documentation/merge pass. Functional reliability
+continues to take priority over optional cosmetic redesign.
+
+| Priority | Item | Current gap and completion criteria | Status |
+| --- | --- | --- | --- |
+| High · first | Runtime build identity and installation source | Show the running build commit, profile and resolved plugin path in diagnostics. Distinguish an installed artifact from a source checkout, including builds sharing the same package version. Verify against the actual loaded module rather than the current working directory's Git branch. | Planned |
+| High · second | Interactive search results | Keep the search query free text; offer selectable results with previews, direct navigation and highlighted matches. Preserve the reading position and reveal collapsed content when selecting a hit. `/search` and `/jump` already exist; this adds the result interaction. | Planned |
+| High · third | Contextual message actions | Select a transcript message, then choose copy, full inspection, recorded changes or export from one nearby menu. Reuse existing handlers and stable selection rules; do not require choosing the action command first. | Planned |
+| High · parallel acceptance | Native terminal acceptance | Exercise Terminal.app and VS Code first, then the remaining terminal/transport matrix in TERMINAL-ADAPTERS.md. Record app/environment versions and results for paste, mouse disclosure, text selection, resize, scrolling and shutdown. Profile unit tests and real PTY replay do not establish native GUI compatibility. | Pending human/native checks |
+| Medium | Attachment management | Select an individual attachment to remove, open a local preview where supported, and identify missing files before submission. Names/counts/sizes and Ctrl-X removal already exist; expose these operations through a focused attachment list. Keep remote-host capability limits explicit. | Planned |
+| Medium | Selective file checkpoints and restoration | Design capture and restoration boundaries first. Preview the affected files, detect later user edits and refuse silent overwrites; separate conversation branching from restoring filesystem state. Never imply external side effects are reversible. | Design required |
+| Medium | Long-session performance | Establish reproducible benchmarks with thousands of entries, large tool results and sustained streams. Measure input latency, scrolling, memory and menu opening, set an explicit budget, then fix measured regressions without truncating durable history. | Planned |
+| Later | Multiple session tabs | Explore fast switching among independently tracked sessions, including drafts, activity and notifications. Verify runtime lifecycle/concurrency support before promising parallel execution. Existing resume and branching are not tabs. | Proposal |
+| Later | Remote session attachment | Investigate reconnecting to an existing running session with ownership, reconnect and transport semantics. Running the current TUI inside SSH is not equivalent to remote attachment. Requires runtime contract verification. | Proposal |
+| Optional | Visual hierarchy and spacing | Improve the distinction between final results, activity, failures and pending decisions. Preserve all three approved responsive welcome states and prioritize readability and stable geometry. | Deferred cosmetic work |
+| Maintenance | Documentation consistency | Keep historical milestone claims clearly dated and the current status unambiguous. This pass corrects the stale clipboard-paste aspiration and completed v0.3 heading; further contradictions found during implementation should be corrected with the associated change. | Ongoing |
+
+Recommended next implementation sequence: runtime build identity → interactive
+search results → contextual message actions. Native-terminal acceptance runs
+alongside these. Checkpoints and remote/multi-session features require their own
+runtime/design review. The fixed-choice menu round is already implemented;
+search terms, message text, titles and paths intentionally remain free input.
 
 ## Part 3 · Conventions
 

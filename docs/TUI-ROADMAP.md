@@ -540,3 +540,17 @@ profile/transport composition, one semantic input stream, lifecycle/host service
 `/terminal` diagnostics and reproducible PTY acceptance. The common Ink renderer
 and session logic remain independent of terminal brands. Native terminal
 verification is recorded separately from protocol fixture tests.
+
+## 11. Follow-up direction after guided menus
+
+Recorded on 2026-11-06 at the user's request. Guided menus are implemented; the
+next recommended sequence is runtime build identity and installation source,
+interactive search results, then contextual message actions. Native-terminal
+acceptance remains a parallel release task. Attachment management, safe file
+checkpoints, long-session performance, multi-session tabs, remote attachment and
+optional visual refinement are retained as later directions.
+
+[SPEC Part 2: Follow-up direction](SPEC.md#follow-up-direction--recorded-2026-11-06)
+is the single item-level backlog, including priorities, acceptance criteria and
+which ideas still require runtime/design verification. Recording a direction
+does not mark it implemented.
