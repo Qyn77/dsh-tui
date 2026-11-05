@@ -1,3 +1,4 @@
+import { useTerminalInput } from '../terminal/TerminalProvider.tsx'
 /**
  * The permission question. Shown above the prompt while a tool waits on a
  * human answer. A pending question is the one thing that closes the prompt's
@@ -26,7 +27,7 @@
 import type { FileDiff } from '@deepseek-ai/dsh-tools'
 import { diffLines } from '../render/file-diffs.ts'
 import React, { type FC } from 'react'
-import { Box, Text, useInput, useStdout } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { PendingApproval } from '../hooks/useApprovalRequests.ts'
@@ -60,7 +61,7 @@ export const ApprovalPrompt: FC<ApprovalPromptProps> = ({ pending, onAnswer, arg
   // Registered unconditionally with `isActive`, not behind an early return:
   // Ink's `useInput` is a hook, so a return above it would change the hook
   // order between "a question is pending" and "none is".
-  useInput((input, key) => {
+  useTerminalInput((input, key) => {
     if (current === undefined || key.ctrl || (key.meta && !key.escape)) return
     const ch = input.toLowerCase()
     if (ch === 'y') onAnswer(current.id, 'allowed-once')

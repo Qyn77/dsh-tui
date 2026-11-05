@@ -1,3 +1,4 @@
+import { createTerminalService, type TerminalService } from '../terminal/adapters/service.ts'
 import { contextMessageText, contextRows, type ContextRequestReader, type ContextSnapshot } from './context-view.ts'
 /**
  * Slash command registry and dispatch for the TUI prompt. The same
@@ -68,8 +69,6 @@ import {
   OSC52_MAX_BYTES,
   byteLength,
   clampForClipboard,
-  multiplexerFromEnv,
-  osc52,
   pickCopyText,
   type CopyTarget,
 } from './clipboard.ts'
@@ -572,6 +571,8 @@ export interface CommandContext {
    * renders an unrecognised OSC as visible garbage has it erased immediately.
    */
   emit?: (sequence: string) => void
+  encodeClipboardText?: (text: string) => string
+  terminalDiagnostics?: TerminalService['diagnostics']
   /**
    * Swap the live agent for a stored session, backing `/resume`.
    *
@@ -1002,11 +1003,14 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
     }
 
     case '/copy': {
+      const encode = cmd.encodeClipboardText ?? createTerminalService().encodeClipboardText
       const args = raw.trim().split(/\s+/).slice(1)
       const index = entryNumber(args[0], cmd.state.entries.length)
       if (args.length === 1 && index !== undefined) {
         const text = clampForClipboard(entryText(cmd.state.entries[index]))
-        cmd.emit?.(osc52(text.text, { multiplexer: multiplexerFromEnv() }))
+        const sequence = encode(text.text)
+        if (!sequence) return { kind: 'handled', message: strings.clipboardUnavailable, failed: true }
+        cmd.emit?.(sequence)
         return { kind: 'handled', message: catalog(lang).transcript.copied(index + 1, byteLength(text.text), text.truncated) }
       }
       // Remaining forms select newest reply/code; an unrecognised argument is usage rather
@@ -1022,7 +1026,9 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
         return { kind: 'handled', message: strings.copyNothing(target), failed: true }
       }
       const clamped = clampForClipboard(found.text)
-      cmd.emit?.(osc52(clamped.text, { multiplexer: multiplexerFromEnv() }))
+      const sequence = encode(clamped.text)
+      if (!sequence) return { kind: 'handled', message: strings.clipboardUnavailable, failed: true }
+      cmd.emit?.(sequence)
       return {
         kind: 'handled',
         message: strings.copySent(

@@ -1,7 +1,7 @@
 import { watchContextRequests } from './commands/context-view.ts'
 import { createTerminalHandoff } from './terminal/handoff.ts'
 import { editExternal, type EditExternally } from './terminal/external-editor.ts'
-import { pasteClipboardImage } from './attachments/clipboard-image.ts'
+import { createTerminalService } from './terminal/adapters/service.ts'
 /**
  * The TUI runner Cordis plugin. It waits for the Loader to settle, creates
  * one long-lived Agent, and renders the Ink application. The Ink app drives
@@ -29,9 +29,7 @@ import { createDraftRepository } from './terminal/drafts.ts'
 import { installDiagnostics, type DiagnosticRef } from './terminal/diagnostics.ts'
 import { branchSeed } from './commands/session-branch.ts'
 import { planResume, requestFromEnv, type SwapSession, type SwapResult } from './commands/resume.ts'
-import { MOUSE_MODE_EXIT, mouseModeSequence, resolveMouseMode } from './terminal/mouse.ts'
 import { readSettings } from './terminal/settings.ts'
-import { probeAppearance } from './terminal/theme.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'tui-runner'
@@ -63,47 +61,6 @@ interface TuiIo {
   stderr: { write(chunk: string): unknown }
 }
 
-const ALT_SCREEN_ENTER = '\u001B[?1049h\u001B[2J\u001B[H'
-const ALT_SCREEN_EXIT = '\u001B[?1049l'
-/**
- * Turn off the terminal's autowrap (DECAWM) for the app's lifetime.
- *
- * Ink erases the previous frame with `eraseLines(<logical line count>)` —
- * the count of `\n`-separated rows in the frame string. A row the *terminal*
- * renders wider than Ink laid it out wraps into an extra physical row, the
- * count comes up short, and the erase leaves the top of the old frame on
- * screen — a stable residue that only a resize clears. The width mismatch
- * is real and unfixable from here: East-Asian *ambiguous* characters (the
- * `·` separator, the braille spinner, `⏵`, `▌`) count as one column to the
- * layout but render as two in the many terminals CJK users run, and the
- * full-bleed chrome rows (border to border) have no slack to absorb the
- * difference.
- *
- * With autowrap off, a too-wide row no longer wraps: the glyphs past the
- * last column overwrite it instead, and since the right border is a row's
- * final glyph, the row still reads intact — the surplus eats padding, not
- * structure. The mode is restored on every exit path, like the other
- * private modes.
- */
-const AUTOWRAP_OFF = '\u001B[?7l'
-/** Turn it back on — same every-exit-path rule as {@link ALT_SCROLL_EXIT}. */
-const AUTOWRAP_ON = '\u001B[?7h'
-/**
- * Ask the terminal to wrap pasted text in `ESC [200~` … `ESC [201~`.
- *
- * Without it a pasted newline is a bare `\r` — byte-identical to the Enter
- * key — so a paste either overprinted itself in the prompt or, when a stdin
- * chunk boundary fell on a newline, submitted half a message. `src/prompt/paste.ts`
- * decodes the markers; this is the request that makes them appear.
- *
- * A terminal that ignores `?2004` is no worse off than before: the decoder
- * still collapses stray `\r`s, which fixes the overprinting. Only the
- * split-chunk submission needs the markers, because only they can tell a
- * pasted newline from a pressed one.
- */
-const BRACKETED_PASTE_ENTER = '\u001B[?2004h'
-/** Turn it off again, on every exit path — same rule as {@link ALT_SCROLL_EXIT}. */
-const BRACKETED_PASTE_EXIT = '\u001B[?2004l'
 const RESIZE_LOG = '/tmp/dsh-tui-resize.log'
 const resizeDebug = process.env['DSH_TUI_DEBUG_RESIZE'] === '1'
 function resizeLog(message: string): void {
@@ -167,11 +124,11 @@ async function run(ctx: Context, config: Config): Promise<void> {
   // Only `auto` asks: an explicit `dark` or `light` has already decided, and a
   // probe nobody reads is not merely wasted — it is a data listener competing
   // with Ink's reader if the boot ever outruns the deadline.
+  const terminalService = createTerminalService({ mouse, write: text => internals.stdout.write(text) })
   const detecting = theme === 'auto'
-    ? probeAppearance({
+    ? terminalService.detectAppearance({
       stdin: process.stdin,
       stdout: process.stdout,
-      colorFgBg: process.env['COLORFGBG'],
     })
     : undefined
   // Hold the keyboard for the whole boot window.
@@ -246,12 +203,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
     let disposeTerminal: (() => void) | undefined
     let disposeContext: (() => void) | undefined
     try {
-      if (alternateScreen) {
-        internals.stdout.write(ALT_SCREEN_ENTER)
-        internals.stdout.write(mouseModeSequence(resolveMouseMode(mouse, process.env)))
-        internals.stdout.write(AUTOWRAP_OFF)
-        internals.stdout.write(BRACKETED_PASTE_ENTER)
-      }
+      terminalService.resume()
       // Filled in by the App's mount effect; the resize owner borrows it to
       // force the settled frame onto the screen. See `resize.ts`.
       const repaint: RepaintRef = { current: undefined }
@@ -350,15 +302,12 @@ async function run(ctx: Context, config: Config): Promise<void> {
       disposeContext = contextRequests.dispose
       const editExternally: EditExternally = (text) => {
         if (handle.agent.status === 'running' || switchingSession) return Promise.resolve({ kind: 'busy' })
-        return editExternal(text, undefined, action => terminal.run(action, () => {
-          internals.stdout.write(AUTOWRAP_ON + BRACKETED_PASTE_EXIT + MOUSE_MODE_EXIT + '\u001B[?25h' + (alternateScreen ? ALT_SCREEN_EXIT : ''))
-        }, () => {
-          internals.stdout.write((alternateScreen ? ALT_SCREEN_ENTER : '\u001B[2J\u001B[H') + AUTOWRAP_OFF + BRACKETED_PASTE_ENTER
-            + mouseModeSequence(resolveMouseMode(readSettings().mouse ?? 'auto', process.env)) + '\u001B[?25l')
-        })).finally(() => {
+        return editExternal(text, undefined, action => terminal.run(action,
+          () => { terminalService.suspend() }, () => { terminalService.resume() }
+        )).finally(() => {
           instance.clear()
           instance.rerender(element())
-          repaint.current?.('\u001B[2J\u001B[H')
+          repaint.current?.(terminalService.clearSequence)
         })
       }
       const element = (): React.ReactElement =>
@@ -370,7 +319,8 @@ async function run(ctx: Context, config: Config): Promise<void> {
           diagnostics,
           contextRequest: contextRequests.read,
           editExternally,
-          pasteImage: pasteClipboardImage,
+          terminalService,
+          pasteImage: terminalService.readClipboardImage,
           drafts,
           sessionLibrary,
           modelRef: ref,
@@ -380,7 +330,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           keybinds,
           mouse,
           notifications,
-          onMousePreferenceChange: (next) => { internals.stdout.write(mouseModeSequence(resolveMouseMode(next, process.env))) },
+          onMousePreferenceChange: (next) => { terminalService.modes.setPreference(next) },
           swapSession,
           forkSession,
           ...detected === undefined ? {} : { appearance: detected },
@@ -435,12 +385,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       // or with autowrap disabled, which would truncate every long line the
       // shell prints from then on.
       restoreDiagnostics?.()
-      if (alternateScreen) {
-        internals.stdout.write(AUTOWRAP_ON)
-        internals.stdout.write(BRACKETED_PASTE_EXIT)
-        internals.stdout.write(MOUSE_MODE_EXIT)
-        internals.stdout.write(ALT_SCREEN_EXIT)
-      }
+      terminalService.dispose()
       // no signal handler to detach
     }
   } finally {

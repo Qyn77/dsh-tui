@@ -1968,3 +1968,14 @@ navigation, paste and key events. The boundary retains Ink-compatible legacy key
 flags without importing private Ink parsers. Extended keyboard modes remain off.
 One lifecycle owner restores wrapping, paste, mouse, cursor and alternate screen
 on handoff/exit, with idempotent disposal and cleanup after failed entry.
+
+The adapter service now owns the Ink input subscription through
+`TerminalProvider`. Prompt, approval, task disclosure and history scrolling consume
+semantic events. Bracketed paste is decoded incrementally, CRLF is normalized
+across chunk boundaries, and pasted control sequences never trigger shortcuts.
+Each event dispatch snapshots its subscribers so clearing a draft cannot also
+arm application exit on the same Ctrl-C. Standalone Escape uses a 25 ms
+sequence-disambiguation window. External-editor handoff clears partial input and
+suspends/restores the same mode owner used at startup and exit.
+Clipboard, notification and appearance requests use that service; SSH image
+clipboard reads are disabled unless explicitly opted into the host clipboard.

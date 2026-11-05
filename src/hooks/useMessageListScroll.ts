@@ -16,34 +16,19 @@
  * it. The name stays `…Scroll` because renaming it would touch two lesson
  * docs and every spec that cites it, for nothing.
  *
- * There are two input paths on purpose. Everything Ink reports faithfully
- * (arrows, `PageUp`/`PageDown`, `Ctrl-`-modified letters, and any mouse
- * report it forwards as ordinary input) is handled through `useInput`.
- * `Home` and
- * `End` cannot be: Ink blanks `input` for those key names and publishes no
- * flag for them, so the keystroke is indistinguishable from noise by the
- * time `useInput` sees it. Those two are read from the raw chunk Ink
- * republishes on its own stdin event emitter, ahead of that normalisation.
- * See `parseNavKey` in `../scroll.ts`.
- *
- * That emitter, and not `stdin` itself, is deliberate. Ink 5 reads input
- * with a `readable` listener plus `stdin.read()`; attaching a `data`
- * listener to the same stream switches it to flowing mode, which drains
- * chunks out from under Ink's read loop and breaks typing altogether. The
- * emitter carries the identical chunk with none of that risk — it is what
- * Ink's own `useInput` consumes.
+ * TerminalProvider owns the single Ink input subscription. This hook consumes
+ * semantic keys, navigation and pointer events; protocol fragments and pasted
+ * controls never reach scroll handlers.
  * @module @qiao-qyn/dsh-tui/hooks/useMessageListScroll
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useInput, useStdin } from 'ink'
+import { useCallback, useRef, useState } from 'react'
+import { useTerminalEvent, useTerminalInput } from '../terminal/TerminalProvider.tsx'
 import {
   clampOffset,
   halfPageDelta,
-  isMouseReport,
   pageDelta,
-  parseNavKey,
-  parseWheelDelta,
+  MOUSE_WHEEL_ROWS,
 } from '../render/scroll.ts'
 
 /** Measured heights of entries in the mounted, tail-anchored window. */
@@ -135,9 +120,6 @@ export interface MessageListScrollOptions {
 export function useMessageListScroll(
   { arrowsScroll = true, ctrlUScrolls = true }: MessageListScrollOptions = {},
 ): MessageListScroll {
-  // `internal_eventEmitter` is Ink's own name for its stdin event bus; the
-  // underscore is part of its public-but-unstable API, not a local style choice.
-  const { internal_eventEmitter: events } = useStdin()
   const [offset, setOffset] = useState(0)
   const [pinTop, setPinTop] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -188,10 +170,10 @@ export function useMessageListScroll(
     [pinTop],
   )
 
-  useInput((input, key) => {
+  useTerminalInput((input, key) => {
     const { viewportRows } = geometry.current
     // ↑/↓ scroll a row at a time, and that is also how the *wheel* arrives:
-    // `index.ts` asks the terminal for alternate scroll mode rather than
+    // The adapter's selection mode requests alternate scroll rather than
     // mouse reporting, so a notch is delivered as cursor keys and the
     // terminal keeps its own click-to-select. They are the one binding the
     // prompt can take away from us — see `arrowsScroll`.
@@ -241,38 +223,21 @@ export function useMessageListScroll(
           return
       }
     }
-    // Ink forwards mouse reports as ordinary input. We no longer *ask* the
-    // terminal for them — that costs click-to-select, see `index.ts` — but a
-    // terminal configured to send them anyway should still scroll rather
-    // than type gibberish into the prompt.
-    if (isMouseReport(input)) scrollBy(parseWheelDelta(input))
   })
 
-  useEffect(() => {
-    if (events === undefined) return
-    const onChunk = (data: Buffer | string): void => {
-      const nav = parseNavKey(typeof data === 'string' ? data : data.toString('utf8'))
-      if (nav === undefined) return
-      if (nav === 'end') {
-        setPinTop(false)
-        setOffset(0)
-        return
-      }
-      // `Home` cannot be expressed as an offset yet — the rows it wants
-      // are not mounted. Ask for the whole log to mount, *and* move to the
-      // top of what is already mounted: when the log is short enough to be
-      // fully mounted already the geometry never changes, and a `pinTop`
-      // that only acts on a geometry report would leave the view sitting
-      // at the tail. The next report (if the window did grow) lands it on
-      // the real top.
+  useTerminalEvent(event => {
+    if (event.kind === 'pointer' && event.event.kind === 'wheel') {
+      scrollBy(event.event.delta * MOUSE_WHEEL_ROWS)
+    }
+    if (event.kind !== 'navigation') return
+    if (event.key === 'end') {
+      setPinTop(false)
+      setOffset(0)
+    } else {
       setPinTop(true)
       setOffset(Math.max(0, geometry.current.contentRows - geometry.current.viewportRows))
     }
-    events.on('input', onChunk)
-    return () => {
-      events.off('input', onChunk)
-    }
-  }, [events])
+  })
 
   return { jumpToOffset, offset, atTail: offset === 0, pinTop, expanded, setExpanded, reportGeometry }
 }

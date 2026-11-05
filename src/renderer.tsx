@@ -11,12 +11,12 @@ import type { PasteImage } from './attachments/clipboard-image.ts'
 import { sessionPickerQuery } from './commands/session-picker.ts'
 import type { SessionLibrary } from './terminal/session-library.ts'
 import type { DraftRepository } from './terminal/drafts.ts'
-import { notificationSequence, watchNotifications, type NotificationMode } from './terminal/notifications.ts'
-import { resolveMouseMode, type MousePreference } from './terminal/mouse.ts'
+import { watchNotifications, type NotificationMode } from './terminal/notifications.ts'
+import { type MousePreference } from './terminal/mouse.ts'
 import type { DiagnosticRef } from './terminal/diagnostics.ts'
 import { useSessionCatalog } from './hooks/useSessionCatalog.ts'
 import { activityView } from './render/activity.ts'
-import { Box, Static, Text, useApp, useInput, useStdin, useStdout } from 'ink'
+import { Box, Static, Text, useApp, useStdout } from 'ink'
 import { readFile } from 'node:fs/promises'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
@@ -32,7 +32,8 @@ import { ApprovalPrompt } from './components/ApprovalPrompt.tsx'
 import { useRunningClock } from './hooks/useRunningClock.ts'
 import { useResizeRepaint } from './hooks/useResizeRepaint.ts'
 import { useMessageListScroll } from './hooks/useMessageListScroll.ts'
-import { liveFrameHeight } from './terminal/geometry.ts'
+import { TerminalProvider, useTerminal, useTerminalEvent, useTerminalInput } from './terminal/TerminalProvider.tsx'
+import type { TerminalService } from './terminal/adapters/service.ts'
 import { useSessionEvents } from './hooks/useSessionEvents.ts'
 import { useRegistryCommands } from './hooks/useRegistryCommands.ts'
 import { useApprovalRequests } from './hooks/useApprovalRequests.ts'
@@ -54,12 +55,13 @@ import type { Appearance, ThemePref } from './terminal/theme.ts'
 import type { KeybindPref } from './prompt/vim.ts'
 import type { SwapSession, SwapResult } from './commands/resume.ts'
 import { writeSettings } from './terminal/settings.ts'
-import { CLEAR_SCREEN, type RepaintRef } from './terminal/resize.ts'
+import { type RepaintRef } from './terminal/resize.ts'
 
 
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  terminalService?: TerminalService
   contextRequest?: ContextRequestReader
   editExternally?: EditExternally
   pasteImage?: PasteImage
@@ -169,7 +171,9 @@ const AppProviders: FC<{ lang: Lang; appearance: Appearance; children: ReactNode
 )
 
 
-export const App: FC<AppProps> = ({
+export const App: FC<AppProps> = props => <TerminalProvider service={props.terminalService}><AppBody {...props} /></TerminalProvider>
+
+const AppBody: FC<AppProps> = ({
   ctx,
   contextRequest,
   pasteImage,
@@ -195,23 +199,16 @@ export const App: FC<AppProps> = ({
 }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
-  const { internal_eventEmitter: inputEvents } = useStdin()
+  const terminal = useTerminal()
   const [mousePref, setMousePref] = useState<MousePreference>(initialMousePref)
   const setMouse = useCallback((next: MousePreference) => {
     setMousePref(next)
     onMousePreferenceChange?.(next)
     writeSettings({ mouse: next })
   }, [onMousePreferenceChange])
-  useEffect(() => {
-    const onInput = (chunk: string | Buffer): void => {
-      const text = String(chunk)
-      if (text === '\u001B[12~' || text === '\u001BOQ') {
-        setMouse(resolveMouseMode(mousePref, process.env) === 'mouse' ? 'off' : 'on')
-      }
-    }
-    inputEvents?.on('input', onInput)
-    return () => { inputEvents?.off('input', onInput) }
-  }, [inputEvents, mousePref, setMouse])
+  useTerminalEvent(event => {
+    if (event.kind === 'interaction-toggle') setMouse(terminal.mode(mousePref) === 'mouse' ? 'off' : 'on')
+  })
 
   const [historyPref, setHistoryPref] = useState<HistoryPref>(initialHistoryPref)
   const [lang, setLang] = useState<Lang>(initialLang)
@@ -357,9 +354,9 @@ export const App: FC<AppProps> = ({
     writeSettings({ notifications: mode })
   }, [])
   const notify = useCallback((title: string) => {
-    const sequence = notificationSequence(notificationMode, title)
+    const sequence = terminal.notification(notificationMode, title)
     if (sequence) emit(sequence)
-  }, [notificationMode, emit])
+  }, [notificationMode, emit, terminal])
   useEffect(() => watchNotifications(ctx, agent, notify, strings), [ctx, agent, notify, strings])
   // The animated "thinking" indicator. One interval per status
   // transition; both the StatusBar (right-side) and the Prompt
@@ -528,7 +525,7 @@ export const App: FC<AppProps> = ({
   // Prompt handles that on its side, and the App handles the interrupt
   // here. This runs even when the prompt is "inactive" (a shell is running,
   // an approval is waiting) so the user can always cancel.
-  useInput((input, key) => {
+  useTerminalInput((input, key) => {
     if (inspection && key.escape) { setInspection(undefined); return }
     if (key.ctrl && input === 'c') {
       handleInterrupt({
@@ -586,7 +583,7 @@ export const App: FC<AppProps> = ({
     //
     // The Static banner scrolls away with everything else. That is the same
     // bargain a settled resize already makes, and `/clear` prints a new one.
-    if (key.ctrl && input === 'l') write(CLEAR_SCREEN)
+    if (key.ctrl && input === 'l') write(terminal.clearSequence)
   })
 
   /**
@@ -787,6 +784,8 @@ export const App: FC<AppProps> = ({
           setVerbose: scroll.setExpanded,
           verbose: scroll.expanded,
           emit,
+          encodeClipboardText: terminal.encodeClipboardText,
+          terminalDiagnostics: terminal.diagnostics,
           swapSession,
           forkSession,
           state,
@@ -857,7 +856,7 @@ export const App: FC<AppProps> = ({
         appendEntry({ kind: 'note', tone: 'error', text: `${strings.recovery.draftRestored}\n${error instanceof Error ? error.message : String(error)}` })
       })
     },
-    [sessionLibrary, onLibraryChange, deliverInput, notificationMode, setNotificationMode, notify, restoreDraft,
+    [terminal, sessionLibrary, onLibraryChange, deliverInput, notificationMode, setNotificationMode, notify, restoreDraft,
       selectedIndex, searchMatches,
       mousePref, setMouse, setActivity, inspectContext, contextRequest, stdout.columns, inspectEntry, jumpEntry, cwd, fullState,
       historyReady,
@@ -909,7 +908,7 @@ export const App: FC<AppProps> = ({
   // the prompt reports its new overlay height. Ink switches to clear-and-append
   // when outputHeight reaches stdout.rows; that leaves old banner rows behind.
   // Non-TTY Static output stays intrinsic-height so the banner can scroll away.
-  const frameHeight = liveFrameHeight(stdout?.rows ?? 24, stdout?.isTTY ?? false, state.entries.length > 0)
+  const frameHeight = terminal.frameHeight(stdout?.rows ?? 24, stdout?.isTTY ?? false, state.entries.length > 0)
 
   // The settled banner yields space to the prompt's floating list. The root's
   // height and clipping above also guard the earlier frame, before the passive
@@ -1053,7 +1052,7 @@ export const App: FC<AppProps> = ({
         <Prompt
           key={agent.id}
           editExternally={editExternally}
-          pasteImage={pasteImage}
+          pasteImage={pasteImage ?? terminal.readClipboardImage}
           onInputNotice={(text) => { appendEntry({ kind: 'note', tone: 'warn', text }) }}
           draftChannel={draftChannel}
           onDraftFailure={onDraftFailure}

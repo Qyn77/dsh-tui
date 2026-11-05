@@ -593,6 +593,7 @@ export interface Catalog {
     /** `/history` after the switch moved. */
     historySwitched: (pref: HistoryPref) => string
     /** `/keybinds` with no argument: which keymap is in force, and the cheat sheet. */
+    clipboardUnavailable: string
     mouseUsage: string
     mouseStatus: (mode: string) => string
     keybindsUsage: (current: KeybindPref) => string
@@ -1001,6 +1002,7 @@ const EN: Catalog = {
       pref === 'show'
         ? 'Resumed history is drawn again — /resume or a re-seed repaints it.'
         : 'Resumed history is hidden from now on — the model still reads it.',
+    clipboardUnavailable: 'Clipboard transport is unavailable in this environment. Use native text selection.',
     mouseUsage: '/mouse auto|on|off',
     mouseStatus: mode => `Mouse: ${mode}. F2 toggles wheel/click reporting and native text selection.`,
     keybindsUsage: current =>
@@ -1349,6 +1351,7 @@ const ZH: Catalog = {
       pref === 'show'
         ? '已存历史重新画出来了——/resume 或重新播种会把它补上。'
         : '从现在起隐藏已存历史——模型仍然读得到。',
+    clipboardUnavailable: '当前环境不支持剪贴板传输，请使用终端原生文字选择。',
     mouseUsage: '/mouse auto|on|off',
     mouseStatus: mode => `鼠标模式：${mode}。F2 切换滚轮/点击上报与原生文字选择。`,
     keybindsUsage: current =>

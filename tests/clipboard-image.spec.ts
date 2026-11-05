@@ -49,7 +49,7 @@ it('runs a helper without a shell and handles empty, missing and invalid output'
 })
 it('inserts an image as one undoable edit; pending reads cannot submit half an attachment', async () => {
   let resolve!: (result: { kind: 'image'; path: string }) => void
-  const tty = await paintApp({ pasteImage: () => new Promise((done) => { resolve = done }) })
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: () => new Promise((done) => { resolve = done }) })
   try {
     await tty.send('draft')
     await tty.send('\u0016')
@@ -68,7 +68,7 @@ it('inserts an image as one undoable edit; pending reads cannot submit half an a
   } finally { tty.unmount() }
 })
 it('accepts a terminal-forwarded Meta-V image shortcut', async () => {
-  const tty = await paintApp({ pasteImage: async () => ({ kind: 'image', path: '/tmp/meta-v.png' }) })
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: async () => ({ kind: 'image', path: '/tmp/meta-v.png' }) })
   try {
     await tty.send('\u001bv')
     expect(tty.screen()).toContain('Image 1')
@@ -76,7 +76,7 @@ it('accepts a terminal-forwarded Meta-V image shortcut', async () => {
   } finally { tty.unmount() }
 })
 it('keeps text intact when no image is available', async () => {
-  const tty = await paintApp({ pasteImage: async () => ({ kind: 'empty' }) })
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: async () => ({ kind: 'empty' }) })
   try { await tty.send('keep draft'); await tty.send('\u0016'); expect(tty.screen()).toContain('keep draft'); expect(tty.screen()).toContain('No PNG image') }
   finally { tty.unmount() }
 })

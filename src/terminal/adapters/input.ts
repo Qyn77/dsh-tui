@@ -29,7 +29,8 @@ function keyEvent(sequence: string): TerminalEvent {
   if (sequence === `${ESC}[12~` || sequence === `${ESC}OQ`) return { kind: 'interaction-toggle' }
   const control = sequence.charCodeAt(0)
   if (sequence === ESC) return { kind: 'key', input: '', key: keyFlags({ escape: true, meta: true }) }
-  if (sequence === '\r' || sequence === '\n') return { kind: 'key', input: '', key: keyFlags({ return: true }) }
+  if (sequence === '\n') return { kind: 'key', input: '\n', key: keyFlags() }
+  if (sequence === '\r') return { kind: 'key', input: '', key: keyFlags({ return: true }) }
   if (sequence === '\t') return { kind: 'key', input: '', key: keyFlags({ tab: true }) }
   if (sequence === '\u007f' || sequence === '\b') return { kind: 'key', input: '', key: keyFlags({ backspace: true }) }
   if (sequence.length === 1 && control > 0 && control < 27) {
@@ -58,13 +59,14 @@ export class TerminalInputDecoder {
   private pending = ''
   private pasting = false
   private pasteHasText = false
+  private previousCR = false
   private discard: 'osc' | 'csi' | undefined
 
-  get awaitingEscape(): boolean { return this.pending === ESC && !this.pasting }
+  get awaitingEscape(): boolean { return this.pending === ESC && !this.pasting && !this.discard }
 
   reset(): void {
     this.utf8 = new StringDecoder('utf8')
-    this.pending = ''; this.pasting = false; this.pasteHasText = false; this.discard = undefined
+    this.pending = ''; this.pasting = false; this.pasteHasText = false; this.previousCR = false; this.discard = undefined
   }
 
   flushEscape(): TerminalEvent[] {
@@ -76,6 +78,14 @@ export class TerminalInputDecoder {
   feed(chunk: Buffer | string): TerminalEvent[] {
     this.pending += typeof chunk === 'string' ? chunk : this.utf8.write(chunk)
     const events: TerminalEvent[] = []
+    const pasteText = (raw: string) => {
+      if (!raw) return
+      this.pasteHasText = true
+      const text = (this.previousCR && raw.startsWith('\n') ? raw.slice(1) : raw)
+        .replaceAll('\r\n', '\n').replaceAll('\r', '\n')
+      this.previousCR = raw.endsWith('\r')
+      if (text) events.push({ kind: 'paste-text', text })
+    }
     while (this.pending) {
       if (this.discard) {
         const match = this.discard === 'osc' ? /\u0007|\u001b\\/.exec(this.pending) : /[\x40-\x7e]/.exec(this.pending)
@@ -87,18 +97,18 @@ export class TerminalInputDecoder {
         const end = this.pending.indexOf(END)
         if (end >= 0) {
           const text = this.pending.slice(0, end)
-          if (text) { events.push({ kind: 'paste-text', text }); this.pasteHasText = true }
+          pasteText(text)
           events.push({ kind: 'paste-end', empty: !this.pasteHasText })
           this.pasting = false; this.pending = this.pending.slice(end + END.length); continue
         }
         let suffix = Math.min(this.pending.length, END.length - 1)
         while (suffix > 0 && !END.startsWith(this.pending.slice(-suffix))) suffix--
         const text = this.pending.slice(0, this.pending.length - suffix)
-        if (text) { events.push({ kind: 'paste-text', text }); this.pasteHasText = true }
+        pasteText(text)
         this.pending = suffix ? this.pending.slice(-suffix) : ''; break
       }
       if (this.pending.startsWith(START)) {
-        this.pending = this.pending.slice(START.length); this.pasting = true; this.pasteHasText = false
+        this.pending = this.pending.slice(START.length); this.pasting = true; this.pasteHasText = false; this.previousCR = false
         events.push({ kind: 'paste-start' }); continue
       }
       if (this.pending[0] !== ESC) {

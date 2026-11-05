@@ -57,11 +57,10 @@ import { formatBytes } from '../render/message-layout.ts'
  */
 
 import React, { useEffect, useRef, useState, type FC } from 'react'
-import { Box, Text, measureElement, useInput, useStdout, type DOMElement } from 'ink'
+import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { filterCommands, type CommandMeta } from '../commands/commands.ts'
-import { isMouseReport, isOscTail } from '../render/scroll.ts'
-import { isClipboardImageShortcut, readPaste } from '../prompt/paste.ts'
+import { useTerminal, useTerminalEvent, useTerminalInput } from '../terminal/TerminalProvider.tsx'
 import {
   deleteToEnd,
   deleteToStart,
@@ -316,7 +315,7 @@ export const Prompt: FC<PromptProps> = ({
   // Whether a bracketed paste is open across chunks. A ref, not state: it has
   // to be readable and writable inside a single `useInput` call, and a paste
   // spanning three chunks must not cost three renders to track.
-  const pasting = useRef(false)
+  const terminal = useTerminal()
   useEffect(() => {
     if (restoreDraft && value === '' && images.length === 0) {
       editor.apply({ type: 'reset', snapshot: { text: restoreDraft.text, cursor: restoreDraft.text.length } })
@@ -770,7 +769,6 @@ export const Prompt: FC<PromptProps> = ({
   // Keep it stable instead of blinking: the prompt is already visually
   // distinct while active, and a 500ms re-render loop is unnecessary churn
   // on a terminal UI that has to stay smooth while scrolling the log.
-  const pasteHasText = useRef(false)
   const requestClipboardImage = (quiet: boolean): void => {
     if (!pasteImage || navigationDraft) { if (!quiet) onInputNotice?.(strings.clipboardImage.unavailable); return }
     if (inputPending.current) return
@@ -788,35 +786,19 @@ export const Prompt: FC<PromptProps> = ({
       .finally(() => { inputPending.current = false })
   }
 
-  useInput(
+  useTerminalEvent(event => {
+    if (inputPending.current) return
+    if (event.kind === 'paste-start') editor.apply({ type: 'begin' })
+    if (event.kind === 'paste-text') editor.insert(event.text)
+    if (event.kind === 'paste-end') {
+      editor.apply({ type: 'end' })
+      if (event.empty && terminal.importOnEmptyPaste) requestClipboardImage(true)
+    }
+  }, active)
+
+  useTerminalInput(
     (input, key) => {
-      // Spontaneous terminal reports (OSC sequences whose leading ESC Ink's
-      // key parser peeled off as a lone Escape key) must never be typed into
-      // the buffer. The VS Code integrated terminal is known to send these
-      // unsolicited, and the background-colour probe during boot can also
-      // leave a tail if the terminal answers more than once.
-      if (isOscTail(input) || inputPending.current) return
-      // Paste decoding comes first, ahead of every key branch. Inside a
-      // bracketed paste Ink has already labelled some bytes `return`, `tab`
-      // or `backspace` — a pasted newline is the same byte as Enter — so any
-      // dispatch that ran before this point would act on a keystroke the user
-      // never made. See `src/prompt/paste.ts`.
-      const wasPasting = pasting.current
-      const paste = readPaste(input, wasPasting)
-      if (paste.bracketed) {
-        if (!wasPasting) { editor.apply({ type: 'begin' }); pasteHasText.current = false }
-        pasting.current = paste.open
-        if (paste.text !== '') {
-          pasteHasText.current = true
-          editor.insert(paste.text)
-        }
-        if (!paste.open) {
-          editor.apply({ type: 'end' })
-          // A completed empty terminal paste is the observable Cmd-V image signal.
-          if (!pasteHasText.current) requestClipboardImage(true)
-        }
-        return
-      }
+      if (inputPending.current) return
       if (key.ctrl && input === 't') {
         if (!editExternally || busy || navigationDraft) { onInputNotice?.(strings.externalEditor.busy); return }
         if (draftChannel && !draftChannel.save(editor.state.present)) onDraftFailure?.()
@@ -834,7 +816,7 @@ export const Prompt: FC<PromptProps> = ({
       // prefix in the raw chunk; the pure decoder accepts all three forms.
       // Terminal.app keeps plain Command-V for its own paste menu, so a press
       // that emits no bytes remains outside the process's observable input.
-      if (isClipboardImageShortcut(input, key)) { requestClipboardImage(false); return }
+      if (terminal.isImageShortcut(input, key)) { requestClipboardImage(false); return }
       if (key.ctrl && input === 'x' && images.length > 0) {
         editor.apply({ type: 'edit', snapshot: { ...editor.state.present, images: images.slice(0, -1) } })
         return
@@ -898,11 +880,6 @@ export const Prompt: FC<PromptProps> = ({
         else if (input === 'n') recallHistory(1)
         return
       }
-      // Mouse reports reach every `useInput` handler as ordinary input
-      // with the leading ESC stripped, so without this a spin of the
-      // wheel types `[<64;12;30M` into the prompt. The scroll hook is
-      // what acts on them; here they are simply not text.
-      if (isMouseReport(input)) return
       // Esc — when the palette is open, dismiss it by clearing the
       // buffer. When the palette is closed, leave the buffer alone
       // (Esc has no other meaning in the prompt).
@@ -1088,14 +1065,14 @@ export const Prompt: FC<PromptProps> = ({
       // normal mode the vi answer is to move left — deleting instead would be
       // the one destructive key nobody pressed on purpose.
       if (normalMode) {
-        if (paste.text === 'u') {
+        if (input === 'u') {
           editor.apply({ type: 'undo' })
           desired.current = null
           setHistoryIndex(null)
           setVim(current => ({ ...current, pending: '' }))
           return
         }
-        const vimInput = key.backspace || key.delete ? 'h' : paste.text
+        const vimInput = key.backspace || key.delete ? 'h' : input
         if (applyVimKey({ input: vimInput, escape: false, return: key.return })) return
       }
       if (key.return) {
@@ -1228,14 +1205,12 @@ export const Prompt: FC<PromptProps> = ({
         editor.backspace()
         return
       }
-      // `paste.text`, not `input`: a terminal that ignores `?2004` still
+      // `input`, not `input`: a terminal that ignores `?2004` still
       // delivers a multi-line paste as one unbracketed chunk full of `\r`,
       // and those have to become `\n` before they reach a buffer whose
       // wrapper only breaks on `\n`. A real Enter never arrives here — Ink
       // reports it as `key.return`, handled above.
-      if (paste.text) {
-        editor.insert(paste.text)
-      }
+      if (input) editor.insert(input)
     },
     { isActive: active },
   )

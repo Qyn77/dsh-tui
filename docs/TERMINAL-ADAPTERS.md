@@ -60,7 +60,7 @@ key decoder; baseline compatibility must not regress to obtain extra keys.
       generic fallback, fixture coverage for every named profile.
 - [x] M2: shared input stream decoder and mode lifecycle, bounded buffering,
       paste/OSC isolation, suspend/resume/dispose tests.
-- [ ] M3: wire Ink/App/Prompt/MessageList through the boundary; route clipboard,
+- [x] M3: wire Ink/App/Prompt/MessageList through the boundary; route clipboard,
       notifications and appearance through it; preserve task and scroll logic.
 - [ ] M4: expose diagnostics and override, document host limitations and manual
       acceptance matrix; run full automated tests, typecheck, lint, build, pack.

@@ -1,3 +1,4 @@
+import { createTerminalService } from './adapters/service.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Catalog } from '../core/i18n.ts'
@@ -10,10 +11,7 @@ export function isNotificationMode(value: unknown): value is NotificationMode {
 /** Generic chrome only. Never include prompt, result, path or credential text. */
 export function notificationSequence(mode: NotificationMode, title: string,
   env: { TERM_PROGRAM?: string | undefined } = process.env): string {
-  if (mode === 'off') return ''
-  if (mode !== 'desktop' || !['iTerm.app', 'WezTerm', 'WarpTerminal'].includes(env.TERM_PROGRAM ?? '')) return '\u0007'
-  const safe = title.replace(/[\r\n\t]+/g, ' ').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').slice(0, 160)
-  return `\u001b]9;${safe}\u0007`
+  return createTerminalService({ env }).notification(mode, title)
 }
 
 /** Subscribe to committed live events only: hydration must never replay alerts. */

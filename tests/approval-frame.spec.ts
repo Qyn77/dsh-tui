@@ -1,3 +1,4 @@
+import { TerminalProvider } from '../src/terminal/TerminalProvider.tsx'
 /**
  * The permission card, at the frame level. Two things here are not visible from
  * the hook's tests: that the question actually reaches the screen with the tool
@@ -34,12 +35,12 @@ async function paint(
   const stdin = fakeTtyStdin()
   const answers: [number, ApprovalOutcome][] = []
   const instance = render(
-    React.createElement(ApprovalPrompt, {
+    React.createElement(TerminalProvider, { children: React.createElement(ApprovalPrompt, {
       pending,
       onAnswer: (id, outcome) => { answers.push([id, outcome]) },
       ...argsFor === undefined ? {} : { argsFor },
       ...diffsFor === undefined ? {} : { diffsFor },
-    }),
+    }) }),
     { stdout: stdout as never, stdin, patchConsole: false, debug: true },
   )
   await act(async () => { await Promise.resolve() })
@@ -54,6 +55,7 @@ async function paint(
     press: async (keys) => {
       await act(async () => {
         stdin.send(keys)
+        if (keys === ESC) await new Promise(resolve => setTimeout(resolve, 35))
         await Promise.resolve()
       })
     },

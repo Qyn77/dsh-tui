@@ -24,7 +24,7 @@ describe('incremental terminal input', () => {
       const events = [...decoder.feed(bytes.subarray(0, cut)), ...decoder.feed(bytes.subarray(cut))]
       expect(events[0]).toEqual({ kind: 'paste-start' })
       expect(events.at(-1)).toEqual({ kind: 'paste-end', empty: false })
-      expect(events.filter(e => e.kind === 'paste-text').map(e => e.text).join('')).toBe(text)
+      expect(events.filter(e => e.kind === 'paste-text').map(e => e.text).join('')).toBe(text.replaceAll('\r\n', '\n'))
       expect(events.every(e => e.kind.startsWith('paste-'))).toBe(true)
     }
   })

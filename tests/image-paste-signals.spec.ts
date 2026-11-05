@@ -3,7 +3,7 @@ import { paintApp } from './fake-tty.ts'
 
 it('imports an image on a completed empty terminal paste, without leaking its storage path', async () => {
   const read = vi.fn(async () => ({ kind: 'image' as const, path: '/tmp/hidden-cache.png' }))
-  const tty = await paintApp({ pasteImage: read })
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: read })
   try {
     await tty.send('my draft ')
     await tty.send('\u001b[200~\u001b[201~')
@@ -17,7 +17,7 @@ it('imports an image on a completed empty terminal paste, without leaking its st
 })
 it('waits for the final empty paste marker and handles split marker-only input', async () => {
   const read = vi.fn(async () => ({ kind: 'image' as const, path: '/tmp/split.png' }))
-  const tty = await paintApp({ pasteImage: read })
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: read })
   try {
     await tty.send('\u001b[200~'); expect(read).not.toHaveBeenCalled()
     await tty.send('\u001b[201~'); expect(read).toHaveBeenCalledOnce()
@@ -26,7 +26,7 @@ it('waits for the final empty paste marker and handles split marker-only input',
 })
 it('keeps ordinary text paste intact and never reads the clipboard after nonempty fragmented paste', async () => {
   const read = vi.fn(async () => ({ kind: 'image' as const, path: '/tmp/unexpected.png' }))
-  const tty = await paintApp({ pasteImage: read })
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: read })
   try {
     await tty.send('\u001b[200~'); await tty.send('text\nsecond line'); await tty.send('\u001b[201~')
     expect(read).not.toHaveBeenCalled()
@@ -34,7 +34,7 @@ it('keeps ordinary text paste intact and never reads the clipboard after nonempt
   } finally { tty.unmount() }
 })
 it('does not create error noise for an empty clipboard paste; explicit Ctrl-V still explains it', async () => {
-  const tty = await paintApp({ pasteImage: async () => ({ kind: 'empty' }) })
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: async () => ({ kind: 'empty' }) })
   try {
     await tty.send('\u001b[200~\u001b[201~'); expect(tty.screen()).not.toContain('No PNG image')
     await tty.send('\u0016'); expect(tty.screen()).toContain('No PNG image')
@@ -43,7 +43,7 @@ it('does not create error noise for an empty clipboard paste; explicit Ctrl-V st
 
 it('accepts a terminal-forwarded Meta-V image shortcut without exposing its cache path', async () => {
   const read = vi.fn(async () => ({ kind: 'image' as const, path: '/tmp/meta-cache.png' }))
-  const tty = await paintApp({ pasteImage: read })
+  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: read })
   try {
     // Ink represents a forwarded Command/Meta-V as ESC followed by `v`.
     await tty.send('\u001bv')

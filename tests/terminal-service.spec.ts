@@ -1,0 +1,99 @@
+import { EventEmitter } from 'node:events'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createTerminalService } from '../src/terminal/adapters/service.ts'
+import { TERMINAL_IDS } from '../src/terminal/adapters/profiles.ts'
+import type { TerminalEvent } from '../src/terminal/adapters/input.ts'
+
+afterEach(() => vi.useRealTimers())
+describe('terminal service contract', () => {
+  it('has one input subscription, restores it and drops partial input across handoff', () => {
+    const events = new EventEmitter()
+    const terminal = createTerminalService({ env: {} })
+    const received: TerminalEvent[] = []
+    terminal.subscribe(event => received.push(event))
+    const detach = terminal.attach(events)
+    expect(events.listenerCount('input')).toBe(1)
+    expect(() => terminal.attach(events)).toThrow('already attached')
+    events.emit('input', '\u001b[200~')
+    terminal.suspend()
+    events.emit('input', 'editor input')
+    terminal.resume()
+    events.emit('input', 'hello')
+    expect(received).toMatchObject([{ kind: 'paste-start' }, { kind: 'key', input: 'hello' }])
+    detach(); detach()
+    expect(events.listenerCount('input')).toBe(0)
+    terminal.attach(events)
+    terminal.dispose(); terminal.dispose()
+    expect(events.listenerCount('input')).toBe(0)
+  })
+  it('dispatches one event against one subscription snapshot', () => {
+    const events = new EventEmitter()
+    const terminal = createTerminalService({ env: {} })
+    const calls: string[] = []
+    let remove = () => {}
+    terminal.subscribe(() => { calls.push('first'); remove(); terminal.subscribe(() => calls.push('new')) })
+    remove = terminal.subscribe(() => calls.push('old'))
+    terminal.attach(events)
+    events.emit('input', 'x')
+    expect(calls).toEqual(['first', 'old'])
+    terminal.dispose()
+  })
+  it('waits briefly for Escape sequences and cancels timers on detach', () => {
+    vi.useFakeTimers()
+    const events = new EventEmitter()
+    const terminal = createTerminalService({ env: {} })
+    const received: TerminalEvent[] = []
+    terminal.subscribe(event => received.push(event))
+    const detach = terminal.attach(events)
+    events.emit('input', '\u001b')
+    vi.advanceTimersByTime(10)
+    events.emit('input', '[A')
+    vi.advanceTimersByTime(30)
+    expect(received).toMatchObject([{ kind: 'key', key: { upArrow: true } }])
+    events.emit('input', '\u001b'); vi.advanceTimersByTime(30)
+    expect(received.at(-1)).toMatchObject({ kind: 'key', key: { escape: true } })
+    events.emit('input', '\u001b'); detach(); vi.advanceTimersByTime(30)
+    expect(received).toHaveLength(2)
+  })
+  it.each(TERMINAL_IDS)('isolates pasted controls and records observations on %s', id => {
+    const terminal = createTerminalService({ env: { DSH_TUI_TERMINAL: id } })
+    const events = new EventEmitter()
+    const received: TerminalEvent[] = []
+    terminal.subscribe(event => received.push(event))
+    terminal.attach(events)
+    for (const chunk of ['\u001b[20', '0~text\r', '\n\u001b[<0;1;1M\u0003', '\u001b[201~']) events.emit('input', chunk)
+    expect(received.every(event => event.kind.startsWith('paste-'))).toBe(true)
+    expect(received.filter(e => e.kind === 'paste-text').map(e => e.text).join('')).toBe('text\n\u001b[<0;1;1M\u0003')
+    expect(terminal.diagnostics().observed).toEqual({ paste: true, pointer: false, report: false })
+    events.emit('input', '\u001b[<0;1;1M')
+    expect(terminal.diagnostics().observed.pointer).toBe(true)
+    terminal.dispose()
+  })
+  it('only reads a host clipboard when explicitly available', async () => {
+    const readImage = vi.fn(async () => ({ kind: 'empty' as const }))
+    const remote = createTerminalService({ platform: 'darwin', env: { SSH_TTY: '/dev/pts/1' }, readImage })
+    expect(await remote.readClipboardImage()).toEqual({ kind: 'unavailable' })
+    expect(readImage).not.toHaveBeenCalled()
+    const allowed = createTerminalService({ platform: 'darwin', env: { SSH_TTY: '/dev/pts/1', DSH_TUI_REMOTE_CLIPBOARD: 'host' }, readImage })
+    expect(await allowed.readClipboardImage()).toEqual({ kind: 'empty' })
+    expect(readImage).toHaveBeenCalledOnce()
+    const wsl = createTerminalService({ platform: 'linux', env: { WSL_DISTRO_NAME: 'test', DSH_TUI_WSL_CLIPBOARD: 'windows' }, readImage })
+    await wsl.readClipboardImage()
+    expect(readImage).toHaveBeenCalledTimes(2)
+  })
+  it('degrades mux notifications and copy without printing unsupported screen escapes', () => {
+    const screen = createTerminalService({ env: { TERM_PROGRAM: 'iTerm.app', STY: 'session' } })
+    expect(screen.notification('desktop', 'done')).toBe('\u0007')
+    expect(screen.encodeClipboardText('hello')).toBe('')
+    const tmux = createTerminalService({ env: { TMUX: '/tmp/test' } })
+    expect(tmux.encodeClipboardText('hello')).toContain('\u001bPtmux;')
+  })
+  it('does not expose arbitrary environment data in diagnostics', () => {
+    const terminal = createTerminalService({ env: { DSH_TUI_TERMINAL: 'secret-invalid-id', API_KEY: 'secret-value' } })
+    const diagnostic = terminal.diagnostics()
+    expect(diagnostic.invalidOverride).toBe(true)
+    expect(JSON.stringify(diagnostic)).not.toContain('secret')
+    expect(diagnostic.pointerSupport).toBe('unknown')
+    expect(diagnostic.requestedMode).toBe('inactive')
+  })
+})
