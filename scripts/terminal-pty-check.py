@@ -77,6 +77,20 @@ def run(profile, entry):
             send(b'\r')  # editable title
             assert b'/sessions rename' in output[menu_start:]
             send(b'\x03')  # discard title, no session write
+            browser_start = len(output)
+            send(b'\x1bOR')  # F3: search
+            send(b'answer 01')
+            assert b'Search conversation' in output[browser_start:]
+            assert b'2. assistant' in output[browser_start:]
+            send(b'\r')
+            send(b'\x1bOS')  # F4: message-first actions
+            send(b'\r')
+            assert b'Message actions' in output[browser_start:]
+            send(b'\x1b', 0.15)
+            send(b'\x1b', 0.15)
+            send(b'\x1b[15~')  # F5: attachment manager
+            assert b'No draft attachments' in output[browser_start:]
+            send(b'\x1b', 0.15)
             send(b'/terminal')
             send(b'\r', 0.25)
             assert b'Terminal adapter diagnostics' in output
@@ -98,7 +112,7 @@ def run(profile, entry):
             assert result['diagnostics']['requestedMode'] == 'inactive', result
             assert not result['raw'], result
             assert '\x1b[?2004l' in text and '\x1b[?1049l' in text, result
-            print(f'PASS {profile}: paste, coalesced controls, Ctrl-C draft clear, image trigger, F2, pointer, resize, nested menus, /terminal, /exit; raw mode restored')
+            print(f'PASS {profile}: paste, coalesced controls, Ctrl-C draft clear, image trigger, F2, pointer, resize, nested menus, F3 search, F4 actions, F5 attachments, /terminal, /exit; raw mode restored')
         finally:
             if process.poll() is None:
                 process.kill()
@@ -107,5 +121,5 @@ def run(profile, entry):
 
 
 if __name__ == '__main__':
-    for terminal in ('apple', 'vscode', 'generic'):
+    for terminal in (sys.argv[2:] or ['apple', 'vscode', 'generic', 'iterm2', 'windows-terminal', 'vte', 'konsole', 'kitty', 'ghostty', 'wezterm', 'alacritty', 'warp']):
         run(terminal, os.path.abspath(sys.argv[1]))

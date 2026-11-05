@@ -847,7 +847,7 @@ describe('the palette on a terminal too short to hold it', () => {
     // laid out, and the frame came back with `/quit` and `/plugins` printed
     // on the same line.
     expect(screen).toContain('/clear')
-    expect(screen).toContain('/diff')
+    expect(screen).toContain('/copy')
     expect(screen).not.toContain('/plugins')
     expect(screen).not.toContain('/verbose')
     expect(screen).toContain(`+${commands().length - 8} more`)
@@ -919,7 +919,7 @@ describe('the palette on a terminal too narrow for its longest description', () 
 
     expect(bulletColumns(screen).size).toBe(1)
     // The description is what gives way, and it says so with an ellipsis.
-    expect(screen).toContain('/copy')
+    expect(screen).toContain('/context')
     expect(screen).toMatch(/An intentionally long plugin description.*…/)
   })
 
