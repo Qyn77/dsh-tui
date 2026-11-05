@@ -2076,3 +2076,13 @@ Coalesced control-key bursts are decoded as individual semantic keys, preserving
 their order; non-whitespace C0/DEL bytes must not become draft text. Bracketed
 paste still treats all contents as text, and multiline unbracketed paste keeps
 its existing newline normalization fallback.
+
+### Running build provenance
+
+`/terminal` includes `build`: package version, build-time Git commit and dirty
+flag, requested launcher profile, real loaded module path and SHA-256. The path
+and fingerprint come from the loaded bundle, never the user's working directory.
+`requestedProfile` is the explicit launcher argument (null when unspecified),
+not a claim that a default profile was discovered. Installed node_modules and
+source/local builds are distinguished. Missing build metadata is null; packaged
+builds without Git remain usable. No environment dump or credential is included.

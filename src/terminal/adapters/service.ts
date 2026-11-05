@@ -1,3 +1,4 @@
+import { readBuildIdentity } from '../build-identity.ts'
 import type { EventEmitter } from 'node:events'
 import type { Key } from 'ink'
 import { imageHelper, pasteClipboardImage, type ImageHelper, type ClipboardImageResult } from '../../attachments/clipboard-image.ts'
@@ -95,7 +96,7 @@ export function createTerminalService(options: TerminalOptions = {}) {
       return `\u001b]9;${safe}\u0007`
     },
     diagnostics(this: void) {
-      return { adapter: environment.profile.id, evidence: environment.evidence,
+      return { build: readBuildIdentity(), adapter: environment.profile.id, evidence: environment.evidence,
         invalidOverride: environment.invalidOverride, platform: environment.platform,
         remote: environment.remote, wsl: environment.wsl, multiplexer: environment.multiplexer,
         clipboardHost: environment.clipboard, pointerSupport: environment.profile.pointer,
