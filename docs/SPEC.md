@@ -2013,3 +2013,14 @@ Coalesced control-key bursts are decoded as individual semantic keys, preserving
 their order; non-whitespace C0/DEL bytes must not become draft text. Bracketed
 paste still treats all contents as text, and multiline unbracketed paste keeps
 its existing newline normalization fallback.
+
+### Known-argument command menus
+
+The Prompt accepts declarative command trees (`pickers/command-menu.ts`). Enter
+on a settings command opens choices; branches navigate without dispatch, Enter
+on a leaf dispatches the existing command, and Tab fills it without executing.
+Esc clears a filter, returns to the parent, then dismisses. Empty pages cannot
+execute. Complete manually typed commands remain supported. Language, theme,
+keymap, mouse, notifications, approval, verbosity and history expose explicit
+values with the current setting marked. The shared SlashPalette retains its
+width/height budget and bilingual labels; see DESIGN.md for interaction states.

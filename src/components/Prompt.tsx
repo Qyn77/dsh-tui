@@ -1,3 +1,4 @@
+import { menuPage, menuChoices, menuRows, type MenuItem } from '../pickers/command-menu.ts'
 import { EMPTY_IMAGES, MAX_DRAFT_IMAGES, imageSubmission } from '../attachments/draft-images.ts'
 import { useDraftImagePreviews } from '../hooks/useDraftImagePreviews.ts'
 import { resolveCandidate } from '../attachments/attachments.ts'
@@ -179,6 +180,7 @@ export interface PromptProps {
    * (see `useRegistryCommands`) and hands the rows down. Optional: a prompt
    * rendered without it advertises the built-in table only.
    */
+  commandMenus?: readonly MenuItem[]
   sessionCommands?: readonly CommandMeta[]
   onValueChange?: (value: string) => void
   extraCommands?: readonly CommandMeta[]
@@ -277,6 +279,7 @@ export const Prompt: FC<PromptProps> = ({
   onOverlayRowsChange,
   restoreDraft,
   sessionCommands,
+  commandMenus = [],
   onValueChange,
   extraCommands,
   skillCommands,
@@ -353,7 +356,20 @@ export const Prompt: FC<PromptProps> = ({
   // selection index is clamped on every keystroke so an out-of-range
   // cursor from rapid input never escapes.
   useEffect(() => { onValueChange?.(value) }, [value, onValueChange])
-  const sessionQuery = sessionPickerQuery(value)
+  const [menuPath, setMenuPath] = useState<readonly string[]>()
+  const [menuDismissed, setMenuDismissed] = useState<string>()
+  const automaticMenu = commandMenus.find(root => value === `${root.id} ` && menuDismissed !== value)
+  const activeMenuPath = menuPath && value.startsWith(`${menuPath[0]} `)
+    ? menuPath : automaticMenu ? [automaticMenu.id] : undefined
+  const page = activeMenuPath ? menuPage(commandMenus, activeMenuPath) : undefined
+  const menuQuery = activeMenuPath ? value.slice(activeMenuPath[0].length + 1) : ''
+  const choices = activeMenuPath ? menuChoices(page, menuQuery) : []
+  useEffect(() => {
+    if (automaticMenu && !menuPath) setMenuPath([automaticMenu.id])
+    if (menuPath && !value.startsWith(`${menuPath[0]} `)) setMenuPath(undefined)
+    if (menuDismissed !== undefined && value !== menuDismissed) setMenuDismissed(undefined)
+  }, [value, menuPath, menuDismissed, automaticMenu?.id])
+  const sessionQuery = activeMenuPath ? undefined : sessionPickerQuery(value)
   const pathPreviews = useImagePreviews(value, cwd)
   const imagePreviews = useDraftImagePreviews(images)
   useEffect(() => {
@@ -376,7 +392,7 @@ export const Prompt: FC<PromptProps> = ({
   }, [pathPreviews])
   const shownImages = Math.min(imagePreviews.length, Math.max(1, Math.min(3, (stdout?.rows ?? 24) - 20)))
   const imageTrayRows = shownImages > 0 ? shownImages + 1 : 0
-  const palette = sessionQuery !== undefined
+  const palette = activeMenuPath ? menuRows(choices, strings.menu) : sessionQuery !== undefined
     ? (sessionCommands ?? []).filter(row => `${row.name} ${row.description}`.toLocaleLowerCase().includes(sessionQuery))
     : isPaletteMode(value) ? filterCommands(value, extraCommands, lang) : []
   const safePaletteIndex = clampPaletteIndex(paletteIndex, palette)
@@ -660,6 +676,33 @@ export const Prompt: FC<PromptProps> = ({
     setVim(v => (v.mode === 'normal' ? { ...v, mode: 'insert', pending: '' } : v))
   }
 
+  const openMenu = (root: string): void => {
+    setMenuPath([root])
+    setMenuDismissed(undefined)
+    setValue(`${root} `)
+    setCursorIndex(root.length + 1)
+    setPaletteIndex(0)
+  }
+  const chooseMenu = (fillOnly: boolean): void => {
+    const chosen = choices[safePaletteIndex]
+    if (!chosen || !activeMenuPath) return
+    if (chosen.children) {
+      setMenuPath([...activeMenuPath, chosen.id])
+      setValue(`${activeMenuPath[0]} `)
+      setCursorIndex(activeMenuPath[0].length + 1)
+      setPaletteIndex(0)
+    } else if (chosen.action) {
+      if (fillOnly || chosen.action.kind === 'input') {
+        const text = chosen.action.value
+        setMenuDismissed(text)
+        setMenuPath(undefined)
+        setValue(text)
+        setCursorIndex(text.length)
+        setPaletteIndex(0)
+      } else submit(chosen.action.value)
+    }
+  }
+
   /**
    * Put a line on its way and reset everything a submission owns: buffer,
    * caret, scroll, both pickers' dismiss markers, history walk and vim mode.
@@ -676,6 +719,7 @@ export const Prompt: FC<PromptProps> = ({
       onSubmit(submitted)
       return
     }
+    setMenuPath(undefined)
     const command = /^(?:!|\/[a-z][a-z-]*(?:\s|$))/i.test(submitted.trim())
     const next = { text: '', cursor: 0, ...(command && images.length ? { images } : {}) }
     const payload = command ? submitted : imageSubmission(submitted, images)
@@ -903,6 +947,21 @@ export const Prompt: FC<PromptProps> = ({
       // buffer. When the palette is closed, leave the buffer alone
       // (Esc has no other meaning in the prompt).
       if (key.escape) {
+        if (activeMenuPath) {
+          const root = activeMenuPath[0]
+          if (menuQuery) {
+            setMenuPath(activeMenuPath)
+            setValue(`${root} `)
+            setCursorIndex(root.length + 1)
+          } else if (activeMenuPath.length > 1) {
+            setMenuPath(activeMenuPath.slice(0, -1))
+          } else {
+            setMenuDismissed(`${root} `)
+            setMenuPath(undefined)
+          }
+          setPaletteIndex(0)
+          return
+        }
         if (navigationDraft) {
           if (navigationHistory.current) editor.restore(navigationHistory.current)
           setNavigationDraft(undefined)
@@ -957,6 +1016,10 @@ export const Prompt: FC<PromptProps> = ({
       // Tab — complete the highlighted command. The cursor lands
       // after a trailing space so the user can keep typing arguments
       // without an extra keystroke.
+      if (activeMenuPath && (key.tab || key.return)) {
+        chooseMenu(key.tab)
+        return
+      }
       if (key.tab && palette.length > 0) {
         const chosen = palette[safePaletteIndex]
         if (chosen) {
@@ -1137,6 +1200,8 @@ export const Prompt: FC<PromptProps> = ({
             setPaletteIndex(0)
             return
           }
+          const root = commandMenus.find(root => root.id === palette[safePaletteIndex]?.name)
+          if (root) { openMenu(root.id); return }
           const exact = palette.find(c => c.name === normalized)
           if (exact) {
             submit(exact.name)
@@ -1263,7 +1328,8 @@ export const Prompt: FC<PromptProps> = ({
     <Box flexDirection="column">
       {palette.length > 0 ? (
         <Box marginBottom={1} width="100%">
-          <SlashPalette commands={palette} selected={safePaletteIndex} maxRows={paletteRows} />
+          <SlashPalette commands={palette} selected={activeMenuPath && choices.length === 0 ? -1 : safePaletteIndex} maxRows={paletteRows}
+            hint={activeMenuPath ? `${activeMenuPath.map((_, i) => menuPage(commandMenus, activeMenuPath.slice(0, i + 1))?.label ?? '').join(' › ')} · ${strings.menu.hint}` : undefined} />
         </Box>
       ) : null}
       {pickingSkill ? (

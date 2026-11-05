@@ -1,3 +1,4 @@
+import { settingMenus } from './pickers/command-menu.ts'
 import type { ContextRequestReader } from './commands/context-view.ts'
 import type { EditExternally } from './terminal/external-editor.ts'
 import type { PasteImage } from './attachments/clipboard-image.ts'
@@ -1067,6 +1068,9 @@ const AppBody: FC<AppProps> = ({
           keybinds={keybindPref}
           onOverlayRowsChange={setPromptOverlayRows}
           extraCommands={registryRows}
+          commandMenus={settingMenus(strings.menu, { language: lang, theme: themePref, keybinds: keybindPref,
+            mouse: mousePref, notify: notificationMode, verbose: scroll.expanded ? 'on' : 'off', history: historyPref,
+            approval: service(ctx, 'approval')?.overrideOf(agent.session) })}
           sessionCommands={sessionCommands}
           onValueChange={onPromptValue}
           restoreDraft={draftRequest?.sessionId === agent.id ? draftRequest : undefined}
