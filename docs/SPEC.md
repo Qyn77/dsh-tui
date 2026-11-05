@@ -2082,6 +2082,8 @@ its existing newline normalization fallback.
 `/terminal` includes `build`: package version, build-time Git commit and dirty
 flag, requested launcher profile, real loaded module path and SHA-256. The path
 and fingerprint come from the loaded bundle, never the user's working directory.
+Installed-package detection recognizes complete `node_modules` path segments with
+both Windows and POSIX separators.
 `requestedProfile` is the explicit launcher argument (null when unspecified),
 not a claim that a default profile was discovered. Installed node_modules and
 source/local builds are distinguished. Missing build metadata is null; packaged

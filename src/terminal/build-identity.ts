@@ -16,6 +16,12 @@ export function requestedProfile(argv: readonly string[]): string | undefined {
   return undefined
 }
 
+/** Classify native Windows and POSIX module paths by complete path segments. */
+export function installationSource(modulePath: string | undefined) {
+  if (!modulePath) return 'unknown'
+  return /(?:^|[\\/])node_modules[\\/]/.test(modulePath) ? 'installed' : 'source-or-local-build'
+}
+
 /** Identity of this loaded bundle; immutable and probed only on diagnostic demand. */
 export function readBuildIdentity(moduleUrl = import.meta.url, argv = process.argv) {
   let modulePath: string | undefined
@@ -31,6 +37,6 @@ export function readBuildIdentity(moduleUrl = import.meta.url, argv = process.ar
     requestedProfile: requestedProfile(argv) ?? null,
     modulePath: modulePath ?? null,
     sha256: sha256 ?? null,
-    installation: modulePath?.includes('/node_modules/') ? 'installed' : modulePath ? 'source-or-local-build' : 'unknown',
+    installation: installationSource(modulePath),
   }
 }
