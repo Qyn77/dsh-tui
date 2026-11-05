@@ -37,3 +37,12 @@ incoming stream replacements cannot silently change what the user selected.
 Navigation resolves the message identity against the current transcript, then
 falls back to inspecting the snapshot if it no longer exists. Selected searches
 also populate next/previous match navigation.
+
+## Final answer emphasis
+
+Only the last assistant answer of a completed task carries the localized
+“assistant · result” label. Its header uses bold terminal foreground; intermediate
+assistant headers remain magenta, step metadata is dim, and the role glyph stays
+magenta. Failure/cancellation summaries retain their warning colors. This costs
+no extra rows and does not alter any of the three welcome layouts. The marker is
+a view projection, never a recorded session event or a model success judgement.

@@ -324,9 +324,9 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
   const strings = useStrings()
   return (
     <Row glyph={ASSISTANT_GLYPH} color="magenta">
-      <Text>
-        <Text color="magenta" bold>{strings.entries.assistant}</Text>
-        <Text color="gray">{strings.entries.turnStep(entry.turn, entry.step)}</Text>
+      <Text wrap="truncate">
+        <Text color={entry.finalOutput ? undefined : 'magenta'} bold>{entry.finalOutput ? strings.entries.finalResult : strings.entries.assistant}</Text>
+        <Text color="gray" dimColor>{strings.entries.turnStep(entry.turn, entry.step)}</Text>
         {!entry.finalized && <Text color="yellow">{strings.entries.streaming}</Text>}
       </Text>
       {entry.reasoning && entry.reasoningVisible !== false && <>

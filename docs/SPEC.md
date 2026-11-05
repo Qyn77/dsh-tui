@@ -2138,3 +2138,12 @@ benchmarks, explicit budgets and reproducible command. The measured baseline
 passes without dropping durable history. Native GUI acceptance is separate;
 `scripts/terminal-acceptance.mjs` emits only allowlisted environment facts and an
 unfilled checklist, never fabricating observed native results.
+
+### Final result hierarchy
+
+The activity projection marks only the last assistant answer in a completed task
+with view-only `finalOutput`. MessageList renders a bold foreground “assistant ·
+result” header, keeping the role glyph and dimming provenance. Intermediate
+steps retain their role accent. Headers truncate to one row, preserving the
+existing scroll estimator contract. This field does not change reducer events,
+model input, recorded history, failure visibility or responsive welcome states.

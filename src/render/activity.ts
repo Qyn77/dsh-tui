@@ -28,7 +28,8 @@ function taskEntries(entries: UiEntry[], task: TaskRun, expanded: boolean): UiEn
     if (index === final) {
       const heading = disclosed ? [] : [summary]
       disclosed = true
-      return [...heading, entry.kind === 'assistant' && entry.reasoning ? { ...entry, reasoningVisible: expanded } : entry]
+      return [...heading, entry.kind === 'assistant' ? { ...entry, finalOutput: task.outcome === 'completed',
+        ...(entry.reasoning ? { reasoningVisible: expanded } : {}) } : entry]
     }
     if (!isDetail(entry, index)) return [entry]
     const heading = disclosed ? [] : [summary]

@@ -120,6 +120,8 @@ export type UiEntry =
   | { kind: 'user'; message: UserMessage }
   | {
     kind: 'assistant'
+    /** View-only marker for the last answer of a completed task. */
+    finalOutput?: boolean
     reasoning?: string
     reasoningVisible?: boolean
     turn: number

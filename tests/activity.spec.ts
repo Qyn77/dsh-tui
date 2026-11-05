@@ -99,3 +99,12 @@ it.each(['apple', 'vscode', 'windows-terminal', 'generic'] as const)('opens and 
     expect(tty.screen()).not.toContain('click detail')
   } finally { tty.unmount() }
 })
+
+it('emphasizes only the last response of a completed task without mutating stored entries', () => {
+  const expanded = activityView(state, new Set([1])).entries
+  expect(expanded.filter(entry => entry.kind === 'assistant' && entry.finalOutput)).toHaveLength(1)
+  expect(expanded.at(-1)).toMatchObject({ text: 'result', finalOutput: true })
+  expect(state.entries.at(-1)).not.toHaveProperty('finalOutput')
+  const failed = activityView({ ...state, tasks: [{ ...task, outcome: 'error' }] }, new Set())
+  expect(failed.entries.at(-1)).toMatchObject({ finalOutput: false })
+})

@@ -282,6 +282,7 @@ export interface Catalog {
     /** Label above an assistant message. */
     reasoning: string
     assistant: string
+    finalResult: string
     /** The turn/step provenance beside that label. */
     turnStep: (turn: number, step: number) => string
     /** Marker on an assistant message still being streamed. */
@@ -845,6 +846,7 @@ const EN: Catalog = {
   entries: {
     reasoning: 'Reasoning',
     assistant: 'assistant',
+    finalResult: 'assistant · result',
     turnStep: (turn, step) => ` · turn ${turn}.${step}`,
     streaming: ' · streaming',
     planMode: enabled => `plan mode ${enabled ? 'on' : 'off'}`,
@@ -1279,6 +1281,7 @@ const ZH: Catalog = {
   entries: {
     reasoning: '思考过程',
     assistant: '助手',
+    finalResult: '助手 · 最终结果',
     turnStep: (turn, step) => ` · 第 ${turn} 轮 ${step} 步`,
     streaming: ' · 输出中',
     planMode: enabled => `计划模式${enabled ? '已开启' : '已关闭'}`,
