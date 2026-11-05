@@ -124,8 +124,9 @@ dsh --profile tui-rc5
 - **[docs/USAGE.md](docs/USAGE.md)** —— 各功能详细说明，以及完整的命令与按键速查表。
 - **[docs/DEVELOP.md](docs/DEVELOP.md)** —— 改源码：link 模式 profile、编辑 / 重建 / 重启循环、项目结构、发版流程。
 - **[docs/SPEC.md](docs/SPEC.md)** —— 设计契约：视觉规则、路线图、贡献者约定。
+- **[docs/OCR-CI.md](https://github.com/Qyn77/dsh-tui/blob/ci/ocr-review/docs/OCR-CI.md)** —— 配置 GitHub Actions 的 PR 代码评审及所需凭据。
 
-Apple Terminal 在 `/mouse auto` 下使用鼠标上报传递滚轮。F2 或 `/mouse off` 恢复原生文字选择，`/mouse on` 恢复上报；如果终端配置禁用了鼠标上报，请启用 Terminal.app 的 Allow Mouse Reporting。其他终端在 auto 下沿用备用屏幕滚轮输入。任务结束后保留事件计算的耗时并收起中间过程，最终答复和失败信息保持可见。
+Apple Terminal 和 VS Code 在 `/mouse auto` 下使用鼠标上报传递滚轮与任务过程展开点击。F2 或 `/mouse off` 恢复原生文字选择，`/mouse on` 恢复上报；如果 Terminal.app 配置禁用了鼠标上报，请启用 Allow Mouse Reporting。其他终端在 auto 下沿用备用屏幕滚轮输入。auto 依赖 `TERM_PROGRAM`，外部终端可能继承该变量而被误认为 VS Code；可使用 `/mouse off` 或 `/mouse on` 覆盖。任务结束后保留事件计算的耗时并收起中间过程，最终答复和失败信息保持可见。
 
 后台诊断写入 `DSH_HOME` 下的 `tui.log`（默认 `~/.dsh/tui.log`）。开启鼠标上报后可点击任务摘要展开，F2 可恢复原生文字选择。
 

@@ -1,5 +1,15 @@
 import type { DOMElement } from 'ink'
 
+/**
+ * Bound the live Ink frame while leaving only one physical row for the
+ * terminal's incremental eraser. The old three-row reserve made the prompt
+ * visibly float above the bottom on short macOS windows.
+ */
+export function liveFrameHeight(rows: number, isTTY: boolean, hasEntries: boolean): number | undefined {
+  if (!isTTY && !hasEntries) return undefined
+  return Math.max(1, Math.floor(rows) - 1)
+}
+
 /** Terminal-cell bounds in Ink's alternate-screen coordinate system. */
 export function cellBounds(node: DOMElement): { x: number; y: number; width: number; height: number } {
   let x = 0

@@ -106,7 +106,7 @@ describe('a workflow run in the transcript', () => {
     const lines = painted.screen().split('\n')
     painted.unmount()
 
-    // The App's root box is `rows - 3` tall and Yoga overlaps rather than
+    // The App's root box is `rows - 1` tall and Yoga overlaps rather than
     // scrolls an overflowing subtree, so a member list that outgrew the
     // viewport would print two things on one line rather than clip.
     expect(lines.length).toBeLessThanOrEqual(rows)

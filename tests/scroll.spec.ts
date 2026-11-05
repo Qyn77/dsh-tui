@@ -11,11 +11,12 @@
  * class of dead binding out.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ToolCallId, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { EXPANDED_MAX_LINES, PREVIEW_MAX_LINES } from '../src/render/message-layout.ts'
 import {
   clampOffset,
+  createEntryRowEstimator,
   estimateEntryRows,
   halfPageDelta,
   isMouseReport,
@@ -517,5 +518,22 @@ describe('windowStart', () => {
     const collapsed = windowStart(entries, 80, 200, 20, false)
     const expanded = windowStart(entries, 80, 200, 20, true)
     expect(expanded).toBeGreaterThan(collapsed)
+  })
+})
+
+
+describe('entry row estimate cache', () => {
+  it('reuses unchanged entries and invalidates replacements and configuration changes', () => {
+    const old = assistantEntry('history')
+    const tail = assistantEntry('stream')
+    const updated = assistantEntry('stream more')
+    const measure = vi.fn(estimateEntryRows)
+    const estimate = createEntryRowEstimator(80, false, measure)
+    for (const entry of [old, tail, old, updated]) estimate(entry)
+    expect(measure).toHaveBeenCalledTimes(3)
+    expect(estimate(updated)).toBe(estimateEntryRows(updated, 80, false))
+    createEntryRowEstimator(40, false, measure)(old)
+    createEntryRowEstimator(80, true, measure)(old)
+    expect(measure).toHaveBeenCalledTimes(5)
   })
 })

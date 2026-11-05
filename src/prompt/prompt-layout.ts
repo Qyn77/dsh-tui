@@ -34,7 +34,7 @@ export const MAX_PALETTE_ROWS = 8
  * Rows the palette's list gets on a terminal of `terminalRows` rows.
  *
  * Load-bearing, not cosmetic. The App gives its root box a fixed
- * `rows - 3` height so Ink stays on log-update's incremental path; a subtree
+ * `rows - 1` height so Ink stays on log-update's incremental path; a subtree
  * that overflows that height does not scroll, it *overlaps* — Yoga lays the
  * extra rows on top of the ones already there and the frame comes out with
  * two commands printed on one line, or with fragments of the palette stranded
@@ -44,7 +44,7 @@ export const MAX_PALETTE_ROWS = 8
  *
  * The reserve covers everything the palette shares the frame with: the
  * StatusBar (3), the prompt box (3), the palette's own border, blank row and
- * hint (4), and the App's three-row gap to the bottom of the screen.
+ * hint (4), and the App's one-row gap to the bottom of the screen.
  * @param terminalRows - `stdout.rows`.
  * @returns at least one row, never more than {@link MAX_PALETTE_ROWS}.
  */

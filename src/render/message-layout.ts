@@ -33,6 +33,8 @@ export const USER_GLYPH = '>'
 export const RESULT_GLYPH = '⎿'
 /** Marks a lifecycle note — compaction, plan mode, injected context. */
 export const NOTE_GLYPH = '⤷'
+/** Marks a collapsed or expanded task activity group. */
+export const TASK_GLYPH = '◆'
 /** Marks one image attached to the user's message. */
 export const ATTACHMENT_GLYPH = '⧉'
 /** Marks one tool call a Code Mode program dispatched from inside `run_code`. */

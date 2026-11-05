@@ -36,7 +36,8 @@ import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { Box, Text, measureElement, useStdin, useStdout, type DOMElement } from 'ink'
 import type { SubCall, UiEntry, UiState, WorkflowMember } from '../core/types.ts'
 import { userMessageImages, userMessageText } from '../core/types.ts'
-import { windowStart } from '../render/scroll.ts'
+import { createEntryRowEstimator, windowStart } from '../render/scroll.ts'
+import type { MountedRows } from '../hooks/useMessageListScroll.ts'
 import { hookStderr, hookTone } from '../render/hook-runs.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 import type { Catalog } from '../core/i18n.ts'
@@ -51,6 +52,7 @@ import {
   RESULT_GLYPH,
   SHELL_GLYPH,
   SUBCALL_GLYPH,
+  TASK_GLYPH,
   USER_BORDER_COLOR,
   USER_GLYPH,
   inlineResultText,
@@ -91,7 +93,13 @@ export interface MessageListProps {
    * Report the measured content and viewport heights after each layout, so
    * the scroll hook can bound the offset against real rows.
    */
-  onGeometry: (contentRows: number, viewportRows: number, tail?: unknown) => void
+  onGeometry: (
+    contentRows: number,
+    viewportRows: number,
+    tail?: unknown,
+    totalRows?: number,
+    mounted?: MountedRows,
+  ) => void
 }
 
 /**
@@ -363,7 +371,9 @@ function AssistantBlock({ entry }: { entry: Extract<UiEntry, { kind: 'assistant'
  */
 function ActivityRow({ entry }: { entry: Extract<UiEntry, { kind: 'activity' }> }) {
   const strings = useStrings()
-  return <Row glyph="" color="gray"><Text wrap="truncate">{strings.activity.summary(
+  const color = entry.outcome === 'error' ? 'red'
+    : entry.outcome === 'cancelled' || entry.outcome === 'interrupted' ? 'yellow' : 'cyan'
+  return <Row glyph={TASK_GLYPH} color={color}><Text color={color} bold wrap="truncate">{strings.activity.summary(
     entry.turn, entry.durationMs === undefined ? undefined : Math.floor(entry.durationMs / 1000),
     entry.count, entry.expanded, entry.outcome,
   )}{entry.overview && entry.overview.files + entry.overview.commands > 0
@@ -383,7 +393,7 @@ function UserBlock({ entry }: { entry: Extract<UiEntry, { kind: 'user' }> }) {
             {attachmentChip(ref, 'image')}
           </Text>
         ))}
-        {(text !== '' || images.length === 0) && <Text>{text || ' '}</Text>}
+        {(text !== '' || images.length === 0) && <Text bold>{text || ' '}</Text>}
       </Box>
     </Row>
   )
@@ -820,6 +830,11 @@ export const MessageList: FC<MessageListProps> = ({
 
   const [viewportRows, setViewportRows] = useState(0)
   const maxLines = previewLimit(expanded)
+  const estimate = useMemo(() => createEntryRowEstimator(columns, expanded), [columns, expanded])
+  const totalRows = useMemo(
+    () => state.entries.reduce((rows, entry) => rows + estimate(entry), 0),
+    [state.entries, estimate],
+  )
 
   // Mount the tail of the log plus enough history to cover the offset. The
   // window always reaches the newest entry, so the mounted content's bottom
@@ -834,6 +849,7 @@ export const MessageList: FC<MessageListProps> = ({
       offset,
       viewportRows || (stdout?.rows ?? 24),
       expanded,
+      estimate,
     )
   const visible = useMemo(() => state.entries.slice(start), [state.entries, start])
 
@@ -849,13 +865,17 @@ export const MessageList: FC<MessageListProps> = ({
       // Empty session: nothing is mounted and nothing can scroll.
       // Reporting zero is what collapses a stale offset back to the tail
       // after `/clear`.
-      onGeometry(0, 0)
+      onGeometry(0, 0, undefined, 0)
       return
     }
     const measuredViewport = measureElement(viewport).height
     const measuredContent = measureElement(content).height
     if (measuredViewport !== viewportRows) setViewportRows(measuredViewport)
-    onGeometry(measuredContent, measuredViewport, state.entries.at(-1))
+    const heights = visible.map((_, index) => {
+      const node = entryRefs.current.get(start + index)
+      return node ? measureElement(node).height : 0
+    })
+    onGeometry(measuredContent, measuredViewport, state.entries.at(-1), totalRows, { start, heights })
     if (jumpIndex !== undefined) {
       const entry = entryRefs.current.get(jumpIndex)
       if (entry?.yogaNode) onJump?.(Math.max(0, measuredContent - measuredViewport - entry.yogaNode.getComputedTop()))

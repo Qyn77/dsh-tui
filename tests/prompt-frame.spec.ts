@@ -814,7 +814,7 @@ describe('the /skill picker', () => {
 /**
  * The floating palette against a terminal that cannot hold it.
  *
- * The App gives its root box a fixed `stdout.rows - 3` height so Ink stays on
+ * The App gives its root box a fixed `stdout.rows - 1` height so Ink stays on
  * log-update's incremental path. Yoga does not scroll a subtree that
  * overflows a fixed height — it lays the surplus rows over the ones already
  * there. So an uncapped palette does not merely look cramped: it prints two

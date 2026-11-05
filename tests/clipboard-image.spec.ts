@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { cacheClipboardImage, imageHelper, pasteClipboardImage, pngBytes } from '../src/attachments/clipboard-image.ts'
+import { isClipboardImageShortcut } from '../src/prompt/paste.ts'
 import { paintApp } from './fake-tty.ts'
 const roots: string[] = []
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==', 'base64')
@@ -17,6 +18,13 @@ it('selects fixed native commands and validates binary/base64 boundaries', () =>
   expect(pngBytes(Buffer.from('not a png'), false)).toBeUndefined()
   expect(pngBytes(Buffer.from('!!!!'), true)).toBeUndefined()
   expect(pngBytes(Buffer.alloc(17 * 1024 * 1024), false)).toBeUndefined()
+})
+it('recognises forwarded Command-V forms without treating plain text as an image shortcut', () => {
+  expect(isClipboardImageShortcut('v', { meta: true })).toBe(true)
+  expect(isClipboardImageShortcut('V', { meta: true })).toBe(true)
+  expect(isClipboardImageShortcut('\u001bv')).toBe(true)
+  expect(isClipboardImageShortcut(String.fromCharCode(22))).toBe(true)
+  expect(isClipboardImageShortcut('v')).toBe(false)
 })
 it('deduplicates private images, bounds the cache and reports storage failure', () => {
   const home = root()
@@ -57,6 +65,14 @@ it('inserts an image as one undoable edit; pending reads cannot submit half an a
     await tty.send('\u0019')
     expect(tty.screen()).toContain('Image 1')
     expect(tty.screen()).not.toContain('/tmp/qa screen.png')
+  } finally { tty.unmount() }
+})
+it('accepts a terminal-forwarded Meta-V image shortcut', async () => {
+  const tty = await paintApp({ pasteImage: async () => ({ kind: 'image', path: '/tmp/meta-v.png' }) })
+  try {
+    await tty.send('\u001bv')
+    expect(tty.screen()).toContain('Image 1')
+    expect(tty.screen()).not.toContain('/tmp/meta-v.png')
   } finally { tty.unmount() }
 })
 it('keeps text intact when no image is available', async () => {

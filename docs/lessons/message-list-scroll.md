@@ -37,13 +37,13 @@ Four defects, each sufficient on its own to look like "scrolling is broken":
    publishes no flag for `home`/`end`, so by the time a handler sees the
    keystroke it is indistinguishable from noise.
 4. **The banner stayed in the live frame.** 19 rows of brand splash
-   remained inside the `rows - 3` dynamic frame after the conversation
+   remained inside the `rows - 1` dynamic frame after the conversation
    started, squeezing the list to a handful of rows. Inside the alternate
    screen there is no scrollback for those rows to scroll into, so the
    banner has to yield once there is a message to head.
 
 Plus a magic number: the viewport was `stdout.rows - 8`, and the real
-chrome is 3 (StatusBar) + 4 (prompt) + 3 (frame reserve) + banner.
+chrome is 3 (StatusBar) + 4 (prompt) + 1 (frame reserve) + banner.
 
 ## Why the first instinct was wrong
 

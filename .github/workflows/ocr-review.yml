@@ -1,0 +1,36 @@
+name: OpenCodeReview PR Review
+
+# Keep the review attached to the PR lifecycle only:
+# - opened: review when a PR is created
+# - synchronize: review again when new commits are pushed to that PR
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+# The action reads the PR diff and posts review findings back to the PR.
+# pull_request_target is intentional: it runs this workflow from the base
+# branch. Only PRs from this repository are eligible for review.
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ocr-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  code-review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Run OpenCodeReview
+        uses: alibaba/open-code-review@main
+        with:
+          llm_url: ${{ secrets.OCR_LLM_URL }}
+          llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+          llm_model: ${{ vars.OCR_LLM_MODEL }}
+          llm_use_anthropic: ${{ vars.OCR_LLM_USE_ANTHROPIC }}
+          effort: high
+          llm_reasoning_effort: low
+          stream_progress: 'true'
