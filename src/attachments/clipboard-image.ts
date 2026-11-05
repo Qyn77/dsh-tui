@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { lstatSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { dshHome } from '../mcp/mcp-patch.ts'
 
@@ -38,6 +38,17 @@ export function pngBytes(output: Buffer, base64: boolean): Buffer | undefined {
     || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return undefined
   return bytes
 }
+/** Verify the bytes behind a content-addressed name before reusing it. */
+function matchesCachedImage(path: string, bytes: Buffer): boolean {
+  let fd: number | undefined
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+    const info = fstatSync(fd)
+    return info.isFile() && info.size === bytes.length && (info.mode & 0o777) === 0o600
+      && readFileSync(fd).equals(bytes)
+  } catch { return false }
+  finally { if (fd !== undefined) closeSync(fd) }
+}
 /** Cache remains referenced by saved drafts and undo history; removal from the tray does not delete it. */
 export function cacheClipboardImage(bytes: Buffer, root = dshHome()): ClipboardImageResult {
   if (!pngBytes(bytes, false)) return { kind: 'failed' }
@@ -46,8 +57,10 @@ export function cacheClipboardImage(bytes: Buffer, root = dshHome()): ClipboardI
   const temp = `${path}.${randomUUID()}.tmp`
   try {
     mkdirSync(directory, { recursive: true, mode: 0o700 })
-    try { if (lstatSync(path).isFile()) return { kind: 'image', path } } catch { /* New image. */ }
-    const files = readdirSync(directory).map(name => lstatSync(join(directory, name)))
+    if (matchesCachedImage(path, bytes)) return { kind: 'image', path }
+    // Replacing this entry consumes no extra slot or bytes after atomic rename.
+    const files = readdirSync(directory).filter(name => join(directory, name) !== path)
+      .map(name => lstatSync(join(directory, name)))
     if (files.length >= 64 || files.reduce((n, file) => n + file.size, bytes.length) > 256 * 1024 * 1024) return { kind: 'full' }
     writeFileSync(temp, bytes, { mode: 0o600, flag: 'wx' })
     renameSync(temp, path)

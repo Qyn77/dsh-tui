@@ -1993,3 +1993,8 @@ measured status row shows import progress. Sending, external editing and session
 selector entry wait for import completion without automatically sending later.
 Idle Ctrl-C abandons both the draft and its pending image request; a late result
 from an abandoned request or unmounted session cannot restore an attachment.
+
+Content-addressed clipboard cache files are reused only after their bytes match
+the requested image and their permissions are private. A corrupt entry is
+atomically replaced, including when the cache has 64 entries; capacity checks
+exclude the entry being replaced. Cache validation does not follow symlinks.

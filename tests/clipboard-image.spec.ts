@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
@@ -128,4 +128,31 @@ it('ignores completion of a cancelled read while a newer image request is pendin
     finishes[1]({ kind: 'image', path: '/tmp/new.png' }); await tty.settle()
     expect(tty.screen()).toContain('Image 1')
   } finally { tty.unmount() }
+})
+
+it('repairs a corrupt clipboard image even when all cache slots are occupied', () => {
+  const home = root()
+  const first = cacheClipboardImage(png, home)
+  if (first.kind !== 'image') throw Error('fixture cache failed')
+  // Same size and valid magic: checking only file size/header is insufficient.
+  const corrupt = Buffer.from(png)
+  corrupt[20] ^= 1
+  writeFileSync(first.path, corrupt)
+  for (let i = 0; i < 63; i++) writeFileSync(join(home, 'tui-clipboard', `fixture-${i}`), '')
+  expect(cacheClipboardImage(png, home)).toEqual(first)
+  expect(readFileSync(first.path)).toEqual(png)
+  expect(readdirSync(join(home, 'tui-clipboard'))).toHaveLength(64)
+})
+
+it.skipIf(process.platform === 'win32')('replaces a cache symlink without modifying its target', () => {
+  const home = root()
+  const result = cacheClipboardImage(png, home)
+  if (result.kind !== 'image') throw Error('fixture cache failed')
+  const outside = join(home, 'original.png')
+  writeFileSync(outside, 'keep original')
+  rmSync(result.path)
+  symlinkSync(outside, result.path)
+  expect(cacheClipboardImage(png, home)).toEqual(result)
+  expect(readFileSync(result.path)).toEqual(png)
+  expect(readFileSync(outside, 'utf8')).toBe('keep original')
 })
