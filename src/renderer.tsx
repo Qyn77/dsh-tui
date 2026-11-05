@@ -206,7 +206,7 @@ const AppBody: FC<AppProps> = ({
     onMousePreferenceChange?.(next)
     writeSettings({ mouse: next })
   }, [onMousePreferenceChange])
-  useTerminalEvent(event => {
+  useTerminalEvent((event) => {
     if (event.kind === 'interaction-toggle') setMouse(terminal.mode(mousePref) === 'mouse' ? 'off' : 'on')
   })
 

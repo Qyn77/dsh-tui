@@ -10,6 +10,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId, SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { dispatch, filterCommands, registryCommands, type CommandResult, type CommandContext } from '../src/commands/commands.ts'
+import { createTerminalService } from '../src/terminal/adapters/service.ts'
 import { catalog } from '../src/core/i18n.ts'
 import type { UiState } from '../src/core/types.ts'
 import { OSC52_MAX_BYTES, osc52 } from '../src/commands/clipboard.ts'
@@ -1608,7 +1609,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/activity', '/approval', '/branch', '/changes', '/clear', '/context', '/copy', '/diff', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
-      '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
+      '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/terminal', '/theme',
       '/usage', '/verbose',
     ])
   })
@@ -1663,7 +1664,7 @@ describe('filterCommands', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/activity', '/approval', '/branch', '/changes', '/clear', '/compact', '/context', '/copy', '/diff', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
         '/language',
-        '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/theme',
+        '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/terminal', '/theme',
         '/usage', '/verbose',
       ])
     })
@@ -1718,5 +1719,30 @@ describe('/help with a registry', () => {
         expect(result.message).toContain('/help')
       }
     })
+  })
+})
+
+
+describe('/terminal diagnostics', () => {
+  it('reports the active adapter and distinguishes requested from observed support', async () => {
+    const terminal = createTerminalService({ env: { TERM_PROGRAM: 'vscode', API_KEY: 'must-not-leak' } })
+    terminal.resume()
+    const { cmd } = makeCommand({ terminalDiagnostics: terminal.diagnostics })
+    const result = handledText(await dispatch('/terminal', cmd))
+    expect(result).toContain('"adapter": "vscode"')
+    expect(result).toContain('"requestedMode": "mouse"')
+    expect(result).toContain('"pointer": false')
+    expect(result).not.toContain('must-not-leak')
+    terminal.dispose()
+  })
+  it('rejects unsupported arguments instead of changing terminal settings', async () => {
+    const { cmd } = makeCommand()
+    expect(await dispatch('/terminal apple', cmd)).toMatchObject({ kind: 'handled', failed: true })
+  })
+  it('has a Chinese report and appears in completion/help', async () => {
+    const { cmd } = makeCommand({ lang: 'zh' })
+    expect(handledText(await dispatch('/terminal', cmd))).toContain('终端适配器诊断')
+    expect(handledText(await dispatch('/help', cmd))).toContain('/terminal')
+    expect(filterCommands('/term').some(command => command.name === '/terminal')).toBe(true)
   })
 })

@@ -62,7 +62,7 @@ key decoder; baseline compatibility must not regress to obtain extra keys.
       paste/OSC isolation, suspend/resume/dispose tests.
 - [x] M3: wire Ink/App/Prompt/MessageList through the boundary; route clipboard,
       notifications and appearance through it; preserve task and scroll logic.
-- [ ] M4: expose diagnostics and override, document host limitations and manual
+- [x] M4: expose diagnostics and override, document host limitations and manual
       acceptance matrix; run full automated tests, typecheck, lint, build, pack.
 
 ## Regression gates
@@ -103,3 +103,87 @@ capabilities without transcript contents, clipboard contents or environment secr
 - tmux clipboard transport: https://github.com/tmux/tmux/wiki/Clipboard
 
 These sources describe protocols/configuration, not a completed device test.
+
+## Configuration and diagnostics
+
+Run `/terminal` to inspect the live adapter without exporting transcript or
+clipboard content. Its JSON field names are stable diagnostic identifiers:
+`pointerSupport` is an expected capability, `requestedMode` is a mode request
+(not an acknowledgement), and `observed` records received event categories.
+An invalid override is reported as a boolean; its raw value is never printed.
+
+Override example (restart required):
+
+```sh
+DSH_TUI_TERMINAL=apple dsh --profile tui-rc5
+DSH_TUI_TERMINAL=vscode dsh --profile tui-rc5
+DSH_TUI_TERMINAL=generic dsh --profile tui-rc5
+```
+
+Accepted IDs: `generic`, `apple`, `vscode`, `iterm2`, `windows-terminal`,
+`vte`, `konsole`, `kitty`, `ghostty`, `wezterm`, `alacritty`, `warp`.
+An invalid ID falls back to automatic detection. TERM_PROGRAM can be inherited;
+there is no claim that brand detection overrides user terminal settings.
+
+- `/mouse on|off|auto` and F2 change interaction without changing the profile.
+- `/activity` opens task details when clicks are intercepted by the terminal.
+- Ctrl-V imports images only when forwarded; file paths provide a fallback.
+- SSH host clipboard reads require `DSH_TUI_REMOTE_CLIPBOARD=host`.
+- WSL Windows clipboard reads require `DSH_TUI_WSL_CLIPBOARD=windows`.
+- tmux wraps OSC 52; server `set-clipboard`/passthrough settings still matter.
+  GNU screen clipboard writes return unsupported instead of printing raw OSC.
+- Desktop notifications fall back to bell under multiplexers.
+- Extended keyboard protocols remain off; legacy VT input is the baseline.
+
+## Code map
+
+- `src/terminal/adapters/profiles.ts`: environment evidence and host/transport overlays.
+- `input.ts`: one incremental UTF-8, VT, paste and mouse decoder.
+- `modes.ts`: reversible screen, mouse, wrap, paste and cursor lifecycle.
+- `service.ts`: composition, clipboard/notification/appearance operations and diagnostics.
+- `src/terminal/TerminalProvider.tsx`: one Ink event subscription, semantic hooks.
+
+Add a profile policy and detection fixture to support another emulator. Add new
+protocol handling in the shared decoder, not in Prompt or MessageList. Layout,
+scroll geometry and task-hit testing remain shared UI behavior.
+
+## Repeatable PTY check
+
+On macOS/Linux with Python 3 and installed development dependencies:
+
+```sh
+pnpm run test:terminal
+```
+
+This builds the production App/Ink/adapter into a temporary fixture and replays
+input in a real PTY for apple/vscode/generic profiles. It checks split paste and
+CRLF, draft-clearing Ctrl-C, an injected image-read action, F2, pointer events,
+resize, `/terminal`, `/exit`, and terminal-mode restoration. The model is a
+deterministic fixture; the clipboard provider is injected, and DSH_HOME is
+temporary. It neither sends model requests nor accesses the user's clipboard.
+The script cleans its temporary output and session files.
+
+## Acceptance record
+
+| Surface | Automated evidence | Native GUI acceptance |
+| --- | --- | --- |
+| Apple Terminal / VS Code | Profile, input, click disclosure, paste frame tests + real PTY replay | Pending on actual Terminal.app and VS Code |
+| Generic | Conservative fallback, no empty-paste guessing, PTY replay | Depends on host; pending |
+| iTerm2 / Kitty / Ghostty / WezTerm / Alacritty / Warp / VTE / Konsole | Profile detection, shared decoder and mode contract tests | Pending |
+| Windows Terminal | Profile, shared input and task click frame tests; injected host helper | Pending on Windows/PowerShell |
+| SSH / WSL / tmux / screen | Host access policy, overrides, conservative mode and copy/notification routing | Pending end-to-end on those transports |
+
+The implementation is complete at the adapter boundary. This table deliberately
+keeps simulated profile coverage separate from terminal-application validation.
+
+Final automated gate: 105 test files / 1,549 tests pass; TypeScript and runtime
+build pass; lint has no errors (warning-level diagnostics remain);
+package verification passes with 106 allowed files. The real PTY fixture passes
+for apple, vscode and generic. Native GUI rows above remain pending.
+
+Integration regression evidence: the first full run exposed five failures in
+Ctrl-J newline handling, Ctrl-C draft clearing, Escape palette/cancellation
+ordering and the approval test's Escape deadline. The adapter now preserves LF
+as text, snapshots subscribers per event and tests the 25 ms Escape window; all
+previously failing cases pass. These are adapter contract regressions, not proof
+of a native terminal's Command-V behavior.

@@ -1979,3 +1979,11 @@ sequence-disambiguation window. External-editor handoff clears partial input and
 suspends/restores the same mode owner used at startup and exit.
 Clipboard, notification and appearance requests use that service; SSH image
 clipboard reads are disabled unless explicitly opted into the host clipboard.
+
+`/terminal` reports the active adapter, environment evidence, clipboard host,
+requested interaction mode and observed event categories. Labels are bilingual;
+JSON fields remain stable machine identifiers. No clipboard contents or arbitrary
+environment values are included. Unknown terminals and multiplexers default to
+selection/alternate scrolling; known direct profiles request mouse reporting.
+`DSH_TUI_TERMINAL` overrides detection; it does not override native terminal key
+bindings. Legacy prompt paste parsing is retired in favor of the adapter decoder.

@@ -13,6 +13,9 @@ describe('terminal profile detection', () => {
   it.each(cases)('selects %s using evidence, not an xterm guess', (id, env) => {
     expect(detectTerminal(env, 'darwin').profile.id).toBe(id)
   })
+  it('does not interpret inherited object property names as terminal identities', () => {
+    expect(detectTerminal({ TERM_PROGRAM: 'constructor' }, 'linux').profile.id).toBe('generic')
+  })
   it('covers every registered profile', () => {
     expect(cases.map(([id]) => id).sort()).toEqual([...TERMINAL_IDS].sort())
   })

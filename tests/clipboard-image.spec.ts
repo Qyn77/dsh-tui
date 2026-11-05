@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { cacheClipboardImage, imageHelper, pasteClipboardImage, pngBytes } from '../src/attachments/clipboard-image.ts'
-import { isClipboardImageShortcut } from '../src/prompt/paste.ts'
+import { createTerminalService } from '../src/terminal/adapters/service.ts'
+import { TerminalInputDecoder } from '../src/terminal/adapters/input.ts'
 import { paintApp } from './fake-tty.ts'
 const roots: string[] = []
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==', 'base64')
@@ -20,11 +21,15 @@ it('selects fixed native commands and validates binary/base64 boundaries', () =>
   expect(pngBytes(Buffer.alloc(17 * 1024 * 1024), false)).toBeUndefined()
 })
 it('recognises forwarded Command-V forms without treating plain text as an image shortcut', () => {
-  expect(isClipboardImageShortcut('v', { meta: true })).toBe(true)
-  expect(isClipboardImageShortcut('V', { meta: true })).toBe(true)
-  expect(isClipboardImageShortcut('\u001bv')).toBe(true)
-  expect(isClipboardImageShortcut(String.fromCharCode(22))).toBe(true)
-  expect(isClipboardImageShortcut('v')).toBe(false)
+  const terminal = createTerminalService({ env: { DSH_TUI_TERMINAL: 'vscode' } })
+  const shortcut = (sequence: string) => {
+    const event = new TerminalInputDecoder().feed(sequence)[0]
+    return event?.kind === 'key' && terminal.isImageShortcut(event.input, event.key)
+  }
+  expect(shortcut('\u001bv')).toBe(true)
+  expect(shortcut('\u001bV')).toBe(true)
+  expect(shortcut(String.fromCharCode(22))).toBe(true)
+  expect(shortcut('v')).toBe(false)
 })
 it('deduplicates private images, bounds the cache and reports storage failure', () => {
   const home = root()

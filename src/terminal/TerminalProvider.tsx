@@ -29,5 +29,5 @@ export function useTerminalEvent(handler: (event: TerminalEvent) => void, active
   }, [terminal, active, handler])
 }
 export function useTerminalInput(handler: (input: string, key: Key) => void, options: { isActive?: boolean } = {}): void {
-  useTerminalEvent(event => { if (event.kind === 'key') handler(event.input, event.key) }, options.isActive !== false)
+  useTerminalEvent((event) => { if (event.kind === 'key') handler(event.input, event.key) }, options.isActive !== false)
 }

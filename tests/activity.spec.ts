@@ -77,9 +77,9 @@ it('keeps a tool-only final result visible rather than hiding every outcome', ()
   expect(activityView(toolOnly, new Set()).entries.at(-1)).toBe(tool)
 })
 
-it('opens and closes a task disclosure with terminal mouse presses', async () => {
+it.each(['apple', 'vscode', 'windows-terminal', 'generic'] as const)('opens and closes task disclosure via fragmented input on %s', async (terminalProfile) => {
   const { paintApp } = await import('./fake-tty.ts')
-  const tty = await paintApp({ rows: 40 })
+  const tty = await paintApp({ rows: 40, terminalProfile })
   try {
     await tty.append('turn/start', { turn: 1 })
     await tty.finalize('click detail', { turn: 1, step: 1 })
@@ -88,7 +88,8 @@ it('opens and closes a task disclosure with terminal mouse presses', async () =>
     const click = async (): Promise<void> => {
       const row = tty.screen().split('\n').findIndex(line => line.includes('Task 1')) + 1
       expect(row).toBeGreaterThan(0)
-      await tty.send(`\u001B[<0;5;${row}M`)
+      await tty.send('\u001B[<0;')
+      await tty.send(`5;${row}M`)
       await tty.send(`\u001B[<0;5;${row}m`)
     }
     expect(tty.screen()).not.toContain('click detail')

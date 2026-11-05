@@ -56,8 +56,8 @@ export function detectTerminal(env: NodeJS.ProcessEnv, platform: NodeJS.Platform
   }
   // An explicit terminal identifier outranks inherited hints (e.g. WT_SESSION in VS Code).
   if (validOverride) { id = override as TerminalId; evidence = 'DSH_TUI_TERMINAL' }
-  else if (programs[env['TERM_PROGRAM'] ?? '']) {
-    id = programs[env['TERM_PROGRAM']!]; evidence = 'TERM_PROGRAM'
+  else if (Object.hasOwn(programs, env['TERM_PROGRAM'] ?? '')) {
+    id = programs[env['TERM_PROGRAM'] ?? '']; evidence = 'TERM_PROGRAM'
   } else {
     const hints: [string, TerminalId][] = [['KITTY_WINDOW_ID', 'kitty'], ['GHOSTTY_RESOURCES_DIR', 'ghostty'],
       ['WEZTERM_PANE', 'wezterm'], ['KONSOLE_VERSION', 'konsole'], ['VTE_VERSION', 'vte'], ['WT_SESSION', 'windows-terminal']]
@@ -72,9 +72,9 @@ export function detectTerminal(env: NodeJS.ProcessEnv, platform: NodeJS.Platform
   const multiplexer = env['TMUX'] ? 'tmux' : env['STY'] ? 'screen' : 'none'
   const clipboard = remote && env['DSH_TUI_REMOTE_CLIPBOARD'] !== 'host' ? 'unavailable'
     : wsl && env['DSH_TUI_WSL_CLIPBOARD'] === 'windows' ? 'windows'
-    : platform === 'darwin' ? 'macos' : platform === 'win32' ? 'windows'
-    : platform === 'linux' && env['WAYLAND_DISPLAY'] ? 'wayland'
-    : platform === 'linux' && env['DISPLAY'] ? 'x11' : 'unavailable'
+      : platform === 'darwin' ? 'macos' : platform === 'win32' ? 'windows'
+        : platform === 'linux' && env['WAYLAND_DISPLAY'] ? 'wayland'
+          : platform === 'linux' && env['DISPLAY'] ? 'x11' : 'unavailable'
   return { profile: TERMINAL_PROFILES[id], evidence, invalidOverride: Boolean(override && !validOverride),
     platform, remote, wsl, multiplexer, clipboard }
 }

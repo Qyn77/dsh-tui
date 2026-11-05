@@ -1112,3 +1112,12 @@ DSH_TUI_RESUME=last dsh --profile tui
 - **长工具输出只给预览，展不开。** 会显示前 8 行，末尾加一条 `… 还有 N 行` 的标记；没有展开入口——要做展开就得引入这个应用刻意不要的选中模型。
 - **`ctx.appExit` 由 launcher 提供。** 在 `dsh` CLI 外面跑会大声报错，直到 host 提供 exit hook。
 
+
+### Terminal compatibility diagnostics
+
+Use `/terminal` to inspect the detected adapter and distinguish expected support,
+requested mode and observed events. F2 switches mouse reporting/native selection;
+`/activity` is the keyboard fallback. Clipboard shortcuts depend on what the
+terminal forwards; a key that emits no bytes cannot be intercepted. See
+[Terminal adapters](TERMINAL-ADAPTERS.md) for overrides, SSH/WSL behavior and
+the manual acceptance matrix.

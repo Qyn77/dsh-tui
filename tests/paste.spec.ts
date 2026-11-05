@@ -1,87 +1,28 @@
-/**
- * Bracketed-paste decoding.
- *
- * The behaviour under test is not "does it strip a marker" but "can a paste
- * still submit half a message". A terminal in raw mode sends a pasted newline
- * as `\r`, the same byte Enter sends, and stdin splits a large paste across
- * chunks — so a chunk boundary landing on a newline used to arrive as a lone
- * `\r`, which Ink names `return`. The markers are the only thing that can
- * tell the two apart, and these tests pin that they do.
- *
- * `ESC` is built with `String.fromCharCode`, never written literally: a raw
- * escape byte in a source file is invisible in every diff and every review
- * that would otherwise catch it going missing.
- * @module @qiao-qyn/dsh-tui/tests/paste.spec
- */
-
+/** Paste regression tests use the production incremental decoder. */
 import { describe, expect, it } from 'vitest'
-import { readPaste } from '../src/prompt/paste.ts'
-import { ESC } from './fake-tty.ts'
-
-const CR = String.fromCharCode(13)
-/** The opener as Ink delivers it mid-chunk, escape intact. */
-const START = `${ESC}[200~`
-/** The terminator, likewise. */
-const END = `${ESC}[201~`
-
-describe('readPaste', () => {
-  it('leaves ordinary typing alone', () => {
-    expect(readPaste('a', false)).toEqual({ text: 'a', open: false, bracketed: false })
+import { TerminalInputDecoder } from '../src/terminal/adapters/input.ts'
+const START = '\u001b[200~'
+const END = '\u001b[201~'
+describe('terminal paste boundary', () => {
+  it('treats bare markers as literal text because Ink no longer strips ESC', () => {
+    expect(new TerminalInputDecoder().feed('[200~hi')).toMatchObject([{ kind: 'key', input: '[200~hi' }])
   })
-
-  it('unwraps a paste that arrives whole', () => {
-    const result = readPaste(`${START}hello${CR}world${END}`, false)
-
-    expect(result.text).toBe('hello\nworld')
-    expect(result.open).toBe(false)
-    expect(result.bracketed).toBe(true)
+  it('normalizes unbracketed multiline input without submitting it', () => {
+    expect(new TerminalInputDecoder().feed('a\rb')).toMatchObject([{ kind: 'key', input: 'a\nb', key: { return: false } }])
   })
-
-  it('accepts the bare opener Ink produces at the head of a chunk', () => {
-    // `useInput` strips one leading ESC from every chunk, so the marker that
-    // begins a paste is the one form that never arrives intact. Reading only
-    // the escaped form would miss the common case entirely.
-    const result = readPaste(`[200~hi${END}`, false)
-
-    expect(result.text).toBe('hi')
-    expect(result.bracketed).toBe(true)
+  it('never submits a pasted carriage return arriving in its own chunk', () => {
+    const decoder = new TerminalInputDecoder()
+    const events = [START + 'a', '\r', '\n', 'b' + END].flatMap(chunk => decoder.feed(chunk))
+    expect(events.map(e => e.kind)).toEqual(['paste-start', 'paste-text', 'paste-text', 'paste-text', 'paste-end'])
+    expect(events.filter(e => e.kind === 'paste-text').map(e => e.text).join('')).toBe('a\nb')
   })
-
-  it('stays open across chunks and swallows the newline that split them', () => {
-    // The regression: chunk two is a lone CR, which Ink has already named
-    // `return`. It must become text, not a submission.
-    const first = readPaste(`${START}a`, false)
-    expect(first).toEqual({ text: 'a', open: true, bracketed: true })
-
-    const second = readPaste(CR, first.open)
-    expect(second).toEqual({ text: '\n', open: true, bracketed: true })
-
-    const third = readPaste(`b${END}`, second.open)
-    expect(third).toEqual({ text: 'b', open: false, bracketed: true })
+  it('keeps typing before and after a paste as separate semantic events', () => {
+    expect(new TerminalInputDecoder().feed(`xy${START}z${END}q`)).toMatchObject([
+      { kind: 'key', input: 'xy' }, { kind: 'paste-start' }, { kind: 'paste-text', text: 'z' },
+      { kind: 'paste-end', empty: false }, { kind: 'key', input: 'q' },
+    ])
   })
-
-  it('normalises CRLF to a single newline', () => {
-    expect(readPaste(`${START}a${CR}\nb${END}`, false).text).toBe('a\nb')
-  })
-
-  it('normalises stray CRs in unbracketed input too', () => {
-    // The fallback for terminals that ignore `?2004`. It fixes the
-    // overprinting; it cannot fix a split chunk, because a lone CR with no
-    // marker around it is genuinely indistinguishable from Enter.
-    const result = readPaste(`a${CR}b`, false)
-
-    expect(result.text).toBe('a\nb')
-    expect(result.bracketed).toBe(false)
-  })
-
-  it('keeps typing that shares a chunk with the opener', () => {
-    expect(readPaste(`xy${START}z`, false).text).toBe('xyz')
-  })
-
-  it('reports a marker-only chunk as bracketed with nothing to insert', () => {
-    // The caller uses `bracketed` to decide whether to skip key dispatch, so
-    // an empty text must not read as "not a paste".
-    expect(readPaste(START, false)).toEqual({ text: '', open: true, bracketed: true })
-    expect(readPaste(END, true)).toEqual({ text: '', open: false, bracketed: true })
+  it('preserves empty paste as a hint, separate from an explicit shortcut', () => {
+    expect(new TerminalInputDecoder().feed(START + END)).toEqual([{ kind: 'paste-start' }, { kind: 'paste-end', empty: true }])
   })
 })

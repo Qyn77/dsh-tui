@@ -110,3 +110,12 @@ The installed rc.5 launcher was driven through node-pty and xterm/headless with 
 macOS named-pasteboard QA also passed valid PNG byte preservation, native TIFF-to-PNG conversion, and empty-clipboard handling, without reading or modifying the general clipboard. The initial TIFF fixture was invalid; replacing the test image with CRC-valid PNG data resolved that fixture-only failure. Earlier vi acceptance includes save/return, undo/redo, cancellation, Ctrl-C, resize and clean exit. Windows/Linux clipboard adapters, Windows/GUI editors, native Terminal.app/VS Code selection/trackpad behavior and the previously unconfirmed intermittent resize symptom remain manual acceptance items; this round does not claim they were reproduced or resolved.
 
 Final artifact installed in `tui-rc5`: `qiao-qyn-dsh-tui-0.2.1-rc.5-clipboard-editor-context.tgz`. Local and installed `lib/index.js` SHA-256 both equal `5d59192b5771c666f710caf566ca98b62cafd55918cf4fbdd7ec9ff779c6872d`. The final artifact, not only an intermediate build, passed the actual launcher vi and context PTY scripts again. Restart the running launcher to load it.
+
+## Terminal adapter acceptance
+
+Run `pnpm run test:terminal` on macOS/Linux for reproducible PTY input checks.
+Use `/terminal` in each actual terminal and record adapter, transport, requested
+mode and observed events. Repeat task disclosure, text selection, multiline/image
+paste, streaming scroll, short-window resize, editor handoff and exit cleanup.
+Native terminal shortcut interception and actual OS clipboard behavior still
+require real application testing; see [the adapter matrix](TERMINAL-ADAPTERS.md).

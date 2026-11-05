@@ -1,7 +1,9 @@
+import { detectTerminal } from '../src/terminal/adapters/profiles.ts'
+import { interactionMode } from '../src/terminal/adapters/modes.ts'
+import type { MousePreference } from '../src/terminal/mouse.ts'
 import { describe, expect, it } from 'vitest'
 import {
   isMousePreference,
-  resolveMouseMode,
   mouseModeSequence,
   MOUSE_MODE_EXIT,
   parseMouseEvents,
@@ -10,6 +12,8 @@ import {
 const ESC = '\u001B'
 const x10 = (button: number, x = 12, y = 4): string =>
   `${ESC}[M${String.fromCharCode(button + 32, x + 32, y + 32)}`
+
+const resolveMouseMode = (pref: MousePreference, env: NodeJS.ProcessEnv) => interactionMode(detectTerminal(env, 'darwin'), pref)
 
 describe('terminal mouse policy', () => {
   it('uses reporting for Apple Terminal and VS Code auto', () => {

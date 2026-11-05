@@ -786,7 +786,7 @@ export const Prompt: FC<PromptProps> = ({
       .finally(() => { inputPending.current = false })
   }
 
-  useTerminalEvent(event => {
+  useTerminalEvent((event) => {
     if (inputPending.current) return
     if (event.kind === 'paste-start') editor.apply({ type: 'begin' })
     if (event.kind === 'paste-text') editor.insert(event.text)

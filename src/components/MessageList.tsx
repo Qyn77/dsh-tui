@@ -804,7 +804,7 @@ export const MessageList: FC<MessageListProps> = ({
   const viewportRef = useRef<DOMElement | null>(null)
   const contentRef = useRef<DOMElement | null>(null)
   const entryRefs = useRef(new Map<number, DOMElement>())
-  useTerminalEvent(input => {
+  useTerminalEvent((input) => {
     if (input.kind !== 'pointer' || !viewportRef.current || !onToggleActivity) return
     const event = input.event
     const viewport = cellBounds(viewportRef.current)

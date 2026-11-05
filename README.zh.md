@@ -78,6 +78,7 @@ dsh --profile tui-rc5
 | `/queue` | 查看待执行输入；`add <文字>`、`edit <id> <文字>`、`remove <id>`、`clear` 管理后续独立任务 |
 | `/notify` | `off` / `bell` / `desktop`；`/notify test` 测试提醒，默认关闭 |
 | `/mouse` | `auto` / `on` / `off`；F2 切换鼠标上报与原生文字选择 |
+| `/terminal` | 查看适配器、运行环境、请求的模式与收到过的事件 |
 | `/activity` | 展开/收起任务过程：`/activity <编号>`、`all`、`none` |
 | `/search` / `/jump` | 搜索完整内容；按编号定位，或用 `next`、`prev`、`user`、`tool`、`error` 导航 |
 | `/inspect` | 按编号查看完整条目，Esc 返回对话 |
@@ -126,7 +127,7 @@ dsh --profile tui-rc5
 - **[docs/SPEC.md](docs/SPEC.md)** —— 设计契约：视觉规则、路线图、贡献者约定。
 - **[docs/OCR-CI.md](https://github.com/Qyn77/dsh-tui/blob/ci/ocr-review/docs/OCR-CI.md)** —— 配置 GitHub Actions 的 PR 代码评审及所需凭据。
 
-Apple Terminal 和 VS Code 在 `/mouse auto` 下使用鼠标上报传递滚轮与任务过程展开点击。F2 或 `/mouse off` 恢复原生文字选择，`/mouse on` 恢复上报；如果 Terminal.app 配置禁用了鼠标上报，请启用 Allow Mouse Reporting。其他终端在 auto 下沿用备用屏幕滚轮输入。auto 依赖 `TERM_PROGRAM`，外部终端可能继承该变量而被误认为 VS Code；可使用 `/mouse off` 或 `/mouse on` 覆盖。任务结束后保留事件计算的耗时并收起中间过程，最终答复和失败信息保持可见。
+终端差异统一由适配器处理。Apple Terminal、VS Code、iTerm2、Windows Terminal、VTE、Konsole、Kitty、Ghostty、WezTerm、Alacritty、Warp 在直接连接且被识别时，`/mouse auto` 请求鼠标上报；未知终端和 tmux/screen 默认使用备用滚动模式。F2 或 `/mouse off` 恢复原生文字选择，`/mouse on` 显式请求鼠标上报；Terminal.app 仍需启用 Allow Mouse Reporting。`/activity` 始终可用作无鼠标展开入口。识别基于环境证据，不等于实际能力验证；用 `/terminal` 查看详情，用 `DSH_TUI_TERMINAL` 覆盖可能被继承的终端标识。
 
 后台诊断写入 `DSH_HOME` 下的 `tui.log`（默认 `~/.dsh/tui.log`）。开启鼠标上报后可点击任务摘要展开，F2 可恢复原生文字选择。
 
@@ -140,7 +141,7 @@ MIT
 
 ### 剪贴板图片
 
-按 **Ctrl-V** 将截图加入附件预览；能把平台快捷键转发为 `Meta-V` 的终端也支持该方式。完成的空 bracketed paste 会被当作图片粘贴信号，因此 macOS Terminal.app 可用 **Control-Command-V**（Paste Escaped Text）或 Ctrl-V；普通 Command-V 由 Terminal.app 自己的菜单接管，不会作为按键事件传给程序。普通终端文本粘贴保持原样。macOS 使用原生剪贴板，Windows 使用 Windows PowerShell/WinForms，Linux 需安装 `wl-paste`（Wayland）或 `xclip`（X11）。读取的是运行 dsh 的那台机器的剪贴板，SSH 连接时也是远端。环境不支持时会提示，仍可粘贴图片路径。图片加入后只显示紧凑的附件行，缓存路径不会出现在输入框正文里。
+按 **Ctrl-V** 导入剪贴板截图，前提是终端把该按键传给程序。Apple Terminal / VS Code 适配器也识别实际收到的 `Meta-V`，以及空 bracketed paste 后确实能读到图片的兼容路径；这不代表 Command-V 一定会发送这些信号。普通 Command-V 由终端应用接管，若没有传入字节，TUI 无法拦截；可尝试 Terminal.app 的 **Control-Command-V**，也可粘贴图片文件路径。普通文本粘贴保持不变。macOS 使用原生剪贴板，Windows 使用 PowerShell/WinForms，Linux 需 `wl-paste`（Wayland）或 `xclip`（X11）。SSH 默认不读取主机图片剪贴板，显式设置 `DSH_TUI_REMOTE_CLIPBOARD=host` 才读取远端，无法读取客户端图片；WSL 使用 Windows 剪贴板需 `DSH_TUI_WSL_CLIPBOARD=windows` 并启用互操作。图片只显示为附件，缓存路径不进入输入正文。
 
 图片私密保存在 `DSH_HOME/tui-clipboard`，按内容去重；单张上限 16 MiB，缓存上限 64 个文件 / 256 MiB。Ctrl-X 移除草稿附件，Ctrl-Z 撤销插入；缓存会保留以支持草稿恢复和撤销，手动清理前请保留草稿引用的图片。发送时仍检查附件服务和模型图片能力。
 

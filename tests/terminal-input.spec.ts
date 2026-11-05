@@ -52,3 +52,11 @@ describe('incremental terminal input', () => {
     expect(events.map(e => e.kind)).toEqual(['pointer', 'pointer', 'key'])
   })
 })
+
+it('preserves legacy newline, modified arrows and double-Escape semantics', () => {
+  const decoder = new TerminalInputDecoder()
+  expect(decoder.feed('\n')).toMatchObject([{ kind: 'key', input: '\n', key: { return: false, ctrl: false } }])
+  expect(decoder.feed('\u001b[1;5A')).toMatchObject([{ kind: 'key', key: { ctrl: true, upArrow: true } }])
+  expect(decoder.feed('\u001b\u001b')).toMatchObject([{ kind: 'key', key: { escape: true } }])
+  expect(decoder.feed('\u001b\u007f')).toMatchObject([{ kind: 'key', key: { meta: true, backspace: true } }])
+})

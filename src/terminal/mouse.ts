@@ -7,22 +7,6 @@ export function isMousePreference(value: string): value is MousePreference {
   return value === 'auto' || value === 'on' || value === 'off'
 }
 
-/** Apple Terminal may scroll its view instead of delivering alternate-scroll keys. */
-export function resolveMouseMode(
-  preference: MousePreference,
-  env: { TERM_PROGRAM?: string | undefined },
-): MouseMode {
-  if (preference === 'on') return 'mouse'
-  if (preference === 'off') return 'alternate'
-  // Apple Terminal and VS Code both expose a usable SGR pointer channel.
-  // Keeping VS Code on alternate-scroll made task disclosure mouse-only in
-  // one terminal and click-to-expand in the other, even though the renderer
-  // already understands the same reports from both.
-  return env.TERM_PROGRAM === 'Apple_Terminal' || env.TERM_PROGRAM === 'vscode'
-    ? 'mouse'
-    : 'alternate'
-}
-
 /** Disable only the mouse/alternate-scroll modes this application owns. */
 export const MOUSE_MODE_EXIT = '\u001B[?1000l\u001B[?1006l\u001B[?1007l'
 

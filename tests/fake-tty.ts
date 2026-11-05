@@ -462,7 +462,9 @@ export async function paintApp(
       contextRequest,
       editExternally,
       pasteImage,
-      terminalService: createTerminalService({ env: { ...process.env, ...(terminalProfile ? { DSH_TUI_TERMINAL: terminalProfile } : {}) } }),
+      terminalService: createTerminalService({
+        env: { ...process.env, ...(terminalProfile ? { DSH_TUI_TERMINAL: terminalProfile } : {}) },
+      }),
       drafts,
       sessionLibrary,
       exit: () => {},

@@ -25,6 +25,8 @@ describe('terminal service contract', () => {
     terminal.attach(events)
     terminal.dispose(); terminal.dispose()
     expect(events.listenerCount('input')).toBe(0)
+    terminal.resume()
+    expect(() => terminal.attach(events)).toThrow('disposed')
   })
   it('dispatches one event against one subscription snapshot', () => {
     const events = new EventEmitter()
@@ -55,7 +57,7 @@ describe('terminal service contract', () => {
     events.emit('input', '\u001b'); detach(); vi.advanceTimersByTime(30)
     expect(received).toHaveLength(2)
   })
-  it.each(TERMINAL_IDS)('isolates pasted controls and records observations on %s', id => {
+  it.each(TERMINAL_IDS)('isolates pasted controls and records observations on %s', (id) => {
     const terminal = createTerminalService({ env: { DSH_TUI_TERMINAL: id } })
     const events = new EventEmitter()
     const received: TerminalEvent[] = []

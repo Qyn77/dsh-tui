@@ -1,9 +1,9 @@
 import { expect, it, vi } from 'vitest'
 import { paintApp } from './fake-tty.ts'
 
-it('imports an image on a completed empty terminal paste, without leaking its storage path', async () => {
+it.each(['apple', 'vscode'] as const)('imports an empty-paste image on %s without leaking its storage path', async (terminalProfile) => {
   const read = vi.fn(async () => ({ kind: 'image' as const, path: '/tmp/hidden-cache.png' }))
-  const tty = await paintApp({ terminalProfile: 'apple', pasteImage: read })
+  const tty = await paintApp({ terminalProfile, pasteImage: read })
   try {
     await tty.send('my draft ')
     await tty.send('\u001b[200~\u001b[201~')
@@ -50,5 +50,19 @@ it('accepts a terminal-forwarded Meta-V image shortcut without exposing its cach
     expect(read).toHaveBeenCalledOnce()
     expect(tty.screen()).toContain('Image 1')
     expect(tty.screen()).not.toContain('/tmp/meta-cache.png')
+  } finally { tty.unmount() }
+})
+
+
+it('does not guess that generic empty paste is an image; explicit Ctrl-V remains available', async () => {
+  const read = vi.fn(async () => ({ kind: 'image' as const, path: '/tmp/generic-cache.png' }))
+  const tty = await paintApp({ terminalProfile: 'generic', pasteImage: read })
+  try {
+    await tty.send('\u001b[200~\u001b[201~')
+    expect(read).not.toHaveBeenCalled()
+    await tty.send('\u0016')
+    expect(read).toHaveBeenCalledOnce()
+    expect(tty.screen()).toContain('Image 1')
+    expect(tty.screen()).not.toContain('/tmp/generic-cache.png')
   } finally { tty.unmount() }
 })

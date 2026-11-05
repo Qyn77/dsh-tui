@@ -303,7 +303,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
       const editExternally: EditExternally = (text) => {
         if (handle.agent.status === 'running' || switchingSession) return Promise.resolve({ kind: 'busy' })
         return editExternal(text, undefined, action => terminal.run(action,
-          () => { terminalService.suspend() }, () => { terminalService.resume() }
+          () => { terminalService.suspend() }, () => { terminalService.resume() },
         )).finally(() => {
           instance.clear()
           instance.rerender(element())

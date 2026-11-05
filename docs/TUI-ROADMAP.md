@@ -535,7 +535,8 @@ future proposals.
 ## 10. Terminal adapter boundary
 
 The approved cross-terminal implementation plan and per-platform acceptance
-matrix live in [TERMINAL-ADAPTERS.md](TERMINAL-ADAPTERS.md). Implement in milestone
-order, preserving the common Ink renderer and keeping session logic independent
-of terminal brands. Native terminal verification is recorded separately from
-protocol fixture tests.
+matrix live in [TERMINAL-ADAPTERS.md](TERMINAL-ADAPTERS.md). M1–M4 are implemented:
+profile/transport composition, one semantic input stream, lifecycle/host services,
+`/terminal` diagnostics and reproducible PTY acceptance. The common Ink renderer
+and session logic remain independent of terminal brands. Native terminal
+verification is recorded separately from protocol fixture tests.

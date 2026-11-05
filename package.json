@@ -67,7 +67,8 @@
     "pack:check": "node scripts/verify-pack.mjs",
     "tty-check": "node --experimental-strip-types scripts/tty-check.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:terminal": "node scripts/terminal-pty-check.mjs"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "~3.18.5",

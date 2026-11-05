@@ -28,7 +28,7 @@ function keyEvent(sequence: string): TerminalEvent {
   if (nav) return { kind: 'navigation', key: nav }
   if (sequence === `${ESC}[12~` || sequence === `${ESC}OQ`) return { kind: 'interaction-toggle' }
   const control = sequence.charCodeAt(0)
-  if (sequence === ESC) return { kind: 'key', input: '', key: keyFlags({ escape: true, meta: true }) }
+  if (sequence === ESC || sequence === ESC + ESC) return { kind: 'key', input: '', key: keyFlags({ escape: true, meta: true }) }
   if (sequence === '\n') return { kind: 'key', input: '\n', key: keyFlags() }
   if (sequence === '\r') return { kind: 'key', input: '', key: keyFlags({ return: true }) }
   if (sequence === '\t') return { kind: 'key', input: '', key: keyFlags({ tab: true }) }
@@ -41,10 +41,14 @@ function keyEvent(sequence: string): TerminalEvent {
   if (arrow || numbered) {
     const modifier = Number(arrow?.[1] ?? numbered?.[2] ?? 1) - 1
     const key = keyFlags({ shift: (modifier & 1) !== 0, meta: (modifier & 2) !== 0, ctrl: (modifier & 4) !== 0 })
-    const flag = arrow ? ({ A: 'upArrow', B: 'downArrow', C: 'rightArrow', D: 'leftArrow', Z: 'tab' } as const)[arrow[2] as 'A']
-      : ({ '3': 'delete', '5': 'pageUp', '6': 'pageDown' } as const)[numbered![1] as '3']
+    const arrows: Partial<Record<string, keyof Key>> = { A: 'upArrow', B: 'downArrow', C: 'rightArrow', D: 'leftArrow', Z: 'tab' }
+    const numbers: Partial<Record<string, keyof Key>> = { '3': 'delete', '5': 'pageUp', '6': 'pageDown' }
+    const flag = arrow ? arrows[arrow[2]] : numbers[numbered?.[1] ?? '']
     if (flag) { key[flag] = true; if (arrow?.[2] === 'Z') key.shift = true; return { kind: 'key', input: '', key } }
     return { kind: 'report' }
+  }
+  if (sequence === `${ESC}\u007f` || sequence === `${ESC}\b`) {
+    return { kind: 'key', input: '', key: keyFlags({ backspace: true, meta: true }) }
   }
   if (sequence.startsWith(ESC) && !sequence.startsWith(`${ESC}[`) && !sequence.startsWith(`${ESC}O`)) {
     return { kind: 'key', input: sequence.slice(1), key: keyFlags({ meta: true, shift: /^[A-Z]$/.test(sequence.slice(1)) }) }

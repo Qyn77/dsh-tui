@@ -225,7 +225,7 @@ export function useMessageListScroll(
     }
   })
 
-  useTerminalEvent(event => {
+  useTerminalEvent((event) => {
     if (event.kind === 'pointer' && event.event.kind === 'wheel') {
       scrollBy(event.event.delta * MOUSE_WHEEL_ROWS)
     }

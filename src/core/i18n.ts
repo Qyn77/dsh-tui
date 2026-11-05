@@ -80,6 +80,7 @@ export const COMMAND_NAMES = [
   '/language',
   '/mcp',
   '/mouse',
+  '/terminal',
   '/notify',
   '/queue',
   '/changes',
@@ -594,6 +595,8 @@ export interface Catalog {
     historySwitched: (pref: HistoryPref) => string
     /** `/keybinds` with no argument: which keymap is in force, and the cheat sheet. */
     clipboardUnavailable: string
+    terminalReport: (json: string) => string
+    terminalUsage: string
     mouseUsage: string
     mouseStatus: (mode: string) => string
     keybindsUsage: (current: KeybindPref) => string
@@ -840,6 +843,7 @@ const EN: Catalog = {
     '/changes': 'Task file and command overview',
     '/queue': 'Manage next-turn messages',
     '/notify': 'Task and approval notifications',
+    '/terminal': 'Inspect terminal adapter and observed capabilities',
     '/mouse': 'Mouse input and native text selection',
     '/mcp': 'Manage MCP servers',
     '/model': 'Choose the model',
@@ -1003,6 +1007,8 @@ const EN: Catalog = {
         ? 'Resumed history is drawn again — /resume or a re-seed repaints it.'
         : 'Resumed history is hidden from now on — the model still reads it.',
     clipboardUnavailable: 'Clipboard transport is unavailable in this environment. Use native text selection.',
+    terminalUsage: '/terminal',
+    terminalReport: json => `Terminal adapter diagnostics\n\n${json}\n\nExpected support is not verified support. Requested modes have no acknowledgement; observed means an event was received. Use DSH_TUI_TERMINAL to override detection on restart. F2 toggles mouse/selection; /activity opens tasks without a mouse. Ctrl-V imports an image when the terminal forwards it; image paths also work. A shortcut that sends no input cannot be intercepted.`,
     mouseUsage: '/mouse auto|on|off',
     mouseStatus: mode => `Mouse: ${mode}. F2 toggles wheel/click reporting and native text selection.`,
     keybindsUsage: current =>
@@ -1193,6 +1199,7 @@ const ZH: Catalog = {
     '/changes': '任务文件修改与命令总览',
     '/queue': '管理后续任务队列',
     '/notify': '任务和审批提醒',
+    '/terminal': '查看终端适配器与实际观察到的能力',
     '/mouse': '鼠标模式与原生文字选择',
     '/mcp': '管理 MCP 服务器',
     '/model': '查看或切换模型',
@@ -1352,6 +1359,8 @@ const ZH: Catalog = {
         ? '已存历史重新画出来了——/resume 或重新播种会把它补上。'
         : '从现在起隐藏已存历史——模型仍然读得到。',
     clipboardUnavailable: '当前环境不支持剪贴板传输，请使用终端原生文字选择。',
+    terminalUsage: '/terminal',
+    terminalReport: json => `终端适配器诊断\n\n${json}\n\n预期支持不等于实机验证。requestedMode 只代表已请求的模式；observed 代表实际收到过事件。重启前可用 DSH_TUI_TERMINAL 覆盖识别。F2 切换鼠标与文字选择；/activity 无需鼠标即可展开任务。终端转发 Ctrl-V 时可导入图片，也可使用图片路径。没有传入任何字节的快捷键无法被程序拦截。`,
     mouseUsage: '/mouse auto|on|off',
     mouseStatus: mode => `鼠标模式：${mode}。F2 切换滚轮/点击上报与原生文字选择。`,
     keybindsUsage: current =>

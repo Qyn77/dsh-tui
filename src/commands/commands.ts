@@ -771,6 +771,11 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       else if (isNotificationMode(args[0])) cmd.setNotificationMode?.(args[0])
       return { kind: 'handled', message: labels.status(args[0] === 'test' ? cmd.notificationMode ?? 'off' : args[0] ?? cmd.notificationMode ?? 'off') }
     }
+    case '/terminal': {
+      if (raw.trim().split(/\s+/).length !== 1) return { kind: 'handled', message: strings.terminalUsage, failed: true }
+      const report = (cmd.terminalDiagnostics ?? createTerminalService().diagnostics)()
+      return { kind: 'handled', message: strings.terminalReport(JSON.stringify(report, null, 2)) }
+    }
     case '/mouse': {
       const value = raw.trim().split(/\s+/)[1]
       if (value !== undefined && !isMousePreference(value)) return { kind: 'handled', message: strings.mouseUsage, failed: true }

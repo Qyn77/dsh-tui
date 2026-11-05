@@ -28,7 +28,6 @@ src/
 ├── prompt/                   The input line
 │   ├── prompt-editing.ts     Pure buffer edits — beside Prompt.tsx
 │   ├── prompt-layout.ts      Pure input fold, caret, window, scrollbar    [test-first]
-│   ├── paste.ts              Bracketed-paste decoding                    [test-first]
 │   ├── vim.ts                Pure vim keymap state machine               [test-first]
 │   └── file-mentions.ts      `@` mention parsing + path ranking, the walk [test-first]
 ├── pickers/                  The command-anchored picker family
@@ -65,6 +64,8 @@ src/
 │   ├── hook-runs.ts          Pure hook-decision vocabulary               [test-first]
 │   └── banner-art.ts         Pure banner art + text — beside Banner.tsx  [test-first]
 ├── terminal/                 The machine this runs on
+│   ├── adapters/             Profiles, semantic input, modes and host service [test-first]
+│   ├── TerminalProvider.tsx  The single Ink input bridge
 │   ├── theme.ts              Appearance arithmetic + the one probe       [test-first]
 │   ├── settings.ts           Read/write ~/.dsh/tui.json (language)       [test-first]
 │   ├── environment.ts        Version + git branch probing (memoized)     [test-first]

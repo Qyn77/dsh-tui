@@ -78,6 +78,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/queue` | List pending input; `add <text>`, `edit <id> <text>`, `remove <id>`, `clear` manage separate turns |
 | `/notify` | `/notify off` / `bell` / `desktop`; `/notify test` probes delivery; default off |
 | `/mouse` | `auto` / `on` / `off`; F2 toggles mouse reporting and native text selection |
+| `/terminal` | Inspect adapter, environment, requested modes and observed events |
 | `/activity` | Expand/collapse a completed task: `/activity <number>`, `all`, or `none` |
 | `/search` / `/jump` | Search full text; jump to result number, `next`, `prev`, `user`, `tool`, or `error` |
 | `/inspect` | View a complete entry by number; Esc returns to the conversation |
@@ -127,7 +128,7 @@ images, skills, hooks, approvals, session resume, known limitations:
 - **[docs/SPEC.md](docs/SPEC.md)** — the design contract: visual rules, roadmap, contributor conventions.
 - **[docs/OCR-CI.md](https://github.com/Qyn77/dsh-tui/blob/ci/ocr-review/docs/OCR-CI.md)** — configure the GitHub Actions PR review workflow and its required secrets.
 
-Apple Terminal and VS Code use mouse reporting under `/mouse auto` to deliver wheel and task-disclosure clicks. F2 or `/mouse off` restores native selection; `/mouse on` restores reporting. Enable Terminal.app’s Allow Mouse Reporting setting if reports are disabled in its profile. Other terminals keep alternate-scroll input under auto. Auto relies on `TERM_PROGRAM`, which can be inherited by external terminals and misidentify them as VS Code; use `/mouse off` or `/mouse on` to override it. Completed tasks retain event-derived elapsed time and collapse intermediate activity while final answers and failures stay visible.
+Terminal differences are handled by the adapter layer. Recognized direct Apple Terminal, VS Code, iTerm2, Windows Terminal, VTE, Konsole, Kitty, Ghostty, WezTerm, Alacritty and Warp sessions request mouse reporting under `/mouse auto`. Unknown terminals and tmux/screen default to alternate scrolling. F2 or `/mouse off` restores native selection; `/mouse on` explicitly requests reporting. Terminal.app still needs Allow Mouse Reporting enabled. `/activity` provides a keyboard fallback for task disclosure. Environment detection is evidence, not verified capability: inspect `/terminal` and override inherited terminal identifiers with `DSH_TUI_TERMINAL`.
 
 Background diagnostics are recorded in `tui.log` under `DSH_HOME` (normally `~/.dsh/tui.log`). With mouse reporting enabled, click a task summary to expand it; F2 restores native text selection.
 
@@ -141,7 +142,7 @@ MIT
 
 ### Clipboard images
 
-Press **Ctrl-V** to import a clipboard screenshot into the attachment tray. Terminals that forward the platform shortcut as `Meta-V` are supported too. A completed empty bracketed paste is treated as an image-paste signal, so Terminal.app users can use **Control-Command-V** (Paste Escaped Text) or Ctrl-V; plain Command-V remains Terminal.app's own paste menu and is not delivered to programs as a key event. Normal terminal text paste is unchanged. macOS uses its native pasteboard; Windows uses Windows PowerShell/WinForms; Linux needs `wl-paste` (Wayland) or `xclip` (X11). These read the clipboard on the machine running dsh (including a remote host over SSH). Missing support reports a message; pasting a file path still works. Imported images appear as compact attachment rows; their cache paths stay out of the input text.
+Press **Ctrl-V** to import a clipboard screenshot when the terminal forwards that key. Apple Terminal / VS Code profiles also recognize received `Meta-V` and can try image import after an empty bracketed paste; neither signal is guaranteed for Command-V. The terminal owns Command-V: if it sends no bytes, the TUI cannot intercept it. Terminal.app's **Control-Command-V** may provide a paste signal; image file paths remain a fallback. Normal text paste is unchanged. macOS uses its native pasteboard, Windows uses PowerShell/WinForms, and Linux needs `wl-paste` (Wayland) or `xclip` (X11). SSH image reads default to disabled; `DSH_TUI_REMOTE_CLIPBOARD=host` explicitly reads the remote host, never the client. WSL Windows clipboard access requires `DSH_TUI_WSL_CLIPBOARD=windows` and enabled interop. Imported images remain attachments; cache paths stay out of the prompt.
 
 Images are private, content-addressed files in `DSH_HOME/tui-clipboard` (16 MiB per image, 64 files / 256 MiB cache). Ctrl-X removes a draft attachment, Ctrl-Z undoes the insertion. Cache files remain for restart recovery and undo; keep files referenced by saved drafts before manually cleaning that directory. Sending still checks the attachment store and model image capabilities.
 
