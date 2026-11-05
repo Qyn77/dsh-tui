@@ -529,8 +529,8 @@ owns their contracts; SPEC Part 2 lists the remaining proposed extensions.
 [ACCEPTANCE.md](ACCEPTANCE.md) records script evidence and native-terminal checks.
 Prompt autosave, unified undo/redo and local session organization are also
 implemented. This round also adds external editing, clipboard image input and
-read-only context inspection. Context mutation and selective checkpoints remain
-future proposals.
+read-only context inspection. Context mutation remains a future proposal. Explicit single-file checkpoints
+are now implemented; see FILE-CHECKPOINTS.md.
 
 ## 10. Terminal adapter boundary
 
@@ -554,3 +554,14 @@ optional visual refinement are retained as later directions.
 is the single item-level backlog, including priorities, acceptance criteria and
 which ideas still require runtime/design verification. Recording a direction
 does not mark it implemented.
+
+## 12. Follow-up implementation status · 2026-11-06
+
+Build provenance, interactive search, message-first actions, focused attachment
+management, explicit file checkpoints, sequential session tabs, performance
+budgets and modest final-result emphasis are implemented. The single item-level
+status table in SPEC Part 2 now distinguishes these from outstanding native GUI
+acceptance and remote attachment / parallel-session runtime dependencies.
+[SESSION-LIFECYCLE.md](SESSION-LIFECYCLE.md) records that review, and
+[TERMINAL-ACCEPTANCE.md](TERMINAL-ACCEPTANCE.md) records the native gap. No full
+remote client or parallel background approval workflow is claimed.

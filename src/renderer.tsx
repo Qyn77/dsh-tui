@@ -1088,7 +1088,7 @@ const AppBody: FC<AppProps> = ({
               </Text>
             )
             : scroll.atTail
-              ? (pendingTurns + pendingSteps > 0 ? <Text dimColor wrap="truncate">{strings.queue.pending(pendingTurns, pendingSteps)}</Text> : null)
+              ? (pendingTurns + pendingSteps > 0 ? <Text dimColor wrap="truncate">{strings.queue.pending(pendingTurns, pendingSteps)}</Text> : <Text dimColor wrap="truncate">{strings.browser.shortcuts}</Text>)
               : (
                 <Text color="yellow" dimColor wrap="truncate">
                   {strings.scroll.hint(scroll.offset)}

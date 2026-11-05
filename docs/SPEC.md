@@ -1472,33 +1472,33 @@ The following statuses track suggestions beyond the previous three-item round:
 - Implemented: unified prompt undo/redo and Ctrl-T external-editor round trip.
 - Implemented: direct clipboard image input, with platform-specific capability handling.
 - Implemented: read-only context/message/attachment and tool-schema inspection, plus live request capture. Context removal/mutation is not part of this round.
-- Selective file checkpoints/restoration, subject to a separate design protecting subsequent user edits.
+- Implemented: explicit single-file checkpoints/restoration; see FILE-CHECKPOINTS.md for the capture/seal/confirm contract and external-writer limits.
 
 ### Follow-up direction · recorded 2026-11-06
 
-The user asked to retain the following directions after the guided command-menu
-round. These are backlog items, not implementation claims or a new commitment
-to implement them in this documentation/merge pass. Functional reliability
-continues to take priority over optional cosmetic redesign.
+The user authorized implementation of all follow-up directions. The status below
+was refreshed after the follow-up branch; narrower implementation boundaries and
+remaining runtime/native dependencies are explicit. Functional reliability
+continues to take priority over cosmetic redesign.
 
 | Priority | Item | Current gap and completion criteria | Status |
 | --- | --- | --- | --- |
-| High · first | Runtime build identity and installation source | Show the running build commit, profile and resolved plugin path in diagnostics. Distinguish an installed artifact from a source checkout, including builds sharing the same package version. Verify against the actual loaded module rather than the current working directory's Git branch. | Planned |
-| High · second | Interactive search results | Keep the search query free text; offer selectable results with previews, direct navigation and highlighted matches. Preserve the reading position and reveal collapsed content when selecting a hit. `/search` and `/jump` already exist; this adds the result interaction. | Planned |
-| High · third | Contextual message actions | Select a transcript message, then choose copy, full inspection, recorded changes or export from one nearby menu. Reuse existing handlers and stable selection rules; do not require choosing the action command first. | Planned |
-| High · parallel acceptance | Native terminal acceptance | Exercise Terminal.app and VS Code first, then the remaining terminal/transport matrix in TERMINAL-ADAPTERS.md. Record app/environment versions and results for paste, mouse disclosure, text selection, resize, scrolling and shutdown. Profile unit tests and real PTY replay do not establish native GUI compatibility. | Pending human/native checks |
-| Medium | Attachment management | Select an individual attachment to remove, open a local preview where supported, and identify missing files before submission. Names/counts/sizes and Ctrl-X removal already exist; expose these operations through a focused attachment list. Keep remote-host capability limits explicit. | Planned |
-| Medium | Selective file checkpoints and restoration | Design capture and restoration boundaries first. Preview the affected files, detect later user edits and refuse silent overwrites; separate conversation branching from restoring filesystem state. Never imply external side effects are reversible. | Design required |
-| Medium | Long-session performance | Establish reproducible benchmarks with thousands of entries, large tool results and sustained streams. Measure input latency, scrolling, memory and menu opening, set an explicit budget, then fix measured regressions without truncating durable history. | Planned |
-| Later | Multiple session tabs | Explore fast switching among independently tracked sessions, including drafts, activity and notifications. Verify runtime lifecycle/concurrency support before promising parallel execution. Existing resume and branching are not tabs. | Proposal |
-| Later | Remote session attachment | Investigate reconnecting to an existing running session with ownership, reconnect and transport semantics. Running the current TUI inside SSH is not equivalent to remote attachment. Requires runtime contract verification. | Proposal |
-| Optional | Visual hierarchy and spacing | Improve the distinction between final results, activity, failures and pending decisions. Preserve all three approved responsive welcome states and prioritize readability and stable geometry. | Deferred cosmetic work |
-| Maintenance | Documentation consistency | Keep historical milestone claims clearly dated and the current status unambiguous. This pass corrects the stale clipboard-paste aspiration and completed v0.3 heading; further contradictions found during implementation should be corrected with the associated change. | Ongoing |
+| High · first | Runtime build identity and installation source | Show the running build commit, profile and resolved plugin path in diagnostics. Distinguish an installed artifact from a source checkout, including builds sharing the same package version. Verify against the actual loaded module rather than the current working directory's Git branch. | Implemented · `/terminal` build fingerprint and provenance |
+| High · second | Interactive search results | Keep the search query free text; offer selectable results with previews, direct navigation and highlighted matches. Preserve the reading position and reveal collapsed content when selecting a hit. `/search` and `/jump` already exist; this adds the result interaction. | Implemented · F3 and `/search`, highlighted previews, identity-safe navigation |
+| High · third | Contextual message actions | Select a transcript message, then choose copy, full inspection, recorded changes or export from one nearby menu. Reuse existing handlers and stable selection rules; do not require choosing the action command first. | Implemented · F4, snapshot-bound actions |
+| High · parallel acceptance | Native terminal acceptance | Exercise Terminal.app and VS Code first, then the remaining terminal/transport matrix in TERMINAL-ADAPTERS.md. Record app/environment versions and results for paste, mouse disclosure, text selection, resize, scrolling and shutdown. Profile unit tests and real PTY replay do not establish native GUI compatibility. | 12 profile PTY checks passed; native GUI checks pending ([matrix](TERMINAL-ACCEPTANCE.md)) |
+| Medium | Attachment management | Select an individual attachment to remove, open a local preview where supported, and identify missing files before submission. Names/counts/sizes and Ctrl-X removal already exist; expose these operations through a focused attachment list. Keep remote-host capability limits explicit. | Implemented · F5, selected removal/undo, supported local preview |
+| Medium | Selective file checkpoints and restoration | Design capture and restoration boundaries first. Preview the affected files, detect later user edits and refuse silent overwrites; separate conversation branching from restoring filesystem state. Never imply external side effects are reversible. | Implemented · explicit single-file capture/seal/preview/confirm; see FILE-CHECKPOINTS.md for concurrency limits |
+| Medium | Long-session performance | Establish reproducible benchmarks with thousands of entries, large tool results and sustained streams. Measure input latency, scrolling, memory and menu opening, set an explicit budget, then fix measured regressions without truncating durable history. | Implemented · reproducible 10k-entry/frame benchmark and budgets (PERFORMANCE.md) |
+| Later | Multiple session tabs | Explore fast switching among independently tracked sessions, including drafts, activity and notifications. Verify runtime lifecycle/concurrency support before promising parallel execution. Existing resume and branching are not tabs. | Sequential tabs implemented; parallel live execution deferred after lifecycle review |
+| Later | Remote session attachment | Investigate reconnecting to an existing running session with ownership, reconnect and transport semantics. Running the current TUI inside SSH is not equivalent to remote attachment. Requires runtime contract verification. | Investigated, not implemented · requires separate Host/session API/client composition (SESSION-LIFECYCLE.md) |
+| Optional | Visual hierarchy and spacing | Improve the distinction between final results, activity, failures and pending decisions. Preserve all three approved responsive welcome states and prioritize readability and stable geometry. | Implemented modest refinements · highlighted previews and final-result header; welcome states preserved |
+| Maintenance | Documentation consistency | Keep historical milestone claims clearly dated and the current status unambiguous. This pass corrects the stale clipboard-paste aspiration and completed v0.3 heading; further contradictions found during implementation should be corrected with the associated change. | Updated with implementation boundaries and remaining acceptance work |
 
-Recommended next implementation sequence: runtime build identity → interactive
-search results → contextual message actions. Native-terminal acceptance runs
-alongside these. Checkpoints and remote/multi-session features require their own
-runtime/design review. The fixed-choice menu round is already implemented;
+The first three items and scoped follow-ups are implemented. Native-terminal
+acceptance remains outstanding. Checkpoint boundaries and the lifecycle/remote
+review are documented separately; remote attachment and parallel live sessions
+are not claimed as delivered. The fixed-choice menu round is already implemented;
 search terms, message text, titles and paths intentionally remain free input.
 
 ## Part 3 · Conventions
@@ -2147,3 +2147,5 @@ result” header, keeping the role glyph and dimming provenance. Intermediate
 steps retain their role accent. Headers truncate to one row, preserving the
 existing scroll estimator contract. This field does not change reducer events,
 model input, recorded history, failure visibility or responsive welcome states.
+
+The reserved tail hint row advertises F3/F4/F5 when no queue or exit warning takes precedence; it adds no layout height.
