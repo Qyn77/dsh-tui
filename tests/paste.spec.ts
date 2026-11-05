@@ -1,5 +1,6 @@
 /** Paste regression tests use the production incremental decoder. */
 import { describe, expect, it } from 'vitest'
+import { paintApp } from './fake-tty.ts'
 import { TerminalInputDecoder } from '../src/terminal/adapters/input.ts'
 const START = '\u001b[200~'
 const END = '\u001b[201~'
@@ -25,4 +26,14 @@ describe('terminal paste boundary', () => {
   it('preserves empty paste as a hint, separate from an explicit shortcut', () => {
     expect(new TerminalInputDecoder().feed(START + END)).toEqual([{ kind: 'paste-start' }, { kind: 'paste-end', empty: true }])
   })
+})
+
+it('applies coalesced Ctrl-A/Ctrl-K to the prompt instead of inserting them', async () => {
+  const tty = await paintApp()
+  try {
+    await tty.send('remove me')
+    await tty.send('\u0001\u000b')
+    expect(tty.screen()).not.toContain('remove me')
+    expect(tty.screen()).toContain('Ask dsh anything')
+  } finally { tty.unmount() }
 })

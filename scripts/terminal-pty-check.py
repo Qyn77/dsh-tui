@@ -46,6 +46,10 @@ def run(profile, entry):
         try:
             read_for(0.8)
             assert b'Ask dsh anything' in output, output.decode(errors='replace')[-2000:]
+            burst_start = len(output)
+            send(b'erase burst')
+            send(b'\x01\x0b')  # Ctrl-A + Ctrl-K in one OS write
+            assert b'Ask dsh anything' in output[burst_start:]
             # Split paste markers and CRLF, then clear the draft without exiting.
             for chunk in [b'\x1b[20', b'0~PTY first\r', b'\nsecond', b'\x1b[201', b'~']:
                 send(chunk)
@@ -79,7 +83,7 @@ def run(profile, entry):
             assert result['diagnostics']['requestedMode'] == 'inactive', result
             assert not result['raw'], result
             assert '\x1b[?2004l' in text and '\x1b[?1049l' in text, result
-            print(f'PASS {profile}: paste, Ctrl-C draft clear, image trigger, F2, pointer, resize, /terminal, /exit; raw mode restored')
+            print(f'PASS {profile}: paste, coalesced controls, Ctrl-C draft clear, image trigger, F2, pointer, resize, /terminal, /exit; raw mode restored')
         finally:
             if process.poll() is None:
                 process.kill()

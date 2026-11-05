@@ -79,3 +79,13 @@ it('does not end oversized DCS/APC replies at BEL or flush their ST prefix as Es
   expect(decoder.flushEscape()).toEqual([])
   expect(decoder.feed('\\visible')).toMatchObject([{ kind: 'report' }, { kind: 'key', input: 'visible' }])
 })
+
+it('decodes control-key bursts as keys instead of inserting control bytes into text', () => {
+  const events = new TerminalInputDecoder().feed('draft\u0003\u0003\u0016')
+  expect(events).toMatchObject([
+    { kind: 'key', input: 'draft', key: { ctrl: false } },
+    { kind: 'key', input: 'c', key: { ctrl: true } },
+    { kind: 'key', input: 'c', key: { ctrl: true } },
+    { kind: 'key', input: 'v', key: { ctrl: true } },
+  ])
+})

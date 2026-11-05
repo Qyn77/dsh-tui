@@ -33,8 +33,8 @@ function keyEvent(sequence: string): TerminalEvent {
   if (sequence === '\r') return { kind: 'key', input: '', key: keyFlags({ return: true }) }
   if (sequence === '\t') return { kind: 'key', input: '', key: keyFlags({ tab: true }) }
   if (sequence === '\u007f' || sequence === '\b') return { kind: 'key', input: '', key: keyFlags({ backspace: true }) }
-  if (sequence.length === 1 && control > 0 && control < 27) {
-    return { kind: 'key', input: String.fromCharCode(control + 96), key: keyFlags({ ctrl: true }) }
+  if (sequence.length === 1 && control >= 0 && control < 32) {
+    return { kind: 'key', input: String.fromCharCode(control + 64).toLowerCase(), key: keyFlags({ ctrl: true }) }
   }
   const arrow = /^\u001b(?:\[|O)(?:1;([2-8]))?([ABCDHFZ])$/.exec(sequence)
   const numbered = /^\u001b\[(\d+)(?:;([2-8]))?~$/.exec(sequence)
@@ -117,8 +117,10 @@ export class TerminalInputDecoder {
         events.push({ kind: 'paste-start' }); continue
       }
       if (this.pending[0] !== ESC) {
-        const next = this.pending.indexOf(ESC)
-        const text = next < 0 ? this.pending : this.pending.slice(0, next)
+        // Preserve multiline unbracketed paste, but split non-whitespace control
+        // keys even when the OS coalesces several keystrokes into one read.
+        const next = this.pending.search(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/)
+        const text = next < 0 ? this.pending : this.pending.slice(0, Math.max(1, next))
         events.push(keyEvent(text)); this.pending = this.pending.slice(text.length); continue
       }
       if (this.pending.length === 1) break

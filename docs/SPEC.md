@@ -2008,3 +2008,8 @@ The input decoder isolates OSC, DCS, APC, PM and SOS control strings before
 key dispatch. Only OSC accepts BEL as a terminator; other strings wait for ST.
 The same rule applies after the bounded buffer enters discard mode. Protocol
 reply payloads (including Kitty graphics replies) must never enter the draft.
+
+Coalesced control-key bursts are decoded as individual semantic keys, preserving
+their order; non-whitespace C0/DEL bytes must not become draft text. Bracketed
+paste still treats all contents as text, and multiline unbracketed paste keeps
+its existing newline normalization fallback.
