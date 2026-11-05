@@ -39,6 +39,7 @@ export interface StatusBarProps {
   /** Currently selected model for the agent. */
   selection: ModelSelection
   /** Session id of the live agent. */
+  tabHint?: string
   sessionId: SessionId
   /** Live UI state — read for `status` and for the token totals. */
   state: UiState
@@ -96,6 +97,7 @@ export function fitModelName(provider: string, model: string, maxWidth: number):
 export const StatusBar: FC<StatusBarProps> = ({
   selection,
   sessionId,
+  tabHint,
   state,
   spinnerFrame,
   elapsedSeconds,
@@ -139,7 +141,7 @@ export const StatusBar: FC<StatusBarProps> = ({
         <Text color="green" bold>{displayModel}</Text>
       </Box>
       <Box>
-        <Text color="gray">{shortId(sessionId)}</Text>
+        <Text color="gray">{shortId(sessionId)}{tabHint ? ` ${tabHint}` : ''}</Text>
         <Text color="gray"> · </Text>
         <Text color={isRunning ? 'yellow' : 'gray'}>{statusText}</Text>
         <Text color="gray"> · </Text>

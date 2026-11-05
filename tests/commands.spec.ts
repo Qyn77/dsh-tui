@@ -1627,7 +1627,7 @@ describe('filterCommands', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
       '/activity', '/approval', '/branch', '/changes', '/checkpoint', '/clear', '/context', '/copy', '/diff', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
-      '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/terminal', '/theme',
+      '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/tabs', '/terminal', '/theme',
       '/usage', '/verbose',
     ])
   })
@@ -1682,7 +1682,7 @@ describe('filterCommands', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
         '/activity', '/approval', '/branch', '/changes', '/checkpoint', '/clear', '/compact', '/context', '/copy', '/diff', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
         '/language',
-        '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/terminal', '/theme',
+        '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/tabs', '/terminal', '/theme',
         '/usage', '/verbose',
       ])
     })
@@ -1777,4 +1777,14 @@ it('refuses checkpoint writes while a task is running and validates syntax', asy
   expect(await dispatch('/checkpoint save example.txt', cmd)).toMatchObject({ kind: 'handled', failed: true })
   cmd.state = emptyState()
   expect(handledText(await dispatch('/checkpoint unknown', cmd))).toContain('/checkpoint')
+})
+
+it('validates and dispatches session-tab choices', async () => {
+  const run = vi.fn(async () => ({ kind: 'switched' as const, id: SessionId('second') }))
+  const { cmd } = makeCommand({ tabs: { ids: ['first', 'second'], run } })
+  expect(handledText(await dispatch('/tabs', cmd))).toContain('second')
+  expect(await dispatch('/tabs next', cmd)).toEqual({ kind: 'handled' })
+  expect(run).toHaveBeenCalledWith('next')
+  expect(await dispatch('/tabs invalid', cmd)).toMatchObject({ failed: true })
+  expect(run).toHaveBeenCalledTimes(1)
 })

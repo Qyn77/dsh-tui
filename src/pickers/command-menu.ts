@@ -57,6 +57,7 @@ export function menuRows(items: readonly MenuItem[], labels: Catalog['menu']): C
 }
 
 export interface MenuData {
+  tabs?: readonly string[]
   checkpoints?: readonly Checkpoint[]
   /** Only materialize large transcript choices while their command is open. */
   root?: string
@@ -134,7 +135,10 @@ export function commandMenus(strings: Catalog, settings: MenuSettings, data: Men
       preview(message.content.flatMap(block => typeof block === 'object' && block !== null && 'text' in block ? [String(block.text)] : []).join(' ')))),
   ])
   const recover = recoveryPlan(data.state)
-  return [branch('/checkpoint', '/checkpoint', [
+  return [branch('/tabs', '/tabs', [
+    ...(['new', 'next', 'prev', 'close'] as const).map(action => leaf(action, strings.tabs[action], `/tabs ${action}`)),
+    ...(data.tabs ?? []).map(id => ({ ...leaf(id, id, `/tabs ${id}`), current: id === data.sessionId })),
+  ]), branch('/checkpoint', '/checkpoint', [
     input('save', strings.checkpoint.save, '/checkpoint save '),
     ...(['show', 'seal', 'restore'] as const).map(action => branch(action, strings.checkpoint[action],
       (data.checkpoints ?? []).filter(item => action !== 'seal' || item.after === undefined).map(item => action === 'restore'

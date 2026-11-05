@@ -2119,3 +2119,14 @@ Capture is explicit and local, limited to one regular file at a time. Restore
 requires a sealed after-state, preview and confirmation, refuses changed files,
 and retains both snapshots. It is not a rollback of external effects. Restore
 is idle-only and assumes external writers are stopped; there is no force mode.
+
+### Sequential session tabs
+
+`/tabs` offers new/next/previous/close and known session IDs. More than one tab
+adds a compact position count to the existing status row. Tabs retain order for
+this process; drafts retain their per-session persistence. The runner switches
+through its existing resume transaction and disposes the old owned handle.
+Closing a tab never deletes the durable session and the last tab stays open.
+Running tasks refuse switches. These are sequential tabs, not concurrent agents.
+The verified runtime and remote-attachment boundary is in
+[SESSION-LIFECYCLE.md](SESSION-LIFECYCLE.md); remote attachment remains unimplemented.

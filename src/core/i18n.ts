@@ -61,6 +61,7 @@ export const LANGUAGES: readonly Lang[] = ['en', 'zh']
  * cannot be added without a description in both languages.
  */
 export const COMMAND_NAMES = [
+  '/tabs',
   '/checkpoint',
   '/approval',
   '/activity',
@@ -129,6 +130,7 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  tabs: Record<'new' | 'next' | 'prev' | 'close' | 'unavailable' | 'busy' | 'current' | 'failed', string>
   checkpoint: Record<'usage' | 'busy' | 'empty' | 'invalid' | 'unsafe' | 'large' | 'unsealed' | 'conflict' | 'sealed' | 'locked' | 'failed' | 'restored' | 'ready' | 'preview' | 'confirm' | 'save' | 'seal' | 'show' | 'restore', string>
   attachmentManager: Record<'hint' | 'empty' | 'opened' | 'unavailable' | 'missing' | 'failed', string>
   browser: Record<'search' | 'messages' | 'actions' | 'path' | 'query' | 'exportHint' | 'empty' | 'hint' | 'jump' | 'copy' | 'inspect' | 'diff' | 'export', string>
@@ -686,6 +688,7 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  tabs: { new: 'New session tab', next: 'Next tab', prev: 'Previous tab', close: 'Close current tab (keeps history)', unavailable: 'Session tabs are unavailable.', busy: 'Finish or stop the task before switching tabs.', current: 'Already here; the last tab stays open.', failed: 'Could not switch session tab.' },
   checkpoint: { usage: '/checkpoint [list | save <path> | seal <id> | show <id> | restore <id> [confirm]]', busy: 'Stop the running task before checkpoint operations.', empty: 'No file checkpoints for this directory.', invalid: 'Invalid checkpoint or arguments.', unsafe: 'Refusing a link, special file or path outside this workspace.', large: 'Checkpoint files are limited to 1 MiB.', unsealed: 'Before captured; seal the intended after-state before restoration.', conflict: 'File changed after sealing; restoration refused.', sealed: 'This checkpoint is already sealed.', locked: 'Checkpoint is locked; another operation or interrupted process may own it.', failed: 'Checkpoint operation failed; inspect the path and permissions.', restored: 'Restored', ready: 'Sealed', preview: 'Captured before → sealed after (restore goes backwards):', confirm: 'Review this preview, stop external writers, then use restore <id> confirm. Both snapshots are retained.', save: 'Capture a file before work', seal: 'Seal intended changes', show: 'Preview checkpoint', restore: 'Restore a selected file' },
   attachmentManager: { hint: '↑↓ select · Enter preview · Delete remove · Esc close', empty: 'No draft attachments', opened: 'Opened local image preview.', unavailable: 'Local preview is unavailable on this host/transport.', missing: 'Image file is missing or not a regular file.', failed: 'Could not open the image viewer.' },
   browser: { search: 'Search conversation', messages: 'Select a message', actions: 'Message actions', path: 'Export path:', query: 'Filter:', exportHint: 'Enter a new file path; existing files are never overwritten.', empty: 'No matching messages', hint: '↑↓ select · Enter open · Esc back/close', jump: 'Jump to message', copy: 'Copy text', inspect: 'Read full content', diff: 'Recorded changes', export: 'Export Markdown' },
@@ -918,6 +921,7 @@ const EN: Catalog = {
     '/changes': 'Task file and command overview',
     '/queue': 'Manage next-turn messages',
     '/notify': 'Task and approval notifications',
+    '/tabs': 'Open, switch and close session tabs',
     '/checkpoint': 'Capture, preview and safely restore a selected file',
     '/terminal': 'Inspect terminal adapter and observed capabilities',
     '/mouse': 'Mouse input and native text selection',
@@ -1121,6 +1125,7 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  tabs: { new: '新建会话标签', next: '下一个标签', prev: '上一个标签', close: '关闭当前标签（保留历史）', unavailable: '当前无法使用会话标签。', busy: '请先完成或停止任务，再切换标签。', current: '已经在此会话；最后一个标签保持打开。', failed: '无法切换会话标签。' },
   checkpoint: { usage: '/checkpoint [list | save <路径> | seal <id> | show <id> | restore <id> [confirm]]', busy: '请先停止正在运行的任务，再操作文件检查点。', empty: '当前目录没有文件检查点。', invalid: '检查点或参数无效。', unsafe: '拒绝链接、特殊文件或工作目录以外的路径。', large: '检查点单文件上限为 1 MiB。', unsealed: '已捕获原文件；恢复前需确认并封存预期修改。', conflict: '文件在封存后又被修改，已拒绝恢复。', sealed: '该检查点已经封存。', locked: '检查点被锁定；可能有其他操作或中断进程持有它。', failed: '检查点操作失败，请检查路径与权限。', restored: '已恢复', ready: '已封存', preview: '原始内容 → 封存后的内容（恢复方向相反）：', confirm: '检查预览并停止外部写入，再执行 restore <id> confirm。两个快照都会保留。', save: '保存修改前的文件', seal: '封存预期修改', show: '预览检查点', restore: '恢复选中的文件' },
   attachmentManager: { hint: '↑↓ 选择 · Enter 预览 · Delete 移除 · Esc 关闭', empty: '没有待发送附件', opened: '已打开本机图片预览。', unavailable: '此主机或连接方式不支持本机预览。', missing: '图片文件缺失或不是普通文件。', failed: '无法打开图片查看器。' },
   browser: { search: '搜索对话', messages: '选择消息', actions: '消息操作', path: '导出路径：', query: '筛选：', exportHint: '输入新文件路径；不会覆盖已有文件。', empty: '没有匹配的消息', hint: '↑↓ 选择 · Enter 打开 · Esc 返回/关闭', jump: '跳到消息', copy: '复制文本', inspect: '查看完整内容', diff: '记录的变更', export: '导出 Markdown' },
@@ -1345,6 +1350,7 @@ const ZH: Catalog = {
     '/changes': '任务文件修改与命令总览',
     '/queue': '管理后续任务队列',
     '/notify': '任务和审批提醒',
+    '/tabs': '新建、切换和关闭会话标签',
     '/checkpoint': '捕获、预览并安全恢复选定文件',
     '/terminal': '查看终端适配器与实际观察到的能力',
     '/mouse': '鼠标模式与原生文字选择',

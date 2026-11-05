@@ -459,6 +459,7 @@ async function listSessions(
 
 /** Snapshot one command from the registry. */
 export interface CommandContext {
+  tabs?: { ids: string[]; run: (action: string) => Promise<SwapResult> }
   sessionLibrary?: SessionLibrary
   onLibraryChange?: () => void
   forkSession?: (turn?: number) => Promise<SwapResult>
@@ -774,6 +775,17 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       if (args[0] === 'test') cmd.testNotification?.()
       else if (isNotificationMode(args[0])) cmd.setNotificationMode?.(args[0])
       return { kind: 'handled', message: labels.status(args[0] === 'test' ? cmd.notificationMode ?? 'off' : args[0] ?? cmd.notificationMode ?? 'off') }
+    }
+    case '/tabs': {
+      const labels = catalog(lang).tabs
+      if (!cmd.tabs) return { kind: 'handled', message: labels.unavailable, failed: true }
+      const action = raw.trim().slice('/tabs'.length).trim()
+      if (!action) return { kind: 'handled', message: cmd.tabs.ids.map(id => `${id === cmd.agent.id ? '✓ ' : ''}${id}`).join('\n') }
+      if (!['new', 'next', 'prev', 'close', ...cmd.tabs.ids].includes(action)) return { kind: 'handled', message: labels.failed, failed: true }
+      const result = await cmd.tabs.run(action)
+      if (result.kind === 'switched') return { kind: 'handled' }
+      return { kind: 'handled', message: result.kind === 'busy' ? labels.busy : result.kind === 'current' ? labels.current : labels.failed,
+        failed: result.kind !== 'current' }
     }
     case '/checkpoint': return checkpointCommand(raw, cmd.cwd ?? process.cwd(), catalog(lang).checkpoint, cmd.state.status === 'running')
     case '/terminal': {

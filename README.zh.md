@@ -79,6 +79,7 @@ dsh --profile tui-rc5
 | `/notify` | `off` / `bell` / `desktop`；`/notify test` 测试提醒，默认关闭 |
 | `/mouse` | `auto` / `on` / `off`；F2 切换鼠标上报与原生文字选择 |
 | `/checkpoint [list / save <path> / seal <id> / show <id> / restore <id> [confirm]]` | 保存单个文件的修改前状态，封存预期修改；预览后，仅当文件未再次改动时恢复。见[检查点设计](docs/FILE-CHECKPOINTS.md)。 |
+| `/tabs [new / next / prev / close / <id>]` | 顺序会话标签：new / next / prev / close，或选择访问过的会话。仅空闲时切换，关闭保留历史；不在后台并行执行。 |
 | `/terminal` | 查看适配器、运行环境、请求的模式与收到过的事件 |
 | `/activity` | 展开/收起任务过程：`/activity <编号>`、`all`、`none` |
 | `/search` / `/jump` | 搜索完整内容；按编号定位，或用 `next`、`prev`、`user`、`tool`、`error` 导航 |

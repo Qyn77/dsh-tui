@@ -1,3 +1,4 @@
+import { createSessionTabs } from './terminal/session-tabs.ts'
 import { watchContextRequests } from './commands/context-view.ts'
 import { createTerminalHandoff } from './terminal/handoff.ts'
 import { editExternal, type EditExternally } from './terminal/external-editor.ts'
@@ -218,9 +219,11 @@ async function run(ctx: Context, config: Config): Promise<void> {
       // Assigned once Ink has mounted. `swapSession` is built before `instance`
       // exists but only ever called from a keystroke, long after.
       let redraw: () => void = () => {}
+      const tabs = createSessionTabs(handle.agent.id)
       const publishHandle = async (next: typeof handle): Promise<SwapResult> => {
         const previous = handle
         handle = next
+        tabs.open(next.agent.id)
         redraw()
         try {
           await previous.dispose()
@@ -298,6 +301,27 @@ async function run(ctx: Context, config: Config): Promise<void> {
           return { kind: 'refused', notice: error instanceof Error ? error.message : String(error) }
         } finally { switchingSession = false }
       }
+      const tabAction = async (action: string): Promise<SwapResult> => {
+        if (switchingSession || handle.agent.status === 'running') return { kind: 'busy' }
+        const current = handle.agent.id
+        if (action === 'new') {
+          switchingSession = true
+          try {
+            const next = await agents.create({ sessionId: SessionId(`tui-${randomUUID()}`),
+              meta: { cwd: process.cwd() }, agentOptions: { ...agentOptions, ...ref.current }, setup })
+            return await publishHandle(next)
+          } catch (error) { return { kind: 'refused', notice: String(error) } }
+          finally { switchingSession = false }
+        }
+        const closing = action === 'close'
+        if (closing && tabs.list().length < 2) return { kind: 'current', id: current }
+        const target = closing || action === 'next' || action === 'prev'
+          ? tabs.target(current, action === 'prev' ? 'prev' : 'next') : action
+        if (!tabs.list().includes(target)) return { kind: 'refused', notice: 'Unknown session tab.' }
+        const result = await swapSession(target)
+        if (closing && result.kind === 'switched') { tabs.close(current); redraw() }
+        return result
+      }
       const contextRequests = watchContextRequests(ctx, () => ({ id: handle.agent.id, seq: handle.agent.session.seq }))
       disposeContext = contextRequests.dispose
       const editExternally: EditExternally = (text) => {
@@ -334,6 +358,7 @@ async function run(ctx: Context, config: Config): Promise<void> {
           onMousePreferenceChange: (next) => { terminalService.modes.setPreference(next) },
           swapSession,
           forkSession,
+          tabs: { ids: tabs.list(), run: tabAction },
           ...detected === undefined ? {} : { appearance: detected },
           ...plan.kind === 'fresh' && plan.notice !== undefined ? { notice: plan.notice } : {},
           // A boot resume with the history hidden draws an empty transcript, and

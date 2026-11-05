@@ -69,6 +69,7 @@ import { type RepaintRef } from './terminal/resize.ts'
 
 /** Props for the TUI root component. */
 export interface AppProps {
+  tabs?: { ids: string[]; run: (action: string) => Promise<SwapResult> }
   terminalService?: TerminalService
   contextRequest?: ContextRequestReader
   editExternally?: EditExternally
@@ -204,6 +205,7 @@ const AppBody: FC<AppProps> = ({
   appearance: detected = 'dark',
   swapSession,
   forkSession,
+  tabs,
 }) => {
   const { exit: closeUi } = useApp()
   const { stdout, write } = useStdout()
@@ -822,6 +824,7 @@ const AppBody: FC<AppProps> = ({
           terminalDiagnostics: terminal.diagnostics,
           swapSession,
           forkSession,
+          tabs,
           state,
         }).then((result) => {
           // Command output goes into the log, not to stderr. Inside the
@@ -895,7 +898,7 @@ const AppBody: FC<AppProps> = ({
       mousePref, setMouse, setActivity, inspectContext, contextRequest, stdout.columns, inspectEntry, jumpEntry, cwd, fullState,
       historyReady,
       ctx, agent, closeUi, clearView, appendEntry, setModel, refreshSelection, setLanguage, lang,
-      setTheme, themePref, appearance, emit, strings, state, shell, swapSession, forkSession,
+      setTheme, themePref, appearance, emit, strings, state, shell, swapSession, forkSession, tabs,
       scroll.setExpanded, scroll.expanded, attach, statusRef,
     ],
   )
@@ -1039,6 +1042,7 @@ const AppBody: FC<AppProps> = ({
           <StatusBar
             selection={selection}
             sessionId={agent.id}
+            tabHint={tabs && tabs.ids.length > 1 ? `[${tabs.ids.indexOf(agent.id) + 1}/${tabs.ids.length}]` : undefined}
             state={state}
             spinnerFrame={spinnerFrame}
             elapsedSeconds={elapsedSeconds}
@@ -1119,7 +1123,7 @@ const AppBody: FC<AppProps> = ({
           commandMenus={commandMenus(strings, { language: lang, theme: themePref, keybinds: keybindPref,
             mouse: mousePref, notify: notificationMode, verbose: scroll.expanded ? 'on' : 'off', history: historyPref,
             approval: service(ctx, 'approval')?.overrideOf(agent.session) }, {
-            checkpoints: checkpointRows, root: promptCommand, state, fullState, historyReady, sessionId: agent.id,
+            tabs: tabs?.ids, checkpoints: checkpointRows, root: promptCommand, state, fullState, historyReady, sessionId: agent.id,
             sessions: managementCommands, resumeSessions: sessionCommands,
             models: modelRowsForPicker, providers: service(ctx, 'llm')?.listProviders(),
             plugins: promptCommand === '/plugins' ? describePlugins(service(ctx, 'loader')?.entries() ?? []) : [],

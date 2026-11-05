@@ -79,6 +79,7 @@ Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exi
 | `/notify` | `/notify off` / `bell` / `desktop`; `/notify test` probes delivery; default off |
 | `/mouse` | `auto` / `on` / `off`; F2 toggles mouse reporting and native text selection |
 | `/checkpoint [list / save <path> / seal <id> / show <id> / restore <id> [confirm]]` | Capture one file before work, seal its intended after-state, preview and restore only if unchanged since sealing. See [checkpoint design](docs/FILE-CHECKPOINTS.md). |
+| `/tabs [new / next / prev / close / <id>]` | Sequential session tabs: new / next / prev / close, or select a visited session. Switching is idle-only; closing keeps durable history. No background execution. |
 | `/terminal` | Inspect adapter, environment, requested modes and observed events |
 | `/activity` | Expand/collapse a completed task: `/activity <number>`, `all`, or `none` |
 | `/search` / `/jump` | Search full text; jump to result number, `next`, `prev`, `user`, `tool`, or `error` |

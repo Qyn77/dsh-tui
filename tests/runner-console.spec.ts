@@ -72,3 +72,58 @@ it('keeps a provider warning inside the live frame after startup', async () => {
     rmSync(home, { recursive: true, force: true })
   }
 })
+
+it('switches sequential tabs transactionally and releases each previous handle', async () => {
+  const { Session, SessionId } = await import('@deepseek-ai/dsh-session')
+  const home = mkdtempSync(join(tmpdir(), 'dsh-tabs-'))
+  vi.stubEnv('DSH_HOME', home)
+  const stdout = fakeStdout(100, 31), stdin = fakeTtyStdin()
+  vi.spyOn(process, 'stdout', 'get').mockReturnValue(stdout as never)
+  vi.spyOn(process, 'stdin', 'get').mockReturnValue(Object.assign(stdin, { fd: 0 as const }))
+  const oldIo = { ...internals }; internals.stdout = stdout; internals.stderr = stdout
+  let props: import('../src/renderer.tsx').AppProps | undefined
+  let stop: () => void = () => {}
+  const finished = new Promise<void>((resolve) => { stop = resolve })
+  const capture = (node: React.ReactNode) => { props = (node as React.ReactElement<import('../src/renderer.tsx').AppProps>).props }
+  vi.mocked(render).mockImplementation((node) => {
+    capture(node)
+    return { clear: () => {}, cleanup: () => {}, rerender: capture, unmount: () => {}, waitUntilExit: () => finished }
+  })
+  const sessions = new Map<string, ReturnType<typeof Session.create>>()
+  const dispose = vi.fn(async () => {})
+  let current: { status: string } | undefined
+  const handle = (id: string) => {
+    const session = sessions.get(id) ?? Session.create(SessionId(id))
+    sessions.set(id, session)
+    const agent = { id: session.id, session, status: 'idle', on: () => () => {} }
+    current = agent
+    return { agent, dispose }
+  }
+  const ctx = new Context()
+  ctx.provide('agentDefaultModel', { currentSelection: () => ({ provider: 'p', model: 'm' }) } as never)
+  ctx.provide('agents', { create: async (options: { sessionId: string }) => handle(options.sessionId),
+    resume: async (options: { resumeSessionId: string }) => handle(options.resumeSessionId) } as never)
+  ctx.provide('sessionPersistence', { list: async () => [...sessions.values()].map(session => ({ header: session.header })) } as never)
+  ctx.provide('appExit', vi.fn() as never)
+  try {
+    apply(ctx, {})
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const first = props!.agent.id
+    expect(await props!.tabs!.run('new')).toMatchObject({ kind: 'switched' })
+    const second = props!.agent.id
+    expect(second).not.toBe(first)
+    expect(props!.tabs!.ids).toEqual([first, second])
+    expect(dispose).toHaveBeenCalledTimes(1)
+    expect(await props!.tabs!.run('prev')).toMatchObject({ kind: 'switched', id: first })
+    expect(dispose).toHaveBeenCalledTimes(2)
+    expect(await props!.tabs!.run('close')).toMatchObject({ kind: 'switched', id: second })
+    expect(props!.tabs!.ids).toEqual([second])
+    expect(sessions.has(first)).toBe(true)
+    expect(await props!.tabs!.run('close')).toMatchObject({ kind: 'current' })
+    current!.status = 'running'
+    expect(await props!.tabs!.run('new')).toEqual({ kind: 'busy' })
+  } finally {
+    stop(); await new Promise(resolve => setTimeout(resolve, 50))
+    Object.assign(internals, oldIo); rmSync(home, { recursive: true, force: true })
+  }
+})
