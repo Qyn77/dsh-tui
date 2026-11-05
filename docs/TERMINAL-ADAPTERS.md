@@ -56,7 +56,7 @@ key decoder; baseline compatibility must not regress to obtain extra keys.
 
 ## Milestones (commit after validation)
 
-- [ ] M1: profile registry, deterministic detection, capability/transport model,
+- [x] M1: profile registry, deterministic detection, capability/transport model,
       generic fallback, fixture coverage for every named profile.
 - [ ] M2: shared input stream decoder and mode lifecycle, bounded buffering,
       paste/OSC isolation, suspend/resume/dispose tests.

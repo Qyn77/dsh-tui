@@ -1950,3 +1950,14 @@ means unmounting Ink, handing the terminal over with `stdio: 'inherit'`, and
 remounting — including re-emitting a `<Static>` banner that by construction
 writes once. Also out: shell history, path completion after `!`, and piping a
 command's output into the next prompt.
+
+### Terminal adapter boundary
+
+`terminal/adapters/profiles.ts` is the pure registry of emulator policy and
+host/transport detection. A profile is expected capability, not observed success.
+An explicit `DSH_TUI_TERMINAL` override wins over environment hints; unknown
+emulators use generic VT. tmux/screen, SSH and WSL are orthogonal overlays.
+Remote image helpers are disabled unless `DSH_TUI_REMOTE_CLIPBOARD=host` explicitly
+selects the execution host. `DSH_TUI_WSL_CLIPBOARD=windows` opts into Windows
+clipboard interop. See [TERMINAL-ADAPTERS.md](TERMINAL-ADAPTERS.md) for rollout and
+acceptance gates.
