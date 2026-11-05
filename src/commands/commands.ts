@@ -1,3 +1,4 @@
+import { checkpointCommand } from './checkpoints.ts'
 import { createTerminalService, type TerminalService } from '../terminal/adapters/service.ts'
 import { contextMessageText, contextRows, type ContextRequestReader, type ContextSnapshot } from './context-view.ts'
 /**
@@ -774,6 +775,7 @@ export async function dispatch(raw: string, cmd: CommandContext): Promise<Comman
       else if (isNotificationMode(args[0])) cmd.setNotificationMode?.(args[0])
       return { kind: 'handled', message: labels.status(args[0] === 'test' ? cmd.notificationMode ?? 'off' : args[0] ?? cmd.notificationMode ?? 'off') }
     }
+    case '/checkpoint': return checkpointCommand(raw, cmd.cwd ?? process.cwd(), catalog(lang).checkpoint, cmd.state.status === 'running')
     case '/terminal': {
       if (raw.trim().split(/\s+/).length !== 1) return { kind: 'handled', message: strings.terminalUsage, failed: true }
       const report = (cmd.terminalDiagnostics ?? createTerminalService().diagnostics)()

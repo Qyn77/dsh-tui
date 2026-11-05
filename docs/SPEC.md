@@ -2110,3 +2110,12 @@ availability; submission still reads and validates the actual bytes. Preview
 uses Preview on macOS or xdg-open on local Linux, without a shell. Remote,
 WSL, multiplexer and unsupported hosts report unavailable rather than opening
 an unrelated machine's viewer. Missing files and failed viewers are explicit.
+
+### Selective file checkpoint contract
+
+Implemented `/checkpoint` with guided known choices and free-text capture paths.
+The complete boundaries and recovery flow are in [FILE-CHECKPOINTS.md](FILE-CHECKPOINTS.md).
+Capture is explicit and local, limited to one regular file at a time. Restore
+requires a sealed after-state, preview and confirmation, refuses changed files,
+and retains both snapshots. It is not a rollback of external effects. Restore
+is idle-only and assumes external writers are stopped; there is no force mode.

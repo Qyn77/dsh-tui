@@ -1626,7 +1626,7 @@ describe('filterCommands', () => {
   it('returns every command when the buffer is just `/`', () => {
     const result = filterCommands('/').map(c => c.name)
     expect(result).toEqual([
-      '/activity', '/approval', '/branch', '/changes', '/clear', '/context', '/copy', '/diff', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
+      '/activity', '/approval', '/branch', '/changes', '/checkpoint', '/clear', '/context', '/copy', '/diff', '/exit', '/export', '/help', '/history', '/inspect', '/jump', '/keybinds', '/language',
       '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/terminal', '/theme',
       '/usage', '/verbose',
     ])
@@ -1640,7 +1640,7 @@ describe('filterCommands', () => {
   it('distinguishes /clear from /context under a shared prefix', () => {
     // Both start with `/c`, so the palette must offer both rather than
     // silently completing to the first.
-    expect(filterCommands('/c').map(c => c.name)).toEqual(['/changes', '/clear', '/context', '/copy'])
+    expect(filterCommands('/c').map(c => c.name)).toEqual(['/changes', '/checkpoint', '/clear', '/context', '/copy'])
     expect(filterCommands('/co').map(c => c.name)).toEqual(['/context', '/copy'])
   })
 
@@ -1680,7 +1680,7 @@ describe('filterCommands', () => {
 
     it('offers registry commands alongside the built-in table', () => {
       expect(filterCommands('/', extra).map(c => c.name)).toEqual([
-        '/activity', '/approval', '/branch', '/changes', '/clear', '/compact', '/context', '/copy', '/diff', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
+        '/activity', '/approval', '/branch', '/changes', '/checkpoint', '/clear', '/compact', '/context', '/copy', '/diff', '/exit', '/export', '/goal', '/help', '/history', '/inspect', '/jump', '/keybinds',
         '/language',
         '/mcp', '/model', '/mouse', '/notify', '/plugins', '/provider', '/queue', '/quit', '/resume', '/retry', '/search', '/sessions', '/skill', '/status', '/terminal', '/theme',
         '/usage', '/verbose',
@@ -1691,7 +1691,7 @@ describe('filterCommands', () => {
       // `/compact` shares `/c` with two built-ins and must land between them,
       // not in a separate block — the palette is one list to arrow through.
       expect(filterCommands('/c', extra).map(c => c.name))
-        .toEqual(['/changes', '/clear', '/compact', '/context', '/copy'])
+        .toEqual(['/changes', '/checkpoint', '/clear', '/compact', '/context', '/copy'])
     })
 
     it('lets a built-in win a name collision', () => {
@@ -1763,4 +1763,18 @@ describe('/terminal diagnostics', () => {
     expect(handledText(await dispatch('/help', cmd))).toContain('/terminal')
     expect(filterCommands('/term').some(command => command.name === '/terminal')).toBe(true)
   })
+})
+
+
+it('opens interactive search when the UI supplies a browser', async () => {
+  const openSearch = vi.fn()
+  const { cmd } = makeCommand({ openSearch })
+  expect(await dispatch('/search 中文', cmd)).toEqual({ kind: 'handled' })
+  expect(openSearch).toHaveBeenCalledWith('中文')
+})
+it('refuses checkpoint writes while a task is running and validates syntax', async () => {
+  const { cmd } = makeCommand({ state: { ...emptyState(), status: 'running' } })
+  expect(await dispatch('/checkpoint save example.txt', cmd)).toMatchObject({ kind: 'handled', failed: true })
+  cmd.state = emptyState()
+  expect(handledText(await dispatch('/checkpoint unknown', cmd))).toContain('/checkpoint')
 })

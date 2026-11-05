@@ -1,3 +1,4 @@
+import type { Checkpoint } from '../terminal/checkpoints.ts'
 import { displayWidth } from '../core/width.ts'
 import type { UiState, UiEntry } from '../core/types.ts'
 import type { PluginRow } from '../commands/plugins.ts'
@@ -56,6 +57,7 @@ export function menuRows(items: readonly MenuItem[], labels: Catalog['menu']): C
 }
 
 export interface MenuData {
+  checkpoints?: readonly Checkpoint[]
   /** Only materialize large transcript choices while their command is open. */
   root?: string
   state: UiState
@@ -132,37 +134,44 @@ export function commandMenus(strings: Catalog, settings: MenuSettings, data: Men
       preview(message.content.flatMap(block => typeof block === 'object' && block !== null && 'text' in block ? [String(block.text)] : []).join(' ')))),
   ])
   const recover = recoveryPlan(data.state)
-  return [...settingMenus(l, settings),
-    branch('/activity', '/activity', [leaf('all', l.all, '/activity all'), leaf('none', l.none, '/activity none'), ...activity]),
-    branch('/copy', '/copy', [leaf('latest', l.latest, '/copy'), leaf('code', l.code, '/copy code'), branch('messages', l.messages, entryChoices('/copy'))]),
-    branch('/inspect', '/inspect', entryChoices('/inspect')),
-    branch('/jump', '/jump', [...(['next', 'prev', 'user', 'tool', 'error'] as const).map(key => leaf(key, l[key], `/jump ${key}`)), branch('messages', l.messages, entryChoices('/jump'))]),
-    branch('/changes', '/changes', data.historyReady === false ? [] : [leaf('latest', l.latest, '/changes'), ...taskChoices('/changes', full)]),
-    branch('/diff', '/diff', [leaf('all', l.full, '/diff'), ...entryChoices('/diff', entries, entry => transcriptDiffs([entry]).length > 0)]),
-    branch('/retry', '/retry', [leaf('list', l.list, '/retry'), ...(recover ? [leaf('continue', l.continue, '/retry continue')] : []),
-      ...(recover || data.failedDraft ? [leaf('draft', l.draft, '/retry draft')] : [])]),
-    branch('/branch', '/branch', data.historyReady === false ? [] : [leaf('current', l.fork, '/branch'), ...taskChoices('/branch', full)]),
-    branch('/resume', '/resume', [leaf('last', l.latest, '/resume last'), ...(data.resumeSessions ?? []).map(row => leaf(row.name, row.displayName ?? row.name, row.name, preview(row.description)))]),
-    branch('/sessions', '/sessions', [branch('resume', l.resume, (data.sessions ?? []).filter(row => row.name !== `/resume ${data.sessionId}`).map(row => leaf(row.name, row.displayName ?? row.name, row.name, preview(row.description)))),
-      ...(['rename', 'favorite', 'archive'] as const).map(action => branch(action, l[action], sessionTargets(action))),
-      leaf('active', l.active, '/sessions'), leaf('all', l.allSessions, '/sessions all'), leaf('archived', l.archived, '/sessions archived')]),
-    branch('/queue', '/queue', [leaf('list', l.list, '/queue'), input('add', l.add, '/queue add ', l.input),
-      branch('edit', l.edit, queueTargets('edit')), branch('remove', l.remove, queueTargets('remove')),
-      ...((data.queue?.length ?? 0) > 0 ? [confirm('clear', l.clear, '/queue clear', l.queueWarning)] : [])]),
-    branch('/mcp', '/mcp', [leaf('list', l.list, '/mcp'), branch('add', l.add, [
-      ...(data.mcpPresets ?? []).map(row => leaf(row.name, row.displayName ?? row.name, `/mcp add ${row.name}`, row.description)),
-      input('custom', l.pasteConfig, '/mcp add ')]),
-    branch('remove', l.remove, (data.mcpServers ?? []).map(id => confirm(id, id, `/mcp remove ${id}`, l.removeWarning)))]),
-    branch('/plugins', '/plugins', [leaf('list', l.list, '/plugins'), ...(data.plugins ?? []).map(row =>
-      branch(row.id, row.name, row.lock ? [] : [confirm('toggle', row.phase === 'disabled' ? l.enable : l.disable,
-        `/plugins ${row.phase === 'disabled' ? 'enable' : 'disable'} ${row.id}`, row.id)], row.lock ? l.locked : row.phase))]),
-    branch('/provider', '/provider', [leaf('list', l.list, '/provider'), ...(data.providers ?? []).map(provider =>
-      branch(provider.id, provider.name, (data.models ?? []).filter(row => row.name.startsWith(`${provider.id}/`)).map(row =>
-        leaf(row.name, row.displayName ?? row.name, `/model ${row.name}`, row.description)), provider.id))]),
-    branch('/context', '/context', [leaf('list', l.list, '/context'), contextChoices('view', data.currentContext), contextChoices('request', data.requestContext)]),
-    branch('/export', '/export', data.historyReady === false ? [] : [input('all', l.exportAll, '/export ', l.path),
-      branch('messages', l.exportOne, (data.root !== undefined && data.root !== '/export' ? [] : full.entries).map((entry, index) => input(String(index + 1), `${index + 1}. ${preview(entryText(entry)) || entry.kind}`,
-        `/export --entry=${index + 1} `, l.path)).reverse())]),
+  return [branch('/checkpoint', '/checkpoint', [
+    input('save', strings.checkpoint.save, '/checkpoint save '),
+    ...(['show', 'seal', 'restore'] as const).map(action => branch(action, strings.checkpoint[action],
+      (data.checkpoints ?? []).filter(item => action !== 'seal' || item.after === undefined).map(item => action === 'restore'
+        ? branch(item.id, item.path, [leaf('preview', strings.checkpoint.show, `/checkpoint restore ${item.id}`),
+          confirm('restore', strings.checkpoint.restore, `/checkpoint restore ${item.id} confirm`, strings.checkpoint.confirm)], item.id)
+        : leaf(item.id, item.path, `/checkpoint ${action} ${item.id}`, item.id)))),
+  ]),...settingMenus(l, settings),
+  branch('/activity', '/activity', [leaf('all', l.all, '/activity all'), leaf('none', l.none, '/activity none'), ...activity]),
+  branch('/copy', '/copy', [leaf('latest', l.latest, '/copy'), leaf('code', l.code, '/copy code'), branch('messages', l.messages, entryChoices('/copy'))]),
+  branch('/inspect', '/inspect', entryChoices('/inspect')),
+  branch('/jump', '/jump', [...(['next', 'prev', 'user', 'tool', 'error'] as const).map(key => leaf(key, l[key], `/jump ${key}`)), branch('messages', l.messages, entryChoices('/jump'))]),
+  branch('/changes', '/changes', data.historyReady === false ? [] : [leaf('latest', l.latest, '/changes'), ...taskChoices('/changes', full)]),
+  branch('/diff', '/diff', [leaf('all', l.full, '/diff'), ...entryChoices('/diff', entries, entry => transcriptDiffs([entry]).length > 0)]),
+  branch('/retry', '/retry', [leaf('list', l.list, '/retry'), ...(recover ? [leaf('continue', l.continue, '/retry continue')] : []),
+    ...(recover || data.failedDraft ? [leaf('draft', l.draft, '/retry draft')] : [])]),
+  branch('/branch', '/branch', data.historyReady === false ? [] : [leaf('current', l.fork, '/branch'), ...taskChoices('/branch', full)]),
+  branch('/resume', '/resume', [leaf('last', l.latest, '/resume last'), ...(data.resumeSessions ?? []).map(row => leaf(row.name, row.displayName ?? row.name, row.name, preview(row.description)))]),
+  branch('/sessions', '/sessions', [branch('resume', l.resume, (data.sessions ?? []).filter(row => row.name !== `/resume ${data.sessionId}`).map(row => leaf(row.name, row.displayName ?? row.name, row.name, preview(row.description)))),
+    ...(['rename', 'favorite', 'archive'] as const).map(action => branch(action, l[action], sessionTargets(action))),
+    leaf('active', l.active, '/sessions'), leaf('all', l.allSessions, '/sessions all'), leaf('archived', l.archived, '/sessions archived')]),
+  branch('/queue', '/queue', [leaf('list', l.list, '/queue'), input('add', l.add, '/queue add ', l.input),
+    branch('edit', l.edit, queueTargets('edit')), branch('remove', l.remove, queueTargets('remove')),
+    ...((data.queue?.length ?? 0) > 0 ? [confirm('clear', l.clear, '/queue clear', l.queueWarning)] : [])]),
+  branch('/mcp', '/mcp', [leaf('list', l.list, '/mcp'), branch('add', l.add, [
+    ...(data.mcpPresets ?? []).map(row => leaf(row.name, row.displayName ?? row.name, `/mcp add ${row.name}`, row.description)),
+    input('custom', l.pasteConfig, '/mcp add ')]),
+  branch('remove', l.remove, (data.mcpServers ?? []).map(id => confirm(id, id, `/mcp remove ${id}`, l.removeWarning)))]),
+  branch('/plugins', '/plugins', [leaf('list', l.list, '/plugins'), ...(data.plugins ?? []).map(row =>
+    branch(row.id, row.name, row.lock ? [] : [confirm('toggle', row.phase === 'disabled' ? l.enable : l.disable,
+      `/plugins ${row.phase === 'disabled' ? 'enable' : 'disable'} ${row.id}`, row.id)], row.lock ? l.locked : row.phase))]),
+  branch('/provider', '/provider', [leaf('list', l.list, '/provider'), ...(data.providers ?? []).map(provider =>
+    branch(provider.id, provider.name, (data.models ?? []).filter(row => row.name.startsWith(`${provider.id}/`)).map(row =>
+      leaf(row.name, row.displayName ?? row.name, `/model ${row.name}`, row.description)), provider.id))]),
+  branch('/context', '/context', [leaf('list', l.list, '/context'), contextChoices('view', data.currentContext), contextChoices('request', data.requestContext)]),
+  branch('/export', '/export', data.historyReady === false ? [] : [input('all', l.exportAll, '/export ', l.path),
+    branch('messages', l.exportOne, (data.root !== undefined && data.root !== '/export' ? [] : full.entries).map((entry, index) => input(String(index + 1), `${index + 1}. ${preview(entryText(entry)) || entry.kind}`,
+      `/export --entry=${index + 1} `, l.path)).reverse())]),
   ]
 }
 

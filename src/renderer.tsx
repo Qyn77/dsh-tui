@@ -1,3 +1,4 @@
+import { checkpointRepository, type Checkpoint } from './terminal/checkpoints.ts'
 import { TranscriptBrowser, type BrowserRequest, type MessageAction } from './components/TranscriptBrowser.tsx'
 import { exportTranscript } from './commands/transcript-export.ts'
 import { userMessageText } from './core/types.ts'
@@ -285,6 +286,15 @@ const AppBody: FC<AppProps> = ({
   )
   const directory = service(ctx, 'workingDirectory')
   const cwd = directory?.get(agent.session) ?? process.cwd()
+  const [checkpointRows, setCheckpointRows] = useState<Checkpoint[]>([])
+  useEffect(() => {
+    let active = true
+    if (promptCommand === '/checkpoint') {
+      void checkpointRepository(cwd).list().then((rows) => { if (active) setCheckpointRows(rows) })
+        .catch(() => { if (active) setCheckpointRows([]) })
+    }
+    return () => { active = false }
+  }, [cwd, promptCommand])
   const skillRowsForPicker = useSkillCommands(ctx, agent, claimedCommands, cwd)
   // Presets for the `/permission ` picker. Same projection value as the
   // StatusBar chip: no service mounted means an empty list, which means no
@@ -1109,7 +1119,7 @@ const AppBody: FC<AppProps> = ({
           commandMenus={commandMenus(strings, { language: lang, theme: themePref, keybinds: keybindPref,
             mouse: mousePref, notify: notificationMode, verbose: scroll.expanded ? 'on' : 'off', history: historyPref,
             approval: service(ctx, 'approval')?.overrideOf(agent.session) }, {
-            root: promptCommand, state, fullState, historyReady, sessionId: agent.id,
+            checkpoints: checkpointRows, root: promptCommand, state, fullState, historyReady, sessionId: agent.id,
             sessions: managementCommands, resumeSessions: sessionCommands,
             models: modelRowsForPicker, providers: service(ctx, 'llm')?.listProviders(),
             plugins: promptCommand === '/plugins' ? describePlugins(service(ctx, 'loader')?.entries() ?? []) : [],
