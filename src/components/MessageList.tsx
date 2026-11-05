@@ -36,7 +36,8 @@ import React, { useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { Box, Text, measureElement, useStdin, useStdout, type DOMElement } from 'ink'
 import type { SubCall, UiEntry, UiState, WorkflowMember } from '../core/types.ts'
 import { userMessageImages, userMessageText } from '../core/types.ts'
-import { estimateEntryRows, windowStart } from '../render/scroll.ts'
+import { createEntryRowEstimator, windowStart } from '../render/scroll.ts'
+import type { MountedRows } from '../hooks/useMessageListScroll.ts'
 import { hookStderr, hookTone } from '../render/hook-runs.ts'
 import { useStrings } from '../hooks/useStrings.tsx'
 import type { Catalog } from '../core/i18n.ts'
@@ -97,6 +98,7 @@ export interface MessageListProps {
     viewportRows: number,
     tail?: unknown,
     totalRows?: number,
+    mounted?: MountedRows,
   ) => void
 }
 
@@ -828,6 +830,11 @@ export const MessageList: FC<MessageListProps> = ({
 
   const [viewportRows, setViewportRows] = useState(0)
   const maxLines = previewLimit(expanded)
+  const estimate = useMemo(() => createEntryRowEstimator(columns, expanded), [columns, expanded])
+  const totalRows = useMemo(
+    () => state.entries.reduce((rows, entry) => rows + estimate(entry), 0),
+    [state.entries, estimate],
+  )
 
   // Mount the tail of the log plus enough history to cover the offset. The
   // window always reaches the newest entry, so the mounted content's bottom
@@ -842,6 +849,7 @@ export const MessageList: FC<MessageListProps> = ({
       offset,
       viewportRows || (stdout?.rows ?? 24),
       expanded,
+      estimate,
     )
   const visible = useMemo(() => state.entries.slice(start), [state.entries, start])
 
@@ -863,10 +871,11 @@ export const MessageList: FC<MessageListProps> = ({
     const measuredViewport = measureElement(viewport).height
     const measuredContent = measureElement(content).height
     if (measuredViewport !== viewportRows) setViewportRows(measuredViewport)
-    const totalRows = state.entries.reduce(
-      (rows, entry) => rows + estimateEntryRows(entry, columns, expanded), 0,
-    )
-    onGeometry(measuredContent, measuredViewport, state.entries.at(-1), totalRows)
+    const heights = visible.map((_, index) => {
+      const node = entryRefs.current.get(start + index)
+      return node ? measureElement(node).height : 0
+    })
+    onGeometry(measuredContent, measuredViewport, state.entries.at(-1), totalRows, { start, heights })
     if (jumpIndex !== undefined) {
       const entry = entryRefs.current.get(jumpIndex)
       if (entry?.yogaNode) onJump?.(Math.max(0, measuredContent - measuredViewport - entry.yogaNode.getComputedTop()))

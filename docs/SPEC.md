@@ -70,7 +70,9 @@ Each zone has a fixed role and stays in that role forever:
   tail-anchored structurally: `flexDirection="column-reverse"` with
   `overflow: "hidden"` and a negative `marginBottom` on the inner column, so
   new content follows the live tail with no measurement at all until the user
-  scrolls into history.
+  scrolls into history. When output grows while viewing history, measured mounted
+  entry heights compensate for growth and exclude changes to the mounted window.
+  Row estimates reuse immutable entries and are refreshed on width or preview changes.
 
   | Key | Action |
   | --- | --- |
@@ -1056,7 +1058,9 @@ With mouse reporting enabled, a primary-button press on a visible task disclosur
 
 `/mouse auto|on|off` persists the input policy. Auto selects SGR mouse reporting
 for `TERM_PROGRAM=Apple_Terminal` and `TERM_PROGRAM=vscode`, and alternate-scroll
-for other environments.
+for other environments. `TERM_PROGRAM` can be inherited by an external terminal,
+so auto may misidentify it as VS Code; `/mouse on` and `/mouse off` override
+the choice.
 F2 toggles reporting versus native selection. Mouse reporting necessarily
 captures ordinary pointer selection; disable it temporarily for native drag
 selection. Both SGR and X10 wheel bursts are parsed, excluding horizontal wheel

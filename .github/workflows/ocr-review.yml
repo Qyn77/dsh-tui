@@ -9,7 +9,7 @@ on:
 
 # The action reads the PR diff and posts review findings back to the PR.
 # pull_request_target is intentional: it runs this workflow from the base
-# branch, so secrets are available for fork PRs without executing PR code.
+# branch. Only PRs from this repository are eligible for review.
 permissions:
   contents: read
   pull-requests: write
@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   code-review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

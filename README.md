@@ -125,9 +125,9 @@ images, skills, hooks, approvals, session resume, known limitations:
 - **[docs/USAGE.md](docs/USAGE.md)** — every feature in detail, plus the full key and command reference.
 - **[docs/DEVELOP.md](docs/DEVELOP.md)** — hack on the source: link-mode profile, the edit / rebuild / restart loop, project layout, publish flow.
 - **[docs/SPEC.md](docs/SPEC.md)** — the design contract: visual rules, roadmap, contributor conventions.
-- **[docs/OCR-CI.md](docs/OCR-CI.md)** — configure the GitHub Actions PR review workflow and its required secrets.
+- **[docs/OCR-CI.md](https://github.com/Qyn77/dsh-tui/blob/ci/ocr-review/docs/OCR-CI.md)** — configure the GitHub Actions PR review workflow and its required secrets.
 
-Apple Terminal and VS Code use mouse reporting under `/mouse auto` to deliver wheel and task-disclosure clicks. F2 or `/mouse off` restores native selection; `/mouse on` restores reporting. Enable Terminal.app’s Allow Mouse Reporting setting if reports are disabled in its profile. Other terminals keep alternate-scroll input under auto. Completed tasks retain event-derived elapsed time and collapse intermediate activity while final answers and failures stay visible.
+Apple Terminal and VS Code use mouse reporting under `/mouse auto` to deliver wheel and task-disclosure clicks. F2 or `/mouse off` restores native selection; `/mouse on` restores reporting. Enable Terminal.app’s Allow Mouse Reporting setting if reports are disabled in its profile. Other terminals keep alternate-scroll input under auto. Auto relies on `TERM_PROGRAM`, which can be inherited by external terminals and misidentify them as VS Code; use `/mouse off` or `/mouse on` to override it. Completed tasks retain event-derived elapsed time and collapse intermediate activity while final answers and failures stay visible.
 
 Background diagnostics are recorded in `tui.log` under `DSH_HOME` (normally `~/.dsh/tui.log`). With mouse reporting enabled, click a task summary to expand it; F2 restores native text selection.
 

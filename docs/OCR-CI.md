@@ -24,7 +24,7 @@ GitHub Actions 自动提供 `GITHUB_TOKEN`。工作流只申请 `contents: read`
 
 ## 安全边界
 
-工作流使用 `pull_request_target`，因此从 fork 发起的 PR 也能读取仓库 Secrets。
+工作流使用 `pull_request_target`，只评审源仓库与当前仓库相同的 PR；fork PR 会跳过评审任务。
 它运行的是目标分支中的工作流配置，并把 PR 当作差异输入交给评审 Action；不要在这个工作流中增加 checkout 或执行 PR 分支脚本的步骤。
 
 当前 Action 使用 `alibaba/open-code-review@main` 以跟随 OCR 官方工作流。若组织需要供应链可审计性，应把它替换为经过审核的固定 release 或 commit SHA。

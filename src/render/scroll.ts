@@ -202,6 +202,22 @@ export function estimateEntryRows(entry: UiEntry, columns: number, expanded = fa
   return 1 + entryBodyRows(entry, width, previewLimit(expanded))
 }
 
+/** Cache estimates for immutable entries at one width and preview setting. */
+export function createEntryRowEstimator(
+  columns: number,
+  expanded: boolean,
+  estimate: typeof estimateEntryRows = estimateEntryRows,
+): (entry: UiEntry) => number {
+  const cache = new WeakMap<UiEntry, number>()
+  return (entry) => {
+    const cached = cache.get(entry)
+    if (cached !== undefined) return cached
+    const rows = estimate(entry, columns, expanded)
+    cache.set(entry, rows)
+    return rows
+  }
+}
+
 /** Rows one entry's own content occupies, excluding its separating margin. */
 function entryBodyRows(entry: UiEntry, width: number, maxLines: number): number {
   switch (entry.kind) {
@@ -321,6 +337,7 @@ export function windowStart(
   offset: number,
   viewportRows: number,
   expanded = false,
+  estimate: (entry: UiEntry) => number = entry => estimateEntryRows(entry, columns, expanded),
 ): number {
   const needed = Math.max(0, offset) + Math.max(1, viewportRows) * 2 + 10
   let rows = 0
@@ -328,7 +345,7 @@ export function windowStart(
   while (index > 0) {
     if (rows >= needed && entries.length - index >= MIN_MOUNTED_ENTRIES) break
     index -= 1
-    rows += estimateEntryRows(entries[index], columns, expanded)
+    rows += estimate(entries[index])
   }
   return index
 }
