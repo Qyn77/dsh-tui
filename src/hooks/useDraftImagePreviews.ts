@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { stat } from 'node:fs/promises'
 import type { DraftImage } from '../attachments/draft-images.ts'
 export interface DraftImagePreview { image: DraftImage; bytes?: number; missing?: true }
-export function useDraftImagePreviews(images: readonly DraftImage[]): readonly DraftImagePreview[] {
+export function useDraftImagePreviews(images: readonly DraftImage[], refresh?: unknown): readonly DraftImagePreview[] {
   const [result, setResult] = useState<{ images: readonly DraftImage[]; rows: DraftImagePreview[] }>()
   useEffect(() => {
     let active = true
@@ -11,6 +11,6 @@ export function useDraftImagePreviews(images: readonly DraftImage[]): readonly D
       catch { return { image, missing: true } }
     })).then((rows) => { if (active) setResult({ images, rows }) })
     return () => { active = false }
-  }, [images])
+  }, [images, refresh])
   return result?.images === images ? result.rows : images.map(image => ({ image }))
 }

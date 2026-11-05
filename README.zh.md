@@ -174,3 +174,7 @@ macOS Terminal.app 图片粘贴采用 **Ctrl-V**。本项目不安装需要系�
 再选择跳转、完整查看、复制、记录的变更或 Markdown 导出。方向键选择，Enter
 打开，Esc 返回；输入草稿保留。导出需填写新文件路径。`/terminal` 可查看实际
 加载的构建提交号、未提交标记、模块路径和 SHA-256 指纹。
+
+**F5** 管理待发送图片：方向键选择，Enter 本机预览，Delete 移除选中的图片，
+关闭后 Ctrl-Z 可撤销移除。本机预览支持 macOS Preview 和 Linux xdg-open；
+远程、WSL、复用器连接不尝试调用本机查看器。

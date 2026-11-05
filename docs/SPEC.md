@@ -2100,3 +2100,13 @@ uses the selected message snapshot, not an index into a different history view.
 The browser replaces the transcript viewport, using its measured height so
 short terminals cannot grow a second scrolling screen. F3/F4 support both
 legacy SS3 and numbered CSI encodings; native-terminal verification is pending.
+
+### Focused attachment management
+
+F5 opens a draft attachment list. Arrow keys select, Delete/Backspace removes
+only the selected item (undoable with Ctrl-Z), Enter opens a local preview and
+Esc closes. Draft text and other images survive. Reopening refreshes file
+availability; submission still reads and validates the actual bytes. Preview
+uses Preview on macOS or xdg-open on local Linux, without a shell. Remote,
+WSL, multiplexer and unsupported hosts report unavailable rather than opening
+an unrelated machine's viewer. Missing files and failed viewers are explicit.

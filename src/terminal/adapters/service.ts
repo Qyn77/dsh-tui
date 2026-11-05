@@ -1,3 +1,4 @@
+import { openImagePreview } from '../image-preview.ts'
 import { readBuildIdentity } from '../build-identity.ts'
 import type { EventEmitter } from 'node:events'
 import type { Key } from 'ink'
@@ -52,6 +53,7 @@ export function createTerminalService(options: TerminalOptions = {}) {
   }
   return {
     environment,
+    previewImage: (path: string) => openImagePreview(platform, !environment.remote && !environment.wsl && environment.multiplexer === 'none', path),
     modes,
     frameHeight: liveFrameHeight,
     clearSequence: VT.clear,

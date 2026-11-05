@@ -128,6 +128,7 @@ export interface ContextReport {
  * single block.
  */
 export interface Catalog {
+  attachmentManager: Record<'hint' | 'empty' | 'opened' | 'unavailable' | 'missing' | 'failed', string>
   browser: Record<'search' | 'messages' | 'actions' | 'path' | 'query' | 'exportHint' | 'empty' | 'hint' | 'jump' | 'copy' | 'inspect' | 'diff' | 'export', string>
   contextView: {
     usage: string
@@ -683,6 +684,7 @@ function describeMcpParseErrorZh(error: McpParseError): string {
  * `undefined` on screen.
  */
 const EN: Catalog = {
+  attachmentManager: { hint: '↑↓ select · Enter preview · Delete remove · Esc close', empty: 'No draft attachments', opened: 'Opened local image preview.', unavailable: 'Local preview is unavailable on this host/transport.', missing: 'Image file is missing or not a regular file.', failed: 'Could not open the image viewer.' },
   browser: { search: 'Search conversation', messages: 'Select a message', actions: 'Message actions', path: 'Export path:', query: 'Filter:', exportHint: 'Enter a new file path; existing files are never overwritten.', empty: 'No matching messages', hint: '↑↓ select · Enter open · Esc back/close', jump: 'Jump to message', copy: 'Copy text', inspect: 'Read full content', diff: 'Recorded changes', export: 'Export Markdown' },
   library: {
     usage: '/sessions [all|archived] · rename <id|current> <title|--reset> · favorite <id|current> on|off · archive <id|current> on|off',
@@ -1115,6 +1117,7 @@ const EN: Catalog = {
  * the user cannot find.
  */
 const ZH: Catalog = {
+  attachmentManager: { hint: '↑↓ 选择 · Enter 预览 · Delete 移除 · Esc 关闭', empty: '没有待发送附件', opened: '已打开本机图片预览。', unavailable: '此主机或连接方式不支持本机预览。', missing: '图片文件缺失或不是普通文件。', failed: '无法打开图片查看器。' },
   browser: { search: '搜索对话', messages: '选择消息', actions: '消息操作', path: '导出路径：', query: '筛选：', exportHint: '输入新文件路径；不会覆盖已有文件。', empty: '没有匹配的消息', hint: '↑↓ 选择 · Enter 打开 · Esc 返回/关闭', jump: '跳到消息', copy: '复制文本', inspect: '查看完整内容', diff: '记录的变更', export: '导出 Markdown' },
   library: {
     usage: '/sessions [all|archived] · rename <id|current> <标题|--reset> · favorite <id|current> on|off · archive <id|current> on|off',

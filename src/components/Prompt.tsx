@@ -304,6 +304,9 @@ export const Prompt: FC<PromptProps> = ({
     return () => { mounted.current = false; clipboardRequest.current = undefined }
   }, [])
   const images = editor.state.present.images ?? EMPTY_IMAGES
+  const [imageManager, setImageManager] = useState(false)
+  const [imageIndex, setImageIndex] = useState(0)
+  useEffect(() => { if (!active) setImageManager(false) }, [active])
   const navigationHistory = useRef<EditorHistory>()
   const [navigationDraft, setNavigationDraft] = useState<DraftSnapshot>()
   const persistImmediately = useDraftPersistence(draftChannel, initialDraft,
@@ -371,7 +374,7 @@ export const Prompt: FC<PromptProps> = ({
   }, [value, menuPath, menuDismissed, automaticMenu?.id])
   const sessionQuery = activeMenuPath ? undefined : sessionPickerQuery(value)
   const pathPreviews = useImagePreviews(value, cwd)
-  const imagePreviews = useDraftImagePreviews(images)
+  const imagePreviews = useDraftImagePreviews(images, imageManager)
   useEffect(() => {
     if (!pathPreviews.length || navigationDraft || /^(?:!|\/[a-z][a-z-]*(?:\s|$))/i.test(value.trim())) return
     let text = value, cursor = cursorIndex
@@ -391,7 +394,7 @@ export const Prompt: FC<PromptProps> = ({
     editor.apply({ type: 'normalize', snapshot: { text, cursor, images: [...images, ...additions] } })
   }, [pathPreviews])
   const shownImages = Math.min(imagePreviews.length, Math.max(1, Math.min(3, (stdout?.rows ?? 24) - 20)))
-  const imageTrayRows = shownImages > 0 ? shownImages + 1 : 0
+  const imageTrayRows = shownImages > 0 && !imageManager ? shownImages + 1 : 0
   const palette = activeMenuPath ? menuRows(choices, strings.menu) : sessionQuery !== undefined
     ? (sessionCommands ?? []).filter(row => `${row.name} ${row.description}`.toLocaleLowerCase().includes(sessionQuery))
     : isPaletteMode(value) ? filterCommands(value, extraCommands, lang) : []
@@ -527,7 +530,7 @@ export const Prompt: FC<PromptProps> = ({
 
   // ↑/↓ are shared with the log; tell the App which of us owns them.
   const claimsArrows = active
-    && (palette.length > 0
+    && (imageManager || palette.length > 0
       || pickingSkill
       || pickingPermission
       || pickingModel
@@ -547,7 +550,7 @@ export const Prompt: FC<PromptProps> = ({
   // and a second Esc — now in normal mode, where the claim drops — cancels it
   // even when there is.
   const claimsEsc = active && (
-    navigationDraft !== undefined
+    imageManager || navigationDraft !== undefined
     || palette.length > 0
     || (pickingSkill && skillMention !== undefined)
     || (pickingPermission && permissionMention !== undefined)
@@ -576,7 +579,9 @@ export const Prompt: FC<PromptProps> = ({
             : picking
               ? Math.min(Math.max(fileRows.length, 1), paletteRows)
               : 0
-  const overlayRows = (overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS) + imageTrayRows + (clipboardPending ? 1 : 0)
+  const overlayRows = imageManager
+    ? Math.min(Math.max(images.length, 1), paletteRows) + PALETTE_CHROME_ROWS
+    : (overlayShown === 0 ? 0 : overlayShown + PALETTE_CHROME_ROWS) + imageTrayRows + (clipboardPending ? 1 : 0)
   useEffect(() => {
     onOverlayRowsChange?.(overlayRows)
   }, [overlayRows, onOverlayRowsChange])
@@ -845,6 +850,8 @@ export const Prompt: FC<PromptProps> = ({
   }
 
   useTerminalEvent((event) => {
+    if (event.kind === 'attachment-manager') { setImageManager(previous => !previous); setImageIndex(0); return }
+    if (imageManager) return
     if (inputPending.current) return
     if (event.kind === 'paste-start') editor.apply({ type: 'begin' })
     if (event.kind === 'paste-text') editor.insert(event.text)
@@ -856,6 +863,19 @@ export const Prompt: FC<PromptProps> = ({
 
   useTerminalInput(
     (input, key) => {
+      if (imageManager) {
+        const index = Math.min(imageIndex, Math.max(0, images.length - 1))
+        if (key.escape) setImageManager(false)
+        else if (key.upArrow || key.downArrow) setImageIndex(Math.max(0, Math.min(images.length - 1, index + (key.upArrow ? -1 : 1))))
+        else if ((key.delete || key.backspace) && images[index]) {
+          editor.apply({ type: 'edit', snapshot: { ...editor.state.present, images: images.filter((_, i) => i !== index) } })
+        } else if (key.return && images[index]) {
+          void terminal.previewImage(images[index].path).then((result) => {
+            if (mounted.current) onInputNotice?.(strings.attachmentManager[result])
+          })
+        }
+        return
+      }
       if (inputPending.current) return
       if (clipboardRequest.current && (key.return || (key.ctrl && (input === 't' || input === 'g')))) {
         onInputNotice?.(strings.clipboardImage.reading)
@@ -1328,13 +1348,20 @@ export const Prompt: FC<PromptProps> = ({
 
   return (
     <Box flexDirection="column">
-      {palette.length > 0 ? (
+      {imageManager && <Box marginBottom={1}><SlashPalette maxRows={paletteRows}
+        selected={Math.min(imageIndex, Math.max(0, images.length - 1))} hint={strings.attachmentManager.hint}
+        commands={imagePreviews.length ? imagePreviews.map((row, index) => ({ name: String(index),
+          displayName: `${index + 1}. ${row.image.name ?? strings.attachPreview.image(index + 1)}`,
+          description: row.missing ? strings.attachPreview.missing
+            : row.bytes === undefined ? strings.attachPreview.checking : formatBytes(row.bytes),
+        })) : [{ name: '-', displayName: strings.attachmentManager.empty, description: '' }]} /></Box>}
+      {!imageManager && palette.length > 0 ? (
         <Box marginBottom={1} width="100%">
           <SlashPalette commands={palette} selected={activeMenuPath && choices.length === 0 ? -1 : safePaletteIndex} maxRows={paletteRows}
             hint={activeMenuPath ? `${strings.menu.hint} · ${activeMenuPath.map((_, i) => menuPage(commandMenus, activeMenuPath.slice(0, i + 1))?.label ?? '').join(' › ')}` : undefined} />
         </Box>
       ) : null}
-      {pickingSkill ? (
+      {!imageManager && pickingSkill ? (
         <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={skillPickRows}
@@ -1344,7 +1371,7 @@ export const Prompt: FC<PromptProps> = ({
           />
         </Box>
       ) : null}
-      {pickingPermission ? (
+      {!imageManager && pickingPermission ? (
         <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={permissionPickRows}
@@ -1354,7 +1381,7 @@ export const Prompt: FC<PromptProps> = ({
           />
         </Box>
       ) : null}
-      {pickingModel ? (
+      {!imageManager && pickingModel ? (
         <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={modelPickRows}
@@ -1364,7 +1391,7 @@ export const Prompt: FC<PromptProps> = ({
           />
         </Box>
       ) : null}
-      {pickingMcp ? (
+      {!imageManager && pickingMcp ? (
         <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={mcpPickRows}
@@ -1374,7 +1401,7 @@ export const Prompt: FC<PromptProps> = ({
           />
         </Box>
       ) : null}
-      {picking ? (
+      {!imageManager && picking ? (
         <Box marginBottom={1} width="100%">
           <SlashPalette
             commands={fileRows.length > 0

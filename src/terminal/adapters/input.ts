@@ -7,6 +7,7 @@ export type TerminalEvent =
   | { kind: 'pointer'; event: MouseEvent }
   | { kind: 'navigation'; key: 'home' | 'end' }
   | { kind: 'interaction-toggle' }
+  | { kind: 'attachment-manager' }
   | { kind: 'transcript-browser'; mode: 'search' | 'messages' }
   | { kind: 'paste-start' }
   | { kind: 'paste-text'; text: string }
@@ -30,6 +31,7 @@ function keyEvent(sequence: string): TerminalEvent {
   if (sequence === `${ESC}[12~` || sequence === `${ESC}OQ`) return { kind: 'interaction-toggle' }
   if (sequence === `${ESC}[13~` || sequence === `${ESC}OR`) return { kind: 'transcript-browser', mode: 'search' }
   if (sequence === `${ESC}[14~` || sequence === `${ESC}OS`) return { kind: 'transcript-browser', mode: 'messages' }
+  if (sequence === `${ESC}[15~`) return { kind: 'attachment-manager' }
   const control = sequence.charCodeAt(0)
   if (sequence === ESC || sequence === ESC + ESC) return { kind: 'key', input: '', key: keyFlags({ escape: true, meta: true }) }
   if (sequence === '\n') return { kind: 'key', input: '\n', key: keyFlags() }

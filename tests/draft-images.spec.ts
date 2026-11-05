@@ -76,3 +76,24 @@ it('Ctrl-C clears an image-only draft and remains undoable', async () => {
     await tty.send('\u001a'); expect(tty.screen()).toContain('Image 1')
   } finally { tty.unmount() }
 })
+
+it('selects and removes a particular attachment with undo and draft persistence', async () => {
+  const root = home(), store = createDraftRepository(root)
+  const a = join(root, 'one.png'), b = join(root, 'two.png')
+  writeFileSync(a, 'one'); writeFileSync(b, 'two')
+  store.open('tui-frame').save({ text: 'body', cursor: 4, images: [{ path: a, name: 'first' }, { path: b, name: 'second' }] })
+  const tty = await paintApp({ drafts: store, rows: 19, columns: 70 })
+  try {
+    await tty.send('\u001b[15~')
+    expect(tty.screen()).toContain('Enter preview')
+    expect(tty.screen().split('\n').length).toBeLessThanOrEqual(19)
+    await tty.send('\u001b[3~')
+    expect(tty.screen()).not.toContain('first')
+    expect(tty.screen()).toContain('second')
+    await tty.send('\u001b'); await tty.settle(60)
+    await tty.send('\u001a')
+    expect(tty.screen()).toContain('first')
+    expect(tty.screen()).toContain('body')
+  } finally { tty.unmount() }
+  expect(store.open('tui-frame').load().draft?.images).toHaveLength(2)
+})

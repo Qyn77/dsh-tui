@@ -180,3 +180,7 @@ Conversation browsing: **F3** opens interactive search (also `/search <text>`),
 recorded changes and Markdown export. Arrow keys select, Enter opens, Esc backs
 out; your draft stays intact. Export requires a new file path. `/terminal`
 reports the loaded build commit, dirty flag, module path and SHA-256 fingerprint.
+
+**F5** manages draft images: select with arrows, Enter previews locally,
+Delete removes that image, Ctrl-Z after closing undoes removal. Local preview
+supports macOS Preview and Linux xdg-open; remote/WSL/multiplexed hosts decline.
