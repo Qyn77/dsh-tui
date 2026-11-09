@@ -11,7 +11,7 @@ const banner = `╭────────────────────�
 │                                █  █ █  █ █ █  █  █ █       █    █       │
 │        探索未至之境！           █  █ █  █ █  █ █  █ ████ ████ ████       │
 │                                                                          │
-│  tui-01e62198 · v0.1.0-rc.7       deepseek-official/deepseek-v4-flash   │
+│  tui-01e62198 · v0.2.1-rc.5       deepseek-official/deepseek-v4-flash   │
 │  ~/Desktop/dsh-tui (main*)           Tip: /help · /status · Tab completes │
 ╰──────────────────────────────────────────────────────────────────────────╯`;
 
@@ -34,7 +34,7 @@ export const en = {
     source: 'Source',
   },
   hero: {
-    installCmd: 'npm i @qiao-qyn/dsh-tui',
+    installCmd: 'dsh-tui',
     titleLead: 'DeepSeek Harness,',
     titleAccent: 'in your terminal.',
     lede: 'A Claude Code-style terminal UI for DeepSeek Harness. One Cordis bundle that mounts on `dsh-base` and replaces the default web UI with a full-screen Ink REPL — same agent, same tools, same model.',
@@ -115,21 +115,44 @@ export const en = {
     more: 'Every command and keybinding, in full',
   },
   install: {
-    title: 'Three commands',
+    title: "Choose your terminal. Install with one command.",
+    intro: "Start with Node ≥ 22.19 (including npm), Git and curl, plus access to GitHub/npm. The installer checks your environment and stops with instructions if something is missing; it does not install system prerequisites.",
     steps: [
-      { cmd: 'npm install -g @deepseek-ai/dsh', note: 'the launcher, once per machine' },
       {
-        cmd: 'npm i @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui',
-        note: 'inside a profile — @next pins dsh-base to the same 0.1.0-rc.x line',
+        "cmd": "curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash",
+        "note": "macOS / Linux"
       },
-      { cmd: 'dsh plugin --profile tui install && dsh --profile tui', note: 'register the bundles and launch' },
+      {
+        "cmd": "curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o \"$env:TEMP\\dsh-tui-install.mjs\" && node \"$env:TEMP\\dsh-tui-install.mjs\"",
+        "note": "Windows PowerShell 7"
+      },
+      {
+        "cmd": "curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o \"%TEMP%\\dsh-tui-install.mjs\" && node \"%TEMP%\\dsh-tui-install.mjs\"",
+        "note": "Windows CMD — installation only; run the TUI in Windows Terminal + PowerShell 7"
+      }
     ],
     notes: [
-      'Needs Node ≥ 22.19 and a real TTY — iTerm / Terminal.app, or Windows Terminal + PowerShell 7.',
-      'Your key goes in `~/.dsh/.env` once; dsh loads it on every launch.',
-      'Prefer pnpm? Same steps with `pnpm add`, plus `pnpm approve-builds` once for the native modules.',
+      "Choose ONE command above. PowerShell 7 is required on Windows even if you install from CMD.",
+      "Builds current source and pins launcher/base/TUI to 0.2.1-rc.5. No global dsh or pnpm is needed. Do not substitute npm latest/next.",
+      "Checks writable directories, at least 1 GiB of free space and dependency sources; native modules are verified before activation. Builds and backups may need more space."
     ],
-    full: 'Full install guide',
+    keyTitle: "Configure your API key",
+    keyIntro: "For the official DeepSeek API, edit ~/.dsh/.env locally (Windows: %USERPROFILE%\\.dsh\\.env), preserving other entries. Replace the placeholder below with your key; never send the real key to a chat or commit it.",
+    keyExample: "DEEPSEEK_API_KEY=YOUR_DEEPSEEK_API_KEY",
+    keyNotes: [
+      "On macOS/Linux, use `chmod 600 ~/.dsh/.env`. In Notepad, save as `.env`, not `.env.txt`. For a custom `--home` / `DSH_HOME`, use that directory instead.",
+      "Credential priority: managed `.credentials.yaml` → process environment → project `.env` → home `.env`. Update an existing managed key through Desktop credential settings.",
+      "Third-party APIs also need their own provider URL, model and credential mapping in the TUI profile."
+    ],
+    startTitle: "Open a new terminal, then launch",
+    startNote: "On Windows, fully restart Windows Terminal and open PowerShell 7. After changing credentials, restart the TUI. Select your provider and model with /provider and /model.",
+    desktopTitle: "Already using Harness Desktop?",
+    desktopNotes: [
+      "The same `DSH_HOME` shares credential storage and home configuration. Desktop-specific model/default-model/plugin settings are not automatically imported into the TUI profile.",
+      "The installer uses its own pinned Harness runtime. Desktop’s private Node does not replace Node/npm/Git on your terminal PATH. Desktop itself is optional.",
+      "Storage compatibility was checked for Desktop 0.2.2-rc.1 and TUI runtime 0.2.1-rc.5 on 2026-11-09. No live model request was made: opening the UI does not prove credentials are valid. Automatic desktop configuration import remains planned."
+    ],
+    full: "Full install guide, API key steps and recovery",
   },
   footer: {
     built: 'A Cordis bundle for',
@@ -156,7 +179,7 @@ export const zh = {
     source: '源码',
   },
   hero: {
-    installCmd: 'npm i @qiao-qyn/dsh-tui',
+    installCmd: 'dsh-tui',
     titleLead: '把 DeepSeek Harness',
     titleAccent: '搬进终端。',
     lede: 'DeepSeek Harness 的 Claude Code 风格终端 UI。一个 Cordis bundle 骑在 `dsh-base` 之上，把默认的 Web UI 换成全屏 Ink REPL —— 同一个 Agent、同样的工具、同样的模型。',
@@ -236,21 +259,44 @@ export const zh = {
     more: '完整的命令与按键表',
   },
   install: {
-    title: '三条命令',
+    title: "选择你的终端，一条命令安装",
+    intro: "先准备 Node ≥ 22.19（含 npm）、Git、curl，以及能访问 GitHub/npm 的网络。安装器会检查环境，缺少条件时停止并提示；不会自动安装系统前置工具。",
     steps: [
-      { cmd: 'npm install -g @deepseek-ai/dsh', note: 'launcher，每台机器一次' },
       {
-        cmd: 'npm i @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui',
-        note: '在一个 profile 里装 —— @next 把 dsh-base 钉到同一代 0.1.0-rc.x',
+        "cmd": "curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash",
+        "note": "macOS / Linux"
       },
-      { cmd: 'dsh plugin --profile tui install && dsh --profile tui', note: '注册 bundle 并启动' },
+      {
+        "cmd": "curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o \"$env:TEMP\\dsh-tui-install.mjs\" && node \"$env:TEMP\\dsh-tui-install.mjs\"",
+        "note": "Windows PowerShell 7"
+      },
+      {
+        "cmd": "curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o \"%TEMP%\\dsh-tui-install.mjs\" && node \"%TEMP%\\dsh-tui-install.mjs\"",
+        "note": "Windows CMD —— 仅用于安装；运行请用 Windows Terminal + PowerShell 7"
+      }
     ],
     notes: [
-      '需要 Node ≥ 22.19 和一个真 TTY —— iTerm / Terminal.app，或 Windows Terminal + PowerShell 7。',
-      'API key 一次性写进 `~/.dsh/.env`，dsh 每次启动都会读。',
-      '想用 pnpm？把命令换成 `pnpm add`，另外跑一次 `pnpm approve-builds` 放行原生模块。',
+      "以上命令三选一。Windows 即使通过 CMD 安装，也需要先装好 PowerShell 7。",
+      "从当前源码构建，launcher/base/TUI 固定为 0.2.1-rc.5。无需全局 dsh 或 pnpm，不要替换为 npm latest/next。",
+      "检查目录写权限、至少 1 GiB 空间和依赖源连接，激活前验证原生模块。源码构建和备份可能需要更多空间。"
     ],
-    full: '完整安装说明',
+    keyTitle: "配置 API Key",
+    keyIntro: "使用 DeepSeek 官方 API 时，在本地编辑 ~/.dsh/.env（Windows 为 %USERPROFILE%\\.dsh\\.env），保留其他配置，将下面占位符换成自己的 Key。不要把真实密钥发到聊天或提交到仓库。",
+    keyExample: "DEEPSEEK_API_KEY=YOUR_DEEPSEEK_API_KEY",
+    keyNotes: [
+      "macOS/Linux 保存后执行 `chmod 600 ~/.dsh/.env`；记事本保存为 `.env`，不要变成 `.env.txt`。自定义 `--home` / `DSH_HOME` 时使用实际目录。",
+      "凭据优先级：托管 `.credentials.yaml` → 进程环境变量 → 项目 `.env` → home `.env`。已由桌面版管理的同名 Key，请从桌面版凭据设置更新。",
+      "第三方 API 还需要在 TUI profile 配置对应服务地址、模型和凭据映射。"
+    ],
+    startTitle: "新开终端，然后启动",
+    startNote: "Windows 需完全退出再打开 Windows Terminal，并使用 PowerShell 7。修改凭据后重启 TUI，通过 /provider 和 /model 选择提供方与模型。",
+    desktopTitle: "已经安装了 Harness 桌面版？",
+    desktopNotes: [
+      "相同 `DSH_HOME` 可共用凭据存储与 home 根配置；桌面版专属模型、默认模型和插件配置不会自动导入 TUI profile。",
+      "安装器独立安装固定版本的 Harness 运行时。桌面版内置 Node 不能替代终端 PATH 上的 Node/npm/Git；桌面版本身不是前置条件。",
+      "2026-11-09 核对了桌面版 0.2.2-rc.1 与 TUI 运行时 0.2.1-rc.5 的存储兼容性，未发起真实模型请求：能打开界面不等于凭据有效。自动导入桌面版配置仍是待办。"
+    ],
+    full: "完整安装指南、密钥配置与故障恢复",
   },
   footer: {
     built: '一个为',

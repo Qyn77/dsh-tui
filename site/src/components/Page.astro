@@ -68,12 +68,25 @@ const { t } = Astro.props;
 <section id="install">
   <div class="wrap">
     <h2>{t.install.title}</h2>
+    <p class="install-intro">{t.install.intro}</p>
     <div class="steps">
       {t.install.steps.map((step) => <Command cmd={step.cmd} note={step.note} />)}
     </div>
     <ul class="notes">
       {t.install.notes.map((note) => <li set:html={inline(note)} />)}
     </ul>
-    <a class="more" href="https://github.com/Qyn77/dsh-tui#install">{t.install.full} →</a>
+    <h3 class="install-heading">{t.install.keyTitle}</h3>
+    <p class="install-intro">{t.install.keyIntro}</p>
+    <div class="steps"><Command cmd={t.install.keyExample} /></div>
+    <ul class="notes">
+      {t.install.keyNotes.map((note) => <li set:html={inline(note)} />)}
+    </ul>
+    <h3 class="install-heading">{t.install.startTitle}</h3>
+    <div class="steps"><Command cmd="dsh-tui" note={t.install.startNote} /></div>
+    <h3 class="install-heading">{t.install.desktopTitle}</h3>
+    <ul class="notes">
+      {t.install.desktopNotes.map((note) => <li set:html={inline(note)} />)}
+    </ul>
+    <a class="more" href="https://github.com/Qyn77/dsh-tui/blob/main/docs/INSTALL.md">{t.install.full} →</a>
   </div>
 </section>
