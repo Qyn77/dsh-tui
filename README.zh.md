@@ -45,7 +45,11 @@ curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com
 ```
 
 Windows 一键命令、参数、API Key 配置和故障恢复见 **[安装指南](docs/INSTALL.md)**。
-安装完成后使用脚本输出的 `node .../launch.mjs` 启动命令；它固定使用 profile 内的
+安装前检查工具、磁盘空间、目录写权限和依赖源连接，不满足条件就停止并提示。
+安装成功后自动配置用户级 `dsh-tui` 命令和 PATH；**新开终端后输入 `dsh-tui` 即可启动**
+（Windows 需完全退出并重新打开 Windows Terminal）。用 `--check` 只检查环境，
+或用 `--no-path` 不修改 shell/PATH，按输出的 `node .../launch.mjs` 手动启动。
+两种启动方式都固定使用 profile 内的
 运行时，避免全局 `dsh` 版本冲突。现有配置、凭据和会话保留，已有非托管 profile
 不会被覆盖。更新前先退出 TUI。
 

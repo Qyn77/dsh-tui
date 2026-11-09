@@ -45,8 +45,12 @@ curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com
 ```
 
 See **[Installation guide](docs/INSTALL.md)** for Windows commands, options,
-API key setup, recovery and troubleshooting. Start with the printed
-`node .../launch.mjs` command: it uses the profile's pinned launcher, avoiding
+API key setup, recovery and troubleshooting. The installer checks tools, disk,
+write access and dependency sources before installing, then sets up a user-level
+`dsh-tui` command and PATH. **Open a new terminal and run `dsh-tui`** (restart
+Windows Terminal completely on Windows). Use `--check` for preflight only or
+`--no-path` to leave shell/PATH configuration untouched and use the printed
+`node .../launch.mjs` command. Both use the profile's pinned launcher, avoiding
 conflicts with global `dsh`. Existing credentials and sessions are preserved;
 unmanaged profiles are never overwritten. Stop the TUI before updating.
 
