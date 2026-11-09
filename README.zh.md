@@ -44,6 +44,18 @@ macOS / Linux 可直接运行：
 curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash
 ```
 
+Windows PowerShell 7（使用 `curl.exe`，避免 `curl` 别名差异）：
+
+```powershell
+curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o "$env:TEMP\dsh-tui-install.mjs" && node "$env:TEMP\dsh-tui-install.mjs"
+```
+
+Windows CMD：
+
+```bat
+curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o "%TEMP%\dsh-tui-install.mjs" && node "%TEMP%\dsh-tui-install.mjs"
+```
+
 Windows 一键命令、参数、API Key 配置和故障恢复见 **[安装指南](docs/INSTALL.md)**。
 安装前检查工具、磁盘空间、目录写权限和依赖源连接，不满足条件就停止并提示。
 安装成功后自动配置用户级 `dsh-tui` 命令和 PATH；**新开终端后输入 `dsh-tui` 即可启动**

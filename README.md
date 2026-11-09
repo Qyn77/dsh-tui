@@ -44,6 +44,18 @@ macOS / Linux users can run:
 curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash
 ```
 
+Windows PowerShell 7 (uses `curl.exe`, not the PowerShell `curl` alias):
+
+```powershell
+curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o "$env:TEMP\dsh-tui-install.mjs" && node "$env:TEMP\dsh-tui-install.mjs"
+```
+
+Windows CMD:
+
+```bat
+curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o "%TEMP%\dsh-tui-install.mjs" && node "%TEMP%\dsh-tui-install.mjs"
+```
+
 See **[Installation guide](docs/INSTALL.md)** for Windows commands, options,
 API key setup, recovery and troubleshooting. The installer checks tools, disk,
 write access and dependency sources before installing, then sets up a user-level

@@ -25,6 +25,28 @@ macOS / Linux:
 curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash
 ```
 
+Windows PowerShell 7, one-line curl download / 一行下载安装：
+
+```powershell
+curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o "$env:TEMP\dsh-tui-install.mjs" && node "$env:TEMP\dsh-tui-install.mjs"
+```
+
+Windows CMD, one-line curl download / 一行下载安装：
+
+```bat
+curl.exe -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/scripts/install.mjs -o "%TEMP%\dsh-tui-install.mjs" && node "%TEMP%\dsh-tui-install.mjs"
+```
+
+These Windows commands require `curl.exe` and only execute Node after a successful
+download (`&&`). They download the same standalone installer, without requiring
+a Git checkout or changing PowerShell execution policy. The small downloaded
+`dsh-tui-install.mjs` file remains in TEMP and may be removed after installation.
+The PowerShell form requires version 7; the CMD form uses `%TEMP%`, not `$env:TEMP`.
+
+这两条 Windows 命令需要 `curl.exe`，仅在下载成功后才启动安装器；不需要先克隆
+仓库，也不修改 PowerShell 执行策略。下载的 `dsh-tui-install.mjs` 会留在临时目录，
+安装结束后可删除。下面继续保留本地 CMD 脚本及 PowerShell 下载入口的用法。
+
 Windows CMD, from a checkout / 已下载源码，在 CMD 的项目目录运行：
 
 ```bat
