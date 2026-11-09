@@ -148,12 +148,14 @@ For an already built local package, use `--package /absolute/path/package.tgz`.
 默认创建 `$DSH_HOME/profiles/tui`（`DSH_HOME` 默认 `~/.dsh`）。
 新 profile 仍会读取该 home 的已有环境配置和覆盖层；它不会绕过用户配置。
 
-The npm registry currently only has the older TUI 0.1.0 prereleases (checked
-2026-11-09). The source-build path avoids installing that incompatible line.
-Do not replace the pinned versions with `latest` or `next`.
+The TUI package for this runtime is `@qiao-qyn/dsh-tui@0.2.1-rc.5`.
+Older 0.1.0 prereleases are incompatible. The installer still builds from source;
+publishing the npm package does not change its download/build behavior. Keep the
+explicit runtime pins rather than substituting moving `latest` / `next` tags.
 
-目前 npm 上的 TUI 仍只有旧的 0.1.0 预发布包（2026-11-09 核对），因此脚本从
-源码构建当前版本；不要把固定版本改成 `latest` / `next`。
+当前运行时对应 `@qiao-qyn/dsh-tui@0.2.1-rc.5`，不能混用旧的 0.1.0 预发布包。
+安装器仍从源码构建，发布 npm 包不会自动改变安装器行为；继续使用明确版本，
+不要把运行时固定版本改成浮动的 `latest` / `next`。
 
 ## Start / 启动
 

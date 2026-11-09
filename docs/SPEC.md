@@ -1863,10 +1863,14 @@ Two rules govern it. It **imports the real modules** (`src/terminal/theme.ts`, `
 ```sh
 # 1. Update version in package.json (and the lockstep dsh-* peers)
 # 2. Update version pin in README.md and README.zh.md
-# 3. Verify
-pnpm test && pnpm run typecheck && pnpm run build
-# 4. Publish
-npm publish --access public
+# 3. Verify and build from a clean, committed checkout
+pnpm test && pnpm run typecheck && pnpm run lint && pnpm run build
+pnpm run pack:check
+# 4. Publish the checked artifact with explicit tags
+npm pack
+npm publish ./qiao-qyn-dsh-tui-0.2.1-rc.5.tgz --access public --tag latest
+npm dist-tag add @qiao-qyn/dsh-tui@0.2.1-rc.5 next
+npm view @qiao-qyn/dsh-tui dist-tags --json
 ```
 
 After publish, the dsh-tui bundle becomes available as `@qiao-qyn/dsh-tui@<version>`. The launcher reads `package.json#dsh.bundle.patch` to wire the bundle into profiles.

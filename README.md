@@ -73,9 +73,10 @@ credentials under the same `DSH_HOME`, but its model/plugin configuration and
 private Node runtime are not automatically imported or reused; see the
 [Desktop compatibility notes](docs/INSTALL.md#harness-desktop--与桌面版一起使用).
 
-> npm currently only carries the older TUI 0.1.0 prereleases (checked 2026-11-09).
-> They are not compatible with `dsh-base@0.2.1-rc.5`; the installer builds the
-> current source using its frozen lockfile.
+> This release is `@qiao-qyn/dsh-tui@0.2.1-rc.5`, paired with
+> `dsh-base@0.2.1-rc.5`. Older TUI 0.1.0 prereleases are not compatible with this
+> runtime. The one-command installer still builds current source using its frozen
+> lockfile; installing the npm plugin alone does not create a runnable profile.
 
 ## Use it
 

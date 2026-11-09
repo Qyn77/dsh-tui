@@ -109,10 +109,14 @@ Pushing `site` runs `.github/workflows/pages.yml`, which builds `site/dist` and 
 ```sh
 # 1. Bump version in package.json (and bump peer packages in lockstep if needed)
 # 2. Update the version shown in the README banner sample, if you refresh it
-# 3. Build
-pnpm run build
-# 4. Publish
-npm publish --access public
+# 3. Verify and build from a clean, committed checkout
+pnpm test && pnpm run typecheck && pnpm run lint && pnpm run build
+pnpm run pack:check
+# 4. Publish the checked artifact; select the tag explicitly for prereleases
+npm pack
+npm publish ./qiao-qyn-dsh-tui-0.2.1-rc.5.tgz --access public --tag latest
+npm dist-tag add @qiao-qyn/dsh-tui@0.2.1-rc.5 next
+npm view @qiao-qyn/dsh-tui dist-tags --json
 ```
 
 The version is `0.2.1-rc.5`, in lockstep with the `dsh-*` peer packages. Bump them together when shipping a coordinated release. See `package.json#peerDependencies` for the full list.
@@ -222,10 +226,14 @@ push `site` 会触发 `.github/workflows/pages.yml`，构建 `site/dist` 并部�
 ```sh
 # 1. bump package.json 里的 version（如需同步 bump peer）
 # 2. 如要刷新 README 里的示例截图，顺手改里面的版本号
-# 3. build
-pnpm run build
-# 4. 发
-npm publish --access public
+# 3. 从干净且已提交的工作区验证、构建
+pnpm test && pnpm run typecheck && pnpm run lint && pnpm run build
+pnpm run pack:check
+# 4. 发布已检查的包；预发布版本显式指定 tag
+npm pack
+npm publish ./qiao-qyn-dsh-tui-0.2.1-rc.5.tgz --access public --tag latest
+npm dist-tag add @qiao-qyn/dsh-tui@0.2.1-rc.5 next
+npm view @qiao-qyn/dsh-tui dist-tags --json
 ```
 
 当前版本 `0.2.1-rc.5`，跟 `dsh-*` peer 包同步发版。完整 peer 列表见 `package.json#peerDependencies`。
