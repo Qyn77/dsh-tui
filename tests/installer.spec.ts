@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 import { checkNode, install, OWNER, parseOptions, profileManifest, RUNTIME, run, startCommand } from '../scripts/install.mjs'
 
 const roots: string[] = []
@@ -50,6 +51,15 @@ describe('standalone installer', () => {
     await writeFile(entry, 'console.log("safe launch")')
     if (process.platform !== 'win32') expect(await run('/bin/sh', ['-c', startCommand(entry, 'darwin')], { capture: true })).toBe('safe launch\n')
     expect(startCommand("C:\\a'b\\launch.mjs", 'win32')).toBe("node 'C:\\a''b\\launch.mjs'")
+  })
+
+  it('runs the downloaded CLI when invoked through a symlinked temporary path', async () => {
+    if (process.platform === 'win32') return
+    const { root } = await fixture()
+    const alias = join(root, 'downloaded-installer.mjs')
+    await symlink(fileURLToPath(new URL('../scripts/install.mjs', import.meta.url)), alias)
+    const output = await run(process.execPath, [alias, '--help'], { capture: true })
+    expect(output).toContain('Usage: node install.mjs')
   })
 
   it('pins the matched runtime while retaining extra plugins and bundle ordering', () => {

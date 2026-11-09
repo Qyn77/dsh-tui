@@ -171,3 +171,8 @@ A second real installation from the built tarball also passed: the previous
 profile was backed up, the updated launcher again exited with code 0, and the
 installed koffi/node-pty probe succeeded. The latest focused installer suite has
 13 tests, including a native-probe failure that preserves the old installation.
+
+The CLI resolves its entry path before deciding whether to run, including macOS
+`/var` → `/private/var` temporary-directory aliases. A regression test verifies
+that invoking the downloaded entry through a symlink prints help instead of
+silently returning success without running the installer.

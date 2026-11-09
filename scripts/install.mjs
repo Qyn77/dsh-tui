@@ -225,6 +225,9 @@ async function main() {
   }
   await install(options)
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Node canonicalizes import.meta.url, while argv may retain /var -> /private/var
+// or a downloaded symlink. Compare real paths so a bootstrap cannot silently no-op.
+const invokedPath = process.argv[1] ? await realpath(process.argv[1]).catch(() => null) : null
+if (invokedPath === await realpath(fileURLToPath(import.meta.url))) {
   main().catch(error => { console.error(`Installation failed: ${error.message}`); process.exitCode = 1 })
 }
