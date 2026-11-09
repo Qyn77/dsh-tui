@@ -7,8 +7,9 @@
   --line-soft: #172030;
   --text: #e6ebf2;
   --muted: #8b97a8;
-  --dim: #5d6878;
+  --dim: #8491a3;
   --brand: #4d6bfe;
+  --brand-solid: #405bdd;
   --brand-soft: #7f95ff;
   --cyan: #56b6c2;
   --green: #98c379;
@@ -30,8 +31,9 @@
     --line-soft: #eaeef5;
     --text: #101725;
     --muted: #55617a;
-    --dim: #7b869c;
+    --dim: #5e6b80;
     --brand: #2f4bd8;
+    --brand-solid: #2f4bd8;
     --brand-soft: #4d6bfe;
     --cyan: #1f7a86;
     --green: #3f7d32;
@@ -247,14 +249,14 @@ h1 .accent {
 }
 
 .btn-primary {
-  background: var(--brand);
-  border-color: var(--brand);
+  background: var(--brand-solid);
+  border-color: var(--brand-solid);
   color: #fff;
 }
 
 .btn-primary:hover {
-  background: var(--brand-soft);
-  border-color: var(--brand-soft);
+  background: color-mix(in srgb, var(--brand-solid) 90%, black);
+  border-color: var(--brand-solid);
 }
 
 .btn-ghost {

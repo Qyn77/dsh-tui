@@ -5,6 +5,8 @@ This Astro site uses the existing terminal-oriented design in
 
 - Tokens: `--bg`, `--panel`, `--line`, `--text`, `--muted`, `--brand` and their
   light-scheme overrides own colors. Reuse them rather than adding literal colors.
+  Secondary `--dim` text is #8491a3 in dark mode and #5e6b80 in light mode;
+  white button text uses `--brand-solid` (#405bdd / #2f4bd8) for readable contrast.
 - System sans for prose, system monospace for commands. Main content is capped
   by `--max: 1120px`, with 24px side padding; command groups cap at 820px.
 - Primitives: `Base` owns navigation/footer and copy behavior; `Command` owns
