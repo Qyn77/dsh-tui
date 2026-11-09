@@ -574,3 +574,23 @@ launcher/base/TUI, verifies before activation and retains managed-profile backup
 Global launcher versions and unmanaged profiles are preserved. Native Windows
 and Linux installation acceptance remains separate from the macOS local smoke
 and fixture-based cross-platform CI.
+
+### Desktop onboarding follow-up · recorded 2026-11-09
+
+The current install/credential contract is documented in [INSTALL.md](INSTALL.md).
+The following are **planned, not implemented**:
+
+- Detect an existing Desktop home/profile and show which credentials/configuration
+  are shared, without displaying secret values or changing the desktop profile.
+- Offer selective import of compatible provider/model settings into the TUI
+  profile, with a preview, conflict handling and a backup. Do not import desktop
+  web/UI plugins indiscriminately or replace an unmanaged profile.
+- Explain credential precedence and missing provider/model requirements before
+  first chat. Distinguish local readiness checks from an explicitly requested
+  model connectivity test; local parsing cannot establish token validity.
+- Verify fresh-machine installation and desktop coexistence on macOS, Linux and
+  Windows Terminal + PowerShell 7. Record actual versions and native results
+  separately from mocked tests and source comparisons.
+
+These follow-ups do not change today's prerequisites: the user supplies terminal
+Node/npm and Git, and the installer creates its own pinned Harness runtime.

@@ -19,6 +19,17 @@ Windows 安装支持 **CMD 或 PowerShell 7**；运行 TUI 仍使用
 
 Direct download / 直接下载安装：
 
+On a clean computer, install these prerequisites first; the script does not
+bootstrap Node, Git or your terminal. The download commands below also need
+`curl` (`curl.exe` on Windows). Neither Harness Desktop, global `dsh`, nor global
+pnpm is required. Installing Desktop alone does not put Node/npm/Git on your
+terminal's PATH. **Opening the TUI and successfully chatting are separate checks:**
+chatting requires valid credentials and a matching provider/model configuration.
+
+干净电脑需先装好上述前置工具，下载命令还需要 `curl`（Windows 为 `curl.exe`）。
+无需预装 Harness 桌面版、全局 `dsh` 或 pnpm；仅安装桌面版不代表终端里已有
+Node/npm/Git。**能启动界面不等于已经能对话**：对话还需要有效凭据及匹配的模型配置。
+
 macOS / Linux:
 
 ```sh
@@ -179,7 +190,92 @@ node "$HOME/.dsh/profiles/tui/launch.mjs" --resume SESSION_ID
 或使用已有凭据。脚本不会向命令行索取密钥，也不自动启动模型请求。
 在 TUI 中运行 `/terminal` 可检查实际加载路径、构建提交和指纹。
 
-### User command / 用户命令和环境变量
+## API Key / 配置 API Key
+
+For the official DeepSeek API, edit `$DSH_HOME/.env` (default `~/.dsh/.env`).
+After installation the home directory exists. Use an editor, preserve other
+entries, and add or update this line with your own key **locally**:
+
+使用 DeepSeek 官方 API 时，编辑 `$DSH_HOME/.env`（默认 `~/.dsh/.env`），
+保留其他配置，在本地新增或更新下面这一行。示例只是占位符，不是可用密钥：
+
+```dotenv
+DEEPSEEK_API_KEY=YOUR_DEEPSEEK_API_KEY
+```
+
+| Terminal / 终端 | Edit the default file / 编辑默认文件 |
+| --- | --- |
+| macOS / Linux | `nano "$HOME/.dsh/.env"` |
+| Windows PowerShell 7 | `notepad "$env:USERPROFILE\.dsh\.env"` |
+| Windows CMD | `notepad "%USERPROFILE%\.dsh\.env"` |
+
+On macOS/Linux, save the file and restrict access:
+
+```sh
+chmod 600 "$HOME/.dsh/.env"
+```
+
+Save as exactly `.env`, not `.env.txt` in Notepad. If you installed with `--home`
+or `DSH_HOME`, use that home instead of the default paths above. Restart the TUI
+after editing, then select the intended provider/model with `/provider` and
+`/model`. Never paste a real key into a chat, issue, repository or screenshot.
+
+macOS/Linux 保存后执行上面的 `chmod`。Windows 记事本保存时确认文件名为 `.env`，
+不是 `.env.txt`。使用自定义 `--home` / `DSH_HOME` 时，将示例路径换成实际 home。
+修改后重启 TUI，并通过 `/provider`、`/model` 选择对应提供方和模型。
+不要把真实密钥发到聊天、issue、仓库或截图里。
+
+### If a new key does not take effect / 改了 Key 却没生效
+
+In the pinned rc.5 runtime, the same named credential is resolved in this order:
+
+1. Managed credential store: `$DSH_HOME/.credentials.yaml`.
+2. Inherited process environment.
+3. `.env` in the launch working directory.
+4. `$DSH_HOME/.env`.
+
+同名凭据按以上顺序读取。因此在桌面版已管理该凭据时，修改 home 下的 `.env`
+不会覆盖它；请从桌面版相应凭据设置更新或移除旧值，不要直接清空整个凭据文件。
+启动终端的环境变量、项目目录的 `.env` 也可能覆盖 home 下的值。
+
+Update an existing managed credential through the desktop credential settings;
+do not erase the whole credential store. Also check inherited environment and
+project `.env` overrides. A third-party API additionally needs its provider URL,
+model and credential mapping configured in the TUI profile; setting
+`DEEPSEEK_API_KEY` alone only covers the official DeepSeek API. An account login
+and an API key are distinct authentication methods, not interchangeable secrets.
+
+第三方兼容 API 还需在 TUI profile 配置对应的服务地址、模型和凭据映射，
+不能只填 `DEEPSEEK_API_KEY`。账号登录与 API Key 是不同认证方式，不能互相替代。
+
+## Harness Desktop / 与桌面版一起使用
+
+The TUI uses the Harness agent and tools through `dsh-base`, but the installer
+creates its own pinned launcher/base/TUI runtime. It does not reuse Desktop's
+bundled Node or globally installed `dsh` packages.
+
+TUI 通过 `dsh-base` 复用 Harness 的 Agent 和工具能力；安装器仍会独立安装固定版本的
+launcher/base/TUI，不复用桌面版内置 Node，也不依赖全局 `dsh` 包。
+
+| Item / 项目 | Sharing boundary / 共享范围 |
+| --- | --- |
+| Credentials / 凭据 | Same `DSH_HOME` shares `.credentials.yaml` and home `.env`; a custom home is separate. / 相同 home 共用凭据存储，自定义 home 需单独配置。 |
+| Root configuration / 根配置 | Home `cordis.patch.yml` applies across profiles. / home 根覆盖层会影响各 profile。 |
+| Models and plugins / 模型与插件 | Desktop's `profiles/desktop/cordis.patch.yml` is profile-local; it is not automatically imported into `profiles/tui`. / 桌面版专属模型、默认模型和插件配置不自动复制。 |
+| Runtime tools / 运行工具 | Desktop's private Node/pnpm do not satisfy the installer's terminal PATH prerequisites. / 桌面版自带运行时不等于终端具备安装前置工具。 |
+
+Checked on 2026-11-09 against Desktop **0.2.2-rc.1** and TUI runtime
+**0.2.1-rc.5**: credential-related implementations match, and rc.5 can parse the
+shared credential document. This establishes storage compatibility, **not**
+account-token validity or a successful model request. It is not a guarantee for
+other version pairs. Automatic desktop detection, selective model import and
+credential-readiness checks remain planned work in [TUI-ROADMAP.md](TUI-ROADMAP.md).
+
+2026-11-09 核对上述版本的凭据实现和 rc.5 解析兼容性；没有发起真实模型请求，
+不据此保证账号令牌有效、任意版本兼容，或“装完两个就一定直接能聊”。
+桌面版检测、模型配置按需导入与凭据就绪检查仍是路线图待办。
+
+## User command / 用户命令和环境变量
 
 - macOS/Linux: executable `~/.local/bin/dsh-tui`; managed PATH block in the
   detected login shell's config: zsh `$ZDOTDIR/.zshrc` (default `~/.zshrc`),

@@ -66,6 +66,13 @@ Windows Terminal completely on Windows). Use `--check` for preflight only or
 conflicts with global `dsh`. Existing credentials and sessions are preserved;
 unmanaged profiles are never overwritten. Stop the TUI before updating.
 
+The script does not install system prerequisites. Harness Desktop and global
+`dsh`/pnpm are optional. Before chatting, configure a valid API key or account:
+see [API key setup](docs/INSTALL.md#api-key--配置-api-key). Desktop can share
+credentials under the same `DSH_HOME`, but its model/plugin configuration and
+private Node runtime are not automatically imported or reused; see the
+[Desktop compatibility notes](docs/INSTALL.md#harness-desktop--与桌面版一起使用).
+
 > npm currently only carries the older TUI 0.1.0 prereleases (checked 2026-11-09).
 > They are not compatible with `dsh-base@0.2.1-rc.5`; the installer builds the
 > current source using its frozen lockfile.
