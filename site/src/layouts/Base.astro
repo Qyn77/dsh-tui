@@ -25,13 +25,14 @@ const repo = 'https://github.com/Qyn77/dsh-tui';
     <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
+    <a class="skip-link" href="#content">{t.ui.skip}</a>
     <header class="nav">
       <div class="wrap nav-inner">
         <a class="brand" href={url()}>
-          <span class="brand-mark">&gt;</span>
+          <span class="brand-mark" aria-hidden="true">&gt;_</span>
           dsh-tui
         </a>
-        <nav class="nav-links">
+        <nav class="nav-links" aria-label={t.nav.docs}>
           <a href="#features">{t.nav.features}</a>
           <a href="#commands">{t.nav.commands}</a>
           <a href="#install">{t.nav.install}</a>
@@ -42,13 +43,13 @@ const repo = 'https://github.com/Qyn77/dsh-tui';
       </div>
     </header>
 
-    <main>
+    <main id="content">
       <slot />
     </main>
 
     <footer>
       <div class="wrap footer-inner">
-        <span>{t.footer.built} <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a></span>
+        <div><a class="brand" href={url()}>dsh-tui<span class="footer-arrow" aria-hidden="true">↗</span></a><p>{t.ui.footerNote}</p></div>
         <nav class="footer-links">
           <a href="https://www.npmjs.com/package/@qiao-qyn/dsh-tui">npm</a>
           <a href={`${repo}/blob/main/docs/USAGE.md`}>USAGE</a>
@@ -59,22 +60,42 @@ const repo = 'https://github.com/Qyn77/dsh-tui';
     </footer>
 
     <script>
-      // One listener for every copy button on the page, including the ones a
-      // language switch swaps in later — the DOM is small enough not to care.
+      const resetTimers = new WeakMap<HTMLButtonElement, ReturnType<typeof setTimeout>>();
+      document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((button) => {
+        button.disabled = false;
+      });
       document.addEventListener('click', async (event) => {
         const button = (event.target as HTMLElement)?.closest?.('[data-copy]') as HTMLButtonElement | null;
-        if (!button) return;
+        if (!button || button.disabled) return;
+        const block = button.closest('.command-block')!;
+        const label = button.querySelector<HTMLElement>('[data-copy-label]')!;
+        const status = block.querySelector<HTMLElement>('[role="status"]')!;
+        clearTimeout(resetTimers.get(button));
+        button.disabled = true;
+        label.textContent = button.dataset.pending!;
+        status.textContent = '';
         try {
           await navigator.clipboard.writeText(button.dataset.copy ?? '');
-          button.textContent = '✓';
+          label.textContent = button.dataset.copied!;
+          status.textContent = button.dataset.success!;
           button.classList.add('done');
         } catch {
-          button.textContent = '⌘C';
+          const code = block.querySelector('code')!;
+          const range = document.createRange();
+          range.selectNodeContents(code);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          label.textContent = button.dataset.selected!;
+          status.textContent = button.dataset.failure!;
+        } finally {
+          button.disabled = false;
+          resetTimers.set(button, setTimeout(() => {
+            label.textContent = button.dataset.idle!;
+            button.classList.remove('done');
+            status.textContent = '';
+          }, 2400));
         }
-        setTimeout(() => {
-          button.textContent = 'copy';
-          button.classList.remove('done');
-        }, 1400);
       });
     </script>
   </body>

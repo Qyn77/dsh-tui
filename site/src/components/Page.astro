@@ -3,90 +3,69 @@ import type { Content } from '../i18n';
 import { inline } from '../lib/inline';
 import Terminal from './Terminal.astro';
 import Command from './Command.astro';
-
-interface Props {
-  t: Content;
-}
+import PlatformPicker from './PlatformPicker.astro';
+interface Props { t: Content; }
 const { t } = Astro.props;
+const docs = 'https://github.com/Qyn77/dsh-tui/blob/main/docs';
 ---
-
-<div class="wrap hero">
-  <div>
-    <span class="eyebrow">
-      {t.hero.installCmd}
-      <button class="copy" data-copy={t.hero.installCmd} aria-label="Copy">copy</button>
-    </span>
-    <h1>{t.hero.titleLead} <span class="accent">{t.hero.titleAccent}</span></h1>
-    <p class="lede" set:html={inline(t.hero.lede)} />
+<div class="hero-stage">
+  <div class="wrap hero">
+    <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>{t.ui.kicker}</p>
+    <h1>{t.hero.titleLead}<span class="accent">{t.hero.titleAccent}</span></h1>
+    <p class="lede">{t.hero.lede}</p>
     <div class="cta">
-      <a class="btn btn-primary" href="#install">{t.hero.ctaPrimary}</a>
-      <a class="btn btn-ghost" href="https://github.com/Qyn77/dsh-tui/blob/main/docs/USAGE.md">
-        {t.hero.ctaSecondary}
-      </a>
+      <a class="btn btn-primary" href="#install">{t.hero.ctaPrimary}<span aria-hidden="true">↗</span></a>
+      <a class="btn btn-ghost" href={`${docs}/USAGE.md`}>{t.hero.ctaSecondary}<span aria-hidden="true">→</span></a>
     </div>
-    <p class="note" set:html={inline(t.hero.altScreenNote)} />
+    <p class="hero-meta">{t.ui.platformFoot}<span aria-hidden="true"> / </span>{t.ui.brandNote}</p>
+    <Terminal t={t} />
   </div>
-  <Terminal t={t} />
 </div>
-
 <section id="features">
   <div class="wrap">
-    <h2>{t.features.title}</h2>
-    <div class="grid">
-      {
-        t.features.items.map((item) => (
-          <article class="card">
-            <div class="card-glyph">{item.glyph}</div>
-            <h3>{item.title}</h3>
-            <p set:html={inline(item.body)} />
-          </article>
-        ))
-      }
+    <div class="section-heading"><div><p class="eyebrow">{t.ui.featuresLabel}</p><h2>{t.features.title}</h2></div><p>{t.ui.featuresIntro}</p></div>
+    <div class="feature-grid">
+      {t.features.items.map((item) => <article class="feature">
+        <span class="feature-glyph" aria-hidden="true">{item.glyph}</span>
+        <h3>{item.title}</h3><p set:html={inline(item.body)} />
+      </article>)}
     </div>
   </div>
 </section>
-
+<section id="install" class="install-section">
+  <div class="wrap install-layout">
+    <div class="install-intro">
+      <p class="eyebrow">{t.ui.installLabel}</p><h2>{t.ui.installLead}</h2><p>{t.ui.installAside}</p>
+      <a class="more" href={`${docs}/INSTALL.md`}>{t.install.full}<span aria-hidden="true"> ↗</span></a>
+      <div class="install-requirements"><span>Node ≥ 22.19</span><span>npm + Git</span><span>curl / curl.exe</span></div>
+    </div>
+    <div class="install-steps">
+      <article class="install-step">
+        <div class="step-title"><span class="step-number" aria-hidden="true">01</span><h3>{t.ui.installStep}</h3></div>
+        <PlatformPicker t={t} />
+        <details class="disclosure"><summary>{t.ui.advanced}</summary><div class="disclosure-body"><p>{t.install.intro}</p><ul>{t.install.notes.map((note) => <li set:html={inline(note)} />)}</ul></div></details>
+        <details class="disclosure"><summary>{t.ui.windowsWhy}</summary><div class="disclosure-body"><p>{t.ui.windowsAnswer}</p><a class="more" href="https://learn.microsoft.com/en-us/windows/curl/">{t.ui.windowsSource} ↗</a></div></details>
+      </article>
+      <article class="install-step">
+        <div class="step-title"><span class="step-number" aria-hidden="true">02</span><h3>{t.ui.keyStep}</h3></div>
+        <p>{t.install.keyIntro}</p>
+        <Command cmd={t.install.keyExample} label=".env" t={t} />
+        <details class="disclosure"><summary>{t.ui.keyDetails}</summary><div class="disclosure-body"><ul>{t.install.keyNotes.map((note) => <li set:html={inline(note)} />)}</ul></div></details>
+      </article>
+      <article class="install-step">
+        <div class="step-title"><span class="step-number" aria-hidden="true">03</span><h3>{t.ui.startStep}</h3></div>
+        <Command cmd="dsh-tui" label={t.install.startTitle} note={t.install.startNote} t={t} />
+        <details class="disclosure"><summary>{t.install.desktopTitle}</summary><div class="disclosure-body"><ul>{t.install.desktopNotes.map((note) => <li set:html={inline(note)} />)}</ul></div></details>
+      </article>
+    </div>
+  </div>
+</section>
 <section id="commands">
-  <div class="wrap">
-    <h2>{t.commands.title}</h2>
-    <div class="rows">
-      {
-        t.commands.rows.map((row) => (
-          <div class="row">
-            <b set:html={inline(row.cmd)} />
-            <span set:html={inline(row.desc)} />
-          </div>
-        ))
-      }
-    </div>
-    <a class="more" href="https://github.com/Qyn77/dsh-tui/blob/main/docs/USAGE.md">
-      {t.commands.more} →
-    </a>
-  </div>
-</section>
-
-<section id="install">
-  <div class="wrap">
-    <h2>{t.install.title}</h2>
-    <p class="install-intro">{t.install.intro}</p>
-    <div class="steps">
-      {t.install.steps.map((step) => <Command cmd={step.cmd} note={step.note} />)}
-    </div>
-    <ul class="notes">
-      {t.install.notes.map((note) => <li set:html={inline(note)} />)}
-    </ul>
-    <h3 class="install-heading">{t.install.keyTitle}</h3>
-    <p class="install-intro">{t.install.keyIntro}</p>
-    <div class="steps"><Command cmd={t.install.keyExample} /></div>
-    <ul class="notes">
-      {t.install.keyNotes.map((note) => <li set:html={inline(note)} />)}
-    </ul>
-    <h3 class="install-heading">{t.install.startTitle}</h3>
-    <div class="steps"><Command cmd="dsh-tui" note={t.install.startNote} /></div>
-    <h3 class="install-heading">{t.install.desktopTitle}</h3>
-    <ul class="notes">
-      {t.install.desktopNotes.map((note) => <li set:html={inline(note)} />)}
-    </ul>
-    <a class="more" href="https://github.com/Qyn77/dsh-tui/blob/main/docs/INSTALL.md">{t.install.full} →</a>
+  <div class="wrap reference-layout">
+    <div><p class="eyebrow">{t.ui.referenceLabel}</p><h2>{t.commands.title}</h2><p>{t.ui.commandsIntro}</p></div>
+    <details class="disclosure command-reference"><summary>{t.commands.more}</summary><div class="disclosure-body">
+      <dl class="command-rows">{t.commands.rows.map((row) => <div><dt><code>{row.cmd}</code></dt><dd set:html={inline(row.desc)} /></div>)}</dl>
+      <a class="more" href={`${docs}/USAGE.md`}>{t.hero.ctaSecondary} ↗</a>
+    </div></details>
   </div>
 </section>

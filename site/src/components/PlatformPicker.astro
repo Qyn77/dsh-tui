@@ -1,0 +1,49 @@
+---
+import type { Content } from '../i18n';
+import Command from './Command.astro';
+interface Props { t: Content; }
+const { t } = Astro.props;
+---
+<div data-platform-picker>
+  <div class="platform-tabs" role="tablist" aria-label={t.ui.platformLabel} hidden>
+    {t.ui.platforms.map((label, i) => <button type="button" role="tab" id={`platform-tab-${i}`} aria-controls={`platform-panel-${i}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1} data-platform={i}>{label}</button>)}
+  </div>
+  {t.install.steps.map((step, i) => <div class="platform-panel" id={`platform-panel-${i}`} data-platform-panel={i}>
+    <Command cmd={step.cmd} label={t.ui.platforms[i]} t={t} />
+    <p class="step-note">{step.note}</p>
+    {i > 0 && <p class="platform-explanation">{t.ui.windowsPanel}</p>}
+  </div>)}
+</div>
+<script>
+  document.querySelectorAll<HTMLElement>('[data-platform-picker]').forEach((picker) => {
+    const tabs = Array.from(picker.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    const panels = Array.from(picker.querySelectorAll<HTMLElement>('[data-platform-panel]'));
+    function select(index: number, focus = false) {
+      tabs.forEach((tab, i) => {
+        tab.setAttribute('aria-selected', String(i === index));
+        tab.tabIndex = i === index ? 0 : -1;
+        panels[i].hidden = i !== index;
+        panels[i].setAttribute('role', 'tabpanel');
+        panels[i].setAttribute('aria-labelledby', tab.id);
+        panels[i].tabIndex = 0;
+      });
+      if (focus) tabs[index].focus();
+    }
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => select(index));
+      tab.addEventListener('keydown', (event) => {
+        let next: number;
+        switch (event.key) {
+          case 'ArrowRight': next = (index + 1) % tabs.length; break;
+          case 'ArrowLeft': next = (index + tabs.length - 1) % tabs.length; break;
+          case 'Home': next = 0; break;
+          case 'End': next = tabs.length - 1; break;
+          default: return;
+        }
+        event.preventDefault(); select(next, true);
+      });
+    });
+    select(/Win/i.test(navigator.platform) ? 1 : 0);
+    picker.querySelector<HTMLElement>('[role="tablist"]')!.hidden = false;
+  });
+</script>

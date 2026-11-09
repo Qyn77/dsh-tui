@@ -1,15 +1,19 @@
 ---
-interface Props {
-  cmd: string;
-  note?: string;
-}
-const { cmd, note } = Astro.props;
+import type { Content } from '../i18n';
+interface Props { cmd: string; note?: string; label?: string; t: Content; }
+const { cmd, note, label, t } = Astro.props;
 ---
-
-<div>
-  <div class="cmd">
-    <code>{cmd}</code>
-    <button class="copy" data-copy={cmd} aria-label="Copy command">copy</button>
+<div class="command-block">
+  <div class="command-head">
+    <span>{label ?? t.ui.installStep}</span>
+    <button class="copy" disabled data-copy={cmd} data-idle={t.ui.copy} data-copied={t.ui.copied}
+      data-pending={t.ui.copying} data-selected={t.ui.selected}
+      data-success={t.ui.copySuccess} data-failure={t.ui.copyFailed}>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>
+      <span data-copy-label>{t.ui.copy}</span>
+    </button>
   </div>
-  {note && <p class="step-note">{note}</p>}
+  <pre class="cmd"><code>{cmd}</code></pre>
+  <span class="copy-status" aria-live="polite" role="status"></span>
 </div>
+{note && <p class="step-note">{note}</p>}
