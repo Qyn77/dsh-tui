@@ -1,0 +1,54 @@
+name: Installer checks
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'install.sh'
+      - 'install.ps1'
+      - 'scripts/install.*'
+      - 'tests/installer.spec.ts'
+      - '.github/workflows/install-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'install.sh'
+      - 'install.ps1'
+      - 'scripts/install.*'
+      - 'tests/installer.spec.ts'
+      - '.github/workflows/install-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.1'
+      - name: Install frozen test dependencies
+        run: npm exec --yes --package=pnpm@11.10.0 -- pnpm install --frozen-lockfile --ignore-scripts
+      - name: Exercise installer transactions and launcher
+        run: node node_modules/vitest/vitest.mjs run tests/installer.spec.ts
+      - name: Check standalone entry
+        run: node scripts/install.mjs --help
+      - name: Check Unix bootstrap syntax
+        if: runner.os != 'Windows'
+        run: bash -n install.sh
+      - name: Check PowerShell bootstrap syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/install.ps1", [ref]$null, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count) { throw ($parseErrors | Out-String) }

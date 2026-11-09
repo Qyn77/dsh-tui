@@ -29,44 +29,28 @@
 
 ## 安装
 
-要求：Node ≥ 22.19、一个真 TTY（iTerm / Terminal.app / Windows Terminal + PowerShell 7；老 conhost 的 `cmd.exe` 不行）、一个 DeepSeek API key。
-
-本包在 npm 上的名字是 **`@qiao-qyn/dsh-tui`**（**不在** `@deepseek-ai` scope 下）。它是 `dsh` 的一个 bundle，所以流程是：先把 launcher 装上，再把 bundle 挂进一个 profile。
-
-从本分支运行 `pnpm install --frozen-lockfile && pnpm run build && npm pack` 生成安装包，将下文路径替换成它的绝对路径。
+推荐使用一键安装器：自动检查环境、拉取源码、构建、安装匹配的
+`dsh` / `dsh-base` / TUI，并在校验成功后激活独立 profile。
+需要 **Node ≥ 22.19（含 npm）、Git**；Windows 使用 PowerShell 7 + Windows Terminal。
 
 ```sh
-# 1. launcher（每台机器一次）
-npm install -g @deepseek-ai/dsh@0.2.1-rc.5
-
-# 2. 为 rc.5 新建独立 profile
-mkdir -p ~/.dsh/profiles/tui-rc5 && cd ~/.dsh/profiles/tui-rc5
-npm init -y
-npm install --save-exact @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
-npm pkg set 'dsh.profile.bundles[0]=@deepseek-ai/dsh-base' 'dsh.profile.bundles[1]=@qiao-qyn/dsh-tui'
-
-# 3. 在 ~/.dsh/.env 中设置 DEEPSEEK_API_KEY，然后启动
-dsh --profile tui-rc5
+# 已有源码，无需先手动安装 pnpm 或 build
+node scripts/install.mjs
 ```
 
-**Windows（PowerShell 7 + Windows Terminal）：**
+脚本发布到 `main` 后，macOS / Linux 可直接运行：
 
-```powershell
-npm install -g @deepseek-ai/dsh@0.2.1-rc.5
-$p = "$env:USERPROFILE\.dsh\profiles\tui-rc5"
-New-Item -ItemType Directory -Force -Path $p | Out-Null
-Set-Location $p
-npm init -y
-npm install --save-exact @deepseek-ai/dsh-base@0.2.1-rc.5 C:\path\to\qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
-npm pkg set 'dsh.profile.bundles[0]=@deepseek-ai/dsh-base' 'dsh.profile.bundles[1]=@qiao-qyn/dsh-tui'
-dsh --profile tui-rc5
+```sh
+curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash
 ```
 
-> 如果 npm 报告依赖的构建脚本被阻止，可用 `npm install-scripts ls` 查看清单。使用 pnpm 时，可用 `pnpm approve-builds` 处理 profile 所需的原生依赖。Windows 上如果依赖树触发 `ENAMETOOLONG`，把 profile 装到
-> 离盘符根更近的位置（比如 `C:\tui`），或者把
-> `HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem` 的 `LongPathsEnabled` 设为 `1`。
+Windows 一键命令、参数、API Key 配置和故障恢复见 **[安装指南](docs/INSTALL.md)**。
+安装完成后使用脚本输出的 `node .../launch.mjs` 启动命令；它固定使用 profile 内的
+运行时，避免全局 `dsh` 版本冲突。现有配置、凭据和会话保留，已有非托管 profile
+不会被覆盖。更新前先退出 TUI。
 
-设置 `DSH_HOME` 可以将会话、配置和 TUI 偏好保存在独立目录。rc.5 下的 `!cd` 会切换当前会话的工作目录。
+> npm 上当前只有旧的 TUI 0.1.0 预发布包（2026-11-09 核对），不能用它搭配
+> `dsh-base@0.2.1-rc.5`。安装器会按源码锁文件构建当前版本。
 
 ## 用起来
 
@@ -125,7 +109,7 @@ dsh --profile tui-rc5
 
 - **[项目主页](https://qyn77.github.io/dsh-tui/)** —— 长什么样、能做什么、三步装好（中英双语）。
 - **[docs/USAGE.md](docs/USAGE.md)** —— 各功能详细说明，以及完整的命令与按键速查表。
-- **[docs/DEVELOP.md](docs/DEVELOP.md)** —— 改源码：link 模式 profile、编辑 / 重建 / 重启循环、项目结构、发版流程。
+- **[docs/DEVELOP.md](docs/DEVELOP.md)** —— 改源码：安装包开发 profile、编辑 / 重建 / 重装 / 重启循环、项目结构、发版流程。
 - **[docs/SPEC.md](docs/SPEC.md)** —— 设计契约：视觉规则、路线图、贡献者约定。
 - **[docs/OCR-CI.md](https://github.com/Qyn77/dsh-tui/blob/ci/ocr-review/docs/OCR-CI.md)** —— 配置 GitHub Actions 的 PR 代码评审及所需凭据。
 

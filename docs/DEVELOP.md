@@ -5,101 +5,38 @@ second.
 
 ## Develop it
 
-**macOS / Linux (bash, zsh, Git Bash, WSL):**
+For an ordinary installation, use [INSTALL.md](INSTALL.md). Development needs
+Node >= 22.19, Git and pnpm 11.10.0 (matching `packageManager`).
 
 ```sh
-# 1. Get the source
-git clone https://github.com/<your-fork>/dsh-tui.git
+git clone https://github.com/Qyn77/dsh-tui.git
 cd dsh-tui
-
-# 2. Install deps (build tools + harness peers from npm)
-pnpm install
-pnpm approve-builds esbuild    # one-time, lets tsdown's bundler run
-
-# 3. Sanity-check + first build
-pnpm run typecheck
-pnpm test                      # vitest, ~500ms
-pnpm run build                 # tsc → .d.ts,  tsdown → lib/index.js
-
-# 4. Create a link-mode profile that points at this checkout
-mkdir -p ~/.dsh/profiles/tui-dev && cd ~/.dsh/profiles/tui-dev
-pnpm init
-# @next pins dsh-base to the same 0.1.0-rc.x line as this bundle; the `latest`
-# dist-tag still points at the abandoned 0.0.1-rc.1.
-pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui@link:/absolute/path/to/dsh-tui
-echo '[]' > cordis.yml
-
-# 5. Register the bundles + approve native builds
-dsh plugin --profile tui-dev install
-pnpm approve-builds            # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
-
-# 6. Set the API key (skip if ~/.dsh/.env already has one).
-cat > ~/.dsh/.env <<'EOF'
-DEEPSEEK_API_KEY=sk-...
-EOF
-chmod 600 ~/.dsh/.env
-
-# 7. Launch
-dsh --profile tui-dev
+# npm exec supplies the pinned pnpm without changing a global installation.
+npm exec --yes --package=pnpm@11.10.0 -- pnpm install --frozen-lockfile --ignore-scripts
+npm exec --yes --package=pnpm@11.10.0 -- pnpm run typecheck
+npm exec --yes --package=pnpm@11.10.0 -- pnpm test
+npm exec --yes --package=pnpm@11.10.0 -- pnpm run build
+npm pack
+node scripts/install.mjs --profile tui-dev --package ./qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
 ```
 
-**Windows (PowerShell 7 + Windows Terminal):**
+These commands also work in PowerShell 7. Use the exact `node .../launch.mjs`
+command printed by the installer. Runtime native dependencies are installed
+there; source build scripts are not needed for the pinned prebuilt toolchain.
+If `tui-dev` already exists and is not installer-managed, choose `tui-dev-new`.
+Do not overwrite an existing profile or `.env` to make the command succeed.
 
-```powershell
-# 1. Get the source
-git clone https://github.com/<your-fork>/dsh-tui.git
-cd dsh-tui
+### The edit / rebuild / reinstall / restart loop
 
-# 2. Install deps
-pnpm install
-pnpm approve-builds esbuild
+The launcher reads `lib/index.js`, never the TypeScript source. For this packaged
+workflow, after a source change: stop the TUI, build, `npm pack`, rerun the
+installer with `--package` and the same profile, then restart its generated
+launcher. It retains the previous package/profile as a backup. Merely rebuilding
+a checkout does not update an already installed tarball.
 
-# 3. Sanity-check + first build
-pnpm run typecheck
-pnpm test
-pnpm run build
-
-# 4. Create a link-mode profile. Use forward slashes in the @link: spec.
-$devProfile = Join-Path $env:USERPROFILE ".dsh\profiles\tui-dev"
-New-Item -ItemType Directory -Force -Path $devProfile | Out-Null
-Push-Location $devProfile
-pnpm init
-pnpm add @deepseek-ai/dsh-base@next "@qiao-qyn/dsh-tui@link:$PWD/../dsh-tui"
-# $PWD assumes you cloned the repo as a sibling of `.dsh`. Otherwise
-# pass the absolute path:  "@qiao-qyn/dsh-tui@link:C:/Users/you/Desktop/dsh-tui"
-Set-Content -Path cordis.yml -Value "[]"
-
-# 5. Register the bundles + approve native builds
-dsh plugin --profile tui-dev install
-pnpm approve-builds            # tick: node-pty, koffi, protobufjs, dsh-subprocess-local
-
-# 6. Set the API key (skip if $env:USERPROFILE\.dsh\.env already has one).
-Set-Content -Path "$env:USERPROFILE\.dsh\.env" -Value "DEEPSEEK_API_KEY=sk-..."
-
-# 7. Launch
-dsh --profile tui-dev
-Pop-Location
-```
-
-> The build in step 3 is **required before the first launch** on every
-> platform: the linked `dsh-tui` package exports `lib/index.js`, not
-> `src/index.ts`, and the launcher reads it verbatim. `pnpm run build`
-> writes it; without that file the loader falls back to whatever stale
-> build sits in `lib/`.
-
-### The edit / rebuild / restart loop
-
-When you change a file under `src/`, the loader won't see it until you rebuild and restart:
-
-```sh
-# in this repo
-pnpm run build          # ~30 ms
-# in the other terminal
-Ctrl-C                  # leave the running dsh
-dsh --profile tui-dev   # restart; picks up the new lib/index.js
-```
-
-`pnpm test` and `pnpm run typecheck` run against the `.ts` source — they don't need a build.
+`pnpm test` and `pnpm run typecheck` run against source and do not need a build.
+The installer default (without `--package`) builds remote `main`; it deliberately
+does not pick up uncommitted local source.
 
 ### `pnpm tty-check`
 
@@ -178,7 +115,7 @@ pnpm run build
 npm publish --access public
 ```
 
-The version is `0.1.0-rc.8`, in lockstep with the `dsh-*` peer packages. Bump them together when shipping a coordinated release. See `package.json#peerDependencies` for the full list.
+The version is `0.2.1-rc.5`, in lockstep with the `dsh-*` peer packages. Bump them together when shipping a coordinated release. See `package.json#peerDependencies` for the full list.
 
 
 ---
@@ -187,100 +124,33 @@ The version is `0.1.0-rc.8`, in lockstep with the `dsh-*` peer packages. Bump th
 
 ## 改起来
 
-**macOS / Linux（bash、zsh、Git Bash、WSL）：**
+普通安装用 [INSTALL.md](INSTALL.md)。开发需要 Node >= 22.19、Git 和
+packageManager 固定的 pnpm 11.10.0。
 
 ```sh
-# 1. 拉源码
-git clone https://github.com/<your-fork>/dsh-tui.git
+git clone https://github.com/Qyn77/dsh-tui.git
 cd dsh-tui
-
-# 2. 装依赖（构建工具 + 从 npm 拉的 harness peer）
-pnpm install
-pnpm approve-builds esbuild    # 一次性，允许 tsdown 的 bundler 跑 postinstall
-
-# 3. 自检 + 首次 build
-pnpm run typecheck
-pnpm test                      # vitest，约 500ms
-pnpm run build                 # tsc 产 .d.ts，tsdown 产 lib/index.js
-
-# 4. 建一个指向本 checkout 的 link profile
-mkdir -p ~/.dsh/profiles/tui-dev && cd ~/.dsh/profiles/tui-dev
-pnpm init
-# @next 把 dsh-base 钉到和本 bundle 同一代的 0.1.0-rc.x；latest 标签目前还
-# 指向已弃用的 0.0.1-rc.1。
-pnpm add @deepseek-ai/dsh-base@next @qiao-qyn/dsh-tui@link:/absolute/path/to/dsh-tui
-echo '[]' > cordis.yml
-
-# 5. 注册 bundle + 批准原生 build
-dsh plugin --profile tui-dev install
-pnpm approve-builds            # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
-
-# 6. 设置 API key（如果 ~/.dsh/.env 里已经有了，跳过）。
-cat > ~/.dsh/.env <<'EOF'
-DEEPSEEK_API_KEY=sk-...
-EOF
-chmod 600 ~/.dsh/.env
-
-# 7. 启动
-dsh --profile tui-dev
+npm exec --yes --package=pnpm@11.10.0 -- pnpm install --frozen-lockfile --ignore-scripts
+npm exec --yes --package=pnpm@11.10.0 -- pnpm run typecheck
+npm exec --yes --package=pnpm@11.10.0 -- pnpm test
+npm exec --yes --package=pnpm@11.10.0 -- pnpm run build
+npm pack
+node scripts/install.mjs --profile tui-dev --package ./qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
 ```
 
-**Windows（PowerShell 7 + Windows Terminal）：**
+PowerShell 7 也可执行上述命令。使用脚本输出的 `node .../launch.mjs` 启动；
+运行时原生依赖由安装器处理。已有非托管 `tui-dev` 时换成 `tui-dev-new`，
+不要为了安装覆盖现有 profile 或 `.env`。
 
-```powershell
-# 1. 拉源码
-git clone https://github.com/<your-fork>/dsh-tui.git
-cd dsh-tui
+### 编辑 / 重建 / 重装 / 重启循环
 
-# 2. 装依赖
-pnpm install
-pnpm approve-builds esbuild
+launcher 读取 `lib/index.js`，不会读取 TypeScript 源码。本流程使用安装包：
+修改源码后先退出 TUI，再 build、`npm pack`、使用同一 profile 重跑
+`--package` 安装，最后重启。安装器保留旧安装备份；仅 build 不会更新
+已经装进 profile 的 tarball。
 
-# 3. 自检 + 首次 build
-pnpm run typecheck
-pnpm test
-pnpm run build
-
-# 4. 建一个 link profile。@link: 路径用正斜杠。
-$devProfile = Join-Path $env:USERPROFILE ".dsh\profiles\tui-dev"
-New-Item -ItemType Directory -Force -Path $devProfile | Out-Null
-Push-Location $devProfile
-pnpm init
-pnpm add @deepseek-ai/dsh-base@next "@qiao-qyn/dsh-tui@link:$PWD/../dsh-tui"
-# $PWD 假设你把仓库 clone 在 .dsh 同级目录。如果不是，把绝对路径写出来：
-# "@qiao-qyn/dsh-tui@link:C:/Users/you/Desktop/dsh-tui"
-Set-Content -Path cordis.yml -Value "[]"
-
-# 5. 注册 bundle + 批准原生 build
-dsh plugin --profile tui-dev install
-pnpm approve-builds            # 勾选：node-pty, koffi, protobufjs, dsh-subprocess-local
-
-# 6. 设置 API key（如果 $env:USERPROFILE\.dsh\.env 里已经有了，跳过）。
-Set-Content -Path "$env:USERPROFILE\.dsh\.env" -Value "DEEPSEEK_API_KEY=sk-..."
-
-# 7. 启动
-dsh --profile tui-dev
-Pop-Location
-```
-
-> 第 3 步的 build 在**首次启动前必须做**（各平台都一致）。link 进来的
-> `dsh-tui` 包导出的是 `lib/index.js`，不是 `src/index.ts`，launcher
-> 原样读它。`pnpm run build` 生成它 —— 没这步的话 loader 会落到
-> `lib/` 里残留的旧文件。
-
-### 编辑 / 重建 / 重启 的循环
-
-改完 `src/` 下的文件，loader 看不到 —— 要重建 + 重启：
-
-```sh
-# 在本仓库里
-pnpm run build          # 约 30ms
-# 在另一个终端
-Ctrl-C                  # 关掉正在跑的 dsh
-dsh --profile tui-dev   # 重启，加载新的 lib/index.js
-```
-
-`pnpm test` 和 `pnpm run typecheck` 直接跑 `.ts` 源码，不用 build。
+测试和类型检查直接使用源码。安装器不带 `--package` 时构建的是远程 `main`，
+不会包含本地未提交修改。
 
 ### `pnpm tty-check`
 
@@ -358,5 +228,5 @@ pnpm run build
 npm publish --access public
 ```
 
-当前版本 `0.1.0-rc.8`，跟 `dsh-*` peer 包同步发版。完整 peer 列表见 `package.json#peerDependencies`。
+当前版本 `0.2.1-rc.5`，跟 `dsh-*` peer 包同步发版。完整 peer 列表见 `package.json#peerDependencies`。
 

@@ -29,44 +29,30 @@ A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepse
 
 ## Install
 
-Needs Node ≥ 22.19, a real TTY (iTerm / Terminal.app / Windows Terminal + PowerShell 7 — not legacy conhost `cmd.exe`), and a DeepSeek API key.
-
-This package is published on npm as **`@qiao-qyn/dsh-tui`** (it is *not* in the `@deepseek-ai` scope). It is a bundle for `dsh`, so: install the launcher once, then mount the bundle into a profile.
-
-Build the tarball from this branch with `pnpm install --frozen-lockfile && pnpm run build && npm pack`. Substitute its absolute path below.
+Use the one-command installer to check prerequisites, build the source, install
+matching **dsh + dsh-base + TUI 0.2.1-rc.5**, and activate a verified profile.
+Requires **Node ≥ 22.19 with npm, and Git**. On Windows use PowerShell 7 + Windows Terminal.
 
 ```sh
-# 1. the launcher (once per machine)
-npm install -g @deepseek-ai/dsh@0.2.1-rc.5
-
-# 2. Create a separate profile for the rc.5 runtime
-mkdir -p ~/.dsh/profiles/tui-rc5 && cd ~/.dsh/profiles/tui-rc5
-npm init -y
-npm install --save-exact @deepseek-ai/dsh-base@0.2.1-rc.5 /absolute/path/to/qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
-npm pkg set 'dsh.profile.bundles[0]=@deepseek-ai/dsh-base' 'dsh.profile.bundles[1]=@qiao-qyn/dsh-tui'
-
-# 3. Set DEEPSEEK_API_KEY in ~/.dsh/.env, then start the profile
-dsh --profile tui-rc5
+# From a checkout; no manual pnpm setup or build needed
+node scripts/install.mjs
 ```
 
-**Windows (PowerShell 7 + Windows Terminal):**
+Once the installer is published on `main`, macOS / Linux users can run:
 
-```powershell
-npm install -g @deepseek-ai/dsh@0.2.1-rc.5
-$p = "$env:USERPROFILE\.dsh\profiles\tui-rc5"
-New-Item -ItemType Directory -Force -Path $p | Out-Null
-Set-Location $p
-npm init -y
-npm install --save-exact @deepseek-ai/dsh-base@0.2.1-rc.5 C:\path\to\qiao-qyn-dsh-tui-0.2.1-rc.5.tgz
-npm pkg set 'dsh.profile.bundles[0]=@deepseek-ai/dsh-base' 'dsh.profile.bundles[1]=@qiao-qyn/dsh-tui'
-dsh --profile tui-rc5
+```sh
+curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash
 ```
 
-> When npm reports blocked dependency builds, use `npm install-scripts ls` to review them. With pnpm, use `pnpm approve-builds` for native dependencies required by the profile. On Windows, if the dep tree trips `ENAMETOOLONG`,
-> install the profile closer to the drive root (`C:\tui`) or set
-> `HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem` → `LongPathsEnabled=1`.
+See **[Installation guide](docs/INSTALL.md)** for Windows commands, options,
+API key setup, recovery and troubleshooting. Start with the printed
+`node .../launch.mjs` command: it uses the profile's pinned launcher, avoiding
+conflicts with global `dsh`. Existing credentials and sessions are preserved;
+unmanaged profiles are never overwritten. Stop the TUI before updating.
 
-An isolated profile can set `DSH_HOME` to keep sessions, patches and TUI preferences together. On rc.5, `!cd` changes the active session’s working directory.
+> npm currently only carries the older TUI 0.1.0 prereleases (checked 2026-11-09).
+> They are not compatible with `dsh-base@0.2.1-rc.5`; the installer builds the
+> current source using its frozen lockfile.
 
 ## Use it
 
@@ -124,9 +110,9 @@ images, skills, hooks, approvals, session resume, known limitations:
 
 ## Learn more
 
-- **[Website](https://qyn77.github.io/dsh-tui/)** — what it looks like, what it does, and the three-command install (English and 中文).
+- **[Website](https://qyn77.github.io/dsh-tui/)** — what it looks like, what it does, and the project overview (English and 中文).
 - **[docs/USAGE.md](docs/USAGE.md)** — every feature in detail, plus the full key and command reference.
-- **[docs/DEVELOP.md](docs/DEVELOP.md)** — hack on the source: link-mode profile, the edit / rebuild / restart loop, project layout, publish flow.
+- **[docs/DEVELOP.md](docs/DEVELOP.md)** — hack on the source: packaged development profile, the edit / rebuild / reinstall / restart loop, project layout, publish flow.
 - **[docs/SPEC.md](docs/SPEC.md)** — the design contract: visual rules, roadmap, contributor conventions.
 - **[docs/OCR-CI.md](https://github.com/Qyn77/dsh-tui/blob/ci/ocr-review/docs/OCR-CI.md)** — configure the GitHub Actions PR review workflow and its required secrets.
 

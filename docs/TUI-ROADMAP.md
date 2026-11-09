@@ -565,3 +565,12 @@ acceptance and remote attachment / parallel-session runtime dependencies.
 [SESSION-LIFECYCLE.md](SESSION-LIFECYCLE.md) records that review, and
 [TERMINAL-ACCEPTANCE.md](TERMINAL-ACCEPTANCE.md) records the native gap. No full
 remote client or parallel background approval workflow is claimed.
+
+## 13. Installation reliability · 2026-11-09
+
+The standalone installer and Unix/PowerShell bootstraps are implemented; see
+[INSTALL.md](INSTALL.md). It builds the pinned source, installs a matched local
+launcher/base/TUI, verifies before activation and retains managed-profile backups.
+Global launcher versions and unmanaged profiles are preserved. Native Windows
+and Linux installation acceptance remains separate from the macOS local smoke
+and fixture-based cross-platform CI.
