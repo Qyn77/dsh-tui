@@ -12,7 +12,3 @@ coverage
 .env
 .env.*
 !.env.example
-
-# Static website build outputs
-/site/dist/
-/site/.astro/
