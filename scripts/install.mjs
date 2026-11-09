@@ -207,7 +207,8 @@ export async function install(options, dependencies = {}) {
     try { await rename(stage, target) } catch (error) { if (backup) await rename(backup, target); throw error }
     stage = undefined
     const launchPath = join(target, 'launch.mjs')
-    log(`Installed ${RUNTIME}${commit ? ` (${commit.slice(0, 8)})` : ''}. Start with:\n  ${startCommand(launchPath)}\nAPI key: configure DEEPSEEK_API_KEY in ${join(options.home, '.env')} (existing credentials are untouched).`)
+    const startHint = process.platform === 'win32' ? 'Start in PowerShell 7 inside Windows Terminal:' : 'Start with:'
+    log(`Installed ${RUNTIME}${commit ? ` (${commit.slice(0, 8)})` : ''}. ${startHint}\n  ${startCommand(launchPath)}\nAPI key: configure DEEPSEEK_API_KEY in ${join(options.home, '.env')} (existing credentials are untouched).`)
     if (backup) log(`Previous profile preserved at ${backup}. Stop dsh before updating or restoring a backup.`)
     return { target, backup, launchPath, commit, artifactSha256: hash }
   } finally {

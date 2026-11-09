@@ -8,3 +8,4 @@
 # cmd.exe), add a `*.bat text eol=crlf` override AFTER this line — the in-repo
 # form stays LF; CRLF becomes checkout-time presentation only.
 * text=auto eol=lf
+install.cmd text eol=crlf

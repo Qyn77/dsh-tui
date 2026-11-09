@@ -31,7 +31,7 @@ A Claude Code-style terminal UI for [DeepSeek Harness](https://github.com/deepse
 
 Use the one-command installer to check prerequisites, build the source, install
 matching **dsh + dsh-base + TUI 0.2.1-rc.5**, and activate a verified profile.
-Requires **Node ≥ 22.19 with npm, and Git**. On Windows use PowerShell 7 + Windows Terminal.
+Requires **Node ≥ 22.19 with npm, and Git**. Windows installation supports CMD (`install.cmd`) or PowerShell 7 (`install.ps1`); run the TUI in PowerShell 7 + Windows Terminal.
 
 ```sh
 # From a checkout; no manual pnpm setup or build needed

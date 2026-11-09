@@ -31,7 +31,7 @@
 
 推荐使用一键安装器：自动检查环境、拉取源码、构建、安装匹配的
 `dsh` / `dsh-base` / TUI，并在校验成功后激活独立 profile。
-需要 **Node ≥ 22.19（含 npm）、Git**；Windows 使用 PowerShell 7 + Windows Terminal。
+需要 **Node ≥ 22.19（含 npm）、Git**；Windows 安装可用 CMD（`install.cmd`）或 PowerShell 7（`install.ps1`），运行 TUI 使用 PowerShell 7 + Windows Terminal。
 
 ```sh
 # 已有源码，无需先手动安装 pnpm 或 build

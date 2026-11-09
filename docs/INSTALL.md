@@ -3,13 +3,15 @@
 ## Users / 普通用户
 
 Prerequisites: Node **>= 22.19** with npm, Git, and network access to GitHub and
-npm. On Windows use **PowerShell 7 + Windows Terminal**. The installer checks
+npm. Windows installation supports **CMD or PowerShell 7**; running the TUI
+still requires **PowerShell 7 + Windows Terminal**. The installer checks
 Node/npm and Git; it does not install system software or request administrator
 privileges. Install Node from <https://nodejs.org/> if missing, then reopen the
 terminal. Git for Windows: <https://git-scm.com/downloads/win>.
 
 前置条件：Node **>= 22.19**（包含 npm）、Git，以及能访问 GitHub/npm 的网络。
-Windows 使用 **PowerShell 7 + Windows Terminal**。脚本不会自动修改系统软件、
+Windows 安装支持 **CMD 或 PowerShell 7**；运行 TUI 仍使用
+**PowerShell 7 + Windows Terminal**，不新增旧式 conhost 的运行兼容承诺。脚本不会自动修改系统软件、
 申请管理员权限或编辑 shell 启动文件；缺少前置工具时会停止并提示。
 
 Direct download / 直接下载安装：
@@ -19,6 +21,32 @@ macOS / Linux:
 ```sh
 curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash
 ```
+
+Windows CMD, from a checkout / 已下载源码，在 CMD 的项目目录运行：
+
+```bat
+install.cmd
+```
+
+Options / 参数示例：
+
+```bat
+install.cmd --home "C:\dsh home" --profile tui
+```
+
+Without a checkout, download `install.cmd` from this repository's `main` branch
+to an empty folder, then run it in CMD. It downloads the Node installer using
+`curl.exe`; a checkout uses its adjacent `scripts/install.mjs`. Both paths build
+remote `main` by default. Installation itself does not invoke PowerShell or
+change its execution policy. A failed download is never executed, temporary
+downloads are cleaned up, and installer failures return a nonzero exit code.
+
+没有源码时，将本仓库 `main` 的 `install.cmd` 下载到空目录，再在 CMD 中运行。
+独立脚本需要 `curl.exe` 下载 Node 安装器；源码目录下直接使用旁边的
+`scripts/install.mjs`。两种入口默认都构建远程 `main`。
+安装过程不调用 PowerShell，也不修改执行策略；下载失败不会执行，临时下载文件
+会清理，安装失败会返回非零退出码。安装完成后，按提示切到 Windows Terminal
+中的 PowerShell 7 启动 TUI。CMD 参数中的路径使用双引号。
 
 Windows PowerShell 7 (download first; failures do not execute partial content):
 
@@ -170,9 +198,18 @@ claimed as passed by this local run.
 A second real installation from the built tarball also passed: the previous
 profile was backed up, the updated launcher again exited with code 0, and the
 installed koffi/node-pty probe succeeded. The latest focused installer suite has
-13 tests, including a native-probe failure that preserves the old installation.
+transaction tests include a native-probe failure that preserves the old installation.
 
 The CLI resolves its entry path before deciding whether to run, including macOS
 `/var` → `/private/var` temporary-directory aliases. A regression test verifies
 that invoking the downloaded entry through a symlink prints help instead of
 silently returning success without running the installer.
+
+CMD regression cases run only on the Windows CI runner: real installer help,
+quoted paths containing spaces, `&` and `!`, argument forwarding without
+PowerShell on PATH, installer failure exit codes, missing Node, missing curl,
+and cleanup after a failed standalone download (using a closed local proxy).
+These cases are explicitly skipped on macOS/Linux; a local pass there is not
+Windows execution evidence. CMD quote/expansion rules follow Microsoft's
+[cmd](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd)
+and [setlocal](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/setlocal) documentation.

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
 import { checkNode, install, OWNER, parseOptions, profileManifest, RUNTIME, run, startCommand } from '../scripts/install.mjs'
 
 const roots: string[] = []
@@ -73,7 +74,9 @@ describe('standalone installer', () => {
 
   it('installs into a path with spaces, verifies before activation and runs its own launcher', async () => {
     const { options, root } = await fixture(); const calls: Call[] = []
-    const result = await install(options, { npmCli: '/npm/bin/npm-cli.js', run: fakeRunner(calls), log() {} })
+    const logs: string[] = []
+    const result = await install(options, { npmCli: '/npm/bin/npm-cli.js', run: fakeRunner(calls), log: message => logs.push(message) })
+    expect(logs.join('\n')).toContain(process.platform === 'win32' ? 'Start in PowerShell 7 inside Windows Terminal:' : 'Start with:')
     expect((JSON.parse(await readFile(join(result.target, '.dsh-tui-install.json'), 'utf8')) as { owner: string }).owner).toBe(OWNER)
     expect(calls.find(c => c.args.includes('--dump-default-config'))!.args).toContain('--profile')
     expect(await readdir(join(options.home, 'profiles'))).toEqual(['tui'])
@@ -135,5 +138,74 @@ describe('standalone installer', () => {
     await mkdir(join(options.home, 'profiles/.tui-install.lock'), { recursive: true })
     await expect(install(options, { npmCli: '/npm.js', run: fakeRunner([]), log() {} })).rejects.toThrow('lock')
     expect(await readdir(join(options.home, 'profiles'))).toEqual(['.tui-install.lock'])
+  })
+})
+
+describe.skipIf(process.platform !== 'win32')('CMD installer entry', () => {
+  async function cmdFixture(source?: string) {
+    const { root } = await fixture()
+    const dir = join(root, 'checkout with spaces & bang!')
+    await mkdir(join(dir, 'scripts'), { recursive: true })
+    const entry = join(dir, 'install.cmd')
+    // Raw GitHub downloads have LF; the real checkout help test also covers CRLF.
+    await writeFile(entry, (await readFile(new URL('../install.cmd', import.meta.url), 'utf8')).replaceAll('\r\n', '\n'))
+    if (source !== undefined) await writeFile(join(dir, 'scripts/install.mjs'), source)
+    return { root, dir, entry }
+  }
+  function invoke(entry: string, args = '', env = process.env) {
+    return spawnSync(process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe', ['/d', '/v:off', '/s', '/c', `""${entry}" ${args}"`], {
+      encoding: 'utf8', windowsVerbatimArguments: true, timeout: 15_000, env, cwd: dirname(entry),
+    })
+  }
+  function withPath(path: string) {
+    return { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'PATH')), PATH: path }
+  }
+
+  it('forwards quoted paths and options without requiring PowerShell', async () => {
+    const { entry, root } = await cmdFixture('console.log(JSON.stringify(process.argv.slice(2)))')
+    const home = join(root, 'home with spaces & bang!')
+    const result = invoke(entry, `--home "${home}" --profile tui-cmd`, withPath(dirname(process.execPath)))
+    expect(result.error).toBeUndefined()
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout.trim())).toEqual(['--home', home, '--profile', 'tui-cmd'])
+  })
+
+  it('propagates installer failure to CMD', async () => {
+    const { entry } = await cmdFixture('process.exitCode = 7')
+    expect(invoke(entry).status).toBe(7)
+  })
+
+  it('runs the actual installer help from a checkout', () => {
+    const result = invoke(fileURLToPath(new URL('../install.cmd', import.meta.url)), '--help')
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Usage: node install.mjs')
+  })
+
+  it('fails clearly when Node is missing', async () => {
+    const { entry, dir } = await cmdFixture()
+    const result = invoke(entry, '', withPath(dir))
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Install Node')
+  })
+
+  it('fails clearly when a standalone download has no curl', async () => {
+    const { entry } = await cmdFixture()
+    const result = invoke(entry, '', withPath(dirname(process.execPath)))
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('curl.exe is required')
+  })
+
+  it('cleans up a failed standalone download without running partial content', async () => {
+    const { entry, root } = await cmdFixture()
+    const downloads = join(root, 'downloads & bang!')
+    await mkdir(downloads)
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !['HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'TEMP'].includes(key.toUpperCase())))
+    // Fail at a closed local proxy, without making an external network request.
+    const result = invoke(entry, '--help', { ...env, TEMP: downloads, HTTPS_PROXY: 'http://127.0.0.1:1', ALL_PROXY: 'http://127.0.0.1:1', NO_PROXY: '' })
+    expect(result.error).toBeUndefined()
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Failed to download the installer')
+    expect(result.stdout).not.toContain('Usage: node install.mjs')
+    expect(await readdir(downloads)).toEqual([])
   })
 })

@@ -6,6 +6,8 @@ on:
     paths:
       - 'install.sh'
       - 'install.ps1'
+      - 'install.cmd'
+      - '.gitattributes'
       - 'scripts/install.*'
       - 'tests/installer.spec.ts'
       - '.github/workflows/install-check.yml'
@@ -14,6 +16,8 @@ on:
     paths:
       - 'install.sh'
       - 'install.ps1'
+      - 'install.cmd'
+      - '.gitattributes'
       - 'scripts/install.*'
       - 'tests/installer.spec.ts'
       - '.github/workflows/install-check.yml'
