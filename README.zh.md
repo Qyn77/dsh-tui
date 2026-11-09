@@ -38,7 +38,7 @@
 node scripts/install.mjs
 ```
 
-脚本发布到 `main` 后，macOS / Linux 可直接运行：
+macOS / Linux 可直接运行：
 
 ```sh
 curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash

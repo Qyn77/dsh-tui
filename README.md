@@ -38,7 +38,7 @@ Requires **Node ≥ 22.19 with npm, and Git**. On Windows use PowerShell 7 + Win
 node scripts/install.mjs
 ```
 
-Once the installer is published on `main`, macOS / Linux users can run:
+macOS / Linux users can run:
 
 ```sh
 curl -fsSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/Qyn77/dsh-tui/main/install.sh | bash

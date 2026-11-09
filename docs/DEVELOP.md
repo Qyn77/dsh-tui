@@ -95,14 +95,13 @@ The Ink tree is a **pure projection** of the Agent's session log. The reducer in
 
 ### The website
 
-The landing page at <https://qyn77.github.io/dsh-tui/> is an Astro project that lives on the **`site` branch** — an orphan branch, so `main` carries none of it:
+The landing page at <https://qyn77.github.io/dsh-tui/> is an Astro project in **`main` under `site/`**, with its own package manifest and lockfile:
 
 ```sh
-git switch site
 cd site && npm install && npm run dev      # http://localhost:4321/dsh-tui/
 ```
 
-Pushing `site` runs `.github/workflows/pages.yml`, which builds `site/dist` and deploys it to GitHub Pages. Two things to know if you touch it: the copy lives in `site/src/i18n.ts` (English and Chinese side by side), and `base: '/dsh-tui'` in `site/astro.config.mjs` is what makes links work under the project subpath — drop it if the site ever moves to a custom domain.
+Pushing changes to `site/` on `main` runs `.github/workflows/pages.yml`, which builds `site/dist` and deploys it to GitHub Pages. Two things to know if you touch it: the copy lives in `site/src/i18n.ts` (English and Chinese side by side), and `base: '/dsh-tui'` in `site/astro.config.mjs` is what makes links work under the project subpath — drop it if the site ever moves to a custom domain.
 
 ## Publish it
 
@@ -208,14 +207,13 @@ Ink 树是 Agent session log 的**纯投影**。[`src/core/state.ts`](../src/cor
 
 ### 项目主页
 
-<https://qyn77.github.io/dsh-tui/> 这个落地页是一个 Astro 项目，放在 **`site` 分支**上 —— 那是一条孤儿分支，所以 `main` 里一点都没有：
+<https://qyn77.github.io/dsh-tui/> 这个落地页是一个 Astro 项目，现已合入 **`main` 的 `site/` 目录**，保留独立的依赖与锁文件：
 
 ```sh
-git switch site
 cd site && npm install && npm run dev      # http://localhost:4321/dsh-tui/
 ```
 
-push `site` 会触发 `.github/workflows/pages.yml`，构建 `site/dist` 并部署到 GitHub Pages。改它之前要知道两件事：文案都在 `site/src/i18n.ts`（中英并排放），以及 `site/astro.config.mjs` 里的 `base: '/dsh-tui'` 是链接能带上项目子路径的原因 —— 哪天换成自定义域名，删掉这一行就行。
+向 `main` 推送 `site/` 的修改会触发 `.github/workflows/pages.yml`，构建 `site/dist` 并部署到 GitHub Pages。改它之前要知道两件事：文案都在 `site/src/i18n.ts`（中英并排放），以及 `site/astro.config.mjs` 里的 `base: '/dsh-tui'` 是链接能带上项目子路径的原因 —— 哪天换成自定义域名，删掉这一行就行。
 
 ## 发版
 

@@ -12,7 +12,7 @@ terminal. Git for Windows: <https://git-scm.com/downloads/win>.
 Windows 使用 **PowerShell 7 + Windows Terminal**。脚本不会自动修改系统软件、
 申请管理员权限或编辑 shell 启动文件；缺少前置工具时会停止并提示。
 
-Once these files are published on `main` / 以下文件发布到 `main` 后：
+Direct download / 直接下载安装：
 
 macOS / Linux:
 
