@@ -185,7 +185,7 @@ describe('writeSettings', () => {
     })
   })
 
-  it('reports failure instead of throwing when the directory is unwritable', () => {
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('reports failure instead of throwing when the directory is unwritable', () => {
     // The switch has already happened on screen by the time this runs. A
     // read-only home means the preference does not outlive the session — it
     // does not mean the command failed.

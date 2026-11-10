@@ -24,7 +24,9 @@ it('atomically saves independent private drafts and clears a submitted draft', (
   expect(createDraftRepository(home).open('../first').load().draft).toEqual({ text: 'draft\n./screen.png', cursor: 5 })
   const names = readdirSync(join(home, 'tui-drafts'))
   expect(names).toHaveLength(2)
-  for (const name of names) expect(statSync(join(home, 'tui-drafts', name)).mode & 0o777).toBe(0o600)
+  if (process.platform !== 'win32') {
+    for (const name of names) expect(statSync(join(home, 'tui-drafts', name)).mode & 0o777).toBe(0o600)
+  }
   expect(first.save({ text: '', cursor: 0 })).toBe(true)
   expect(first.load()).toEqual({})
   expect(second.load().draft?.text).toBe('other')

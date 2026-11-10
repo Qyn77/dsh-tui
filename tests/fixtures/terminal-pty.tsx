@@ -2,6 +2,7 @@
 import React from 'react'
 import { render } from 'ink'
 import { Context } from '@deepseek-ai/cordis'
+import { writeSync } from 'node:fs'
 import { App } from '../../src/renderer.tsx'
 import { createTerminalService } from '../../src/terminal/adapters/service.ts'
 import { seedSession, provideHistory } from '../fake-tty.ts'
@@ -15,7 +16,17 @@ let submissions = 0
 let imageReads = 0
 const terminal = createTerminalService({ write: text => process.stdout.write(text) })
 const seen: Record<string, number> = {}
-terminal.subscribe((event) => { seen[event.kind] = (seen[event.kind] ?? 0) + 1 })
+const eventsFd = process.env['DSH_PTY_EVENTS_FD']
+const resized = () => {
+  if (eventsFd) writeSync(Number(eventsFd), `resize:${process.stdout.columns}x${process.stdout.rows}\n`)
+}
+process.stdout.on('resize', resized)
+terminal.subscribe((event) => {
+  seen[event.kind] = (seen[event.kind] ?? 0) + 1
+  // Escape is intentionally held by the decoder to distinguish a key from a
+  // protocol prefix. A test-only pipe lets the driver await that decision.
+  if (eventsFd && event.kind === 'key' && event.key.escape) writeSync(Number(eventsFd), 'escape\n')
+})
 terminal.resume()
 const agent = { id: session.id, session, status: 'idle', on: () => () => {},
   followup: () => { submissions++ }, whenIdle: () => Promise.resolve() }
@@ -30,7 +41,9 @@ try {
   await instance.waitUntilExit()
 } finally {
   clearTimeout(deadline)
+  process.stdout.off('resize', resized)
   terminal.dispose()
   process.stdout.write(`\nTERMINAL_PTY_RESULT=${JSON.stringify({ submissions, imageReads, seen,
-    diagnostics: terminal.diagnostics(), raw: process.stdin.isRaw })}\n`)
+    diagnostics: terminal.diagnostics(), raw: process.stdin.isRaw,
+    dimensions: { columns: process.stdout.columns, rows: process.stdout.rows } })}\n`)
 }

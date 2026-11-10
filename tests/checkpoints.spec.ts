@@ -21,7 +21,7 @@ describe('selective file checkpoints', () => {
     await expect(repo.seal(item.id)).rejects.toMatchObject({ code: 'sealed' })
     await repo.restore(item.id)
     expect(await readFile(file, 'utf8')).toBe('before')
-    expect((await stat(file)).mode & 0o777).toBe(0o640)
+    if (process.platform !== 'win32') expect((await stat(file)).mode & 0o777).toBe(0o640)
     expect((await repo.read(item.id)).after?.data).toBe(Buffer.from('after').toString('base64'))
     expect(await repo.list()).toHaveLength(1)
   })
@@ -45,16 +45,21 @@ describe('selective file checkpoints', () => {
     await unlink(file); await repo.restore(deleted.id)
     expect(await readFile(file, 'utf8')).toBe('original')
   })
-  it('refuses traversal, symlinks, special files, oversized data and invalid ids', async () => {
+  it('refuses traversal, special files, oversized data and invalid ids', async () => {
     const { root, file, repo } = await fixture()
     await expect(repo.save('../escape.txt')).rejects.toMatchObject({ code: 'unsafe' })
-    await writeFile(file, 'private'); await symlink(file, join(root, 'link.txt'))
-    await expect(repo.save('link.txt')).rejects.toMatchObject({ code: 'unsafe' })
     await mkdir(join(root, 'store'))
     await expect(repo.save('store')).rejects.toMatchObject({ code: 'unsafe' })
     await writeFile(file, Buffer.alloc(1024 * 1024 + 1))
     await expect(repo.save('work.txt')).rejects.toMatchObject({ code: 'large' })
     await expect(repo.read('../../escape')).rejects.toMatchObject({ code: 'invalid' })
+  })
+  // File symlink creation requires privileges or Developer Mode on Windows.
+  it.skipIf(process.platform === 'win32')('refuses symbolic links without reading their targets', async () => {
+    const { root, file, repo } = await fixture()
+    await writeFile(file, 'private'); await symlink(file, join(root, 'link.txt'))
+    await expect(repo.save('link.txt')).rejects.toMatchObject({ code: 'unsafe' })
+    expect(await readFile(file, 'utf8')).toBe('private')
   })
 })
 

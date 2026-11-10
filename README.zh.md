@@ -186,3 +186,5 @@ macOS Terminal.app 图片粘贴采用 **Ctrl-V**。本项目不安装需要系�
 **F5** 管理待发送图片：方向键选择，Enter 本机预览，Delete 移除选中的图片，
 关闭后 Ctrl-Z 可撤销移除。本机预览支持 macOS Preview 和 Linux xdg-open；
 远程、WSL、复用器连接不尝试调用本机查看器。
+
+兼容性 CI 在 macOS、Linux、Windows 的 Node 22.19.0 和 22.23.1 上运行全量测试、类型检查、构建和发布包导出检查；原生终端验收单独进行。输入编辑和换行保留完整 Unicode 字素，包括 emoji 和组合字符。

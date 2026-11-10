@@ -198,3 +198,5 @@ reports the loaded build commit, dirty flag, module path and SHA-256 fingerprint
 **F5** manages draft images: select with arrows, Enter previews locally,
 Delete removes that image, Ctrl-Z after closing undoes removal. Local preview
 supports macOS Preview and Linux xdg-open; remote/WSL/multiplexed hosts decline.
+
+Compatibility checks run the full test suite, types, build and package exports on macOS, Linux and Windows with Node 22.19.0 and 22.23.1. Native terminal acceptance remains separate. Prompt editing and wrapping preserve whole Unicode graphemes, including emoji and combining marks.

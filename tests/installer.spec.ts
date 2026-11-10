@@ -56,8 +56,7 @@ describe('standalone installer', () => {
     expect(startCommand("C:\\a'b\\launch.mjs", 'win32')).toBe("node 'C:\\a''b\\launch.mjs'")
   })
 
-  it('runs the downloaded CLI when invoked through a symlinked temporary path', async () => {
-    if (process.platform === 'win32') return
+  it.skipIf(process.platform === 'win32')('runs the downloaded CLI when invoked through a symlinked temporary path', async () => {
     const { root } = await fixture()
     const alias = join(root, 'downloaded-installer.mjs')
     await symlink(fileURLToPath(new URL('../scripts/install.mjs', import.meta.url)), alias)
@@ -121,8 +120,7 @@ describe('standalone installer', () => {
     expect(await readFile(join(updated.backup!, 'cordis.patch.yml'), 'utf8')).toBe('# patch stays')
   })
 
-  it('does not follow generated-file symlinks when updating a managed profile', async () => {
-    if (process.platform === 'win32') return // symlink creation may need developer mode
+  it.skipIf(process.platform === 'win32')('does not follow generated-file symlinks when updating a managed profile', async () => {
     const { options, root } = await fixture()
     const first = await install(options, { npmCli: '/npm.js', run: fakeRunner([]), log() {} })
     const outside = join(root, 'outside'); await writeFile(outside, 'preserve')

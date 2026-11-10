@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
+import { resolve } from 'node:path'
 import type { ImageAttachmentLimits, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { attachImages, classifyModalities, type AttachDeps, type ImageStore } from '../src/attachments/attach-runner.ts'
 
@@ -34,8 +35,9 @@ function fakeStore(overrides: Partial<ImageStore> = {}): ImageStore {
 
 /** Files the fake filesystem holds, by absolute path. */
 function fakeFiles(files: Record<string, number>): AttachDeps['readFile'] {
+  const normalized = Object.fromEntries(Object.entries(files).map(([path, size]) => [resolve(path), size]))
   return async (path) => {
-    const size = files[path]
+    const size = normalized[resolve(path)]
     if (size === undefined) {
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' })
     }

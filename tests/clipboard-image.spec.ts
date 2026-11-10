@@ -36,7 +36,8 @@ it('deduplicates private images, bounds the cache and reports storage failure', 
   const result = cacheClipboardImage(png, home)
   expect(result.kind).toBe('image')
   if (result.kind !== 'image') return
-  expect(statSync(result.path).mode & 0o777).toBe(0o600)
+  // Windows stat mode does not represent POSIX owner/group permissions.
+  if (process.platform !== 'win32') expect(statSync(result.path).mode & 0o777).toBe(0o600)
   expect(cacheClipboardImage(png, home)).toEqual(result)
   expect(readdirSync(join(home, 'tui-clipboard'))).toHaveLength(1)
   for (let i = 0; i < 63; i++) writeFileSync(join(home, 'tui-clipboard', `fixture-${i}`), '')

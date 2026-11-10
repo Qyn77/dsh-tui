@@ -32,7 +32,7 @@ it('round-trips multiline UTF-8 using a private file then removes it', async () 
   const command2 = fixture(`const fs=require('fs');const f=process.argv[2];fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({file:f,mode:fs.statSync(f).mode & 511}));`)
   expect((await editExternal('keep', command2)).kind).toBe('edited')
   const data = JSON.parse(readFileSync(record, 'utf8')) as { file: string; mode: number }; file = data.file
-  expect(data.mode).toBe(0o600)
+  if (process.platform !== 'win32') expect(data.mode).toBe(0o600)
   expect(() => readFileSync(file)).toThrow()
 })
 it('rejects nonzero exits, missing executables, invalid UTF-8 and oversized output', async () => {

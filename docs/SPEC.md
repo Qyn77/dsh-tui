@@ -1813,6 +1813,10 @@ heeded when it was built.
 
 ### 3.4 Testing
 
+The compatibility workflow runs the full suite, typecheck, build and package-export checks on macOS, Linux and Windows with Node 22.19.0 and 22.23.1. It runs for ordinary pull requests and main pushes, including source and dependency changes. This automated matrix does not certify native terminal interactions.
+
+`test:terminal` builds the real fixture with the same Ink transform. The Unix PTY driver waits for observable fresh frames and overlay dismissal; Escape and resize use test-only event acknowledgements. Because the spawned PTY is not a controlling terminal, resize sends SIGWINCH explicitly and verifies 80×24 dimensions. Driver tests cover fragmented/delayed frames, stale output, EOF and stdout draining. These checks do not replace native GUI acceptance.
+
 Reducer and frame fixtures record real `session/event` notifications from an rc.5 SessionStore. The fake persistence handle reads from that record through the same bounded interface used by the TUI.
 
 
