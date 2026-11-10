@@ -34,6 +34,8 @@
  * @module @qiao-qyn/dsh-tui/prompt/vim
  */
 
+import { graphemeStart, nextGrapheme, previousGrapheme } from '../core/graphemes.ts'
+
 /** Which editor the prompt's keys currently mean. */
 export type VimMode = 'insert' | 'normal'
 
@@ -190,8 +192,8 @@ export function wordEnd(text: string, cursor: number): number {
 export function motionTarget(key: string, text: string, cursor: number): number | undefined {
   const at = clamp(text, cursor)
   switch (key) {
-    case 'h': return Math.max(lineStart(text, at), at - 1)
-    case 'l': return Math.min(lineEnd(text, at), at + 1)
+    case 'h': return Math.max(lineStart(text, at), previousGrapheme(text, at))
+    case 'l': return Math.min(lineEnd(text, at), nextGrapheme(text, at))
     case '0': return lineStart(text, at)
     case '^': return firstNonBlank(text, at)
     case '$': return lineEnd(text, at)
@@ -270,7 +272,7 @@ export function applyVim(
 
     // Entering insert mode.
     case 'i': return done(text, at, insertAt(state))
-    case 'a': return done(text, Math.min(lineEnd(text, at), at + 1), insertAt(state))
+    case 'a': return done(text, Math.min(lineEnd(text, at), nextGrapheme(text, at)), insertAt(state))
     case 'I': return done(text, firstNonBlank(text, at), insertAt(state))
     case 'A': return done(text, lineEnd(text, at), insertAt(state))
     case 'o': {
@@ -286,7 +288,7 @@ export function applyVim(
     case 'x': {
       const end = lineEnd(text, at)
       if (at >= end) return done(text, at, state)
-      return cut(text, at, at + 1, state, at)
+      return cut(text, at, nextGrapheme(text, at), state, at)
     }
     case 'D': return cut(text, at, lineEnd(text, at), state, at)
     case 'C': {
@@ -307,8 +309,8 @@ export function applyVim(
         const end = lineEnd(text, at)
         return done(`${text.slice(0, end)}\n${paste.slice(0, -1)}${text.slice(end)}`, end + 1, state)
       }
-      const insert = Math.min(lineEnd(text, at), at + 1)
-      return done(`${text.slice(0, insert)}${paste}${text.slice(insert)}`, insert + paste.length - 1, state)
+      const insert = Math.min(lineEnd(text, at), nextGrapheme(text, at))
+      return done(`${text.slice(0, insert)}${paste}${text.slice(insert)}`, insert + previousGrapheme(paste, paste.length), state)
     }
     case 'P': {
       if (state.register === '') return done(text, at, state)
@@ -317,7 +319,7 @@ export function applyVim(
         const start = lineStart(text, at)
         return done(`${text.slice(0, start)}${paste}${text.slice(start)}`, start, state)
       }
-      return done(`${text.slice(0, at)}${paste}${text.slice(at)}`, at + paste.length - 1, state)
+      return done(`${text.slice(0, at)}${paste}${text.slice(at)}`, at + previousGrapheme(paste, paste.length), state)
     }
 
     default:
@@ -383,5 +385,5 @@ function done(text: string, cursor: number, state: VimState): VimResult {
 
 /** Clamp a caret index into `[0, text.length]`. */
 function clamp(text: string, cursor: number): number {
-  return Math.max(0, Math.min(text.length, cursor))
+  return graphemeStart(text, cursor)
 }

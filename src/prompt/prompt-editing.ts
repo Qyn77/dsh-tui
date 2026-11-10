@@ -25,9 +25,11 @@
  * @module @qiao-qyn/dsh-tui/prompt/prompt-editing
  */
 
-/** Clamp a caret index into `[0, text.length]`. */
+import { graphemeStart, previousGrapheme } from '../core/graphemes.ts'
+
+/** Clamp a caret index to a whole grapheme boundary. */
 function clamp(cursor: number, text: string): number {
-  return Math.min(Math.max(0, cursor), text.length)
+  return graphemeStart(text, cursor)
 }
 
 /** Whether the character at `index` is whitespace (out of range counts as not). */
@@ -45,7 +47,8 @@ export function insertTextAtCursor(text: string, cursor: number, input: string):
 /** Delete the single character before the caret. */
 export function removeCharBeforeCursor(text: string, cursor: number): string {
   if (cursor <= 0 || cursor > text.length) return text
-  return `${text.slice(0, cursor - 1)}${text.slice(cursor)}`
+  const end = clamp(cursor, text)
+  return `${text.slice(0, previousGrapheme(text, end))}${text.slice(end)}`
 }
 
 /**

@@ -12,6 +12,7 @@
  */
 
 import { displayWidth } from '../core/width.ts'
+import { graphemes, graphemeStart } from '../core/graphemes.ts'
 
 /**
  * Rows of text the prompt may grow to before it starts scrolling instead.
@@ -122,7 +123,7 @@ export function wrapBuffer(value: string, width: number): readonly PromptRow[] {
     rowWidth = 0
   }
 
-  for (const char of value) {
+  for (const char of graphemes(value)) {
     const size = char.length // code units, so surrogate pairs advance correctly
     if (char === '\n') {
       index += size
@@ -163,7 +164,7 @@ export function cursorAt(rows: readonly PromptRow[], cursor: number): CaretPosit
   for (let row = last; row >= 0; row -= 1) {
     const candidate = rows[row]
     if (candidate !== undefined && candidate.start <= safe) {
-      return { row, offset: Math.min(safe - candidate.start, candidate.text.length) }
+      return { row, offset: graphemeStart(candidate.text, safe - candidate.start) }
     }
   }
   return { row: 0, offset: 0 }
@@ -178,7 +179,7 @@ export function cursorAt(rows: readonly PromptRow[], cursor: number): CaretPosit
  * characters as a row of ASCII at the same width.
  */
 export function columnAt(row: PromptRow, offset: number): number {
-  return displayWidth(row.text.slice(0, Math.max(0, offset)))
+  return displayWidth(row.text.slice(0, graphemeStart(row.text, offset)))
 }
 
 /**
@@ -193,7 +194,7 @@ export function offsetAtColumn(row: PromptRow, column: number): number {
   const target = Math.max(0, column)
   let width = 0
   let offset = 0
-  for (const char of row.text) {
+  for (const char of graphemes(row.text)) {
     const next = width + displayWidth(char)
     if (next > target) break
     width = next

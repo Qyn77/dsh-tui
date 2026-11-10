@@ -2,6 +2,8 @@ import { defineConfig } from 'tsdown'
 import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { inkUnicode } from './scripts/ink-unicode.mjs'
+import { thirdPartyLicenses } from './scripts/third-party-licenses.mjs'
 
 // Read the version at build time so the banner cannot drift from
 // `package.json`. `src/environment.ts` guards the identifier with
@@ -27,6 +29,8 @@ export default defineConfig({
   fixedExtension: false,
   dts: false,
   clean: false,
+  plugins: [inkUnicode(), thirdPartyLicenses()],
+  deps: { alwaysBundle: ['ink'], neverBundle: ['yoga-layout', 'react-reconciler', 'react-devtools-core'] },
   define: {
     __DSH_TUI_VERSION__: JSON.stringify(version),
     __DSH_TUI_COMMIT__: JSON.stringify(commit ?? null),

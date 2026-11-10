@@ -34,6 +34,13 @@ const data = { state, sessions: [{ name: '/resume session-123', displayName: 'My
 }
 function at(...path: string[]): MenuItem { return menuPage(commandMenus(catalog('en'), {}, data), path)! }
 
+it('keeps complete emoji in message previews at their display width', () => {
+  const family = '👨‍👩‍👧‍👦'
+  const roots = commandMenus(catalog('en'), {}, { root: '/inspect',
+    state: { entries: [{ kind: 'note', text: family.repeat(50) + 'x' }], status: 'idle', currentTurn: 1 } })
+  expect(menuPage(roots, ['/inspect'])?.children?.[0]?.label).toBe('1. ' + family.repeat(50) + '…')
+})
+
 it('covers all enumerated command families while leaving search free-form', () => {
   const roots = commandMenus(catalog('en'), {}, data)
   expect(roots.map(root => root.id)).toEqual(expect.arrayContaining(['/activity', '/copy', '/inspect', '/jump', '/changes', '/diff',

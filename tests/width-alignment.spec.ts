@@ -3,6 +3,16 @@ import { paintApp } from './fake-tty.ts'
 import { displayWidth } from '../src/core/width.ts'
 
 describe('full-width interaction surfaces', () => {
+  it('keeps emoji and combining text intact without shortening the prompt border', async () => {
+    const tty = await paintApp({ columns: 60, rows: 24 })
+    try {
+      await tty.send('a👨‍👩‍👧‍👦e\u0301z')
+      const lines = tty.screen().slice(tty.screen().lastIndexOf('╭')).split('\n')
+      const row = lines.find(line => line.includes('a👨')) ?? ''
+      expect(row).toContain('a👨‍👩‍👧‍👦e\u0301z')
+      expect(displayWidth(row)).toBe(displayWidth(lines[0]))
+    } finally { tty.unmount() }
+  })
   it.each([60, 90, 120])('keeps picker borders aligned with the input at %i columns', async (columns) => {
     const tty = await paintApp({ columns, rows: 40 })
     try {

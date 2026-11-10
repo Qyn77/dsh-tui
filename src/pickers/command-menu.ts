@@ -1,5 +1,6 @@
 import type { Checkpoint } from '../terminal/checkpoints.ts'
 import { displayWidth } from '../core/width.ts'
+import { graphemes } from '../core/graphemes.ts'
 import type { UiState, UiEntry } from '../core/types.ts'
 import type { PluginRow } from '../commands/plugins.ts'
 import { entryText } from '../commands/transcript.ts'
@@ -85,7 +86,7 @@ function preview(text: string): string {
   const clean = text.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').replace(/\s+/g, ' ').trim()
   let result = ''
   let width = 0
-  for (const char of clean) {
+  for (const char of graphemes(clean)) {
     width += displayWidth(char)
     if (width > 100) return result + '…'
     result += char

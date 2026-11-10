@@ -21,6 +21,7 @@
  * @module @qiao-qyn/dsh-tui/render/banner-art
  */
 
+import { graphemes } from '../core/graphemes.ts'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { VERSION } from '../terminal/environment.ts'
@@ -282,14 +283,7 @@ export function fitTail(line: string, width: number): string {
   if (displayWidth(line) <= width) return line
   if (width === 1) return '…'
   const budget = width - 1
-  // Code points, deliberately. This walks backwards accumulating display width,
-  // so it needs units `displayWidth` can measure one at a time — which UTF-16
-  // code units are not: splitting a surrogate pair yields two halves that are
-  // neither the original glyph nor measurable. A grapheme cluster would be
-  // better still for combining marks, but the lines here are paths, session ids
-  // and the one-line tip, none of which carry them.
-  // oxlint-disable-next-line typescript/no-misused-spread
-  const chars = [...line]
+  const chars = [...graphemes(line)]
   let taken = 0
   let start = chars.length
   while (start > 0) {

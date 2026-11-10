@@ -3,6 +3,26 @@ import { paintApp } from './fake-tty.ts'
 
 function input(screen: string): string { return screen.slice(screen.lastIndexOf('╭')) }
 
+it('moves and deletes whole Unicode graphemes through the real prompt keys', async () => {
+  const tty = await paintApp()
+  try {
+    await tty.send('a👨‍👩‍👧‍👦e\u0301z')
+    await tty.send('\u001b[D')
+    await tty.send('\u007f')
+    expect(input(tty.screen())).toContain('a👨‍👩‍👧‍👦')
+    expect(input(tty.screen())).not.toContain('e\u0301')
+    await tty.send('\u001b[D')
+    await tty.send('X')
+    expect(input(tty.screen())).toContain('aX')
+    await tty.send('\u001b[C')
+    await tty.send('\u007f')
+    expect(input(tty.screen())).not.toContain('👨')
+    expect(input(tty.screen())).not.toContain('\ufffd')
+    await tty.send('\u001a')
+    expect(input(tty.screen())).toContain('👨‍👩‍👧‍👦')
+  } finally { tty.unmount() }
+})
+
 it('shares undo/redo across readline deletion and new typing', async () => {
   const tty = await paintApp()
   try {

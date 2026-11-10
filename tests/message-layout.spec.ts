@@ -29,6 +29,13 @@ import {
 } from '../src/render/message-layout.ts'
 
 describe('truncate', () => {
+  it('keeps whole Unicode graphemes within the column budget', () => {
+    expect(truncate('a👨‍👩‍👧‍👦éz', 5)).toBe('a👨‍👩‍👧‍👦éz')
+    expect(truncate('a👨‍👩‍👧‍👦ézz', 5)).toBe('a👨‍👩‍👧‍👦é…')
+    expect(truncate('你好世界', 4)).toBe('你…')
+    expect(truncate('😀x', 2)).toBe('…')
+    expect(truncate('abc', 0)).toBe('')
+  })
   it('leaves text that already fits', () => {
     expect(truncate('abc', 3)).toBe('abc')
   })

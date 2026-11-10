@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { editorHistory, newEditorHistory, type EditSnapshot, type EditorAction, type EditorHistory } from '../prompt/edit-history.ts'
 import { insertTextAtCursor, removeCharBeforeCursor } from '../prompt/prompt-editing.ts'
+import { previousGrapheme } from '../core/graphemes.ts'
 
 export function useEditorHistory(initial: EditSnapshot) {
   const [state, setState] = useState(() => newEditorHistory(initial))
@@ -25,7 +26,7 @@ export function useEditorHistory(initial: EditSnapshot) {
   }, [apply])
   const backspace = useCallback(() => {
     const value = current.current.present
-    apply({ type: 'edit', snapshot: { text: removeCharBeforeCursor(value.text, value.cursor), cursor: value.cursor - 1 } })
+    apply({ type: 'edit', snapshot: { text: removeCharBeforeCursor(value.text, value.cursor), cursor: previousGrapheme(value.text, value.cursor) } })
   }, [apply])
   const restore = useCallback((saved: EditorHistory) => { current.current = saved; setState(saved) }, [])
   return { state, value: state.present.text, cursorIndex: state.present.cursor,

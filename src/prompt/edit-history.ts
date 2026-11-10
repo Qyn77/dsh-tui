@@ -1,4 +1,5 @@
 import { sameImages, type DraftImage } from '../attachments/draft-images.ts'
+import { graphemeStart } from '../core/graphemes.ts'
 /** One editor history for all prompt editing paths; clocks and I/O stay outside. */
 export interface EditSnapshot { text: string; cursor: number; images?: readonly DraftImage[] }
 export interface EditorHistory {
@@ -14,7 +15,7 @@ export type EditorAction =
   | { type: 'begin' | 'end' | 'undo' | 'redo' }
 
 function safe(snapshot: EditSnapshot): EditSnapshot {
-  return { ...snapshot, cursor: Math.max(0, Math.min(snapshot.cursor, snapshot.text.length)) }
+  return { ...snapshot, cursor: graphemeStart(snapshot.text, snapshot.cursor) }
 }
 export function newEditorHistory(snapshot: EditSnapshot): EditorHistory {
   return { present: safe(snapshot), past: [], future: [], grouping: false, grouped: false }

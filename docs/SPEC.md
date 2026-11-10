@@ -717,6 +717,10 @@ rather than a keystroke.
 
 ### 1.8 Rendering rules
 
+Prompt wrapping, cursor movement, Backspace and Vim character operations use Unicode grapheme boundaries. Emoji sequences and combining marks remain intact; buffer offsets stay UTF-16 for string slicing. Display columns use the same `string-width` 7.x rules as Ink, with a printable-ASCII fast path for large menus. Path/banner truncation, command-menu previews and tool summaries retain whole graphemes; truncation budgets count display columns.
+
+Ink 5.2.1's output grid and horizontal clipping otherwise split these graphemes. `scripts/ink-unicode.mjs` applies a version- and source-checked transform during bundling and Vitest; npm users receive the corrected renderer without modifying shared `node_modules`. Ink is pinned to 5.2.1. Yoga and React's reconciler remain external dependencies, preserving WASM loading and the React 18 runtime. An Ink upgrade must explicitly review this transform and pass the Unicode frame tests.
+
 - **Width-aware.** Layout re-measures on terminal `resize`. No hard-coded widths beyond 80 chars; long output truncates with `…` (see `truncate` in [`src/render/message-layout.ts`](./../src/render/message-layout.ts), which caps a call's subject and its result summary separately).
 - **No flicker.** Already-emitted messages are static; only the streaming assistant block, the running tool, and the StatusBar re-render.
 - **TTY required.** The runner refuses to start without a TTY and prints a one-line error to stderr. Plain pipes are not a use case. The check is the first thing `run()` in `index.ts` does — before the loader await, so it costs nothing and no Session is created. It is ours rather than Ink's on purpose: Ink reports the same condition by throwing from inside `useInput`'s *passive effect*, and `<Static>` (which the banner uses) makes React swallow errors thrown there, turning the failure into a silent hang. See Part 1 banner rule 7.
@@ -1861,6 +1865,8 @@ Two rules govern it. It **imports the real modules** (`src/terminal/theme.ts`, `
 - Pin the launcher, base bundle and dsh peer packages to the same tested release. This branch targets `0.2.1-rc.5`. Use explicit versions in both installation guides.
 
 ### 3.8 Publish flow
+
+`pack:check` executes npm through Node and its JavaScript CLI entry, including on Windows. It verifies every declared export target and relative JavaScript import against the actual tarball file list. Source subpaths are not public exports; the package ships compiled entry points, runtime chunks and declarations. Bundled Ink dependencies include their notices in `lib/THIRD-PARTY-LICENSES.txt`; the optional React DevTools import stays lazy, so normal startup does not require DevTools.
 
 ```sh
 # 1. Update version in package.json (and the lockstep dsh-* peers)

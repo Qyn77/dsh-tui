@@ -58,6 +58,7 @@ import { formatBytes } from '../render/message-layout.ts'
  */
 
 import React, { useEffect, useRef, useState, type FC } from 'react'
+import { nextGrapheme, previousGrapheme } from '../core/graphemes.ts'
 import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink'
 import { SPINNER_FRAMES } from '../hooks/useRunningClock.ts'
 import { filterCommands, type CommandMeta } from '../commands/commands.ts'
@@ -1300,11 +1301,11 @@ export const Prompt: FC<PromptProps> = ({
         return
       }
       if (key.leftArrow) {
-        setCursorIndex(i => Math.max(0, i - 1))
+        setCursorIndex(i => previousGrapheme(value, i))
         return
       }
       if (key.rightArrow) {
-        setCursorIndex(i => Math.min(value.length, i + 1))
+        setCursorIndex(i => nextGrapheme(value, i))
         return
       }
       if (key.backspace || key.delete) {

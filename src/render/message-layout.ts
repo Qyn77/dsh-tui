@@ -15,6 +15,7 @@
 import type { ContentBlock, ToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { SubCall, ToolStatus, UiEntry, WorkflowMember } from '../core/types.ts'
 import { displayWidth } from '../core/width.ts'
+import { graphemes } from '../core/graphemes.ts'
 
 /**
  * Glyph column width, in cells — the glyph plus one space.
@@ -235,14 +236,21 @@ function oneLine(text: string): string {
 }
 
 /**
- * Shorten to `max` characters, marking the cut with an ellipsis.
+ * Shorten to `max` display columns without splitting a grapheme.
  * @param text - the text to shorten.
- * @param max - the maximum length of the result, including the ellipsis.
+ * @param max - the maximum column width, including the ellipsis.
  * @returns the text unchanged when it already fits.
  */
 export function truncate(text: string, max: number): string {
-  if (text.length <= max) return text
-  return `${text.slice(0, max - 1)}…`
+  if (max <= 0) return ''
+  let width = 0
+  let prefix = ''
+  for (const char of graphemes(text)) {
+    width += displayWidth(char)
+    if (width > max) return prefix + '…'
+    if (width <= max - 1) prefix += char
+  }
+  return text
 }
 
 /**
