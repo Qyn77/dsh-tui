@@ -80,6 +80,8 @@ private Node runtime are not automatically imported or reused; see the
 
 ## Use it
 
+On Windows, startup requires Windows Terminal (`WT_SESSION`) and reports an error before taking over the screen when that marker is absent. Run PowerShell 7 there; a `DSH_TUI_TERMINAL` override changes protocol policy, not this host requirement. Windows drive/UNC image paths preserve backslashes; quote paths containing spaces.
+
 Type a message and **Enter** sends it. **Esc** cancels the running turn. **`/exit`** leaves.
 
 | | |

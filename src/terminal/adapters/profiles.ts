@@ -44,6 +44,11 @@ export interface TerminalEnvironment {
   clipboard: 'macos' | 'windows' | 'wayland' | 'x11' | 'unavailable'
 }
 
+/** Windows support requires the documented host; a protocol override is not host evidence. */
+export function supportsConsole(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): boolean {
+  return platform !== 'win32' || Boolean(env['WT_SESSION']?.trim())
+}
+
 export function detectTerminal(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): TerminalEnvironment {
   let id: TerminalId = 'generic'
   let evidence = 'fallback'

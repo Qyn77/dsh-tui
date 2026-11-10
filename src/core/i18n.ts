@@ -456,6 +456,7 @@ export interface Catalog {
   commands: Record<CommandName, string>
   /** Text a command writes into the transcript. */
   output: {
+    unsupportedWindowsConsole: string
     /** Heading above the `/help` table. */
     helpHeading: string
     /** Stand-in for a fact that could not be read. */
@@ -950,6 +951,7 @@ const EN: Catalog = {
     '/verbose': 'Expand or limit tool output',
   },
   output: {
+    unsupportedWindowsConsole: 'Windows requires PowerShell 7 in Windows Terminal; legacy or unidentified consoles are unsupported.',
     helpHeading: 'Available commands:',
     unknown: 'unknown',
     unknownCommand: 'unknown command — /help lists them',
@@ -1380,6 +1382,7 @@ const ZH: Catalog = {
     '/verbose': '展开或精简工具输出',
   },
   output: {
+    unsupportedWindowsConsole: 'Windows 请使用 Windows Terminal 中的 PowerShell 7；不支持旧式或无法识别的控制台。',
     helpHeading: '可用命令：',
     unknown: '未知',
     unknownCommand: '未知命令 —— /help 可以列出全部',

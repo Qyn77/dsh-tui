@@ -64,6 +64,42 @@ describe('tui runner apply()', () => {
     vi.restoreAllMocks()
   })
 
+  it('refuses a Windows legacy console before creating an agent or changing terminal modes', async () => {
+    const ctx = new Context()
+    const create = vi.fn()
+    ctx.provide('agentDefaultModel', {} as never)
+    ctx.provide('sessions', {} as never)
+    ctx.provide('agents', { create } as never)
+    const exit = vi.fn()
+    ctx.provide('appExit', exit)
+    let err = ''
+    internals.stderr = { write: (chunk: string) => { err += chunk } }
+    const write = vi.fn()
+    internals.stdout = { write }
+    const values = [[process, 'platform'], [process.stdin, 'isTTY'], [process.stdout, 'isTTY']] as const
+    const descriptors = values.map(([object, key]) => Object.getOwnPropertyDescriptor(object, key))
+    vi.stubEnv('WT_SESSION', '')
+    vi.stubEnv('DSH_TUI_TERMINAL', 'windows-terminal')
+    try {
+      Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true })
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true })
+      apply(ctx, {})
+      await vi.waitFor(() => { expect(exit).toHaveBeenCalledWith(1) })
+      expect(err).toContain('Windows Terminal')
+      expect(create).not.toHaveBeenCalled()
+      expect(write).not.toHaveBeenCalled()
+    } finally {
+      values.forEach(([object, key], index) => {
+        const descriptor = descriptors[index]
+        if (descriptor) Object.defineProperty(object, key, descriptor)
+        else Reflect.deleteProperty(object, key)
+      })
+      vi.unstubAllEnvs()
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('refuses to render without a TTY and routes the failure through stderr and appExit', async () => {
     // Provide a minimal set of services the runner consults before
     // inkRender is reached. The loader await returns immediately; the

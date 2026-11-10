@@ -838,6 +838,8 @@ This is also why the path resolution differs from `tui.json`'s: `/mcp add` honou
 
 ### 1.13 Attaching an image
 
+Image-path parsing preserves Windows drive and UNC separators in bare, single-quoted and double-quoted paths. Unix backslash-escaped spaces and quotes remain accepted; ordinary backslashes before path characters are literal. Paths containing spaces need quoting on Windows.
+
 An image reaches the model as an `image` content block on the user's message, carrying a durable `ImageAttachmentRef` the attachment store issued. Nothing about that path involves a terminal image protocol; Kitty, iTerm2 and sixel draw rasters in a cell grid, which is a different feature this package does not have.
 
 **Naming one.** Paths are detected in the submitted line, at submit time. Dragging a file into a terminal already produces a quoted or backslash-escaped path at the caret, so the gesture users have is the one that works; a `/attach` command would make them type the path they just dragged. Overloading `@` mentions was rejected for a narrower reason: the completion list is a filesystem picker whose write-back is `path + ' '`, and both halves would need a mode.
@@ -1849,7 +1851,7 @@ Two rules govern it. It **imports the real modules** (`src/terminal/theme.ts`, `
 ### 3.6 Platform handling
 
 - **TTY required.** Ink needs a real TTY. `run()` tests `process.stdin.isTTY` (raw mode reads keys through it) *and* `process.stdout.isTTY` (the renderer needs a column count), prints a one-line error to stderr naming which stream failed, and exits 1.
-- **Windows.** PowerShell 7 + Windows Terminal. The README documents the long-path registry key (`LongPathsEnabled = 1`).
+- **Windows.** PowerShell 7 + Windows Terminal. Before probing appearance, entering raw mode or creating an agent, startup requires a nonempty `WT_SESSION` host marker. `TERM` and `DSH_TUI_TERMINAL` protocol overrides cannot bypass this check; unknown Windows hosts fail with a localized one-line error. The marker identifies the documented host, not the parent shell version. The README documents the long-path registry key (`LongPathsEnabled = 1`).
 - **macOS / Linux.** Any ANSI-capable terminal. iTerm, Terminal.app, GNOME Terminal, Kitty, Alacritty, WezTerm all work.
 - **No `cmd.exe` / `conhost`.** They don't render Ink correctly. Document this in the README.
 - **Color.** Respect the `NO_COLOR` env var. Default to TTY detection otherwise.

@@ -60,6 +60,15 @@ describe('finding image paths', () => {
 })
 
 describe('paths a terminal produces on drag and drop', () => {
+  it.each([
+    String.raw`C:\Users\Alice\photo.png`,
+    String.raw`"C:\Users\Alice Smith\photo.png"`,
+    String.raw`'C:\Users\Alice Smith\photo.png'`,
+    String.raw`\\server\share\photo.png`,
+  ])('preserves Windows separators in %s', (input) => {
+    expect(findImageCandidates(input)[0]?.path).toBe(input.replace(/^["']|["']$/g, ''))
+  })
+
   it('reads a backslash-escaped space', () => {
     const found = findImageCandidates('look at /tmp/my\\ shot.png ok')
     expect(found.map(c => c.path)).toEqual(['/tmp/my shot.png'])

@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { detectTerminal, TERMINAL_IDS } from '../src/terminal/adapters/profiles.ts'
+import { detectTerminal, supportsConsole, TERMINAL_IDS } from '../src/terminal/adapters/profiles.ts'
 
 describe('terminal profile detection', () => {
+  it('rejects unknown Windows consoles even when a protocol profile is forced', () => {
+    expect(supportsConsole({}, 'win32')).toBe(false)
+    expect(supportsConsole({ TERM: 'xterm', DSH_TUI_TERMINAL: 'windows-terminal' }, 'win32')).toBe(false)
+    expect(supportsConsole({ WT_SESSION: '1' }, 'win32')).toBe(true)
+    expect(supportsConsole({}, 'darwin')).toBe(true)
+    expect(supportsConsole({}, 'linux')).toBe(true)
+  })
   const cases = [
     ['apple', { TERM_PROGRAM: 'Apple_Terminal' }], ['vscode', { TERM_PROGRAM: 'vscode', WT_SESSION: 'inherited' }],
     ['iterm2', { TERM_PROGRAM: 'iTerm.app' }], ['windows-terminal', { WT_SESSION: '1' }],

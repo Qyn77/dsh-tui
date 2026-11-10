@@ -62,24 +62,28 @@ interface Token {
  * Split a line into whitespace-delimited tokens, honouring the three ways a
  * terminal may deliver a path that contains a space.
  *
- * Quotes and backslashes are consumed as syntax wherever they appear, including
- * mid-token — `foo"bar baz".png` is one token, which is what a shell would say
- * too. A trailing lone backslash is kept as a literal character rather than
- * escaping the end of input, because it is far more likely to be a Windows path
- * fragment than an unfinished escape.
+ * Quotes may occur mid-token: `foo"bar baz".png` is one token. Drive and UNC
+ * paths retain every separator. Elsewhere a backslash escapes whitespace or
+ * quotes (and quote/backslash inside double quotes); ordinary path characters
+ * and a trailing lone backslash remain literal.
  */
 function tokenize(text: string): Token[] {
   const tokens: Token[] = []
   let value = ''
   let start = -1
   let quote: '"' | "'" | undefined
+  let windowsPath = false
 
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i] ?? ''
+    if (start < 0 && !/\s/.test(ch)) {
+      const pathStart = ch === '"' || ch === "'" ? i + 1 : i
+      windowsPath = /^(?:[a-z]:\\|\\\\)/i.test(text.slice(pathStart))
+    }
     if (quote !== undefined) {
       if (ch === quote) quote = undefined
       // A backslash inside single quotes is literal, as in a shell.
-      else if (ch === '\\' && quote === '"' && i + 1 < text.length) {
+      else if (ch === '\\' && !windowsPath && quote === '"' && /["\\]/.test(text[i + 1] ?? '')) {
         i += 1
         value += text[i] ?? ''
       } else value += ch
@@ -90,7 +94,7 @@ function tokenize(text: string): Token[] {
       quote = ch
       continue
     }
-    if (ch === '\\' && i + 1 < text.length) {
+    if (ch === '\\' && !windowsPath && /[\s"'\\]/.test(text[i + 1] ?? '')) {
       if (start < 0) start = i
       i += 1
       value += text[i] ?? ''

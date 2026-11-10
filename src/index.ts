@@ -3,6 +3,8 @@ import { watchContextRequests } from './commands/context-view.ts'
 import { createTerminalHandoff } from './terminal/handoff.ts'
 import { editExternal, type EditExternally } from './terminal/external-editor.ts'
 import { createTerminalService } from './terminal/adapters/service.ts'
+import { supportsConsole } from './terminal/adapters/profiles.ts'
+import { catalog } from './core/i18n.ts'
 /**
  * The TUI runner Cordis plugin. It waits for the Loader to settle, creates
  * one long-lived Agent, and renders the Ink application. The Ink app drives
@@ -116,6 +118,9 @@ async function run(ctx: Context, config: Config): Promise<void> {
   // `/theme` and `/history` write it back out. It has moved up here because
   // the theme decides whether the appearance probe runs at all.
   const { language, theme, history, keybinds, mouse = 'auto', notifications = 'off' } = readSettings()
+  if (!supportsConsole(process.env, process.platform)) {
+    throw new Error(catalog(language).output.unsupportedWindowsConsole)
+  }
   // Asked here and read just before `render()`, with the loader await, the
   // resume plan, and agent creation in between — so the terminal's round trip
   // overlaps work that was happening anyway and costs the boot nothing. It has
