@@ -6,6 +6,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { tmpdir } from 'node:os'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { runShellCommand } from '../src/shell/shell-runner.ts'
 
 /** A command that runs the given JS in a child Node, quoted for either shell. */
@@ -84,6 +86,71 @@ describe('runShellCommand', () => {
     expect(result.aborted).toBe(true)
     expect(result.timedOut).toBe(false)
   })
+
+  it('does not start a command when its signal was already aborted', async () => {
+    const result = await runShellCommand({ command: node("process.stdout.write('should not run')"),
+      cwd, signal: AbortSignal.abort() })
+    expect(result.aborted).toBe(true)
+    expect(result.output).toBe('')
+    expect(result.exitCode).toBeNull()
+  })
+
+  it.each(['timeout', 'abort'] as const)('terminates descendants of a compound command on %s', async (reason) => {
+    const controller = new AbortController()
+    const start = performance.now()
+    // A second command prevents the shell from replacing itself with Node.
+    const pending = runShellCommand({
+      command: `${node("setTimeout(()=>process.stdout.write('survived'),3000)")} && ${node("process.stdout.write('later')")}`,
+      cwd, timeoutMs: reason === 'timeout' ? 300 : 5000, signal: controller.signal,
+    })
+    const timer = reason === 'abort' ? setTimeout(() => { controller.abort() }, 300) : undefined
+    try {
+      const result = await pending
+      expect(performance.now() - start).toBeLessThan(2500)
+      expect(result.output).not.toContain('survived')
+      expect(result[reason === 'timeout' ? 'timedOut' : 'aborted']).toBe(true)
+    } finally { clearTimeout(timer) }
+  })
+
+  it.skipIf(process.platform === 'win32')('force-kills a detached-output descendant after the shell has closed', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-shell-tree-'))
+    const script = join(directory, 'tree.cjs')
+    const ready = join(directory, 'ready')
+    const survived = join(directory, 'survived')
+    const controller = new AbortController()
+    let descendant: number | undefined
+    let pending: ReturnType<typeof runShellCommand> | undefined
+    try {
+      await writeFile(script, `const fs = require('node:fs');
+if (process.argv[2] === 'child') {
+  process.on('SIGTERM', () => {});
+  fs.writeFileSync(${JSON.stringify(ready)}, String(process.pid));
+  setTimeout(() => { fs.writeFileSync(${JSON.stringify(survived)}, 'alive'); }, 2700);
+  setTimeout(() => process.exit(), 4000);
+} else {
+  require('node:child_process').spawn(process.execPath, [__filename, 'child'], { stdio: 'ignore' });
+  setTimeout(() => {}, 5000);
+}`)
+      pending = runShellCommand({ command: `"${process.execPath}" "${script}"`, cwd,
+        signal: controller.signal, timeoutMs: 6000 })
+      // Readiness observes the child's installed signal handler, not an arbitrary sleep.
+      const deadline = Date.now() + 3000
+      while (Date.now() < deadline) {
+        try { descendant = Number(await readFile(ready, 'utf8')); break } catch { await new Promise(resolve => setTimeout(resolve, 20)) }
+      }
+      expect(descendant).toBeGreaterThan(0)
+      controller.abort()
+      const result = await pending
+      expect(result.aborted).toBe(true)
+      await new Promise(resolve => setTimeout(resolve, 2900))
+      await expect(readFile(survived, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      controller.abort()
+      await pending
+      if (descendant) { try { process.kill(descendant, 'SIGKILL') } catch { /* Already terminated. */ } }
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 10000)
 
   it('truncates past the byte cap without faking an exit status', async () => {
     const result = await runShellCommand({

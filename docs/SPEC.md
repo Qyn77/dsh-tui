@@ -1978,8 +1978,12 @@ and subshells in order to guess which half to keep.
   from the lines that explain them.
 - Shell: `$SHELL` or `/bin/sh` with `-c`; on Windows `%ComSpec%` or `cmd.exe`
   with `/d /s /c`.
-- Timeout `SHELL_TIMEOUT_MS` (120s): `SIGTERM`, then `SIGKILL` after a grace
-  period. Ctrl-C aborts the same way, and outranks both the turn-cancel and the
+- Timeout `SHELL_TIMEOUT_MS` (120s): POSIX commands have a separate process group,
+  signalled with `SIGTERM`, then `SIGKILL` after 2 seconds, including same-group
+  descendants after the shell closes. Windows terminates the tree with
+  `taskkill /T /F` before the parent can be orphaned. A request already aborted
+  never starts a subprocess. Independently daemonized processes are outside the
+  POSIX process-group guarantee. Ctrl-C aborts the same way, and outranks both the turn-cancel and the
   exit branches of the interrupt dispatch — a `!` command can only be submitted
   while the agent is idle, so the two are never both running.
 - Output cap `SHELL_MAX_BYTES` (128 KiB), measured in UTF-8 bytes because that

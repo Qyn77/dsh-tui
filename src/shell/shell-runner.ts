@@ -82,6 +82,10 @@ export function runShellCommand(options: RunShellOptions): Promise<ShellResult> 
     signal,
   } = options
 
+  if (signal?.aborted) return Promise.resolve({
+    output: '', exitCode: null, timedOut: false, aborted: true, truncated: false,
+  })
+
   return new Promise<ShellResult>((settle) => {
     const { file, args } = shellFor()
     const child = spawn(file, [...args, command], {
@@ -89,6 +93,8 @@ export function runShellCommand(options: RunShellOptions): Promise<ShellResult> 
       // stdin ignored on purpose — see the module note.
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      // A separate POSIX process group lets cancellation reach the shell's descendants.
+      detached: process.platform !== 'win32',
     })
 
     const chunks: Buffer[] = []
@@ -97,6 +103,9 @@ export function runShellCommand(options: RunShellOptions): Promise<ShellResult> 
     let timedOut = false
     let aborted = false
     let done = false
+    let stopping = false
+    let stopped = true
+    let outcome: { exitCode: number | null; exitSignal: string | null } | undefined
 
     /**
      * Stop accumulating at the cap but let the command run to its own end. A
@@ -116,10 +125,38 @@ export function runShellCommand(options: RunShellOptions): Promise<ShellResult> 
     child.stderr.on('data', collect)
 
     let killTimer: NodeJS.Timeout | undefined
+    const signalGroup = (value: NodeJS.Signals | 0): boolean => {
+      if (!child.pid) return false
+      try { process.kill(-child.pid, value); return true }
+      catch { return false }
+    }
+    const stoppedTree = (): void => {
+      stopped = true
+      if (outcome) finish(outcome.exitCode, outcome.exitSignal)
+    }
     const kill = (): void => {
-      child.kill('SIGTERM')
-      killTimer = setTimeout(() => child.kill('SIGKILL'), KILL_GRACE_MS)
-      killTimer.unref()
+      if (stopping || done) return
+      stopping = true
+      clearTimeout(timer)
+      if (!child.pid) return
+      stopped = false
+      if (process.platform === 'win32') {
+        // Killing the shell first would orphan its descendants before taskkill finds them.
+        const killer = spawn('taskkill.exe', ['/pid', String(child.pid), '/T', '/F'],
+          { stdio: 'ignore', windowsHide: true, timeout: 10_000 })
+        killer.once('error', (error) => {
+          chunks.push(Buffer.from(`${error.message}\n`, 'utf8'))
+          child.kill('SIGKILL')
+        })
+        killer.once('close', (code) => {
+          if (code !== 0) child.kill('SIGKILL')
+          stoppedTree()
+        })
+      } else {
+        signalGroup('SIGTERM')
+        // Keep escalation alive even if the shell closes its pipes first.
+        killTimer = setTimeout(() => { signalGroup('SIGKILL'); stoppedTree() }, KILL_GRACE_MS)
+      }
     }
 
     const timer = setTimeout(() => {
@@ -129,6 +166,7 @@ export function runShellCommand(options: RunShellOptions): Promise<ShellResult> 
     timer.unref()
 
     const onAbort = (): void => {
+      if (stopping || done) return
       aborted = true
       kill()
     }
@@ -138,6 +176,12 @@ export function runShellCommand(options: RunShellOptions): Promise<ShellResult> 
       // `error` and `close` can both fire (a killed child errors then closes),
       // and only the first outcome is the true one.
       if (done) return
+      outcome = { exitCode, exitSignal }
+      if (!stopped && process.platform !== 'win32' && !signalGroup(0)) {
+        clearTimeout(killTimer)
+        stopped = true
+      }
+      if (!stopped) return
       done = true
       clearTimeout(timer)
       if (killTimer !== undefined) clearTimeout(killTimer)
@@ -158,5 +202,6 @@ export function runShellCommand(options: RunShellOptions): Promise<ShellResult> 
       finish(null, null)
     })
     child.on('close', finish)
+    if (signal?.aborted) onAbort()
   })
 }
